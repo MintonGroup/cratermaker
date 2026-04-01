@@ -10,7 +10,7 @@ The base classes define common methods and attributes that are shared across all
 CommonArgs
 **********
 
-The `CommonArgs` class defines a set of common arguments that can be passed to any components. This is used to pass arguments to different components when they are created as part of a :py:class:`~cratermaker.core.simulation.Simulation` object.
+The `CommonArgs` class defines a set of common arguments that can be passed to any components. This is used to pass arguments to different components when they are created as part of a |Simulation| object.
 
 .. autoclass:: cratermaker.core.base.CommonArgs
     :members:

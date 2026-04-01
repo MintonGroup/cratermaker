@@ -2,18 +2,21 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import root_scalar
 
+from cratermaker.components.crater import Crater
 from cratermaker.components.target import Target
-from cratermaker.constants import FloatLike, PairOfFloats
+from cratermaker.constants import _DSTD, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, import_components
 from cratermaker.utils import montecarlo_utils as mc
-from cratermaker.utils.general_utils import parameter
+from cratermaker.utils.general_utils import format_large_units, parameter
+from cratermaker.utils.montecarlo_utils import bounded_norm
 
 
 class Production(ComponentBase):
@@ -25,6 +28,11 @@ class Production(ComponentBase):
 
     def __init__(
         self,
+        quasimc_file: str | Path | None = None,
+        quasimc_craters: list[Crater] | None = None,
+        diameter_range: PairOfFloats | None = None,
+        N_conversion_factor: float | None = None,
+        D_conversion_factor: float | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -35,6 +43,16 @@ class Production(ComponentBase):
 
         Parameters
         ----------
+        quasimc_file : str | Path, optional
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
+        quasimc_craters : list[Crater], optional
+            A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
+        N_conversion_factor : float, optional
+            The conversion factor to apply to the N values in the quasi-Monte Carlo data to convert them to units of number per m².  The default is 1e12, which represents number of craters per 10⁶ km²
+        D_conversion_factor : float, optional
+            The conversion factor to apply to the D values in the quasi-Monte Carlo data to convert them to units of meters. The default is 1e3, which represents diameters in km.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -46,16 +64,47 @@ class Production(ComponentBase):
         """
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
+        object.__setattr__(self, "_quasimc_file", None)
+        object.__setattr__(self, "_quasimc_craters", None)
+        object.__setattr__(self, "_N_conversion_factor", None)
+        object.__setattr__(self, "_D_conversion_factor", None)
+        object.__setattr__(self, "_diameter_range", None)
+        self.diameter_range = diameter_range
+
+        if quasimc_file is not None and quasimc_craters is not None:
+            raise ValueError("Cannot provide both quasimc_file and quasimc_craters")
+
+        if quasimc_file is not None:
+            if Path(quasimc_file).exists():
+                self.read_quasimc_file(filename=quasimc_file, **kwargs)
+            else:
+                raise FileNotFoundError(f"quasimc_file {quasimc_file} not found")
+        elif quasimc_craters is not None:
+            self.quasimc_craters = quasimc_craters
+        self.N_conversion_factor = N_conversion_factor
+        self.D_conversion_factor = D_conversion_factor
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return f"{base}\nGenerator type: {self.generator_type}"
+        str_repr = super().__str__()
+        str_repr += f"Generator type {self.generator_type}\n"
+        str_repr += f"Diameter range: {format_large_units(self.diameter_range[0], quantity='length')} to {format_large_units(self.diameter_range[1], quantity='length')}\n"
+        str_repr += f"N(D) units: {self.N_D_units}\n"
+        if self.quasimc_file is not None:
+            str_repr += "Quasi-Monte Carlo file: {self.quasimc_file}\n"
+        if self.quasimc_craters is not None:
+            str_repr += f"Number of quasi-Monte Carlo craters: {len(self.quasimc_craters)}\n"
+        return str_repr
 
     @classmethod
     def maker(
         cls,
         production: str | Production | None = None,
         target: Target | str | None = None,
+        quasimc_file: str | Path | None = None,
+        quasimc_craters: list[Crater] | None = None,
+        diameter_range: PairOfFloats | None = None,
+        N_conversion_factor: float | None = None,
+        D_conversion_factor: float | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -71,6 +120,16 @@ class Production(ComponentBase):
             If None, the default production model is "neukum" and the version is based on the target (if provided), either Moon, Mars, or Projectile for all other bodies. Default is "Moon"
         target : Target | str | None, optional
             The target body for the impact. Can be a Target object or a string representing the target name.
+        quasimc_file : str | Path, optional
+            Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
+        quasimc_craters : list[Crater], optional
+            A list of Crater objects that are emplaced using the quasi-Monte Carlo method. This is an alternative to providing a quasimc_file. Only one of either quasimc_file or quasimc_craters should be provided.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the default is (0, inf), unless quasimc_file or quasimc_craters is provided, in which case the upper range will be set based on the smallest diameter in the quasi-Monte Carlo data.
+        N_conversion_factor : float, optional
+            The conversion factor to apply to the N values in the quasi-Monte Carlo data to convert them to units of number per m².  The default is 1e12, which represents number of craters per 10⁶ km²
+        D_conversion_factor : float, optional
+            The conversion factor to apply to the D values in the quasi-Monte Carlo data to convert them to units of meters. The default is 1e3, which represents diameters in km.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -103,25 +162,28 @@ class Production(ComponentBase):
             production = production.lower()
             if production == "neukum":
                 set_version = True
-        elif isinstance(production, Production) and production.name.lower() == "neukum":
-            set_version = True
+            if set_version:
+                version = kwargs.pop("version", None)
+                target = Target.maker(target, **kwargs)
+                if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
+                    production = "neukum"
+                    if version is None or version != "projectile":
+                        if target.name in ["Moon", "Mars"]:
+                            version = target.name
+                        else:
+                            version = "projectile"
+                else:
+                    production = "powerlaw"
 
-        if set_version:
-            version = kwargs.pop("version", None)
-            target = Target.maker(target, **kwargs)
-            if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
-                production = "neukum"
-                if version is None or version != "projectile":
-                    if target.name in ["Moon", "Mars"]:
-                        version = target.name
-                    else:
-                        version = "projectile"
-            else:
-                production = "powerlaw"
         return super().maker(
             component=production,
             version=version,
             target=target,
+            quasimc_file=quasimc_file,
+            quasimc_craters=quasimc_craters,
+            diameter_range=diameter_range,
+            N_conversion_factor=N_conversion_factor,
+            D_conversion_factor=D_conversion_factor,
             rng=rng,
             rng_seed=rng_seed,
             rng_state=rng_state,
@@ -157,8 +219,8 @@ class Production(ComponentBase):
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
             value to a corresponding reference age and use the production function for a given age.
-        diameter_range : PairOfFloats
-            The minimum and maximum crater diameter to sample from in meters.
+        diameter_range : PairOfFloats, optional
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range` value will be used.
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
@@ -175,8 +237,6 @@ class Production(ComponentBase):
             The sampled age values if return_age is True, otherwise None.
 
         """
-        if "age" in kwargs:
-            time_start = kwargs.pop("age")
         arguments = {
             "time_start": time_start,
             "time_end": time_end,
@@ -220,7 +280,7 @@ class Production(ComponentBase):
             time_subinterval = np.linspace(time_end, time_start, num=1000)
             N_vs_age = self.function(
                 diameter=diameters,
-                age=time_subinterval,
+                time_start=time_subinterval,
                 validate_inputs=validate_inputs,
                 **kwargs,
             )
@@ -314,9 +374,9 @@ class Production(ComponentBase):
                 diameter=diameter, cumulative_number_density=cumulative_number_density
             )
 
-        def _root_func(t, D, N):
+        def _root_func(t, d, n):
             kwargs.pop("validate_inputs", None)
-            retval = self.function(diameter=D, time_start=t, validate_inputs=False, **kwargs) - N
+            retval = self.function(diameter=d, time_start=t, validate_inputs=False, **kwargs) - n
             return retval
 
         xtol = 1e-8
@@ -336,7 +396,7 @@ class Production(ComponentBase):
         flag = []
         for i, d in np.ndenumerate(darr):
             sol = root_scalar(
-                lambda x: _root_func(x, d, narr[i]),
+                lambda t, d=d, n_i=narr[i]: _root_func(t, d, n_i),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -389,17 +449,17 @@ class Production(ComponentBase):
         if validate_inputs:
             time_start, time_end = self._validate_age(time_start, time_end)
 
-        def _root_func(D, N, time_start, time_end):
+        def _root_func(d, n, time_start, time_end):
             kwargs.pop("validate_inputs", None)
             retval = (
                 self.function(
-                    diameter=D,
+                    diameter=d,
                     time_start=time_start,
                     time_end=time_end,
                     validate_inputs=False,
                     **kwargs,
                 )
-                - N
+                - n
             )
             return retval
 
@@ -413,7 +473,7 @@ class Production(ComponentBase):
         flag = []
         for _, n in np.ndenumerate(narr):
             sol = root_scalar(
-                lambda x: _root_func(x, n, time_start, time_end),
+                lambda d, n=n: _root_func(d, n, time_start, time_end),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -506,7 +566,9 @@ class Production(ComponentBase):
         Parameters
         ----------
         time_start : FloatLike, optional
-            The starting time in units of My relative to the present, which is used to compute the
+            The starting time in units of My relative to the present, which is used to compute the cumulative SFD.
+        age : FloatLike, optional
+            The starting time in units of My relative to the present, which is used to compute the cumulative SFD (a substitute for time_start).
         time_end, FloatLike, optional
             The ending time in units of My relative to the present, which is used to compute the cumulative SFD.
             The default is 0 (present day).
@@ -519,7 +581,11 @@ class Production(ComponentBase):
             projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding time_end
             and use the production function for a given age. The default is (1000.0, 0) (present day).
         diameter_range : PairOfFloats
-            The minimum and maximum crater diameter to sample from in meters.
+            The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range`
+        N_D : PairOfFloats
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample
+        N_D_end : PairOfFloats
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample.
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
@@ -553,7 +619,6 @@ class Production(ComponentBase):
             - The time_end argument is provided but is not a scalar.
             - The diameter_number argument is not a pair of values, or any of them are less than 0
             - The diameter_number_end argument is not a pair of values, or any of them are less than 0
-            - The diameter_range is not provided.
             - The diameter_range is not a pair of values.
             - The minimum diameter is less than or equal to 0.
             - The maximum diameter is less than or equal the minimum.
@@ -565,9 +630,24 @@ class Production(ComponentBase):
             kwargs["time_start"] = age
         time_start = kwargs.get("time_start")
         time_end = kwargs.get("time_end")
+        N_D = kwargs.pop("N_D", None)
+        N_D_end = kwargs.pop("N_D_end", None)
+        if N_D is not None:
+            if time_start is not None:
+                raise ValueError("Cannot provide both N_D and time_start")
+            time_start = self.age_from_D_N(
+                diameter=N_D[0] * self.D_conversion_factor, cumulative_number_density=N_D[1] * self.N_conversion_factor
+            )
+
+        if N_D_end is not None:
+            if time_end is not None:
+                raise ValueError("Cannot provide both N_D_end and time_end")
+            time_end = self.age_from_D_N(
+                diameter=N_D_end[0] * self.D_conversion_factor, cumulative_number_density=N_D_end[1] * self.N_conversion_factor
+            )
         diameter_number = kwargs.get("diameter_number")
         diameter_number_end = kwargs.get("diameter_number_end")
-        diameter_range = kwargs.get("diameter_range")
+        diameter_range = kwargs.pop("diameter_range", self.diameter_range)
         area = kwargs.get("area")
         return_age = kwargs.get("return_age", True)
 
@@ -582,8 +662,6 @@ class Production(ComponentBase):
         if time_end is not None and not np.isscalar(time_end):
             raise ValueError("The 'time_end' must be a scalar")
 
-        if diameter_range is None:
-            raise ValueError("The 'diameter_range' must be provided")
         if len(diameter_range) != 2:
             raise ValueError("The 'diameter_range' must be a pair of values")
         if diameter_range[0] <= 0:
@@ -594,7 +672,7 @@ class Production(ComponentBase):
             )
 
         if area is None:
-            raise ValueError("The 'area' must be provided")
+            area = 1.0
         else:
             if not np.isscalar(area):
                 raise ValueError("The 'area' must be a scalar")
@@ -610,7 +688,7 @@ class Production(ComponentBase):
         else:
             diameter_number_density = (
                 _REF_DIAM,
-                self.function(diameter=_REF_DIAM, age=time_start),
+                self.function(diameter=_REF_DIAM, time_start=time_start),
             )
             diameter_number = (
                 diameter_number_density[0],
@@ -660,7 +738,7 @@ class Production(ComponentBase):
             )
 
         if not isinstance(return_age, bool):
-            raise ValueError("The 'return_age' argument must be a boolean")
+            raise TypeError("The 'return_age' argument must be a boolean")
 
         kwargs["time_start"] = time_start
         kwargs["time_end"] = time_end
@@ -716,7 +794,7 @@ class Production(ComponentBase):
                     f"time_start must be less than the maximum valid time {self.valid_time[1]} (it is in units of My before present)"
                 )
         else:
-            if isinstance(time_start, (list, tuple)):
+            if isinstance(time_start, (list, tuple, ArrayLike)):
                 time_start = np.array(time_start, dtype=np.float64)
             elif not isinstance(time_start, np.ndarray):
                 raise TypeError("time_start must be a numeric value (float or int) or an array")
@@ -725,7 +803,7 @@ class Production(ComponentBase):
                 time_end = np.zeros_like(time_start, dtype=np.float64)
             elif np.isscalar(time_end):
                 time_end = np.full_like(time_start, time_end, dtype=np.float64)
-            elif isinstance(time_end, (list, tuple)):
+            elif isinstance(time_end, (list, tuple, ArrayLike)):
                 time_end = np.array(time_end, dtype=np.float64)
             elif not isinstance(time_end, np.ndarray):
                 raise TypeError("time_end must be a numeric value (float or int) or an array")
@@ -748,6 +826,373 @@ class Production(ComponentBase):
                     )
 
         return time_start, time_end
+
+    def quasimc_merge(
+        self,
+        craters: list[Crater],
+        time_start: float | None = None,
+        time_end: float | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
+        **kwargs,
+    ):
+        """
+        Merge a randomly-generated list of craters with the quasi-Monte Carlo craters over a given time interval.
+
+        """
+        arguments = {
+            "time_start": time_start,
+            "time_end": time_end,
+            "N_D": N_D,
+            "N_D_end": N_D_end,
+            **kwargs,
+        }
+        arguments = self._validate_sample_args(**arguments)
+        time_start = arguments["time_start"]
+        time_end = arguments["time_end"]
+
+        if self.quasimc_craters is not None:
+            qmclist = [c for c in self.quasimc_craters if c.time <= time_start and c.time > time_end]
+            # First we'll compare the two lists of craters against their diameters from smallest to largest. For each random crater that is larger than the smallest remaining qmc crater, put the qmc crater in its place in the final list, and continue until all qmc craters are in the merge list.
+            qmclist.sort(key=lambda c: c.diameter, reverse=True)
+            craters.sort(key=lambda c: c.diameter, reverse=False)
+            merged = []
+            qidx = len(qmclist) - 1
+            for c in craters:
+                if qidx >= 0:
+                    qmc = qmclist[qidx]
+                    if c.diameter < qmc.diameter:
+                        merged.append(c)
+                    else:
+                        merged.append(qmc)
+                        qidx -= 1
+                else:
+                    merged.append(c)
+            if qidx >= 0:
+                merged += qmclist[0 : qidx + 1]
+            craters = merged
+        craters.sort(key=lambda c: c.time, reverse=True)
+        return craters
+
+    def _process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
+        """
+        Process a list of quasi-Monte Carlo craters to set their emplacement time using computing production_ND, production_time, and/or production_sequence if present, and will drop craters that have no production metadata.
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            The list of Crater objects to process.
+
+        Returns
+        -------
+        list[Crater]
+            The list of processed Crater objects with their emplacement time set, and any craters without production metadata dropped.
+        """
+
+        def _draw_quasimc_time(
+            crater: Crater,
+            sequence_extents: dict[int, float] | None = None,
+        ) -> float | None:
+            """Draw one time sample for a crater, or None if no production metadata."""
+            if sequence_extents is not None:
+                s = crater.production_sequence
+                seq_nlo, seq_nhi = sequence_extents[s]
+                seq_nlo = max(seq_nlo, 0.0)
+                seq_nmean = (seq_nlo + seq_nhi) / 2
+                seq_nsig = (seq_nhi - seq_nlo) / 2
+                if seq_nsig / seq_nmean < 1e-12:  # Prevents an error when the bounds are too tight
+                    seq_nsig = 0.0
+                seq_tlo = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nlo)
+                seq_thi = self.age_from_D_N(diameter=_DSTD, cumulative_number_density=seq_nhi)
+                seq_tmean = (seq_tlo + seq_thi) / 2
+                seq_tsig = (seq_thi - seq_tlo) / 2
+                if seq_tsig / seq_tmean < 1e-12:  # Prevents an error when the bounds are too tight
+                    seq_tsig = 0.0
+            else:
+                s = None
+
+            has_sequence = s is not None and sequence_extents is not None
+
+            if crater.production_ND is None and crater.production_time is None:
+                if not has_sequence:
+                    raise ValueError(
+                        "Craters without production_time or production_ND need a production_sequence and sequence_extents"
+                    )
+
+                if seq_nsig > 0.0:
+                    nval = bounded_norm(loc=seq_nmean, scale=seq_nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
+                else:
+                    nval = seq_nmean
+                nval = max(nval, 0.0)
+                return float(self.age_from_D_N(diameter=_DSTD, cumulative_number_density=nval))
+            elif crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                # N(D) values take precedence over time values
+                prod_diam, nmean, nsig = crater.production_ND
+                prod_diam *= 1e3
+                nmean /= self.N_conversion_factor
+                nsig /= self.N_conversion_factor
+                # Convert from N(prod_diam) to N(1) for alignment
+                fac = self.csfd(_DSTD) / self.csfd(prod_diam)
+                nmean *= fac
+                nsig *= fac
+                if has_sequence:
+                    if nsig > 0 and seq_nsig > 0.0:
+                        nval = bounded_norm(loc=nmean, scale=nsig, lower_bound=seq_nlo, upper_bound=seq_nhi, rng=self.rng)
+                    else:
+                        nval = max(min(nmean, seq_nhi), seq_nlo)
+                else:
+                    nval = self.rng.normal(loc=nmean, scale=nsig) if nsig > 0 else nmean
+                nval = max(0.0, nval)
+                return float(self.age_from_D_N(diameter=_DSTD, cumulative_number_density=nval))
+            elif crater.production_time is not None and crater.production_time != [None, None]:
+                tmean, tsig = crater.production_time
+                if has_sequence:
+                    if tsig > 0 and seq_tsig > 0.0:
+                        t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng)
+                    else:
+                        t = max(min(tmean, seq_thi), seq_tlo)
+                else:
+                    t = self.rng.normal(loc=tmean, scale=tsig) if tsig > 0 else tmean
+                max(t, 0.0)
+                return float(t)
+            else:
+                return None
+
+        def _sequence_is_consistent(
+            times_by_idx: dict[int, float],
+            sequence_groups: dict[int, list[int]],
+        ) -> bool:
+            """
+            For increasing tag value, times must strictly decrease: sequence(a) < sequence(b)  ==>  time(a) > time(b).
+            """
+            if any(t is None for t in times_by_idx.values()):
+                return False
+            ordered_sequence = sorted(sequence_groups.keys())[:-1]
+            for t_lo, t_hi in zip(ordered_sequence[:-1], ordered_sequence[1:], strict=True):
+                lo_min = min(
+                    times_by_idx[i] for i in sequence_groups[t_lo]
+                )  # all lower-sequence times must exceed higher-sequence times
+                hi_max = max(times_by_idx[i] for i in sequence_groups[t_hi])
+                if not (lo_min >= hi_max):
+                    return False
+            return True
+
+        def _get_sequence_extents(valid_craters: list[Crater], sequence_groups: dict[int, list[int]]) -> dict[int, float]:
+            """
+            Determine the N(1) extents of each sequence number from the provided production metadata.
+
+            Parameters
+            ----------
+            valid_craters : list[Crater]
+                The list of Crater objects to process
+            sequence_groups : dict[int, list[int]]
+                A dictionary with each key being a sequence number and the values are lists of indices to the entries in the valid_craters list. It is assumed that the sequence_groups are ordered by key so that the first entry is the lowest sequence number
+
+            Returns
+            -------
+            sequence_extents : dict[int, float]
+                A dictionary with each key being a sequence number and values are tuples with the upper and lower N(1) extent of the associated sequence
+            """
+            if len(sequence_groups) == 0:
+                return {}
+            # First go through the sequence groups and get their production time/N(D) metadata, converting time values to N(1) values
+            sequence_extents: dict[int, float] = {}
+            nvals = {}
+            nsigvals = {}
+            sequence_numbers = list(sequence_groups.keys())
+            lowest_sequence_number = sequence_numbers[0]
+            highest_sequence_number = sequence_numbers[-1]
+
+            for s, idxs in sequence_groups.items():
+                n = []
+                sig = []
+                for i in idxs:
+                    crater = valid_craters[i]
+                    if crater.production_ND is not None and crater.production_ND != [None, None, None]:
+                        prod_diam, nmean, nstdev = crater.production_ND
+                        prod_diam *= 1e3
+                        nmean /= self.N_conversion_factor
+                        nstdev /= self.N_conversion_factor
+                        # Convert from N(prod_diam) to N(1) for alignment
+                        fac = self.csfd(_DSTD) / self.csfd(prod_diam)
+                        nmean *= fac
+                        nstdev *= fac
+                        n.append(nmean)
+                        sig.append(nstdev)
+                    elif crater.production_time is not None and crater.production_time != [None, None]:
+                        # Time doesn't map linearly with N(1), but to keep things consistent here for computing sequence boundaries we will convert the upper/lower 1 sigma bounds of production_time into upper/lower 1 sigma bounds on N(1). Later, craters with production_time+/-production_time_stdev values will be drawn using time-based values
+                        tmean, tstdev = crater.production_time
+                        tlo = max(tmean - tstdev, 0.0)
+                        thi = tmean + tstdev
+                        nlo = self.function(diameter=_DSTD, time_start=tlo)
+                        nhi = self.function(diameter=_DSTD, time_start=thi)
+                        nmean = (nhi + nlo) / 2
+                        nstdev = (nhi - nlo) / 2
+                        n.append(nmean)
+                        sig.append(nstdev)
+                if len(n) > 0:
+                    sig = np.sqrt(np.sum([u**2 for u in sig])) / len(n)
+                    n = np.mean(n)
+                    nvals[s] = n
+                    nsigvals[s] = sig
+                else:
+                    # Verify that the first entry has valid production metadata, otherwise we have no way to anchor the sequences to values of N(1)
+                    if s == lowest_sequence_number:
+                        raise ValueError(
+                            "At least one crater with the lowest production_sequence number must have either a production_time or production_ND value"
+                        )
+                    elif s == highest_sequence_number:
+                        nvals[s] = 0.0
+                        nsigvals[s] = 0.0
+                    else:
+                        # Hold off on calculating the empty slots until all of the sequence numbers with production metadata have been computed
+                        nvals[s] = None
+                        nsigvals[s] = 0.0
+
+            # Linearlly interpolate using the N(1) vs sequence_number value to compute the mean N(1) value for any that doen't have one
+            empties = [s for s in sequence_numbers if nvals[s] is None]
+            filled = [s for s in sequence_numbers if nvals[s] is not None]
+            for s in empties:
+                nvals[s] = np.interp(s, xp=filled, fp=[nvals[s] for s in filled])
+
+            # Iteratively compute upper and lower extents until there is no overlap between any sequences
+            for _ in range(10):
+                for i, s in enumerate(sequence_numbers):
+                    n = nvals[s]
+                    sig = nsigvals[s]
+                    nlo = max(n - sig, 0.0)
+                    nhi = n + sig
+                    if s != lowest_sequence_number:
+                        sprev = sequence_numbers[i - 1]
+                        nloprev = max(nvals[sprev] - nsigvals[sprev], 0.0)
+                        nhi += (nloprev - nhi) / 2
+                    if s != highest_sequence_number:
+                        snext = sequence_numbers[i + 1]
+                        nhinext = nvals[snext] + nsigvals[snext]
+                        nlo += (nhinext - nlo) / 2
+                        nlo = max(nlo, 0.0)
+                    if nlo > nhi:
+                        tmp = nlo
+                        nlo = nhi
+                        nhi = tmp
+                    sequence_extents[s] = (float(nlo), float(nhi))
+
+                # Ensure that all boundaries are consistent such that nlo of one sequences is the same value as nhi of the next
+                for i, s in enumerate(sequence_numbers):
+                    nlo, nhi = sequence_extents[s]
+                    if s != lowest_sequence_number:
+                        sprev = sequence_numbers[i - 1]
+                        nlo_prev, nhi_prev = sequence_extents[sprev]
+                        if nhi != nlo_prev:
+                            nhi = (nlo_prev + nhi) / 2
+                            sequence_extents[sprev] = (nhi, nhi_prev)
+                            sequence_extents[s] = (nlo, nhi)
+
+                    if s != highest_sequence_number:
+                        snext = sequence_numbers[i + 1]
+                        nlo_next, nhi_next = sequence_extents[snext]
+                        if nlo != nhi_next:
+                            nlo = (nlo + nhi_next) / 2
+                            sequence_extents[snext] = (nlo_next, nlo)
+                            sequence_extents[s] = (nlo, nhi)
+
+                nvals = {k: (nlo + nhi) / 2 for k, (nlo, nhi) in sequence_extents.items()}
+                nsigvals = {k: (nhi - nlo) / 2 for k, (nlo, nhi) in sequence_extents.items()}
+
+                # Check that both nlo and nhi are monotonically decreasing with increasing sequence number and break out if they are
+                nlo_values = [v[0] for v in sequence_extents.values()]
+                nhi_values = [v[1] for v in sequence_extents.values()]
+                if all(x >= y for x, y in zip(nlo_values[:-1], nlo_values[1:], strict=True)) and all(
+                    x >= y for x, y in zip(nhi_values[:-1], nhi_values[1:], strict=True)
+                ):
+                    break
+
+            return sequence_extents
+
+        # Keep only craters that can produce a time
+        valid_craters: list[Crater] = []
+        for c in craters:
+            if (
+                (c.production_ND is not None and c.production_ND != [None, None, None])
+                or (c.production_time is not None and c.production_time != [None, None])
+                or (c.production_sequence is not None)
+            ):
+                valid_craters.append(c)
+            else:
+                print(
+                    f"Skipping crater {c.name if c.name is not None else format_large_units(c.diameter, quantity='length')} because it has no production metadata"
+                )
+
+        # Partition craters between those tagged with a sequence number vs untagged
+        tagged_idx: list[int] = []
+        untagged_idx: list[int] = []
+        sequence_groups: dict[int, list[int]] = {}
+
+        # Group tagged craters
+        for i, c in enumerate(valid_craters):
+            sequence = c.production_sequence
+            if sequence is None:
+                untagged_idx.append(i)
+            else:
+                sequence = int(sequence)
+                tagged_idx.append(i)
+                sequence_groups.setdefault(sequence, []).append(i)
+
+        sequence_groups = dict(sorted(sequence_groups.items()))
+        sequence_extents = _get_sequence_extents(valid_craters, sequence_groups)
+
+        # Draw untagged once (unconstrained)
+        times_by_idx: dict[int, float] = {}
+        for i in untagged_idx:
+            times_by_idx[i] = _draw_quasimc_time(valid_craters[i])
+        for i in tagged_idx:
+            times_by_idx[i] = None
+
+        # Draw tagged iteratively until constraints are satisfied
+        if tagged_idx:
+            for i in tagged_idx:
+                times_by_idx[i] = _draw_quasimc_time(valid_craters[i], sequence_extents)
+
+            # Check for consistency, then repeat if necessary
+            if not _sequence_is_consistent(times_by_idx, sequence_groups):
+                raise RuntimeError("Could not satisfy production_sequence ordering constraints ")
+
+        # Build output crater list
+        processed: list[Crater] = []
+        smallest_diameter = self.diameter_range[1]
+        for i, c in enumerate(valid_craters):
+            t = times_by_idx.get(i)
+            if t is None:
+                continue
+            processed.append(Crater.maker(crater=c, time=t))
+            if self.generator_type == "crater":
+                smallest_diameter = min(smallest_diameter, c.diameter)
+            else:
+                smallest_diameter = min(smallest_diameter, c.projectile_diameter)
+
+        self.diameter_range = (self.diameter_range[0], smallest_diameter)
+
+        processed.sort(key=lambda c: c.time, reverse=True)
+        return processed
+
+    def read_quasimc_file(
+        self,
+        filename: Path | str | None = None,
+        **kwargs: Any,
+    ) -> list[Crater]:
+        """
+        Reads in the quasi-Monte Carlo crater from file, processes the ages and sorts the crater list by age in order of decreasing age (increasing time) and computes production_time if present, production_ND if present, and will drop craters that have neither.
+
+        Parameters
+        ----------
+        filename : Path | str | None, optional
+            The path to the quasi-Monte Carlo file. If not provided, the Simulation must have a quasimc_file attribute set. This function will replace the stored quasimc_file attribute.
+        """
+        if filename is not None:
+            self._quasimc_file = filename
+        input_craters = Crater.from_file(self.quasimc_file)
+        self.quasimc_craters = input_craters
+        return
 
     @parameter
     def generator_type(self):
@@ -781,6 +1226,130 @@ class Production(ComponentBase):
             The lower and upper bounds of the valid time range in My, or None if not applicable.
         """
         return (None, None)
+
+    @parameter
+    def quasimc_file(self) -> Path:
+        """
+        File containing the quasi-Monte Carlo craters.
+        """
+        return self._quasimc_file
+
+    @quasimc_file.setter
+    def quasimc_file(self, value) -> None:
+        if value is not None:
+            if isinstance(value, str):
+                value = Path(value)
+            if isinstance(value, Path):
+                if not value.exists():
+                    raise FileNotFoundError(f"quasimc_file {str(value)} not found")
+                self._quasimc_file = value
+                return
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        List of craters to be emplaced using quasi-Monte Carlo.
+
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.crater.CraterFixed.time` values.
+        """
+        return self._quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater] | None):
+        if value is None:
+            self._quasimc_craters = None
+        elif not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
+            raise TypeError("quasimc_craters must be a list of Crater objects")
+        else:
+            self._quasimc_craters = self._process_quasimc_craters(value)
+
+    @property
+    def diameter_range(self) -> tuple[float, float]:
+        """
+        The lower and upper range of diameters that will be returned from :py:meth:`~cratermaker.components.production.Production.sample`.
+        """
+        return self._diameter_range
+
+    @diameter_range.setter
+    def diameter_range(self, value: PairOfFloats | None):
+        # Reset to default
+        if value is None:
+            self._diameter_range = (0, np.inf)
+        elif not isinstance(value, (list, tuple, ArrayLike)) or len(value) != 2:
+            raise TypeError("diameter_range must be a list, tuple, or array of length 2")
+        else:
+            self._diameter_range = (float(value[0]), float(value[1]))
+        return
+
+    @parameter
+    def D_conversion_factor(self) -> float:
+        """
+        The conversion factor used to convert D in N(D) format into crater diameter in meters. The default value is 1e3, which corresponds to input diameter values in kilometers.
+
+        Only two options are allowed, 1 for units of m or 1000 for units of m. If None is provided, it will default to 1000 (km).
+        """
+        if self._D_conversion_factor is None:
+            self._D_conversion_factor = 1000.0
+        return self._D_conversion_factor
+
+    @D_conversion_factor.setter
+    def D_conversion_factor(self, value: Literal[1.0, 1000.0] | None):
+        if value is None:
+            value = 1000.0
+        if value in [1.0, 1000.0]:
+            self._D_conversion_factor = value
+        else:
+            raise ValueError("D_conversion factor can only be 1 or 1000 (m or km)")
+
+    @property
+    def D_unit(self) -> str:
+        if self.D_conversion_factor == 1.0:
+            return "m"
+        elif self.D_conversion_factor == 1000.0:
+            return "km"
+        else:
+            return "UNKNOWN UNITS"
+
+    @parameter
+    def N_conversion_factor(self) -> float:
+        """
+        The conversion factor used to convert N in N(D) format into number of craters per m².
+
+        Only three options are allowed, 1.0 for units of '# per m²', 1e6 for units of '# per km²', or 1e12 for units of per 10⁶ km². The default value is 1e12."
+        """
+        if self._N_conversion_factor is None:
+            self._N_conversion_factor = 1.0e12
+        return self._N_conversion_factor
+
+    @N_conversion_factor.setter
+    def N_conversion_factor(self, value: Literal[1.0, 1e6, 1e12] | None):
+        if value is None:
+            value = 1e12
+        if value in [1.0, 1.0e6, 1.0e12]:
+            self._N_conversion_factor = value
+        else:
+            raise ValueError("N_conversion factor can only be 1.0, 1e6, or 1e12")
+
+    @property
+    def N_unit(self) -> float:
+        """
+        Units of N in the N(D) format convention.
+        """
+        if self._N_conversion_factor == 1.0:
+            return "per m²"
+        elif self._N_conversion_factor == 1.0e6:
+            return "per km²"
+        elif self._N_conversion_factor == 1.0e12:
+            return "per 10⁶ km²"
+        else:
+            return "UNKNOWN UNIT"
+
+    @property
+    def N_D_units(self) -> float:
+        """
+        Units used in the N(D) format convention.
+        """
+        return f"N>D({self.D_unit}) {self.N_unit}"
 
 
 import_components(__name__, __path__)

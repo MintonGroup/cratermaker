@@ -6,27 +6,36 @@ import shutil
 import tempfile
 import warnings
 from abc import abstractmethod
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
+import rasterio
+import pyvista as pv
 import uxarray as uxr
 import xarray as xr
+from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
+from rasterio import DatasetReader, MemoryFile, windows
+from rasterio.enums import Resampling
+from rasterio.merge import merge
+from rasterio.transform import rowcol
+from rasterio.vrt import WarpedVRT
+from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
+from tqdm import tqdm
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
 from cratermaker.bindings import surface_bindings
+from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
-
-if TYPE_CHECKING:
-    from cratermaker.components.target import Target
 
 _N_TAG_LAYERS = 8
 
@@ -128,13 +137,12 @@ class Surface(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-
-        return (
-            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
-            f"Number of faces: {self.n_face}\n"
-            f"Number of nodes: {self.n_node}\n"
-        )
+        str_repr = super().__str__()
+        str_repr += f"Target: {self.target.name}\n"
+        str_repr += f"Grid File: {self.grid_file}\n"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     @classmethod
     def maker(
@@ -360,6 +368,8 @@ class Surface(ComponentBase):
             units=units,
             isfacedata=isfacedata,
             overwrite=overwrite,
+            fill_value=fill_value,
+            dtype=dtype,
         )
 
     def update_elevation(
@@ -485,7 +495,7 @@ class Surface(ComponentBase):
         """
         return self._full().apply_noise(model=model, noise_width=noise_width, noise_height=noise_height, **kwargs)
 
-    def calculate_face_and_node_distances(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
+    def calculate_face_and_node_distances(self, location: tuple[float, float], validate: bool = True) -> tuple[NDArray, NDArray]:
         """
         Computes the distances from a given location to all faces and nodes.
 
@@ -493,6 +503,8 @@ class Surface(ComponentBase):
         ----------
         location : tuple[float, float]
             tuple containing the longitude and latitude of the location in degrees.
+        validate : bool, optional
+            If the location should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -501,7 +513,7 @@ class Surface(ComponentBase):
         NDArray
             Array of distances for each node in meters.
         """
-        return self._full().calculate_face_and_node_distances(location)
+        return self._full().calculate_face_and_node_distances(location, validate=validate)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float]) -> tuple[NDArray, NDArray]:
         """
@@ -653,7 +665,7 @@ class Surface(ComponentBase):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -776,7 +788,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the surface to a VTK PolyData object.
 
@@ -784,6 +796,8 @@ class Surface(ComponentBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -792,7 +806,7 @@ class Surface(ComponentBase):
         vtkUnstructuredGrid
             The VTK PolyData object representing the regional mesh.
         """
-        return self._full().to_vtk_mesh(uxds=uxds, **kwargs)
+        return self._full().to_vtk_mesh(uxds=uxds, interval=interval, **kwargs)
 
     def to_vtk_file(
         self,
@@ -871,7 +885,17 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def pyvista_plotter(
+        self,
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        interval: int | None = None,
+        theme: str | None = None,
+        transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_interactive: bool = True,
+        **kwargs: Any,
+    ) -> pv.Plotter:
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
@@ -881,6 +905,16 @@ class Surface(ComponentBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        interval : int | None, optional
+            The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
+        theme : str, optional
+            The PyVista theme to use for the plot. If None, the default PyVista theme will be used.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is False.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_interactive : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -889,30 +923,16 @@ class Surface(ComponentBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
-        """
-        Show the surface using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable: (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
-        """
-        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().pyvista_plotter(
+            variable_name=variable_name,
+            variable=variable,
+            interval=interval,
+            theme=theme,
+            transparent_background=transparent_background,
+            plotter=plotter,
+            enable_interactive=enable_interactive,
+            **kwargs,
+        )
 
     def compute_distances(
         self,
@@ -1179,14 +1199,11 @@ class Surface(ComponentBase):
 
         if regrid:
             print("Creating a new grid")
-            try:
-                self._generate_grid(**kwargs)
-            except Exception as e:
-                raise RuntimeError("Failed to create a new grid") from e
+            self._generate_grid(**kwargs)
 
         return regrid
 
-    def _full(self):
+    def _full(self) -> LocalSurface:
         return LocalSurface(
             self, face_indices=slice(None), node_indices=slice(None), edge_indices=slice(None), **vars(self.common_args)
         )
@@ -1332,7 +1349,7 @@ class Surface(ComponentBase):
         return
 
     @abstractmethod
-    def _generate_face_distribution(self, **kwargs: Any) -> tuple[NDArray, NDArray, NDArray]: ...
+    def _generate_face_distribution(self, **kwargs: Any) -> NDArray: ...
 
     def _compute_face_size(self, uxgrid: UxDataset | None = None) -> None:
         """
@@ -1357,12 +1374,53 @@ class Surface(ComponentBase):
         self._pix_max = float(self._face_size.max().item())
         return
 
+    def get_location_extents(self, location: PairOfFloats, radius: FloatLike) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of a given region.
+
+        Parameters
+        ----------
+        location : PairOfFloats
+            The center of the region.
+        radius : FloatLike
+            The radius of the region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        R = self.target.radius
+        lon0, lat0 = location
+        alpha_deg = np.degrees(radius / R)
+
+        lat_min = max(-90.0, lat0 - alpha_deg)
+        lat_max = min(90.0, lat0 + alpha_deg)
+
+        # If we hit a pole, longitudes span everything
+        if abs(lat0) + alpha_deg >= 90.0:
+            lon_min, lon_max = -180.0, 180.0
+        else:
+            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
+            half_lon_span = min(half_lon_span, 180.0)
+
+            lon_min = lon0 - half_lon_span
+            lon_max = lon0 + half_lon_span
+        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+
     @property
     def _hashvars(self):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self.target.name, self.radius]
+        return [self.component_name, self.target.name, self.radius]
 
     @property
     def _id(self):
@@ -1895,6 +1953,16 @@ class Surface(ComponentBase):
         self._is_new = value
         return
 
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``DataComposer`` tied to this ``Surface``. This should usually be called in a ``with`` statement.
+
+        Returns
+        -------
+        DataComposer
+        """
+        return self._full().data_composer()
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -1987,14 +2055,16 @@ class LocalSurface(CratermakerBase):
         """
         String representation of the LocalSurface object.
         """
-        base = "<LocalSurface>"
+        str_repr = "<LocalSurface>\n"
         if self.is_local:
-            base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
+            str_repr += f"Location: {self.location[0]:.2f}°, {self.location[1]:.2f}°\n"
 
         if self.region_radius:
-            base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
+            str_repr += f"Region Radius: {format_large_units(self.region_radius, quantity='length')}\n"
 
-        return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     def __getattr__(self, name: str):
         """
@@ -2373,7 +2443,7 @@ class LocalSurface(CratermakerBase):
         return
 
     def calculate_face_and_node_distances(
-        self, location: tuple[float, float] | None = None
+        self, location: tuple[float, float] | None = None, validate: bool = True
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
@@ -2382,6 +2452,8 @@ class LocalSurface(CratermakerBase):
         ----------
         location : tuple[float, float], option
             tuple containing the longitude and latitude of the location in degrees. If None, the location of the view center is used if it is set.
+        validate : bool, optional
+            If the location should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -2393,6 +2465,7 @@ class LocalSurface(CratermakerBase):
         if location is None:
             if self.is_local:
                 location = self.location
+                validate = False
             else:
                 raise ValueError("A value for location must be provided for global surfaces.")
 
@@ -2400,12 +2473,13 @@ class LocalSurface(CratermakerBase):
             location = location.item()
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
-        location = validate_and_normalize_location(location)
+        if validate:
+            location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, reference_location=location), self.compute_distances(
-            locations=node_locations, reference_location=location
-        )
+        return self.compute_distances(
+            locations=face_locations, reference_location=location, validate=False
+        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2822,7 +2896,7 @@ class LocalSurface(CratermakerBase):
             )
         return
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the regional mesh to a VTK PolyData object.
 
@@ -2830,6 +2904,8 @@ class LocalSurface(CratermakerBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -2847,7 +2923,16 @@ class LocalSurface(CratermakerBase):
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
         if uxds is None:
-            uxds = self.uxds
+            if interval is None:
+                uxds = self.uxds
+            else:
+                uxds = self.read_saved_output(interval=interval, reset=False).isel(interval=0)
+                interval = None
+
+        if interval is not None:
+            if "interval" not in uxds:
+                raise ValueError("uxds does not have an 'interval' variable")
+            uxds = uxds.isel(interval=interval)
 
         node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
         node_normals = node_xyz / self.surface.radius
@@ -3151,7 +3236,7 @@ class LocalSurface(CratermakerBase):
         """
         Save the region surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -3167,11 +3252,8 @@ class LocalSurface(CratermakerBase):
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
         if interval is None:
             interval = 0
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
+        if time_variables is not None and not isinstance(time_variables, dict):
+            raise TypeError("time_variables must be a dictionary")
 
         # Sort any layers that we might have before saving
         for var in self.uxds.data_vars:
@@ -3181,8 +3263,9 @@ class LocalSurface(CratermakerBase):
         self.uxds.close()
 
         ds = self.uxds.expand_dims(dim="interval").assign_coords({"interval": [interval]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
+        if time_variables is not None:
+            for k, v in time_variables.items():
+                ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
 
         self.surface._save_data(
             ds,
@@ -3398,14 +3481,17 @@ class LocalSurface(CratermakerBase):
             plt.close()
         return ax
 
-    def show_pyvista(
+    def pyvista_plotter(
         self,
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
+        interval: int | None = None,
         theme: str | None = None,
         transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_interactive: bool = True,
         **kwargs: Any,
-    ) -> None:
+    ) -> pv.Plotter:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3414,11 +3500,17 @@ class LocalSurface(CratermakerBase):
         variable_name : str | None, optional
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
+        interval : int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
             The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
+        plotter : pyvista.Plotter, optional
+            A pre-existing Plotter object to use. If None, then a new one will be created and returned. Default is None.
+        enable_interactive : bool, optional
+            If True, the default PyVista key events will be updated to include custom events for toggling scalar visibility, changing the camera view, and showing a help message. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -3427,27 +3519,22 @@ class LocalSurface(CratermakerBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        try:
-            import pyvista as pv
-        except ImportError:
-            warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
-            return
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
-        def _set_title(variable_name):
-            if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
-                if "units" in self.uxds[variable_name].attrs:
-                    title = f"{self.uxds[variable_name].attrs['long_name']} ({self.uxds[variable_name].attrs['units']})"
+        def _set_title(uxds, variable_name):
+            if variable_name in uxds and "long_name" in uxds[variable_name].attrs:
+                if "units" in uxds[variable_name].attrs:
+                    title = f"{uxds[variable_name].attrs['long_name']} ({uxds[variable_name].attrs['units']})"
                 else:
-                    title = self.uxds[variable_name].attrs["long_name"]
+                    title = uxds[variable_name].attrs["long_name"]
             else:
                 title = variable_name
             return title
 
         def update_scalars(plotter, cmap):
             camera_orig = plotter.camera
-            mesh_actor = plotter.actors["surface_mesh"]
+            mesh_actor = plotter.actors[self.target.name]
             if not plotter.scalar_bars:
                 scalar_bar_actor = None
             else:
@@ -3480,7 +3567,7 @@ class LocalSurface(CratermakerBase):
                 mesh_actor.mapper.SetColorModeToMapScalars()
                 mesh_actor.mapper.lookup_table.cmap = cmap
                 mesh_actor.mapper.SetScalarVisibility(True)
-                title = _set_title(next_scalar_name)
+                title = _set_title(self.uxds, next_scalar_name)
                 if scalar_bar_actor is None:
                     scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
                 else:
@@ -3529,25 +3616,34 @@ class LocalSurface(CratermakerBase):
             pv.set_plot_theme(theme)
         if transparent_background is not None:
             pv.global_theme.transparent_background = transparent_background
-        plotter = pv.Plotter()
-        plotter.enable_hidden_line_removal()
 
-        mesh = self.to_vtk_mesh(self.uxds)
+        new_plotter = plotter is None
+        if new_plotter:
+            plotter = pv.Plotter()
+            plotter.enable_hidden_line_removal()
 
-        reset_view(plotter)
+        if interval is None:
+            uxds = self.uxds
+        else:
+            uxds = self.read_saved_output(interval=interval).isel(interval=0)
+            interval = None
+        mesh = self.to_vtk_mesh(uxds)
+
+        if new_plotter:
+            reset_view(plotter)
 
         face_variables = []
         component_variables = []
-        for v in self.uxds.data_vars:
-            if self.uxds[v].ndim > 0 and self.uxds[v].shape[0] == self.n_face:
-                mesh.cell_data[v] = self.uxds[v].data
+        for v in uxds.data_vars:
+            if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
+                mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)
-                if self.uxds[v].ndim == 2:
+                if uxds[v].ndim == 2:
                     component_variables.append(v)
 
         component = kwargs.pop("component", None)
         if variable_name is not None and variable_name in face_variables:
-            title = _set_title(variable_name)
+            title = _set_title(uxds, variable_name)
             if variable_name in component_variables:
                 component = 0 if component is None else component
                 title += f" (layer {component})"
@@ -3574,24 +3670,25 @@ class LocalSurface(CratermakerBase):
         cmap = kwargs.pop("cmap", "cividis")
         add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
         add_mesh_kwargs = {
-            "name": "surface_mesh",
+            "name": self.target.name,
             "show_edges": False,
             "show_scalar_bar": False,
             "color": "grey",
+            "pbr": True,
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
-        if self.is_global:
+        if new_plotter and self.is_global:
             plotter.view_yz()
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-
-        plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-        plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
-        plotter.add_key_event("r", lambda: reset_view(plotter))
+        if enable_interactive and new_plotter:
+            plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
+            plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
+            plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
@@ -3638,42 +3735,11 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
-        """
-        Show the local surface region using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
-        """
-        from cratermaker.constants import PYVISTA_SHOW_KWARGS
-
-        if engine == "pyvista":
-            plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
-            plotter.show(**plotter_kwargs)
-        else:
-            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
-
-        return plotter
-
     def compute_distances(
         self,
         locations: ArrayLike,
         reference_location: PairOfFloats | None = None,
+        validate: bool = True,
     ) -> NDArray[np.float64]:
         """
         Calculate the great circle distance between one point and one or more other points in meters.
@@ -3684,6 +3750,8 @@ class LocalSurface(CratermakerBase):
             Longitude and latitude of the second point or array of points in degrees.
         reference_location : PairOfFloats | None, optional
             Longitude and latitude of the first point in degrees. If None, then the center of the local region will be used. Default is None.
+        validate : bool, optional
+            If the locations should be validated and normalized. Only use if the validation is causing a performance bottleneck.
 
         Returns
         -------
@@ -3700,8 +3768,11 @@ class LocalSurface(CratermakerBase):
             else:
                 raise ValueError("reference_location must be provided for global surfaces")
 
-        locations = np.radians(validate_and_normalize_location(locations))
-        lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
+        if validate:
+            locations = validate_and_normalize_location(locations)
+            reference_location = validate_and_normalize_location(reference_location)
+        locations = np.radians(locations)
+        lon1, lat1 = np.radians(reference_location)
         if locations.ndim == 1 and locations.size == 2:
             locations = np.expand_dims(locations, axis=0)
 
@@ -3845,6 +3916,27 @@ class LocalSurface(CratermakerBase):
             output_files.remove(self.grid_file)
 
         return output_files
+
+    def get_location_extents(self) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of the local region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        if self.is_global:
+            raise ValueError("Cannot get the location extents of a global region.")
+
+        return self.surface.get_location_extents(self.location, self.radius)
 
     @property
     def surface(self) -> Surface:
@@ -4376,6 +4468,412 @@ class LocalSurface(CratermakerBase):
     def is_global(self) -> bool:
         """Whether this surface is the full global surface."""
         return self.location is None
+
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``DataComposer`` tied to this ``LocalSurface``. This should usually be called in a ``with`` statement.
+
+        Returns
+        -------
+        DataComposer
+        """
+        return DataComposer(self)
+
+
+class DataComposer(AbstractContextManager):
+    """
+    Created using ``Surface.data_composer`` or ``LocalSurface.data_composer``. Contains some static methods for loading LOLA data.
+    """
+
+    def __init__(self, surface: LocalSurface):
+        """
+        **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
+        """
+        self._localsurface = surface
+        self._data_list: list[DatasetReader] = []
+        self._finished = False
+
+    def add_data(
+            self,
+            data: DatasetReader | str | list[DatasetReader | str],
+    ):
+        """
+        Adds data to eventually be applied to the surface.
+
+        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+
+        Parameters
+        ----------
+        dataset : DatasetReader | str | list[DatasetReader | str]
+            A single dataset or a list of multiple datasets to be merged.
+            Calls ``rasterio.open`` when necessary.
+        """
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        if not isinstance(data, list):
+            data = [data]
+
+        for i, src in enumerate(data):
+            if not isinstance(src, DatasetReader):
+                data[i] = rasterio.open(src)
+
+            self._data_list.append(data[i])
+
+    def cancel(self):
+        """
+        Cancels the execution and closes all open datasets.
+        """
+        for dataset in self._data_list:
+            dataset.close()
+        self._data_list = []
+        self._finished = True
+
+
+    def finish(self):
+        """
+        Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
+        """
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        def _orderable_distance(lon1, lat1, lon2, lat2):
+            _nnon1 = np.deg2rad(lon1)
+            lat1 = np.deg2rad(lat1)
+            lon2 = np.deg2rad(lon2)
+            lat2 = np.deg2rad(lat2)
+
+            dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
+            dlat = lat2 - lat1
+            return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+
+        def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
+            block_windows = []
+            for _, block in dataset.block_windows(1):
+                if window is None or windows.intersect(window, block):
+                    block_windows.append(block)
+
+            res_window: Window = windows.union(block_windows)
+
+            print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
+
+            res = np.empty((res_window.height, res_window.width))
+
+            for block in tqdm(block_windows):
+                out = res[
+                    block.row_off-res_window.row_off : block.row_off-res_window.row_off+block.height,
+                    block.col_off-res_window.col_off : block.col_off-res_window.col_off+block.width
+                ]
+                dataset.read(1, window=block, out=out)
+
+            return res, res_window
+
+        print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
+
+        lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
+        lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+
+        read_data: list[NDArray] = []
+        data_windows: list[Window] = []
+
+        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
+        for n, dataset in enumerate(self._data_list):
+
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
+
+            x_coords, y_coords = to_data.transform(lons, lats)
+
+            mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
+            rows, cols = rowcol(dataset.transform, x_coords[mask1], y_coords[mask1])
+            mask2 = (cols >= 0) & (cols < dataset.width) & (rows >= 0) & (rows < dataset.height)
+            mask1[mask1] = mask2
+            rows = rows[mask2]
+            cols = cols[mask2]
+
+            if self._localsurface.is_local:
+                cmin, rmin, cmax, rmax = np.min(cols), np.min(rows), np.max(cols), np.max(rows)
+                data, window = _read(dataset, window=Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1))
+            else:
+                data, window = _read(dataset)
+
+            read_data.append(data)
+            data_windows.append(window)
+
+            values = data[rows - window.row_off, cols - window.col_off]
+
+            print("        Calculating pixel distances")
+
+            mask3 = np.isfinite(values) & (values != dataset.nodata)
+            mask1[mask1] = mask3
+            x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
+            pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
+
+        idx = np.argmin(pix_dist, axis=0)
+        global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
+        elevation = np.zeros_like(idx, dtype=np.float32)
+
+        print("    Setting elevation data")
+        for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            mask = global_mask & (idx == n)
+
+            if "KILOMETER" in dataset.units:
+                scale_factor = 1000.0
+            else:
+                scale_factor = 1.0
+
+            x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
+            rows, cols = rowcol(dataset.transform, x_coords, y_coords)
+            elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            dataset.close()
+
+        self._localsurface.update_elevation(elevation)
+        self._data_list = []
+        self._finished = True
+        print("    Done")
+
+    def __enter__(self) -> DataComposer:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.finished:
+            return
+        if exc_type is None:
+            self.finish()
+        else:
+            self.cancel()
+
+    @staticmethod
+    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)) -> str:
+        """
+        Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
+
+        Parameters
+        ----------
+        pds_file_resolution : int
+            DEM resolution in meters per pixel.
+        location : PairOfFloats,
+            The longitude and latitude of the location in degrees.
+        boundary_offset : tuple[int, int], optional
+            Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
+
+        Returns
+        -------
+        url : str
+            Link to the DEM file
+
+        Notes
+        -----
+        This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
+        For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
+
+        """
+        lola_cylindrical_url = (
+            "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
+        )
+        sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
+        sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
+
+        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
+            if location[0] < 0:
+                location = (location[0] + 360, location[1])
+            if pds_file_resolution == 512:
+                dlon = 45
+                dlat = 30
+            elif pds_file_resolution == 256:
+                dlon = 120
+                dlat = 60
+
+            latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
+            latval = np.abs(location[1] / dlat) + boundary_offset[1]
+            if latdir == "n":
+                latlo = int(np.ceil(latval - 1) * dlat)
+                lathi = int(latlo + dlat)
+            else:
+                lathi = int(np.floor(latval + 1) * dlat)
+                latlo = int(lathi - dlat)
+
+            lonval = np.abs(location[0] / dlon) + boundary_offset[0]
+
+            # Pole crossing, so flip the longitudes by 180 degrees
+            if lathi > 90 or latlo > 90:
+                lathi = 90
+                latlo = lathi - dlat
+                lonval += 180 / dlon
+
+            lonlo = int(np.floor(lonval) * dlon) % 360
+            lonhi = int(lonlo + dlon)
+
+            # Check to make sure the lo and hi values are in the right direction
+            if (latdir.upper() == "N" and latlo > lathi) or (latdir.upper() == "S" and latlo < lathi):
+                tmp = latlo
+                latlo = lathi
+                lathi = tmp
+
+            if pds_file_resolution == 512:
+                return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+            elif pds_file_resolution == 256:
+                return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+
+        if pds_file_resolution >= 256:
+            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
+        elif pds_file_resolution == 128:
+            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        else:
+            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
+
+        return url
+
+    @staticmethod
+    def get_lola_cylindrical_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats, lon_range: PairOfFloats) -> tuple[list[str], int]:
+        """
+        Retrieve the appropriate cylindrically projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
+
+        This will determine which, if any, boundaries are crossed and will return a list of files to cover a region.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in degrees per pixel. The closest available resolution will be used.
+        lat_range : tuple of float, optional
+            The (min_lat, max_lat) in degrees of the local region.
+        lon_range : tuple of float, optional
+            The (min_lon, max_lon) in degrees of the local region.
+        """
+        AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
+        diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
+        pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
+
+        lat_min, lat_max = lat_range
+        lon_min, lon_max = lon_range
+        center = ((lon_min + lon_max)/2.0, (lat_min + lat_max)/2.0)
+
+        # First, retrive the file for the centerpoint:
+        filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
+        if pds_file_resolution < 256:
+            return filelist, pds_file_resolution  # These files cover the entire globe, no need to determine if boundaries are crossed
+
+        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
+
+        for loc in combo:
+            f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
+            if f not in filelist:
+                filelist.append(f)
+
+        return filelist, pds_file_resolution
+
+    @staticmethod
+    def get_lola_polar_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats) -> tuple[list[str], int]:
+        """
+        Retrieve the appropriate polar projected LOLA DEM file url for a given location and resolution from the PDS.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in meters per pixel. The closest available resolution will be used.
+        lat_range : tuple of float
+            The (min_lat, max_lat) in degrees of the local region.
+
+        """
+        import rasterio
+
+        src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
+
+        AVAILABLE_RESOLUTIONS = [400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
+        MIN_LAT = [45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
+
+        if lat_range[0] > 0:
+            pole = "n"
+            min_lat_index = 0  # in the northern hemisphere, the minimum latitude defines coverage
+        else:
+            pole = "s"
+            min_lat_index = 1  # in the southern hemisphere, the maximum latitude defines coverage
+        combo = [
+            (res, minlat)
+            for res, minlat in zip(AVAILABLE_RESOLUTIONS, MIN_LAT, strict=True)
+            if abs(lat_range[min_lat_index]) >= minlat
+        ]
+        if len(combo) == 0:
+            raise ValueError("No available LOLA polar DEM files cover the requested latitude range.")
+
+        valid_resolutions, valid_min_lat = zip(*combo, strict=True)
+
+        diffs = [abs(resolution - res) for res in valid_resolutions]
+        pds_file_resolution = valid_resolutions[np.argmin(diffs)]
+        pds_lat_min = valid_min_lat[np.argmin(diffs)]
+        filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
+        url = f"{src_url}{filename}_float.xml"
+
+        return [url], pds_file_resolution
+
+    @staticmethod
+    def get_lola_dem_file_list(
+        pix: FloatLike,
+        lat_range: PairOfFloats,
+        lon_range: PairOfFloats,
+    ) -> tuple[list[str], int]:
+        """
+        Determine the set of LOLA DEM files needed to cover the local region.
+
+        Parameters
+        ----------
+        pix : FloatLike
+            The approximate resolution in meters per pixel to use to select the DEM files.
+        lat_range : PairOfFloats, optional
+            The (min_lat, max_lat) in degrees of the local region.
+        lon_range : PairOfFloats, optional
+            The (min_lon, max_lon) in degrees of the local region.
+        """
+        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix # The moon's radius
+        if target_pds_resolution > 10 and (
+            lat_range[0] > 60 or lat_range[1] < -60
+        ):  # Use polar files high latitude, high resolution regions.
+            return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
+        else:  # Use cylindrical for all other cases
+            return DataComposer.get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution, lat_range=lat_range, lon_range=lon_range)
+
+    def populate_with_lola_data(self, pix: FloatLike | None = None):
+        """
+        Loads the DEM files from LOLA needed to cover the surface.
+
+        Parameters
+        ----------
+        pix : FloatLike
+            The approximate resolution in meters per pixel to use to select the DEM files.
+            Defaults to the resolution of the surface used.
+        """
+        if pix is None:
+            pix = self._localsurface.pix
+
+        if self._localsurface.is_local:
+            lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
+            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
+        else:
+            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
+
+    @property
+    def localsurface(self) -> LocalSurface:
+        """
+        The ``LocalSurface`` used to create the ``DataComposer``.
+        """
+        return self._localsurface
+
+    @property
+    def surface(self) -> Surface:
+        """
+        The ``Surface`` used to create the ``DataComposer``.
+        """
+        return self._localsurface.surface
+
+    @property
+    def finished(self):
+        """
+        Whether ``finish()`` or ``cancel()`` has been called or not.
+        """
+        return self._finished
 
 
 import_components(__name__, __path__)

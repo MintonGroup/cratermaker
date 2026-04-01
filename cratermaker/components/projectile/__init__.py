@@ -123,14 +123,16 @@ class Projectile(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         if self.sample:
-            params = f"\nMean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}"
+            str_repr += f"Sample from distributions: {self.sample}\n"
+            str_repr += f"Mean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}\n"
         else:
-            params = f"\nVelocity: {format_large_units(self.velocity, quantity='velocity')}"
-            params += f"\nAngle: {self.angle:.1f} degrees"
-            params += f"\nDirection: {self.direction:.1f} degrees"
-        return f"{base}\nSample from distributions: {self.sample}{params}\nDensity: {self.density:.1f} kg/m³\n"
+            str_repr += f"Velocity: {format_large_units(self.velocity, quantity='velocity')}\n"
+            str_repr += f"Angle: {self.angle:.1f}°\n"
+            str_repr += f"Direction: {self.direction:.1f}°\n"
+        str_repr += f"Density: {self.density:.1f} kg/m³\n"
+        return str_repr
 
     def _copy(self, deep: bool = True, memo: dict[int, Any] | None = None) -> Self:
         import copy

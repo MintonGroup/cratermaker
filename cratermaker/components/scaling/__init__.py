@@ -132,8 +132,10 @@ class Scaling(ComponentBase):
     def recompute(self, **kwargs: Any) -> None: ...
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return f"{base}\nTarget: {self.target._component_name}\nProjectile: {self.projectile._component_name}"
+        str_repr = super().__str__()
+        str_repr += f"Target: {self.target.name}\n"
+        str_repr += f"Projectile: <{self.projectile.component_name}>\n"
+        return str_repr
 
     @property
     def target(self):

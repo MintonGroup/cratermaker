@@ -136,20 +136,18 @@ class MonteCarloScaling(Scaling):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-        ybar = format_large_units(self.Ybar, quantity="pressure")
-        dt = format_large_units(self.transition_nominal, quantity="length")
-        return (
-            f"{base}\n"
-            f"Material: {self.material}\n"
-            f"K1: {self.K1:.3f}\n"
-            f"mu: {self.mu:.3f}\n"
-            f"Ybar: {ybar}\n"
-            f"Target density: {self.target.density:.0f} kg/m³\n"
-            f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
-            f"Nominal simple-complex transition diameter: {dt}\n"
-            f"Monte Carlo Scaling: {self._montecarlo_scaling}"
+        str_repr = super().__str__()
+        str_repr += f"Material: {self.material}\n"
+        str_repr += f"K1: {self.K1:.3f}\n"
+        str_repr += f"mu: {self.mu:.3f}\n"
+        str_repr += f"Ybar: {format_large_units(self.Ybar, quantity='pressure')}\n"
+        str_repr += f"Target density: {self.target.density:.0f} kg/m³\n"
+        str_repr += f"Projectile density: {self.projectile.density:.0f} kg/m³\n"
+        str_repr += (
+            f"Nominal simple-complex transition diameter: {format_large_units(self.transition_nominal, quantity='length')}\n"
         )
+        str_repr += f"Monte Carlo Scaling: {self._montecarlo_scaling}\n"
+        return str_repr
 
     def _get_morphology_type(self, diameter: FloatLike | None = None, **kwargs: Any) -> str:
         """

@@ -37,7 +37,6 @@ cratermaker/_version.py
 !crates/cratermaker-components/src/surface/
 !crates/cratermaker-components/src/target/
 !crates/cratermaker-components/src/counting/
-
 !crates/cratermaker-py/
 !crates/cratermaker-py/src/
 !pytest.ini
@@ -71,15 +70,11 @@ cratermaker/_version.py
 docs/sg_execution_times.rst
 !examples/
 !examples/01-simulation_and_visualization/
-!examples/01-simulation_and_visualization/simdata-1_5/
-!examples/01-simulation_and_visualization/simdata-1_5/surface_images/
-!examples/01-simulation_and_visualization/simdata-1_5/surface_images/local_surface_hillshade.png
+!examples/01-simulation_and_visualization/qmc_input.csv
 !examples/02-production/
 !examples/03-projectiles_and_scaling/
 !examples/04-topography/
 !examples/05-counting/
-!examples/05-counting/5.1-fit_rim.png
-!examples/05-counting/5.1-fit_rim_score.png
 !examples/**/*.rst 
 !examples/**/*.py
 !examples/**/*.txt
