@@ -61,10 +61,12 @@ class IcosphereSurface(Surface):
         self._load_from_files(reset=reset, regrid=regrid, **kwargs)
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         pix_mean = format_large_units(self.pix_mean, quantity="length")
         pix_std = format_large_units(self.pix_std, quantity="length")
-        return f"{base}\nGrid Level: {self.gridlevel}\nEffective pixel size: {pix_mean} +/- {pix_std}"
+        str_repr += f"Grid Level: {self.gridlevel}\n"
+        str_repr += f"Effective pixel size: {pix_mean} +/- {pix_std}\n"
+        return str_repr
 
     @property
     def _hashvars(self):

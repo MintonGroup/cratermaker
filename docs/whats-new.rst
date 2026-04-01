@@ -3,6 +3,14 @@
 What's New
 ==========
 
+
+.. _whats-new.2026.4.0-alpha:
+
+:release:`v2026.4.0-alpha`
+
+- Created a new system to retrieve, merge, and apply data to surfaces :pull:`118` `Leo Minton`_
+- Added Quasi-Monte Carlo :pull:`119` `David Minton`_ `Austin Blevins`_`
+
 .. _whats-new.2026.3.8-alpha:
 
 :release:`v2026.3.8-alpha`

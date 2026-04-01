@@ -26,7 +26,7 @@ keywords = [
     'landscape evolution',
 ]
 dependencies = [
-    'numpy',
+    'numpy<2.4',
     'dask>=2026.1.2',
     'xarray>=2026.1.0',
     'uxarray>=2025.12.0',
@@ -149,6 +149,7 @@ ignore = [
     "E501",
     "F401",
     "TRY003", # Avoid specifying messages outside exception class; overly strict, especially for ValueError
+    "SIM102", # Don't suggest combining nested if statements, as we often use these to help clarify logic
     "SIM108", # Don't suggest if else block instead of expression, as it can reduce readability
     "N802",   # Allow uppercase functions 
     "N803",   # Allow uppercase arguments 

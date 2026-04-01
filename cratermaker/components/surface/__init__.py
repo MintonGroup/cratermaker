@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 import numpy as np
 import rasterio
+import pyvista as pv
 import uxarray as uxr
 import xarray as xr
 from affine import Affine
@@ -136,13 +137,12 @@ class Surface(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-
-        return (
-            f"{base}\nTarget: {self.target.name}\nGrid File: {self.grid_file}\n"
-            f"Number of faces: {self.n_face}\n"
-            f"Number of nodes: {self.n_node}\n"
-        )
+        str_repr = super().__str__()
+        str_repr += f"Target: {self.target.name}\n"
+        str_repr += f"Grid File: {self.grid_file}\n"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     @classmethod
     def maker(
@@ -665,7 +665,7 @@ class Surface(ComponentBase):
         """
         Save the surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -788,7 +788,7 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the surface to a VTK PolyData object.
 
@@ -796,6 +796,8 @@ class Surface(ComponentBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -804,7 +806,7 @@ class Surface(ComponentBase):
         vtkUnstructuredGrid
             The VTK PolyData object representing the regional mesh.
         """
-        return self._full().to_vtk_mesh(uxds=uxds, **kwargs)
+        return self._full().to_vtk_mesh(uxds=uxds, interval=interval, **kwargs)
 
     def to_vtk_file(
         self,
@@ -883,7 +885,17 @@ class Surface(ComponentBase):
             **kwargs,
         )
 
-    def show_pyvista(self, variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any):
+    def pyvista_plotter(
+        self,
+        variable_name: str | None = None,
+        variable: ArrayLike | None = None,
+        interval: int | None = None,
+        theme: str | None = None,
+        transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_interactive: bool = True,
+        **kwargs: Any,
+    ) -> pv.Plotter:
         """
         Show the surface region using an interactive 3D plot with PyVista.
 
@@ -893,6 +905,16 @@ class Surface(ComponentBase):
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+        interval : int | None, optional
+            The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
+        theme : str, optional
+            The PyVista theme to use for the plot. If None, the default PyVista theme will be used.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is False.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_interactive : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -901,30 +923,16 @@ class Surface(ComponentBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        return self._full().show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
-        """
-        Show the surface using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable: (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
-        """
-        return self._full().show3d(engine=engine, variable_name=variable_name, variable=variable, **kwargs)
+        return self._full().pyvista_plotter(
+            variable_name=variable_name,
+            variable=variable,
+            interval=interval,
+            theme=theme,
+            transparent_background=transparent_background,
+            plotter=plotter,
+            enable_interactive=enable_interactive,
+            **kwargs,
+        )
 
     def compute_distances(
         self,
@@ -1412,7 +1420,7 @@ class Surface(ComponentBase):
         """
         The variables used to generate the hash.
         """
-        return [self._component_name, self.target.name, self.radius]
+        return [self.component_name, self.target.name, self.radius]
 
     @property
     def _id(self):
@@ -2047,14 +2055,16 @@ class LocalSurface(CratermakerBase):
         """
         String representation of the LocalSurface object.
         """
-        base = "<LocalSurface>"
+        str_repr = "<LocalSurface>\n"
         if self.is_local:
-            base += f"\nLocation: {self.location[0]:.2f}°, {self.location[1]:.2f}°"
+            str_repr += f"Location: {self.location[0]:.2f}°, {self.location[1]:.2f}°\n"
 
         if self.region_radius:
-            base += f"\nRegion Radius: {format_large_units(self.region_radius, quantity='length')}"
+            str_repr += f"Region Radius: {format_large_units(self.region_radius, quantity='length')}\n"
 
-        return f"{base}\nNumber of faces: {self.n_face}\nNumber of nodes: {self.n_node}"
+        str_repr += f"Number of faces: {self.n_face}\n"
+        str_repr += f"Number of nodes: {self.n_node}\n"
+        return str_repr
 
     def __getattr__(self, name: str):
         """
@@ -2433,9 +2443,7 @@ class LocalSurface(CratermakerBase):
         return
 
     def calculate_face_and_node_distances(
-        self,
-        location: tuple[float, float] | None = None,
-        validate: bool = True
+        self, location: tuple[float, float] | None = None, validate: bool = True
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
@@ -2469,9 +2477,9 @@ class LocalSurface(CratermakerBase):
             location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, reference_location=location, validate=False), self.compute_distances(
-            locations=node_locations, reference_location=location, validate=False
-        )
+        return self.compute_distances(
+            locations=face_locations, reference_location=location, validate=False
+        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2888,7 +2896,7 @@ class LocalSurface(CratermakerBase):
             )
         return
 
-    def to_vtk_mesh(self, uxds: UxDataset | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
+    def to_vtk_mesh(self, uxds: UxDataset | None = None, interval: int | None = None, **kwargs: Any) -> vtkUnstructuredGrid:
         """
         Exports the regional mesh to a VTK PolyData object.
 
@@ -2896,6 +2904,8 @@ class LocalSurface(CratermakerBase):
         ----------
         uxds : UxDataset, optional
             The dataset to export. If None, the method will use currently loaded data in the surface. Default is None.
+        interval : int, optional
+            The interval number to export. If provided, the method will either extract the interval number from uxds (if it has intervals saved), or, if no uxds is passed, load a saved interval from file.
         **kwargs : Any
             |kwargs|
 
@@ -2913,7 +2923,16 @@ class LocalSurface(CratermakerBase):
         from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
         if uxds is None:
-            uxds = self.uxds
+            if interval is None:
+                uxds = self.uxds
+            else:
+                uxds = self.read_saved_output(interval=interval, reset=False).isel(interval=0)
+                interval = None
+
+        if interval is not None:
+            if "interval" not in uxds:
+                raise ValueError("uxds does not have an 'interval' variable")
+            uxds = uxds.isel(interval=interval)
 
         node_xyz = np.c_[self.node_x, self.node_y, self.node_z]
         node_normals = node_xyz / self.surface.radius
@@ -3217,7 +3236,7 @@ class LocalSurface(CratermakerBase):
         """
         Save the region surface data to the specified directory.
 
-        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension. If 'interval' is included as a key in `time_variables`, then this will be appended to the data file name.
+        Each data variable is saved to a separate NetCDF file. If 'time_variables' is specified, then a one or more variables will be added to the dataset along the time dimension.
 
         Parameters
         ----------
@@ -3233,11 +3252,8 @@ class LocalSurface(CratermakerBase):
         self.surface.output_dir.mkdir(parents=True, exist_ok=True)
         if interval is None:
             interval = 0
-        if time_variables is None:
-            time_variables = {"elapsed_time": float(interval)}
-        else:
-            if not isinstance(time_variables, dict):
-                raise TypeError("time_variables must be a dictionary")
+        if time_variables is not None and not isinstance(time_variables, dict):
+            raise TypeError("time_variables must be a dictionary")
 
         # Sort any layers that we might have before saving
         for var in self.uxds.data_vars:
@@ -3247,8 +3263,9 @@ class LocalSurface(CratermakerBase):
         self.uxds.close()
 
         ds = self.uxds.expand_dims(dim="interval").assign_coords({"interval": [interval]})
-        for k, v in time_variables.items():
-            ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
+        if time_variables is not None:
+            for k, v in time_variables.items():
+                ds[k] = xr.DataArray(data=[v], name=k, dims=["interval"], coords={"interval": [interval]})
 
         self.surface._save_data(
             ds,
@@ -3464,14 +3481,17 @@ class LocalSurface(CratermakerBase):
             plt.close()
         return ax
 
-    def show_pyvista(
+    def pyvista_plotter(
         self,
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
+        interval: int | None = None,
         theme: str | None = None,
         transparent_background: bool | None = None,
+        plotter: pv.Plotter | None = None,
+        enable_interactive: bool = True,
         **kwargs: Any,
-    ) -> None:
+    ) -> pv.Plotter:
         """
         Show the local surface region using an interactive 3D plot with PyVista.
 
@@ -3480,11 +3500,17 @@ class LocalSurface(CratermakerBase):
         variable_name : str | None, optional
             The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
         variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
+        interval : int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
             The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
+        plotter : pyvista.Plotter, optional
+            A pre-existing Plotter object to use. If None, then a new one will be created and returned. Default is None.
+        enable_interactive : bool, optional
+            If True, the default PyVista key events will be updated to include custom events for toggling scalar visibility, changing the camera view, and showing a help message. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -3493,27 +3519,22 @@ class LocalSurface(CratermakerBase):
         pyvista.Plotter
             The PyVista Plotter object for further customization.
         """
-        try:
-            import pyvista as pv
-        except ImportError:
-            warnings.warn("pyvista is not installed. Cannot generate plot.", stacklevel=2)
-            return
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
         from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
 
-        def _set_title(variable_name):
-            if variable_name in self.uxds and "long_name" in self.uxds[variable_name].attrs:
-                if "units" in self.uxds[variable_name].attrs:
-                    title = f"{self.uxds[variable_name].attrs['long_name']} ({self.uxds[variable_name].attrs['units']})"
+        def _set_title(uxds, variable_name):
+            if variable_name in uxds and "long_name" in uxds[variable_name].attrs:
+                if "units" in uxds[variable_name].attrs:
+                    title = f"{uxds[variable_name].attrs['long_name']} ({uxds[variable_name].attrs['units']})"
                 else:
-                    title = self.uxds[variable_name].attrs["long_name"]
+                    title = uxds[variable_name].attrs["long_name"]
             else:
                 title = variable_name
             return title
 
         def update_scalars(plotter, cmap):
             camera_orig = plotter.camera
-            mesh_actor = plotter.actors["surface_mesh"]
+            mesh_actor = plotter.actors[self.target.name]
             if not plotter.scalar_bars:
                 scalar_bar_actor = None
             else:
@@ -3546,7 +3567,7 @@ class LocalSurface(CratermakerBase):
                 mesh_actor.mapper.SetColorModeToMapScalars()
                 mesh_actor.mapper.lookup_table.cmap = cmap
                 mesh_actor.mapper.SetScalarVisibility(True)
-                title = _set_title(next_scalar_name)
+                title = _set_title(self.uxds, next_scalar_name)
                 if scalar_bar_actor is None:
                     scalar_bar_actor = plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
                 else:
@@ -3595,25 +3616,34 @@ class LocalSurface(CratermakerBase):
             pv.set_plot_theme(theme)
         if transparent_background is not None:
             pv.global_theme.transparent_background = transparent_background
-        plotter = pv.Plotter()
-        plotter.enable_hidden_line_removal()
 
-        mesh = self.to_vtk_mesh(self.uxds)
+        new_plotter = plotter is None
+        if new_plotter:
+            plotter = pv.Plotter()
+            plotter.enable_hidden_line_removal()
 
-        reset_view(plotter)
+        if interval is None:
+            uxds = self.uxds
+        else:
+            uxds = self.read_saved_output(interval=interval).isel(interval=0)
+            interval = None
+        mesh = self.to_vtk_mesh(uxds)
+
+        if new_plotter:
+            reset_view(plotter)
 
         face_variables = []
         component_variables = []
-        for v in self.uxds.data_vars:
-            if self.uxds[v].ndim > 0 and self.uxds[v].shape[0] == self.n_face:
-                mesh.cell_data[v] = self.uxds[v].data
+        for v in uxds.data_vars:
+            if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
+                mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)
-                if self.uxds[v].ndim == 2:
+                if uxds[v].ndim == 2:
                     component_variables.append(v)
 
         component = kwargs.pop("component", None)
         if variable_name is not None and variable_name in face_variables:
-            title = _set_title(variable_name)
+            title = _set_title(uxds, variable_name)
             if variable_name in component_variables:
                 component = 0 if component is None else component
                 title += f" (layer {component})"
@@ -3640,24 +3670,25 @@ class LocalSurface(CratermakerBase):
         cmap = kwargs.pop("cmap", "cividis")
         add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
         add_mesh_kwargs = {
-            "name": "surface_mesh",
+            "name": self.target.name,
             "show_edges": False,
             "show_scalar_bar": False,
             "color": "grey",
+            "pbr": True,
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
-        if self.is_global:
+        if new_plotter and self.is_global:
             plotter.view_yz()
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-
-        plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
-        plotter.add_key_event("j", lambda: update_scalars(plotter, cmap=cmap))
-        plotter.add_key_event("r", lambda: reset_view(plotter))
+        if enable_interactive and new_plotter:
+            plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
+            plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
+            plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
@@ -3703,38 +3734,6 @@ class LocalSurface(CratermakerBase):
                 gdf.to_file(filename, layer="local_surface_AREA", driver=driver, **kwargs)
 
         return
-
-    def show3d(
-        self, engine: str = "pyvista", variable_name: str | None = None, variable: ArrayLike | None = None, **kwargs: Any
-    ) -> Any:
-        """
-        Show the local surface region using an interactive 3D plot.
-
-        Parameters
-        ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
-        variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
-        variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
-        """
-        from cratermaker.constants import PYVISTA_SHOW_KWARGS
-
-        if engine == "pyvista":
-            plotter = self.show_pyvista(variable_name=variable_name, variable=variable, **kwargs)
-            plotter_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_SHOW_KWARGS}
-            plotter.show(**plotter_kwargs)
-        else:
-            raise ValueError(f"Engine '{engine}' is not supported for 3D plotting.")
-
-        return plotter
 
     def compute_distances(
         self,
