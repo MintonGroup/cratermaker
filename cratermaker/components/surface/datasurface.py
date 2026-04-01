@@ -5,10 +5,11 @@ from typing import Any
 from warnings import warn
 
 import numpy as np
+import rasterio
 import xarray as xr
 from numpy.typing import NDArray
 
-from cratermaker.components.surface import Surface
+from cratermaker.components.surface import DataComposer, Surface
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
@@ -135,29 +136,6 @@ class DataSurface(HiResLocalSurface):
         self.ask_overwrite = ask_overwrite
         return
 
-    def _get_lola_dem_file_list(
-        self,
-        pix: FloatLike,
-        lat_range: tuple[float, float],
-    ) -> list[str] | str:
-        """
-        Determine the set of LOLA DEM files needed to cover the local region if none are provided by the user.
-
-        Parameters
-        ----------
-        pix : FloatLike
-            The approximate resolution in meters per pixel to use to select the DEM files.
-        lat_range : tuple of float, optional
-            The (min_lat, max_lat) in degrees of the local region. If None, it will be computed from the local location and radius.
-        """
-        target_pds_resolution = np.pi / 180.0 * self.target.radius / pix
-        if target_pds_resolution > 10 and (
-            lat_range[0] > 60 or lat_range[1] < -60
-        ):  # Use polar files high latitude, high resolution regions.
-            return self._get_lola_polar_files_from_pds(pix, lat_range=lat_range)
-        else:  # Use cylindrical for all other cases
-            return self._get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution)
-
     def _get_location_extents(self):
         """
         Computes the longitude and latitude extents of the local region.
@@ -194,175 +172,6 @@ class DataSurface(HiResLocalSurface):
             lon_max = lon0 + half_lon_span
         return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
 
-    @staticmethod
-    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset=(0, 0)) -> Path:
-        """
-        Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
-
-        Parameters
-        ----------
-        pds_file_resolution : int
-            DEM resolution in meters per pixel.
-        location : PairOfFloats,
-            The longitude and latitude of the location in degrees.
-        boundary_offset : tuple of int, optional
-            Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
-
-        Returns
-        -------
-        url: str
-            Link to the DEM file
-
-        Notes
-        -----
-        This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
-        For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
-
-        """
-        lola_cylindrical_url = (
-            "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
-        )
-        sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
-        sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
-
-        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
-            if location[0] < 0:
-                location = (location[0] + 360, location[1])
-            if pds_file_resolution == 512:
-                dlon = 45
-                dlat = 30
-            elif pds_file_resolution == 256:
-                dlon = 120
-                dlat = 60
-
-            latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
-            latval = np.abs(location[1] / dlat) + boundary_offset[1]
-            if latdir == "n":
-                latlo = int(np.ceil(latval - 1) * dlat)
-                lathi = int(latlo + dlat)
-            else:
-                lathi = int(np.floor(latval + 1) * dlat)
-                latlo = int(lathi - dlat)
-
-            lonval = np.abs(location[0] / dlon) + boundary_offset[0]
-
-            # Pole crossing, so flip the longitudes by 180 degrees
-            if lathi > 90 or latlo > 90:
-                lathi = 90
-                latlo = lathi - dlat
-                lonval += 180 / dlon
-
-            lonlo = int(np.floor(lonval) * dlon) % 360
-            lonhi = int(lonlo + dlon)
-
-            # Check to make sure the lo and hi values are in the right direction
-            if (latdir.upper() == "N" and latlo > lathi) or (latdir.upper() == "S" and latlo < lathi):
-                tmp = latlo
-                latlo = lathi
-                lathi = tmp
-
-            if pds_file_resolution == 512:
-                return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
-            elif pds_file_resolution == 256:
-                return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
-
-        if pds_file_resolution >= 256:
-            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
-        elif pds_file_resolution == 128:
-            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
-        else:
-            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
-
-        return url
-
-    def _get_lola_cylindrical_files_from_pds(self, resolution) -> list[str] | str:
-        """
-        Retrieve the appropriate cylindrically projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
-
-        This will determine which, if any, boundaries are crossed and will return a list of files to cover the entire local region.
-
-        Parameters
-        ----------
-        resolution : FloatLike
-            Requested resolution in degrees per pixel. The closest available resolution will be used.
-
-        """
-        try:
-            import rasterio
-        except ImportError:
-            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
-            return
-
-        from affine import Affine
-        from rasterio.io import MemoryFile
-        from rasterio.merge import merge
-        from rasterio.vrt import WarpedVRT
-        from rasterio.warp import Resampling
-        from rasterio.windows import Window, from_bounds
-
-        AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
-        diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
-        pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
-
-        # First, retrive the file for the centerpoint:
-        filelist = [self._get_lola_cylindrical_url_from_pds(pds_file_resolution, self.local_location)]
-        if pds_file_resolution < 256:
-            return filelist  # These files cover the entire globe, no need to determine if boundaries are crossed
-
-        lon_min, lon_max, lat_min, lat_max = self._get_location_extents()
-        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
-
-        for loc in combo:
-            f = self._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
-            if f not in filelist:
-                filelist.append(f)
-
-        return filelist
-
-    def _get_lola_polar_files_from_pds(self, resolution, lat_range: tuple[float, float]) -> list[str] | str:
-        """
-        Retrieve the appropriate polar projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
-
-        Parameters
-        ----------
-        resolution : FloatLike
-            Requested resolution in meters per pixel. The closest available resolution will be used.
-        lat_range : tuple of float
-            The (min_lat, max_lat) in degrees of the local region.
-
-        """
-        import rasterio
-
-        src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
-
-        AVAILABLE_RESOLUTIONS = [400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
-        MIN_LAT = [45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
-
-        if lat_range[0] > 0:
-            pole = "n"
-            min_lat_index = 0  # in the northern hemisphere, the minimum latitude defines coverage
-        else:
-            pole = "s"
-            min_lat_index = 1  # in the southern hemisphere, the maximum latitude defines coverage
-        combo = [
-            (res, minlat)
-            for res, minlat in zip(AVAILABLE_RESOLUTIONS, MIN_LAT, strict=False)
-            if abs(lat_range[min_lat_index]) >= minlat
-        ]
-        if len(combo) == 0:
-            raise ValueError("No available LOLA polar DEM files cover the requested latitude range.")
-
-        valid_resolutions, valid_min_lat = zip(*combo, strict=False)
-
-        diffs = [abs(resolution - res) for res in valid_resolutions]
-        pds_file_resolution = valid_resolutions[np.argmin(diffs)]
-        pds_lat_min = valid_min_lat[np.argmin(diffs)]
-        filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
-        url = f"{src_url}{filename}_float.xml"
-
-        self._pix = pds_file_resolution
-        return [url]
-
     def _get_local_dem_data(
         self,
     ):
@@ -394,8 +203,7 @@ class DataSurface(HiResLocalSurface):
         _EXPANSION_BUFFER = 1.05
         _NODATA = np.finfo(np.float32).min
         region_radius = self.local_radius
-        box_size = 2 * np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
-        half_box_size = box_size / 2
+        half_box_size = np.sqrt(2.0) * region_radius * _EXPANSION_BUFFER
         dst_crs = self.get_crs(
             radius=self.target.radius,
             name=self.target.name,
@@ -730,7 +538,7 @@ class DataSurface(HiResLocalSurface):
         return
 
     @parameter
-    def dem_file_list(self) -> int | None:
+    def dem_file_list(self) -> list[str] | None:
         """
         The list of files to use for the DEM data in the high resolution local region.
 
@@ -738,12 +546,13 @@ class DataSurface(HiResLocalSurface):
         return self._dem_file_list
 
     @dem_file_list.setter
-    def dem_file_list(self, value: int | None):
+    def dem_file_list(self, value: list[str] | None):
         if value is None:
             if self._pix is None:
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
-            value = self._get_lola_dem_file_list(pix=self._pix, lat_range=self._get_location_extents()[2:])
+            lon_min, lon_max, lat_min, lat_max = self.get_location_extents(self.local_location, self.local_radius)
+            value, self._pix = DataComposer.get_lola_dem_file_list(pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))
         elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
@@ -753,11 +562,6 @@ class DataSurface(HiResLocalSurface):
         self._dem_file_list = value
 
         # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
-        try:
-            import rasterio
-        except ImportError:
-            warn("rasterio is not installed. Cannot use this feature.", stacklevel=2)
-            return
 
         pixvals = []
         for f in self._dem_file_list:
@@ -768,7 +572,7 @@ class DataSurface(HiResLocalSurface):
         return
 
     @parameter
-    def superdomain_dem_file(self) -> int | None:
+    def superdomain_dem_file(self) -> str | Path | None:
         """
         The list of files to use for the DEM data in the superdomain.
 
@@ -776,7 +580,7 @@ class DataSurface(HiResLocalSurface):
         return self._superdomain_dem_file
 
     @superdomain_dem_file.setter
-    def superdomain_dem_file(self, value: int | None):
+    def superdomain_dem_file(self, value: str | Path | None):
         if value is None:
             # If the superdomain has not been set yet, we will defer setting this until later
             if self.superdomain_scale_factor is None:
@@ -785,7 +589,7 @@ class DataSurface(HiResLocalSurface):
             sdpix = self.superdomain_scale_factor * self.pix / 10.0
             if sdpix < min_global_pix:
                 sdpix = min_global_pix
-            self._superdomain_dem_file = self._get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90))[0]
+            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[0][0]
             return
         if not isinstance(value, (str, Path)):
             raise TypeError("'superdomain_dem_file' must be a strings or Path objects, or None.")

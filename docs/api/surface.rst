@@ -33,6 +33,12 @@ Available Implementations
    :undoc-members:
    :no-index-entry:
 
+
+.. autoclass:: cratermaker.components.surface.DataComposer
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
 .. _api-IcosphereSurface:
 
 .. currentmodule:: cratermaker.components.surface.icosphere

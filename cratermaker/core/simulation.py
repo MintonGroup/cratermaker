@@ -1100,20 +1100,20 @@ class Simulation(CratermakerBase):
             return largest_crater
 
     @property
-    def target(self):
+    def target(self) -> Target | str:
         """
         The target body for the impact simulation. Set during initialization.
         """
         return self._target
 
     @target.setter
-    def target(self, value):
+    def target(self, value: Target | str):
         if not isinstance(value, (Target | str)):
             raise TypeError("target must be an instance of Target or str")
         self._target = value
 
     @property
-    def surface(self):
+    def surface(self) -> Surface:
         """
         Surface mesh data for the simulation. Set during initialization.
         """

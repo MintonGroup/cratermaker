@@ -727,7 +727,7 @@ class HiResLocalSurface(Surface):
         )
 
     @property
-    def local(self):
+    def local(self) -> LocalSurface:
         """
         Returns the local view of the surface.
         """
@@ -770,7 +770,7 @@ class HiResLocalSurface(Surface):
         return
 
     @parameter
-    def pix(self):
+    def pix(self) -> FloatLike:
         """
         The approximate face size for a cell of the mesh.
         """
@@ -783,7 +783,7 @@ class HiResLocalSurface(Surface):
         self._pix = value
 
     @parameter
-    def local_radius(self):
+    def local_radius(self) -> FloatLike:
         """
         The radius of the local region in meters.
         """
@@ -800,7 +800,7 @@ class HiResLocalSurface(Surface):
         self._local_radius = value
 
     @parameter
-    def local_location(self):
+    def local_location(self) -> PairOfFloats:
         """
         The longitude and latitude of the location in degrees.
         """

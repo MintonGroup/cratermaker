@@ -6,27 +6,35 @@ import shutil
 import tempfile
 import warnings
 from abc import abstractmethod
+from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
+import rasterio
 import uxarray as uxr
 import xarray as xr
+from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
+from rasterio import DatasetReader, MemoryFile, windows
+from rasterio.enums import Resampling
+from rasterio.merge import merge
+from rasterio.transform import rowcol
+from rasterio.vrt import WarpedVRT
+from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
+from tqdm import tqdm
 from uxarray import INT_FILL_VALUE, UxDataArray, UxDataset
 from vtk import vtkUnstructuredGrid
 
 from cratermaker.bindings import surface_bindings
+from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
-
-if TYPE_CHECKING:
-    from cratermaker.components.target import Target
 
 _N_TAG_LAYERS = 8
 
@@ -1358,6 +1366,47 @@ class Surface(ComponentBase):
         self._pix_max = float(self._face_size.max().item())
         return
 
+    def get_location_extents(self, location: PairOfFloats, radius: FloatLike) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of a given region.
+
+        Parameters
+        ----------
+        location : PairOfFloats
+            The center of the region.
+        radius : FloatLike
+            The radius of the region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        R = self.target.radius
+        lon0, lat0 = location
+        alpha_deg = np.degrees(radius / R)
+
+        lat_min = max(-90.0, lat0 - alpha_deg)
+        lat_max = min(90.0, lat0 + alpha_deg)
+
+        # If we hit a pole, longitudes span everything
+        if abs(lat0) + alpha_deg >= 90.0:
+            lon_min, lon_max = -180.0, 180.0
+        else:
+            half_lon_span = alpha_deg / np.cos(np.radians(lat0))
+            half_lon_span = min(half_lon_span, 180.0)
+
+            lon_min = lon0 - half_lon_span
+            lon_max = lon0 + half_lon_span
+        return float(lon_min), float(lon_max), float(lat_min), float(lat_max)
+
     @property
     def _hashvars(self):
         """
@@ -1895,6 +1944,16 @@ class Surface(ComponentBase):
             raise TypeError("is_new must be a boolean value.")
         self._is_new = value
         return
+
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``DataComposer`` tied to this ``Surface``. This should usually be called in a ``with`` statement.
+
+        Returns
+        -------
+        DataComposer
+        """
+        return self._full().data_composer()
 
 
 class LocalSurface(CratermakerBase):
@@ -3859,6 +3918,27 @@ class LocalSurface(CratermakerBase):
 
         return output_files
 
+    def get_location_extents(self) -> tuple[float, float, float, float]:
+        """
+        Computes the longitude and latitude extents of the local region.
+
+        Returns
+        -------
+        lon_min : float
+            Minimum longitude in degrees.
+        lon_max : float
+            Maximum longitude in degrees.
+        lat_min : float
+            Minimum latitude in degrees.
+        lat_max : float
+            Maximum latitude in degrees.
+
+        """
+        if self.is_global:
+            raise ValueError("Cannot get the location extents of a global region.")
+
+        return self.surface.get_location_extents(self.location, self.radius)
+
     @property
     def surface(self) -> Surface:
         """The Surface object that contains the mesh data for the global surface."""
@@ -4389,6 +4469,412 @@ class LocalSurface(CratermakerBase):
     def is_global(self) -> bool:
         """Whether this surface is the full global surface."""
         return self.location is None
+
+    def data_composer(self) -> DataComposer:
+        """
+        Creates a ``DataComposer`` tied to this ``LocalSurface``. This should usually be called in a ``with`` statement.
+
+        Returns
+        -------
+        DataComposer
+        """
+        return DataComposer(self)
+
+
+class DataComposer(AbstractContextManager):
+    """
+    Created using ``Surface.data_composer`` or ``LocalSurface.data_composer``. Contains some static methods for loading LOLA data.
+    """
+
+    def __init__(self, surface: LocalSurface):
+        """
+        **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
+        """
+        self._localsurface = surface
+        self._data_list: list[DatasetReader] = []
+        self._finished = False
+
+    def add_data(
+            self,
+            data: DatasetReader | str | list[DatasetReader | str],
+    ):
+        """
+        Adds data to eventually be applied to the surface.
+
+        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+
+        Parameters
+        ----------
+        dataset : DatasetReader | str | list[DatasetReader | str]
+            A single dataset or a list of multiple datasets to be merged.
+            Calls ``rasterio.open`` when necessary.
+        """
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        if not isinstance(data, list):
+            data = [data]
+
+        for i, src in enumerate(data):
+            if not isinstance(src, DatasetReader):
+                data[i] = rasterio.open(src)
+
+            self._data_list.append(data[i])
+
+    def cancel(self):
+        """
+        Cancels the execution and closes all open datasets.
+        """
+        for dataset in self._data_list:
+            dataset.close()
+        self._data_list = []
+        self._finished = True
+
+
+    def finish(self):
+        """
+        Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
+        """
+        if self._finished:
+            raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        def _orderable_distance(lon1, lat1, lon2, lat2):
+            _nnon1 = np.deg2rad(lon1)
+            lat1 = np.deg2rad(lat1)
+            lon2 = np.deg2rad(lon2)
+            lat2 = np.deg2rad(lat2)
+
+            dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
+            dlat = lat2 - lat1
+            return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+
+        def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
+            block_windows = []
+            for _, block in dataset.block_windows(1):
+                if window is None or windows.intersect(window, block):
+                    block_windows.append(block)
+
+            res_window: Window = windows.union(block_windows)
+
+            print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
+
+            res = np.empty((res_window.height, res_window.width))
+
+            for block in tqdm(block_windows):
+                out = res[
+                    block.row_off-res_window.row_off : block.row_off-res_window.row_off+block.height,
+                    block.col_off-res_window.col_off : block.col_off-res_window.col_off+block.width
+                ]
+                dataset.read(1, window=block, out=out)
+
+            return res, res_window
+
+        print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
+
+        lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
+        lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+
+        read_data: list[NDArray] = []
+        data_windows: list[Window] = []
+
+        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
+        for n, dataset in enumerate(self._data_list):
+
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
+
+            x_coords, y_coords = to_data.transform(lons, lats)
+
+            mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
+            rows, cols = rowcol(dataset.transform, x_coords[mask1], y_coords[mask1])
+            mask2 = (cols >= 0) & (cols < dataset.width) & (rows >= 0) & (rows < dataset.height)
+            mask1[mask1] = mask2
+            rows = rows[mask2]
+            cols = cols[mask2]
+
+            if self._localsurface.is_local:
+                cmin, rmin, cmax, rmax = np.min(cols), np.min(rows), np.max(cols), np.max(rows)
+                data, window = _read(dataset, window=Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1))
+            else:
+                data, window = _read(dataset)
+
+            read_data.append(data)
+            data_windows.append(window)
+
+            values = data[rows - window.row_off, cols - window.col_off]
+
+            print("        Calculating pixel distances")
+
+            mask3 = np.isfinite(values) & (values != dataset.nodata)
+            mask1[mask1] = mask3
+            x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
+            pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
+
+        idx = np.argmin(pix_dist, axis=0)
+        global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
+        elevation = np.zeros_like(idx, dtype=np.float32)
+
+        print("    Setting elevation data")
+        for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            mask = global_mask & (idx == n)
+
+            if "KILOMETER" in dataset.units:
+                scale_factor = 1000.0
+            else:
+                scale_factor = 1.0
+
+            x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
+            rows, cols = rowcol(dataset.transform, x_coords, y_coords)
+            elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            dataset.close()
+
+        self._localsurface.update_elevation(elevation)
+        self._data_list = []
+        self._finished = True
+        print("    Done")
+
+    def __enter__(self) -> DataComposer:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.finished:
+            return
+        if exc_type is None:
+            self.finish()
+        else:
+            self.cancel()
+
+    @staticmethod
+    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)) -> str:
+        """
+        Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
+
+        Parameters
+        ----------
+        pds_file_resolution : int
+            DEM resolution in meters per pixel.
+        location : PairOfFloats,
+            The longitude and latitude of the location in degrees.
+        boundary_offset : tuple[int, int], optional
+            Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
+
+        Returns
+        -------
+        url : str
+            Link to the DEM file
+
+        Notes
+        -----
+        This is meant to be used for mid-latitude regions on the Moon between -60 and 60 degrees latitude.
+        For resolutions of 128, 256, and 512 pix/deg, this will return the SLDEM2015 datasets.
+
+        """
+        lola_cylindrical_url = (
+            "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/cylindrical/float_img/"
+        )
+        sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
+        sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
+
+        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
+            if location[0] < 0:
+                location = (location[0] + 360, location[1])
+            if pds_file_resolution == 512:
+                dlon = 45
+                dlat = 30
+            elif pds_file_resolution == 256:
+                dlon = 120
+                dlat = 60
+
+            latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
+            latval = np.abs(location[1] / dlat) + boundary_offset[1]
+            if latdir == "n":
+                latlo = int(np.ceil(latval - 1) * dlat)
+                lathi = int(latlo + dlat)
+            else:
+                lathi = int(np.floor(latval + 1) * dlat)
+                latlo = int(lathi - dlat)
+
+            lonval = np.abs(location[0] / dlon) + boundary_offset[0]
+
+            # Pole crossing, so flip the longitudes by 180 degrees
+            if lathi > 90 or latlo > 90:
+                lathi = 90
+                latlo = lathi - dlat
+                lonval += 180 / dlon
+
+            lonlo = int(np.floor(lonval) * dlon) % 360
+            lonhi = int(lonlo + dlon)
+
+            # Check to make sure the lo and hi values are in the right direction
+            if (latdir.upper() == "N" and latlo > lathi) or (latdir.upper() == "S" and latlo < lathi):
+                tmp = latlo
+                latlo = lathi
+                lathi = tmp
+
+            if pds_file_resolution == 512:
+                return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+            elif pds_file_resolution == 256:
+                return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
+
+        if pds_file_resolution >= 256:
+            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
+        elif pds_file_resolution == 128:
+            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        else:
+            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
+
+        return url
+
+    @staticmethod
+    def get_lola_cylindrical_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats, lon_range: PairOfFloats) -> tuple[list[str], int]:
+        """
+        Retrieve the appropriate cylindrically projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
+
+        This will determine which, if any, boundaries are crossed and will return a list of files to cover a region.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in degrees per pixel. The closest available resolution will be used.
+        lat_range : tuple of float, optional
+            The (min_lat, max_lat) in degrees of the local region.
+        lon_range : tuple of float, optional
+            The (min_lon, max_lon) in degrees of the local region.
+        """
+        AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
+        diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
+        pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
+
+        lat_min, lat_max = lat_range
+        lon_min, lon_max = lon_range
+        center = ((lon_min + lon_max)/2.0, (lat_min + lat_max)/2.0)
+
+        # First, retrive the file for the centerpoint:
+        filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
+        if pds_file_resolution < 256:
+            return filelist, pds_file_resolution  # These files cover the entire globe, no need to determine if boundaries are crossed
+
+        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
+
+        for loc in combo:
+            f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
+            if f not in filelist:
+                filelist.append(f)
+
+        return filelist, pds_file_resolution
+
+    @staticmethod
+    def get_lola_polar_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats) -> tuple[list[str], int]:
+        """
+        Retrieve the appropriate polar projected LOLA DEM file url for a given location and resolution from the PDS.
+
+        Parameters
+        ----------
+        resolution : FloatLike
+            Requested resolution in meters per pixel. The closest available resolution will be used.
+        lat_range : tuple of float
+            The (min_lat, max_lat) in degrees of the local region.
+
+        """
+        import rasterio
+
+        src_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/"
+
+        AVAILABLE_RESOLUTIONS = [400, 240, 200, 120, 100, 80, 60, 40, 30, 20, 10, 5]
+        MIN_LAT = [45, 60, 45, 60, 45, 80, 60, 80, 75, 80, 85, 87.5]
+
+        if lat_range[0] > 0:
+            pole = "n"
+            min_lat_index = 0  # in the northern hemisphere, the minimum latitude defines coverage
+        else:
+            pole = "s"
+            min_lat_index = 1  # in the southern hemisphere, the maximum latitude defines coverage
+        combo = [
+            (res, minlat)
+            for res, minlat in zip(AVAILABLE_RESOLUTIONS, MIN_LAT, strict=True)
+            if abs(lat_range[min_lat_index]) >= minlat
+        ]
+        if len(combo) == 0:
+            raise ValueError("No available LOLA polar DEM files cover the requested latitude range.")
+
+        valid_resolutions, valid_min_lat = zip(*combo, strict=True)
+
+        diffs = [abs(resolution - res) for res in valid_resolutions]
+        pds_file_resolution = valid_resolutions[np.argmin(diffs)]
+        pds_lat_min = valid_min_lat[np.argmin(diffs)]
+        filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
+        url = f"{src_url}{filename}_float.xml"
+
+        return [url], pds_file_resolution
+
+    @staticmethod
+    def get_lola_dem_file_list(
+        pix: FloatLike,
+        lat_range: PairOfFloats,
+        lon_range: PairOfFloats,
+    ) -> tuple[list[str], int]:
+        """
+        Determine the set of LOLA DEM files needed to cover the local region.
+
+        Parameters
+        ----------
+        pix : FloatLike
+            The approximate resolution in meters per pixel to use to select the DEM files.
+        lat_range : PairOfFloats, optional
+            The (min_lat, max_lat) in degrees of the local region.
+        lon_range : PairOfFloats, optional
+            The (min_lon, max_lon) in degrees of the local region.
+        """
+        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix # The moon's radius
+        if target_pds_resolution > 10 and (
+            lat_range[0] > 60 or lat_range[1] < -60
+        ):  # Use polar files high latitude, high resolution regions.
+            return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
+        else:  # Use cylindrical for all other cases
+            return DataComposer.get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution, lat_range=lat_range, lon_range=lon_range)
+
+    def populate_with_lola_data(self, pix: FloatLike | None = None):
+        """
+        Loads the DEM files from LOLA needed to cover the surface.
+
+        Parameters
+        ----------
+        pix : FloatLike
+            The approximate resolution in meters per pixel to use to select the DEM files.
+            Defaults to the resolution of the surface used.
+        """
+        if pix is None:
+            pix = self._localsurface.pix
+
+        if self._localsurface.is_local:
+            lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
+            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
+        else:
+            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
+            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
+
+    @property
+    def localsurface(self) -> LocalSurface:
+        """
+        The ``LocalSurface`` used to create the ``DataComposer``.
+        """
+        return self._localsurface
+
+    @property
+    def surface(self) -> Surface:
+        """
+        The ``Surface`` used to create the ``DataComposer``.
+        """
+        return self._localsurface.surface
+
+    @property
+    def finished(self):
+        """
+        Whether ``finish()`` or ``cancel()`` has been called or not.
+        """
+        return self._finished
 
 
 import_components(__name__, __path__)
