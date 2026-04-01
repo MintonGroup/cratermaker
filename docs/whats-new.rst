@@ -6,7 +6,7 @@ What's New
 .. _whats-new.2026.4.1-alpha:
 
 - Fixed minor issues with documentation to ensure all elements are included in the build. `David Minton`_
-- Fixed problem where the Neukum production function was creating too many basins by adjusting the power law exponent of the upper extrapolation to be steeper by -5.0. :pull:`121` `David Minton`_
+- Fixed problem where the Neukum production function was creating too many basins by adjusting the power law exponent of the upper extrapolation to be steeper by -5.0. :pull:`120` `David Minton`_
 
 :release:`v2026.4.1-alpha`
 
