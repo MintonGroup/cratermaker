@@ -124,7 +124,7 @@ For this example, we are going to use |production.age_from_D_N| to plot the age 
 Using the Production component in a Simulation
 ----------------------------------------------
 
-In the above guides we have shown how to use the |Production| as a standalone object. However, the preferred way of initializing and using this object is as part of a |Simulation| object, where it is initialized in tandem with all other components in the Cratermaker project. This allows the components to be checked for self-consistency, and streamlines some of the initialization issues. Here we will demonstrate some typical use-cases for |Production|, including how the valid ranges are dynamically adjusted for the particular  |Surface| and how the Quasi-Monte Carlo functionality allows the user to mix real craters with known properties with randomly-generated craters into a simulation.
+In the above guides we have shown how to use the |Production| as a standalone object. However, the preferred way of initializing and using this object is as part of a |Simulation| object, where it is initialized in tandem with all other components in the Cratermaker project. This allows the components to be checked for self-consistency, and streamlines some of the initialization issues. Here we will demonstrate some typical use-cases for |Production|, including how the valid ranges are dynamically adjusted for the particular |Surface| and how the Quasi Monte Carlo functionality allows the user to mix real craters with known properties with randomly-generated craters into a simulation.
 
 Emplace a population of craters drawn from a production function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -164,12 +164,14 @@ When used inside a |Simulation|, the upper and lower bounds on the sizes of crat
 
 .. _ug-production-quasimc:
 
-Quasi-Monte Carlo craters
+Quasi Monte Carlo craters
 -------------------------
 
-For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a |Simulation| object with an argument `quasimc_file`, which points to either a CSV or NetCDF file containing the information needed to emplace the craters. Alternatively, you  When this argumented is passed, the |sim.run| method will run in "Quasi-Monte Carlo mode". 
+For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a |Simulation| object with an argument `quasimc_file`, which points to either a CSV or NetCDF file containing the information needed to emplace the craters. Alternatively, you  When this argumented is passed, the |sim.run| method will run in "Quasi Monte Carlo mode". 
 
-Quasi-Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in the input file and how they affect the behavior of the simulation with a simple donstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 76 lunar basins and craters is included in the :ref:`gal-simulation`.
+Quasi Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in either a file via the |production.quasimc_file| property, or a list of |Crater| objects provided to the |production.quasimc_craters| property. The |Simulation| class also has its own wrappers for these two properties, |sim.quasimc_file| and |sim.quasimc_craters| for convenience.  
+
+Here we have some demonstrations of the different ways to set Quasi Monte Carlo craters, and how different parameters affect the behavior of the simulation with a simple donstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 76 lunar basins and craters is included in the :ref:`gal-simulation`.
 
 First, we we will create a CSV file called "qmc_inputs.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as :py:attr:`~cratermaker.components.crater.CraterFixed.diameter` or :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter` Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical :py:attr:`~cratermaker.components.crater.CraterFixed.location` tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this.
 
@@ -177,7 +179,7 @@ First, we we will create a CSV file called "qmc_inputs.csv" and populate it with
 Specifying an emplacement time
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Setting |Crater.production_time| specifies the time when the crater should form along with an optional 1σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution, unless you only pass a single value to |Crater.production_time|.  We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) [#]_ of 3922±12 My.
+Setting |crater.production_time| specifies the time when the crater should form along with an optional 1σ standard deviation value. When passing this to |Crater.maker| this can be specified as either a single value or a pair of values, where the first value represents the time and the second the standard deviation, both in units of My. The actual time value will be drawn from a normal distribution, unless you only pass a single value to |crater.production_time|.  We will use the age of the Imbrium impact event reported by Nemchin et al. (2021) [#]_ of 3922±12 My.
 
 .. ipython:: python
     :okwarning:
@@ -193,9 +195,7 @@ Setting |Crater.production_time| specifies the time when the crater should form 
    from cratermaker import Simulation
 
    sim = Simulation(gridlevel=5)
-   qmc_list = []
-   qmc_list.append(sim.Crater.maker(name="Imbrium", diameter=1321e3, location=(341.5, 37), production_time=(3922, 12)))
-   sim.quasimc_craters = qmc_list # This will process the craters and give it a time values bsed on their production metadata
+   sim.quasimc_craters.append(sim.Crater.maker(name="Imbrium", diameter=1321e3, location=(341.5, 37), production_time=(3922, 12)))
    print(sim.quasimc_craters[-1])
 
 
@@ -215,7 +215,7 @@ The equivalent in a CSV file would be:
 Specifying a production crater number density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |Crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. Here we will use the N(20) value of the Nectaris basin obtained by Orgel et al. (2020) [#]_ using the Buffered Non-Sparseness Correction technique, which yielded an N(20)=172±20 per 10⁶ km².
+Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. Here we will use the N(20) value of the Nectaris basin obtained by Orgel et al. (2020) [#]_ using the Buffered Non-Sparseness Correction technique, which yielded an N(20)=172±20 per 10⁶ km².
 
 .. note::
 
@@ -243,9 +243,9 @@ The equivalent in a CSV file would be:
 Specifying a sequence constraint
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For many craters, it is difficult to constrain their formation time, however we can bracket them stratigraphically relative to other craters. To accomplish this in Cratermaker, we can supply an integer value to the |Crater.production_sequence| attribute. Craters that have a sequence number must form after craters with a lower sequence number. A sequence number can be added to any crater, even if it has another piece of production metadata such as |Crater.production_time| or |Crater.production_ND|, or has none. The only constraint is that at least one crater with the lowest sequence number must have either |Crater.production_time| or |Crater.production_ND| set, otherwise there is no way to determine the earliest time boundary of the sequences.
+For many craters, it is difficult to constrain their formation time, however we can bracket them stratigraphically relative to other craters. To accomplish this in Cratermaker, we can supply an integer value to the |crater.production_sequence| attribute. Craters that have a sequence number must form after craters with a lower sequence number. A sequence number can be added to any crater, even if it has another piece of production metadata such as |crater.production_time| or |crater.production_ND|, or has none. The only constraint is that at least one crater with the lowest sequence number must have either |crater.production_time| or |crater.production_ND| set, otherwise there is no way to determine the earliest time boundary of the sequences.
 
-In this example, will add the basins Fecunditatis and Vaporum. Fecunditatis was determined by Orgel et al. (2020) to have  N(90)=10±4 per 10⁶ km². Vaporum is stratigraphically older than Fecunditatis, but younger than South Pole-Aitken (SPA). SPA is stratigraphically the oldest crater on the Moon, so we give it a value of |Crater.production_sequence| of 0. Because it is the oldest, we need an additional constraint. Its absolute formation age is currently not well known. It must be younger than the Moon, so is likely less than 4500 My. There are materials older than about 4250 My that are attributed to basins other than SPA, so it is likely older than that. We will therefore constrain it to an N(20)=999 per 10⁶ km², which is the value of the production function at 4310 My bp. Fecunditatis is younger than Vaporum, so we give it a sequence number of 10, and Vaporum gets a sequence number of 5, and no other constraints. We can also add sequence constraints to Nectaris and Imbrium.
+In this example, will add the basins Fecunditatis and Vaporum. Fecunditatis was determined by Orgel et al. (2020) to have  N(90)=10±4 per 10⁶ km². Vaporum is stratigraphically older than Fecunditatis, but younger than South Pole-Aitken (SPA). SPA is stratigraphically the oldest crater on the Moon, so we give it a value of |crater.production_sequence| of 0. Because it is the oldest, we need an additional constraint. Its absolute formation age is currently not well known. It must be younger than the Moon, so is likely less than 4500 My. There are materials older than about 4250 My that are attributed to basins other than SPA, so it is likely older than that. We will therefore constrain it to an N(20)=999 per 10⁶ km², which is the value of the production function at 4310 My bp. Fecunditatis is younger than Vaporum, so we give it a sequence number of 10, and Vaporum gets a sequence number of 5, and no other constraints. We can also add sequence constraints to Nectaris and Imbrium.
 
 Our input file for this set of craters would look like this:
 
@@ -258,7 +258,6 @@ Our input file for this set of craters would look like this:
    Fecunditatis,-4.6,52,690000,,,90,10,4,10
    Nectaris,-15.6,35.1,885000,,,20,172,20,40
    Imbrium,37,341.5,1321000,3922,12,,,,100
-
 
 
 .. ipython:: python
@@ -288,7 +287,7 @@ Our input file for this set of craters would look like this:
 
 .. note::
 
-   The numerical value of the |Crater.production_sequence| is only important if there are no other production metadata constraints, such as in the Vaporum example. In that case, the N(1) range corresponding to the sequence is an interpolation between bordering sequences. So in the above case, Vaporum's nominal "age" (in N(1) value) would be determined by extrapolating the N(1) values of craters with sequence 10 (Fecunditatis) and sequence 0 (SPA). With a value of 5, Vaporum would have a nominal N(1) value exactly in the middle, though its actual value will still be drawn from a normal distribution.
+   The numerical value of the |crater.production_sequence| is only important if there are no other production metadata constraints, such as in the Vaporum example. In that case, the N(1) range corresponding to the sequence is an interpolation between bordering sequences. So in the above case, Vaporum's nominal "age" (in N(1) value) would be determined by extrapolating the N(1) values of craters with sequence 10 (Fecunditatis) and sequence 0 (SPA). With a value of 5, Vaporum would have a nominal N(1) value exactly in the middle, though its actual value will still be drawn from a normal distribution.
 
 
 Adjusting the automatic crater size limit
@@ -335,6 +334,111 @@ By default, when a list of craters with production metadata is loaded into |prod
 
    print(f"Largest random crater: {sim.largest_crater * 1e-3:.1f} km")
 
+
+Merging the Quasi Monte Carlo craters with random craters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When running in Quasi Monte Carlo mode, the randomly-generated and Quasi Monte Carlo generated craters are combined using the |production.quasimc_merge| (or its convenience wrapper |sim.quasimc_merge|). The arguments to this function are "craters", which holds a list of |Crater| objects that you have previously created, and either "time_start" and "time_end" or "N_D" and "N_D_end". "N_D" and "N_D_end" are the N(D) values expressed as a tuple of (D, N), where D is in km and N is in units of per 10⁶ km² (unless these have been modified by setting |production.D_conversion_factor| and/or |production.N_conversion_factor|).  Internally, the "N_D" and "N_D_end" values are converted to "time_start" and "time_end" values using the |produciton.age_from_D_N| function.
+
+The |production.quasimc_merge| method will do a number of things to process both the input list of |Crater| objects given by the "craters" argument as well as the stored |production.quasimc_craters| list to produce a consistent merge. First, it checks all of the "craters" list to see if they have a |crater.time| value set, set them using the |production.compute_time| method if they don't have one or drop them if the pre-existing |crater.time| value falls outside the range. Then it successively checks the two lists for overlapping diameters, starting with the smallest craters in both. If a crater from the input (i.e. random) list has a diameter greater than the smallest of the quasimc list, then the quasimc crater takes its place, and then the next largest quasimc crater is checked against the next largest input crater. This continues intil both lists are exhausted.  The purpose of this is to ensure that the total number of craters produced over a time interval with a |production.quasimc_list| component is roughly consistent with the total number that would be produced without. 
+
+To demonstrate this functionality, consider the case where we want to model the total number of craters produced during the Copernican period, but we also want to include Copernicus and Tycho. First let's set up a low resolution |Simulation| object and not specify any Quasi Monte Carlo craters, but give it a random seed for repeatability
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+
+.. ipython:: python
+   :okwarning:
+
+   from cratermaker import Simulation
+
+   sim = Simulation(gridlevel=5, rng_seed=11123537)
+
+
+Next we will use |sim.populate| to generate a set of craters for the last 1 billion years. This method will return the list of randomly generated emplaced craters, which we will sort by diameter and plot them
+
+.. ipython::python
+   :okwarning:
+
+   random_craters = sim.populate(time_start=1000)
+   random_craters.sort(key=lambda c: c.diameter, reverse=True)
+   print()
+   print(f"Random crater count: {len(random_craters)}")
+   name = "Random"
+   for c in random_craters:
+      print(f"{name:10} crater: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
+
+
+Now we will add Copernicus and Tycho to the |sim.quasimc_craters| list.
+
+.. ipython::python
+   :okwarning:
+   
+   sim.quasimc_craters = [
+       sim.Crater.maker(name="Copernicus", location=(339.9214, 9.6209), diameter=96070, production_time=(800.0, 15), production_sequence=200),
+       sim.Crater.maker(name="Tycho", location=(348.7847, -43.2958), diameter=85294, production_time=(109, 4.0), production_sequence=300)
+   ]
+
+
+We then merge the two lists and print the resulting list.
+
+.. ipython::python
+   :okwarning:
+
+   merged_craters = sim.quasimc_merge(craters=random_craters, time_start=1000)
+   print()
+   print(f"Merged crater count: {len(merged_craters)}")
+   merged_craters.sort(key=lambda c: c.diameter, reverse=True)
+   for c in merged_craters:
+      if c.name is not None:
+         name = c.name
+      else:
+         name = "Random"
+      print(f"{name:10}: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
+
+
+Notice that the total number of craters in the merged list is the same as the original random list, but that some of the random craters have been substituted for quasimc ones. 
+
+.. note::
+   Usually you would not need to call the |production.quasimc_merge| or |sim.quasimc_merge| method directly. This method is automatically called by |sim.run| and |sim.populate| when creating the population of craters to emplace during a running simulation. 
+
+
+Modifying the Quasi Monte Carlo crater list
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The list of craters stored in |production.quasimc_craters| can be modified at any time. Reprocessing is triggered any time a crater in the list is found without a |crater.time| value. For instance, if you append to the list, the new crater will be added and the list will be reprocessed to extract new |crater.time| values. Note that all craters in the list with production metadata will be reprocessed to generate a new |crater.time| value, even if they had one previously. 
+
+.. ipython:: python
+   :okwarning:
+
+   # Append the crater Tycho to the list
+
+   print("Before adding Tycho")
+   for c in sim.quasimc_craters:
+      print(f"{c.name}: Emplacement time {c.time} My bp")
+   sim.quasimc_craters.append(
+       sim.Crater.maker(
+           name="Tycho",
+           location=(348.7847, -43.2958),
+           diameter=85294,
+           production_time=(109, 4.0),
+           production_sequence=300,
+       )
+   )
+   print("After adding Tycho")
+   for c in sim.quasimc_craters:
+      print(f"{c.name}: Emplacement time {c.time} My bp")
+
+
+In addition, setting a new file to |production.quasimc_file| will replace the existing |production.quasimc_craters| list and reprocess the new one.
+
+
+   
 
 More Production examples
 ------------------------

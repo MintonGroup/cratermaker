@@ -95,9 +95,9 @@ In the example below, we demonstrate how a simulation with `time_interval=1000` 
 
     production = sim.production
     target = sim.target
-    diameters1, _ = production.sample(time_start=4000, time_end=3000, diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    diameters1, _ = production.sample(time_start=4000, time_end=3000, diameter_range=(10e3, 10000e3), area=target.surface_area, compute_time=False)
     print(f"Number of craters emplaced between 4000 Ma and 3000 Ma: {len(diameters1)}")
-    diameters2, _ = production.sample(time_start=3000, time_end=2000, diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    diameters2, _ = production.sample(time_start=3000, time_end=2000, diameter_range=(10e3, 10000e3), area=target.surface_area, compute_time=False)
     print(f"Number of craters emplaced between 3000 Ma and 2000 Ma: {len(diameters2)}")
     print(f"Ratio of craters emplaced between 4000-3000 Ma to 3000-2000 Ma: {len(diameters1) / len(diameters2)}")
 
@@ -114,9 +114,9 @@ In the example below, we will demonstrate how a simulation with equal number int
 .. ipython:: python
     :okwarning:
 
-    diameters1, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    diameters1, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, compute_time=False)
     print(f"Number of craters in sample 1: {len(diameters1)}")
-    diameters2, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, return_age=False)
+    diameters2, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, compute_time=False)
     print(f"Number of craters in sample 2: {len(diameters2)}")
 
 As can be seen, the toltal numbers of craters is somewhat different in each sample, but they are both within the expected variability of the Poisson distribution for a mean of 100 craters in the sample.

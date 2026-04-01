@@ -229,6 +229,11 @@ class Simulation(CratermakerBase):
         self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
         self.smallest_crater = max(self.smallest_crater, self._max_crater_diameter_range[0])
         self.largest_crater = min(self.largest_crater, self._max_crater_diameter_range[1])
+        if self.production._Crater is None:
+            self.production._Crater = self.Crater
+            if self.production.quasimc_craters is not None:
+                # Trigger a reprocessing to get the craters into the updated Crater class
+                self.quasimc_craters = self.quasimc_craters
 
         if self.is_new:
             object.__setattr__(self, "_config_readonly", False)
@@ -443,7 +448,7 @@ class Simulation(CratermakerBase):
         # Remove unecessary arguments that came out of the production._validate_sample_args method
         kwargs.pop("diameter_range")
         kwargs.pop("area")
-        kwargs.pop("return_age")
+        kwargs.pop("compute_time")
 
         return kwargs
 
@@ -653,7 +658,7 @@ class Simulation(CratermakerBase):
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> list[Crater]:
         """
         Populate the surface with craters over a specified interval using the current production function.
 
@@ -675,6 +680,11 @@ class Simulation(CratermakerBase):
             A pair of numbers, (diameter, number), representing the diameter and total number of craters in the production function at the end, where diameter is in units of m and n is in number of craters.  If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         craters : list[Crater] or Crater, optional
             A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
+
+        Returns
+        -------
+        list[Crater]
+            A list of the Crater objects that were emplaced. Returns an empty list if no craters were emplaced.
         """
         if not hasattr(self, "production"):
             raise RuntimeError("No production function defined for this simulation")
@@ -803,9 +813,9 @@ class Simulation(CratermakerBase):
                 craterlist, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
             )
         if len(craterlist) > 0:
-            self.emplace(craterlist, **kwargs)
-
-        return
+            return self.emplace(craterlist, **kwargs)
+        else:
+            return []
 
     def emplace(self, craters: list[Crater] | Crater | None = None, **kwargs: Any) -> list[Crater]:
         """
@@ -1727,9 +1737,11 @@ class Simulation(CratermakerBase):
         self._is_new = value
 
     @property
-    def Crater(self):
+    def Crater(self) -> type[Crater]:
         """
         The Crater class used for crater generation in the simulation. Set during initialization.
+
+        This is a property that returns |morphology.Crater| if a morphology model is present, or the base |Crater| class if no morphology model is present.
         """
         return self.morphology.Crater if self.morphology is not None else Crater
 
@@ -1760,9 +1772,11 @@ class Simulation(CratermakerBase):
     @property
     def quasimc_craters(self) -> list[Crater]:
         """
-        List of craters to be emplaced using quasi-Monte Carlo (pass-through to production.quasimc_craters).
+        List of craters to be emplaced using quasi-Monte Carlo.
 
-        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.production.Production.time` values.
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their |crater.time| value. Any craters without production metadata will be dropped. When accessed, if any of the craters have a None value for time, they will be reprocessed to set their time value. This allows for the quasimc_craters to be dynamically updated.
+
+        This is a wrapper for |production.quasimc_craters|.
         """
         if self.production is not None:
             return self.production.quasimc_craters
@@ -1771,3 +1785,63 @@ class Simulation(CratermakerBase):
     def quasimc_craters(self, value: list[Crater] | None):
         if self.production is not None:
             self.production.quasimc_craters = value
+
+    @property
+    def quasimc_file(self) -> Path:
+        """
+        File containing the quasi-Monte Carlo craters.
+
+        This is a wrapper for |production.quasimc_file|.
+        """
+        if self.production is not None:
+            return self.production.quasimc_file
+
+    @quasimc_file.setter
+    def quasimc_file(self, value: Path | None):
+        if self.production is not None:
+            self.production.quasimc_file = value
+
+    def quasimc_merge(
+        self,
+        craters: list[Crater],
+        time_start: float | None = None,
+        time_end: float | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
+        **kwargs,
+    ):
+        """
+        Merge a randomly-generated list of craters with the quasi-Monte Carlo craters over a given time interval.
+
+        It will extract any craters from |production.quasimc_craters| that have time values that overlap those of the arguments. Then it will successively check the to see if any in the "craters" list are larger than the largest in
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            The list of Crater objects to merge with the quasi-Monte Carlo craters.
+        time_start : float, optional
+            The starting time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
+        time_end : float, optional
+            The ending time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
+        N_D : PairOfFloats, optional
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+        N_D_end : PairOfFloats, optional
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+        **kwargs: Any
+            |kwargs|
+
+        Returns
+        -------
+        list[Crater]
+            The merged list of Crater objects, sorted in order of decreasing age.
+
+        Notes
+        -----
+        This is a wrapper for |production.quasimc_merge|
+        """
+        if self.production is not None:
+            return self.production.quasimc_merge(
+                craters=craters, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
+            )
+        else:
+            raise RuntimeError("Production model must be defined to use quasimc_merge")
