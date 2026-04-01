@@ -8,15 +8,10 @@ What's New
 
 :release:`v2026.4.0-alpha`
 
-- Created a new system to retrieve, merge, and apply data to surfaces :pull:`118` `Leo Minton`_
-- Added Quasi-Monte Carlo :pull:`119` `David Minton`_ `Austin Blevins`_`
-
-.. _whats-new.2026.3.8-alpha:
-
-:release:`v2026.3.8-alpha`
-
 - Fixed bug that was causing incorrect polar data files from being requested from the PDS for DataSurface :pull:`112` `David Minton`_ `Leo Minton`_
 - Fixed bug that was causing `fill_value` and `dtype` arguments to be ignored in `add_data`. :pull:`114` `David Minton`_ `Leo Minton`_
+- Created a new system to retrieve, merge, and apply data to surfaces :pull:`118` `Leo Minton`_
+- Added Quasi-Monte Carlo :pull:`119` `David Minton`_ `Austin Blevins`_`
 
 .. _whats-new.2026.3.7-alpha:
 
