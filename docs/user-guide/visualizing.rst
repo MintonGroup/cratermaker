@@ -202,18 +202,18 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
     :okwarning:
     :suppress:
 
-   from cratermaker import Simulation, cleanup
-   import shutil
-   cleanup()
-   sim = Simulation(
-       surface="hireslocal",
-       local_location=(0, 0),
-       pix=50.0,
-       local_radius=20.0e3,
-   )
-   sim.emplace(diameter=10e3, location=(0, 0))
-   sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=False, save=True)
-   shutil.move(str(sim.surface.plot_dir / "local_surface_hillshade000000.png"), "_images/local_surface_hillshade000000.png")
+    from cratermaker import Simulation, cleanup
+    import shutil
+    cleanup()
+    sim = Simulation(
+        surface="hireslocal",
+        local_location=(0, 0),
+        pix=50.0,
+        local_radius=20.0e3,
+    )
+    sim.emplace(diameter=10e3, location=(0, 0))
+    sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=False, save=True)
+    shutil.move(str(sim.surface.plot_dir / "local_surface_hillshade000000.png"), "_images/local_surface_hillshade000000.png")
 
 
 
@@ -282,12 +282,7 @@ By default, |sim.export| will only export the most recent interval in a multi-in
 More Examples
 -------------
 
-More detailed component examples are provided in the Gallery section.
-
-.. seealso::
-
-    - :ref:`api-simulation` for the API reference
-    - :ref:`gal-simulation` for example simulations, including visualizations
+More detailed examples of visualization are provided in the :ref:`Simulation gallery <gal-simulation>`.
 
 .. ipython:: python
     :okwarning:
