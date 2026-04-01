@@ -144,14 +144,13 @@ class Target(ComponentBase):
         if arg_check > 0:
             raise ValueError("Invalid Target")
 
-        if self._density is None:
-            if self.material in self._density_catalogue:
-                self._density = self._density_catalogue[self.material]
+        if self._density is None and self.material in self._density_catalogue:
+            self._density = self._density_catalogue[self.material]
 
     def __str__(self) -> str:
         diameter = format_large_units(self.diameter, quantity="length")
         escape_velocity = format_large_units(self.escape_velocity, quantity="velocity")
-        return (
+        str_repr = (
             f"<Target: {self.name}>\n"
             f"Material: {self.material}\n"
             f"Diameter: {diameter}\n"
@@ -159,8 +158,9 @@ class Target(ComponentBase):
             f"Surface density: {self.density:.1f} kg/m³\n"
             f"Transition Type: {self.transition_scale_type}\n"
             f"Escape Velocity: {escape_velocity}\n"
-            f"Gravity: {self.gravity:.3f} m/s²"
+            f"Gravity: {self.gravity:.3f} m/s²\n"
         )
+        return str_repr
 
     @classmethod
     def maker(

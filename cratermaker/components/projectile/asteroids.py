@@ -81,8 +81,9 @@ class AsteroidProjectiles(Projectile):
         )
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return f"{base}Target: {self.target.name}\n"
+        str_repr = super().__str__()
+        str_repr += f"Target: {self.target.name}\n"
+        return str_repr
 
     def _set_mean_velocity(self):
         """

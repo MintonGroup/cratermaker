@@ -26,6 +26,7 @@ sphinx-inline-tabs
 sphinxext-rediraffe
 sphinxext-opengraph
 sphinx-gallery
+sphinxcontrib-video
 ipython
 ipykernel
 pyvista[all]

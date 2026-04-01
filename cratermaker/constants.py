@@ -19,6 +19,8 @@ _COMPONENT_NAMES = [
 _SMALLFAC = 1.0e-5
 _VSMALL = 10 * np.finfo(np.float64).tiny
 _LOGVSMALL = np.log10(_VSMALL)
+_VBIG = 0.1 * np.finfo(np.float64).max
+_DSTD = 1e3  # Standard diameter to use for conversion between time and N(D) values when not provided
 
 # Map of OGR drivers to file extensions
 VECTOR_DRIVER_TO_EXTENSION_MAP = {

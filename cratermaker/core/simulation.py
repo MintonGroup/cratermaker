@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
+import pyvista
 import yaml
 from matplotlib.axes import Axes
 from numpy.random import Generator
@@ -17,12 +18,7 @@ from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import Surface
 from cratermaker.components.surface.hireslocal import HiResLocalSurface
 from cratermaker.components.target import Target
-from cratermaker.constants import (
-    _COMPONENT_NAMES,
-    _CONFIG_FILE_NAME,
-    FloatLike,
-    PairOfFloats,
-)
+from cratermaker.constants import _COMPONENT_NAMES, _CONFIG_FILE_NAME, _DSTD, FloatLike, PairOfFloats
 from cratermaker.core.base import CratermakerBase, _convert_for_yaml
 from cratermaker.utils.general_utils import _set_properties, format_large_units, parameter
 
@@ -63,7 +59,7 @@ class Simulation(CratermakerBase):
     reset : bool, optional
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
     do_counting : bool, optional
-        If True, the counting component will keep track of emplaced craters during the simulation. Default is True.
+        If True, the counting component will keep track of observable craters during the simulation. If False, emplaced craters that are large enoug to be observable are saved, but the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
     **kwargs : Any
@@ -101,12 +97,10 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_elapsed_time", None)
         object.__setattr__(self, "_time", None)
         object.__setattr__(self, "_elapsed_n1", None)
-        object.__setattr__(self, "_smallest_crater", None)
-        object.__setattr__(self, "_smallest_projectile", None)
-        object.__setattr__(self, "_largest_crater", None)
-        object.__setattr__(self, "_largest_projectile", None)
         object.__setattr__(self, "_config_readonly", True)
         object.__setattr__(self, "_is_new", False)
+        object.__setattr__(self, "_do_quasimc", None)
+        object.__setattr__(self, "_max_crater_diameter_range", None)
 
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
@@ -164,8 +158,7 @@ class Simulation(CratermakerBase):
         morphology_config = unmatched.pop("morphology_config", {})
         target_config = unmatched.pop("target_config", {})
         projectile_config = unmatched.pop("projectile_config", {})
-        if do_counting:
-            counting_config = unmatched.pop("counting_config", {})
+        counting_config = unmatched.pop("counting_config", {})
         kwargs.update(unmatched)
         kwargs = {**kwargs, **vars(self.common_args)}
 
@@ -204,16 +197,15 @@ class Simulation(CratermakerBase):
         if self.surface.is_new is not None:
             self.is_new = self.surface.is_new
 
-        if do_counting:
-            counting_config = {**counting_config, **kwargs}
-            self.counting = Counting.maker(
-                self.counting,
-                surface=self.surface,
-                reset=self.is_new,
-                **counting_config,
-            )
+        counting_config = {**counting_config, **kwargs}
+        self.counting = Counting.maker(
+            self.counting,
+            surface=self.surface,
+            reset=self.is_new,
+            **counting_config,
+        )
 
-        morphology_config = {**morphology_config, **kwargs}
+        morphology_config = {**morphology_config, **kwargs, "do_counting": do_counting}
         self.morphology = Morphology.maker(
             self.morphology,
             surface=self.surface,
@@ -234,12 +226,14 @@ class Simulation(CratermakerBase):
             # The surface should now hav its is_new attribute set and will be set to True if it had to be regridded
             self.is_new = self.surface.is_new
 
+        self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
+        self.smallest_crater = max(self.smallest_crater, self._max_crater_diameter_range[0])
+        self.largest_crater = min(self.largest_crater, self._max_crater_diameter_range[1])
+
         if self.is_new:
             object.__setattr__(self, "_config_readonly", False)
             # The Surface has already had its reset method called.
             skip_components = ["surface"]
-            if not do_counting:
-                skip_components.append("counting")
             self.reset(skip_component=skip_components)
 
         if save_actions is None:
@@ -253,26 +247,27 @@ class Simulation(CratermakerBase):
         """
         Returns a string representation of the Simulation object.
         """
-        output = (
-            f"<Simulation>\n\n"
-            f"simdir      : {str(self.simdir)}\n"
-            f"{self.counting}\n\n"
-            f"{self.morphology}\n\n"
-            f"{self.production}\n\n"
-            f"{self.projectile}\n\n"
-            f"{self.scaling}\n\n"
-            f"{self.surface}\n\n"
-            f"{self.target}\n\n"
-            f"<Current state>\n"
-            f"Interval    : {self.interval}\n"
-        )
+        str_repr = "\n<Simulation>\n"
+        str_repr += f"simdir      : {str(self.simdir)}\n\n"
+        str_repr += "<Current state>\n"
+        str_repr += f"Interval : {self.interval}\n"
         if self.time is not None:
-            output += (
+            str_repr += (
                 f"Current time : {format_large_units(self.time, quantity='time')} before present\n"
                 f"Elapsed time: {format_large_units(self.elapsed_time, quantity='time')}\n"
-                f"Elapsed N_1 : {self.elapsed_n1} #/m²\n"
+                f"Elapsed N(1) : {self.elapsed_n1} # per 10⁶ km²\n"
             )
-        return output
+        str_repr += "\n<Components>\n"
+        str_repr += (
+            f"Target: {self.target}\n"
+            f"Surface: {self.surface}\n"
+            f"Morphology: {self.morphology}\n"
+            f"Production: {self.production}\n"
+            f"Projectile: {self.projectile}\n"
+            f"Scaling: {self.scaling}\n"
+            f"Counting: {self.counting}\n"
+        )
+        return str_repr
 
     def __repr__(self) -> str:
         config = self.to_config(save_to_file=False)
@@ -297,12 +292,168 @@ class Simulation(CratermakerBase):
         ):
             self.to_config()
 
+    def _validate_run_args(
+        self,
+        time_start: FloatLike | None = None,
+        time_end: FloatLike | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
+        time_interval: FloatLike | None = None,
+        ninterval: int | None = None,
+        **kwargs: Any,
+    ) -> dict:
+        """
+        Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
+
+        Parameters
+        ----------
+        kwargs : Any
+            A dictionary of all the arguments passed to the run method, including age, time_start, time_end, diameter_number, time_interval, ninterval, and any additional arguments passed through **kwargs.
+
+        Returns
+        -------
+        A dict containing all arguments listed in Parameters above, as well as `is_time_interval`, which is a boolean flag indicating
+        whether or not the simulation is being run in equal age intervals or equal number intervals.
+
+        Raises
+        ------
+        ValueError
+            If any of the following conditions are met:
+            - Neither the age nore the diameter_number argument is provided.
+            - Both the age and diameter_number arguments are provided.
+            - Both the age and either time_start or time_end arguments are provided.
+            - Both the time_start and diameter_number arguments are provided.
+            - The age, time_start, or time_end arguments are provided but are not a scalar.
+            - The time_interval is provided but is not a positive scalar.
+            - The time_interval provided is greater than age or time_start - time_end
+            - The diameter_number argument is not a pair of values, or any of them are less than 0
+            - The time_interval and nintervaql arguments are both provided.
+            - The ninterval is provided but is not an integer or is less than 1.
+        """
+        # Determine whether we are going to do equal time intervals or equal number intervals
+        diameter_number = kwargs.pop("diameter_number", None)
+        diameter_number_end = kwargs.pop("diameter_number_end", None)
+        age = kwargs.pop("age", None)
+
+        if age is not None:
+            if time_start is not None or time_end is not None:
+                raise ValueError("Cannot specify both age and time_start or time_end")
+            if diameter_number is not None:
+                raise ValueError("Cannot specify both age and diameter_number")
+            if N_D is not None:
+                raise ValueError("Cannot specify both age and N_D")
+            if not np.isscalar(age):
+                raise ValueError("age must be a scalar value")
+            # as age is just a convenience variable, we replace it with time_start = age and time_end = 0
+            time_start = age
+            time_end = 0.0
+            del age
+        if time_start is not None:
+            if time_end is None:
+                time_end = 0.0
+            if diameter_number is not None:
+                raise ValueError("Cannot specify both time_start and diameter_number")
+            if N_D is not None:
+                raise ValueError("Cannot specify both time_start and N_D")
+            if not np.isscalar(time_start):
+                raise ValueError("time_start must be a scalar value")
+            if not np.isscalar(time_end):
+                raise ValueError("time_end must be a scalar value")
+        elif time_end is not None:
+            if self._time is None:
+                raise ValueError("time_end cannot be used without time_start")
+            time_start = self.time
+        elif N_D is not None:
+            if diameter_number is not None or diameter_number_end is not None:
+                raise ValueError("Cannot specify both N_D and diameter_number")
+            if not isinstance(N_D, (list, tuple, ArrayLike)) or len(N_D) != 2:
+                raise ValueError("N_D must be a pair of values (diameter, number)")
+            if N_D_end is None:
+                N_D_end = (N_D[0], 0.0)
+            elif not isinstance(N_D_end, (list, tuple, ArrayLike)) or len(N_D_end) != 2:
+                raise ValueError("N_D_end must be a pair of values (diameter, number)")
+
+            diameter_number = (
+                N_D[0] * self.production.D_conversion_factor,
+                self.surface.area * N_D[1] / self.production.N_conversion_factor,
+            )
+            diameter_number_end = (
+                N_D_end[0] * self.production.D_conversion_factor,
+                self.surface.area * N_D_end[1] / self.production.N_conversion_factor,
+            )
+        elif N_D_end is not None:
+            raise ValueError("N_D_end cannot be used without N_D")
+        elif diameter_number is None:
+            raise ValueError("Must provide one of age, time_start, or N_D")
+
+        if ninterval is not None:
+            if not isinstance(ninterval, int):
+                raise TypeError("ninterval must be an integer")
+            if ninterval < 1:
+                raise ValueError("ninterval must be greater than zero")
+            if time_interval is not None:
+                raise ValueError("Cannot specify both ninterval and time_interval")
+        elif time_interval is None:
+            ninterval = 1
+
+        is_time_interval = time_interval is not None
+
+        # Validate arguments using the production function validator first, which will convert time-based values to diameter_number-based ones
+        kwargs["area"] = self.surface.area
+        kwargs["time_start"] = time_start
+        kwargs["time_end"] = time_end
+        kwargs["diameter_number"] = diameter_number
+        kwargs["diameter_number_end"] = diameter_number_end
+        kwargs["ninterval"] = ninterval
+        kwargs["time_interval"] = time_interval
+        kwargs = self.production._validate_sample_args(**kwargs)
+
+        if is_time_interval:
+            if time_interval is None:
+                if ninterval is None:
+                    ninterval = 1
+                time_interval = (time_start - time_end) / ninterval
+            else:
+                if time_interval > time_start - time_end:
+                    raise ValueError("time_interval must be less than age or time_start - time_end")
+                elif time_interval <= 0:
+                    raise ValueError("time_interval must be greater than zero")
+                ninterval = int(np.ceil((time_start - time_end) / time_interval))
+
+            kwargs["time_interval"] = time_interval
+            kwargs["ninterval"] = ninterval
+        else:
+            diameter_number = kwargs.get("diameter_number", None)
+            diameter_number_end = kwargs.get("diameter_number_end", None)
+            if diameter_number is None:
+                raise ValueError("Something went wrong! diameter_number should be set by self.production_validate_sample_args")
+            if diameter_number_end is None:
+                raise ValueError("Something went wrong! diameter_number_end should be set by self.production_validate_sample_args")
+            if ninterval is None:
+                ninterval = 1
+            diameter_number_interval = (
+                diameter_number[0],
+                (diameter_number[1] - diameter_number_end[1]) / ninterval,
+            )
+            kwargs["diameter_number_interval"] = diameter_number_interval
+            kwargs["ninterval"] = ninterval
+
+        kwargs["is_time_interval"] = is_time_interval
+
+        # Remove unecessary arguments that came out of the production._validate_sample_args method
+        kwargs.pop("diameter_range")
+        kwargs.pop("area")
+        kwargs.pop("return_age")
+
+        return kwargs
+
     def run(
         self,
         age: FloatLike | None = None,
         time_start: FloatLike | None = None,
         time_end: FloatLike | None = None,
-        diameter_number: PairOfFloats | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
         time_interval: FloatLike | None = None,
         ninterval: int | None = None,
         **kwargs: Any,
@@ -314,14 +465,16 @@ class Simulation(CratermakerBase):
         ----------
         age : FloatLike, optional
             Start age in My relative to the present for the simulation, used to compute the starting point of the production function.
-            Default is None, which requires 'time_start' or `diameter_number` to be set.
+            Default is None, which requires 'time_start' or `N_D` to be set.
         time_start : Floatlike, optional
-            An alternative to `age` that specifies the starting time in My relative to the present for the simulation, used to compute the starting point of the production function. This is used in conjunction with `time_end` in order to allow for simulations that span a range of time rather than being of a specific age. Default is None, which requires either `age` or `diameter_number` to be set.
+            An alternative to `age` that specifies the starting time in My relative to the present for the simulation, used to compute the starting point of the production function. This is used in conjunction with `time_end` in order to allow for simulations that span a range of time rather than being of a specific age. Default is None, which requires either `age` or `N_D` to be set.
         time_end : FloatLike, optional
             Ending time in My relative to the present for the simulation, used to compute the ending point of the production function.
             Default is 0 (present day) if not provided but `time_start` is provided.
-        diameter_number: PairOfFloats, optional
-            Cumulative number and diameter pair (D, N) that defines the total crater accumulation for the given production function. Default is None, which requires `age` or `time_start` and `time_end` to be set.
+        N_D : PairOfFloats, optional
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which requires `age` or `time_start` to be set.
+        N_D_end : PairOfFloats, optional
+            A pair of numbers, (D, N) representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which will set the ending time to 0 (present day) if N_D is provided.
         time_interval : FloatLike, optional
             Interval in My for outputting intermediate results. If not provided, calculated as `age` / `ninterval` or (`time_start - time_end`) / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration (e.g. `ninterval=1`).
         ninterval : int, optional
@@ -357,148 +510,18 @@ class Simulation(CratermakerBase):
             # Run the simulation from 3.8 billion years to 3.0 billion years, saving the results every 100 million years
             sim.run(time_start=3.8e3, time_end=3.0e3, time_interval=100.0)
         """
-
-        def _validate_run_args(**kwargs: Any) -> dict:
-            """
-            Validate all the input arguments to the sample method. This function will raise a ValueError if any of the arguments are invalid.
-
-            Parameters
-            ----------
-            kwargs : Any
-                A dictionary of all the arguments passed to the run method, including age, time_start, time_end, diameter_number, time_interval, ninterval, and any additional arguments passed through **kwargs.
-
-            Returns
-            -------
-            A dict containing all arguments listed in Parameters above, as well as `is_time_interval`, which is a boolean flag indicating
-            whether or not the simulation is being run in equal age intervals or equal number intervals.
-
-            Raises
-            ------
-            ValueError
-                If any of the following conditions are met:
-                - Neither the age nore the diameter_number argument is provided.
-                - Both the age and diameter_number arguments are provided.
-                - Both the age and either time_start or time_end arguments are provided.
-                - Both the time_start and diameter_number arguments are provided.
-                - The age, time_start, or time_end arguments are provided but are not a scalar.
-                - The time_interval is provided but is not a positive scalar.
-                - The time_interval provided is greater than age or time_start - time_end
-                - The diameter_number argument is not a pair of values, or any of them are less than 0
-                - The time_interval and nintervaql arguments are both provided.
-                - The ninterval is provided but is not an integer or is less than 1.
-            """
-            # Determine whether we are going to do equal time intervals or equal number intervals
-            age = kwargs.pop("age", None)
-            time_start = kwargs.pop("time_start", None)
-            time_end = kwargs.pop("time_end", None)
-            diameter_number = kwargs.pop("diameter_number", None)
-            time_interval = kwargs.pop("time_interval", None)
-            ninterval = kwargs.pop("ninterval", None)
-
-            if age is not None:
-                if time_start is not None or time_end is not None:
-                    raise ValueError("Cannot specify both age and time_start or time_end")
-                if diameter_number is not None:
-                    raise ValueError("Cannot specify both age and diameter_number")
-                if not np.isscalar(age):
-                    raise ValueError("age must be a scalar value")
-                # as age is just a convenience variable, we replace it with time_start = age and time_end = 0
-                time_start = age
-                time_end = 0.0
-                del age
-            if time_start is not None:
-                if time_end is None:
-                    time_end = 0.0
-                if diameter_number is not None:
-                    raise ValueError("Cannot specify both time_start and diameter_number")
-                if not np.isscalar(time_start):
-                    raise ValueError("time_start must be a scalar value")
-                if not np.isscalar(time_end):
-                    raise ValueError("time_end must be a scalar value")
-            elif time_end is not None:
-                if self._time is None:
-                    raise ValueError("time_end cannot be used without time_start")
-                time_start = self.time
-            elif diameter_number is None:
-                raise ValueError("Must provide one of age, time_start, or diameter_number")
-
-            if ninterval is not None:
-                if not isinstance(ninterval, int):
-                    raise TypeError("ninterval must be an integer")
-                if ninterval < 1:
-                    raise ValueError("ninterval must be greater than zero")
-                if time_interval is not None:
-                    raise ValueError("Cannot specify both ninterval and time_interval")
-            elif time_interval is None:
-                ninterval = 1
-
-            is_time_interval = time_interval is not None
-
-            # Validate arguments using the production function validator first, which will convert time-based values to diameter_number-based ones
-            kwargs["diameter_range"] = (
-                self._get_smallest_diameter(),
-                self._get_largest_diameter(),
-            )
-            kwargs["area"] = self.surface.area
-            kwargs["time_start"] = time_start
-            kwargs["time_end"] = time_end
-            kwargs["diameter_number"] = diameter_number
-            kwargs["ninterval"] = ninterval
-            kwargs["time_interval"] = time_interval
-            kwargs = self.production._validate_sample_args(**kwargs)
-
-            if is_time_interval:
-                if time_interval is None:
-                    if ninterval is None:
-                        ninterval = 1
-                    time_interval = (time_start - time_end) / ninterval
-                else:
-                    if time_interval > time_start - time_end:
-                        raise ValueError("time_interval must be less than age or time_start - time_end")
-                    elif time_interval <= 0:
-                        raise ValueError("time_interval must be greater than zero")
-                    ninterval = int(np.ceil((time_start - time_end) / time_interval))
-
-                kwargs["time_interval"] = time_interval
-                kwargs["ninterval"] = ninterval
-            else:
-                diameter_number = kwargs.get("diameter_number", None)
-                diameter_number_end = kwargs.get("diameter_number_end", None)
-                if diameter_number is None:
-                    raise ValueError("Something went wrong! diameter_number should be set by self.production_validate_sample_args")
-                if diameter_number_end is None:
-                    raise ValueError(
-                        "Something went wrong! diameter_number_end should be set by self.production_validate_sample_args"
-                    )
-                if ninterval is None:
-                    ninterval = 1
-                diameter_number_interval = (
-                    diameter_number[0],
-                    (diameter_number[1] - diameter_number_end[1]) / ninterval,
-                )
-                kwargs["diameter_number_interval"] = diameter_number_interval
-                kwargs["ninterval"] = ninterval
-
-            kwargs["is_time_interval"] = is_time_interval
-
-            # Remove unecessary arguments that came out of the production._validate_sample_args method
-            kwargs.pop("diameter_range")
-            kwargs.pop("area")
-            kwargs.pop("return_age")
-
-            return kwargs
-
         arguments = {
             "age": age,
             "time_start": time_start,
             "time_end": time_end,
             "time_interval": time_interval,
-            "diameter_number": diameter_number,
+            "N_D": N_D,
+            "N_D_end": N_D_end,
             "ninterval": ninterval,
             **kwargs,
         }
 
-        arguments = _validate_run_args(**arguments)
+        arguments = self._validate_run_args(**arguments)
         time_start = arguments.pop("time_start", None)
         time_end = arguments.pop("time_end", None)
         time_interval = arguments.pop("time_interval", None)
@@ -532,14 +555,14 @@ class Simulation(CratermakerBase):
             initial_interval = int((time_start - self.time) / time_interval)
         else:
             delta_n1_start = self.production.function(
-                diameter=1000.0,
+                diameter=_DSTD,
                 time_start=time_start,
                 time_end=self.time,
                 validate_inputs=validate_inputs,
             ).item()
             n1_interval = (
                 self.production.function(
-                    diameter=1000.0,
+                    diameter=_DSTD,
                     time_start=time_start,
                     time_end=time_end,
                     validate_inputs=validate_inputs,
@@ -559,8 +582,7 @@ class Simulation(CratermakerBase):
             leave=True,
         ) as pbar:
             for i in range(initial_interval, ninterval):
-                if self.do_counting:
-                    self.counting._emplaced = []
+                self.counting._emplaced = []
                 if is_time_interval:
                     time = time_start - i * time_interval
                     current_time_end = time_start - (i + 1) * time_interval
@@ -580,7 +602,9 @@ class Simulation(CratermakerBase):
                         diameter_number[1] - (i + 1) * diameter_number_interval[1],
                     )
                     self.populate(
-                        diameter_number=current_diameter_number, diameter_number_end=current_diameter_number_end, **kwargs
+                        diameter_number=current_diameter_number,
+                        diameter_number_end=current_diameter_number_end,
+                        **kwargs,
                     )
                     current_diameter_number_density = (
                         current_diameter_number[0],
@@ -603,12 +627,15 @@ class Simulation(CratermakerBase):
                         current_time_end = 0.0
                     time_interval = time - current_time_end
                 self.elapsed_time += time_interval
-                self.elapsed_n1 += self.production.function(
-                    diameter=1000.0,
-                    time_start=time,
-                    time_end=current_time_end,
-                    validate_inputs=validate_inputs,
-                ).item()
+                self.elapsed_n1 += (
+                    self.production.function(
+                        diameter=_DSTD,
+                        time_start=time,
+                        time_end=current_time_end,
+                        validate_inputs=validate_inputs,
+                    ).item()
+                    * self.production.N_conversion_factor
+                )
                 self.time = current_time_end
                 self.interval += 1
                 self.save(**kwargs)
@@ -621,6 +648,8 @@ class Simulation(CratermakerBase):
         age: FloatLike | None = None,
         time_start: FloatLike | None = None,
         time_end: FloatLike | None = None,
+        N_D: PairOfFloats | None = None,
+        N_D_end: PairOfFloats | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
         **kwargs: Any,
@@ -636,12 +665,16 @@ class Simulation(CratermakerBase):
             An alternative to `age` that specifies the starting time in My relative to the present for the simulation, used to compute the starting point of the production function. This is used in conjunction with `time_end` in order to allow for simulations that span a range of time rather than being of a specific age. Default is None, which requires either `age` or `diameter_number`
         time_end : FloatLike, optional
             The ending time in My relative to the present for the simulation, used to compute the ending point of the production function. Default is 0 (present day).
+        N_D : PairOfFloats, optional
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+        N_D_end : PairOfFloats, optional
+            A pair of numbers, (D, N), representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this value
-            to a corresponding age and use the production function for a given age.
+            A pair of numbers, (diameter, number), representing the diameter and total number of craters larger than that diameter, where diameter is in units of m and n is in number of craters. If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number_end : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
-            value to a corresponding reference age and use the production function for a given age.
+            A pair of numbers, (diameter, number), representing the diameter and total number of craters in the production function at the end, where diameter is in units of m and n is in number of craters.  If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+        craters : list[Crater] or Crater, optional
+            A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
         """
         if not hasattr(self, "production"):
             raise RuntimeError("No production function defined for this simulation")
@@ -649,16 +682,35 @@ class Simulation(CratermakerBase):
             raise RuntimeError("The production function is not properly defined. Missing 'generator_type' attribute")
         elif self.production.generator_type not in ["crater", "projectile"]:
             raise RuntimeError(f"Invalid production function type {self.production.generator_type}")
-        if age is not None:
-            if time_start is not None:
-                raise ValueError("Cannot specify both age and time_start")
-            time_start = age
-            del age
+
+        arguments = {
+            "age": age,
+            "time_start": time_start,
+            "time_end": time_end,
+            "N_D": N_D,
+            "N_D_end": N_D_end,
+            "diameter_number": diameter_number,
+            "diameter_number_end": diameter_number_end,
+            **kwargs,
+        }
+
+        # This will convert any time-based arguments into diameter_number
+        arguments = self._validate_run_args(**arguments)
+
+        del age
+        time_start = arguments.pop("time_start", None)
+        time_end = arguments.pop("time_end", None)
+        diameter_number = arguments.pop("diameter_number", None)
+        diameter_number_end = arguments.pop("diameter_number_end", None)
 
         from_projectile = self.production.generator_type == "projectile"
         diam_key = "projectile_diameter" if from_projectile else "diameter"
-        diam_max = self._get_largest_diameter(from_projectile=from_projectile)
-        diam_min = self._get_smallest_diameter(from_projectile=from_projectile)
+        if from_projectile:
+            diam_max = self.largest_projectile
+            diam_min = self.smallest_projectile
+        else:
+            diam_max = self.largest_crater
+            diam_min = self.smallest_crater
 
         # Loop over each face in the mesh to build up a population of craters in this interval. This is done because faces may
         # not all have the same surface area, the range of crater sizes that can be formed on each face may be different.
@@ -670,8 +722,14 @@ class Simulation(CratermakerBase):
         for i, face_indices in enumerate(self.surface.face_bin_indices):
             total_bin_area = self.surface.face_bin_area[i]
             area_ratio = total_bin_area / self.surface.area
+            smallest_crater = self.surface.face_bin_min_sizes[i]
 
-            diam_min = self._get_smallest_diameter(self.surface.face_bin_min_sizes[i], from_projectile=from_projectile)
+            if from_projectile:
+                smallest_projectile = self._get_diameter_limit("smallest", crater_diameter=smallest_crater)
+                diam_min = max(smallest_projectile, diam_min)
+            else:
+                diam_min = max(smallest_crater, diam_min)
+
             diameter_number_local = (diameter_number[0], diameter_number[1] * area_ratio) if diameter_number is not None else None
 
             if diameter_number_end is not None:
@@ -683,8 +741,6 @@ class Simulation(CratermakerBase):
                 diameter_number_end_local = None
 
             diameters, times = self.production.sample(
-                time_start=time_start,
-                time_end=time_end,
                 diameter_number=diameter_number_local,
                 diameter_number_end=diameter_number_end_local,
                 diameter_range=(diam_min, diam_max),
@@ -701,13 +757,13 @@ class Simulation(CratermakerBase):
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
 
+        # If quasi-Monte Carlo is enabled, we need to extract the quasimc craters that
+        craterlist = []
         if len(impact_diameters) > 0:
-            craterlist = []
             # Sort the times, diameters, and locations so that they are in order of decreasing age
-            sort_indices = np.argsort(impact_times)[::-1]
-            impact_diameters = np.asarray(impact_diameters)[sort_indices]
-            impact_times = np.asarray(impact_times)[sort_indices]
-            impact_locations = np.array(impact_locations)[sort_indices]
+            impact_diameters = np.asarray(impact_diameters)
+            impact_times = np.asarray(impact_times)
+            impact_locations = np.array(impact_locations)
             for diameter, location, time in tqdm(
                 zip(impact_diameters, impact_locations, impact_times, strict=False),
                 total=len(impact_diameters),
@@ -720,13 +776,33 @@ class Simulation(CratermakerBase):
                 craterlist.append(
                     self.Crater.maker(
                         location=location,
-                        age=time,
+                        time=time,
                         scaling=self.scaling,
                         **diam_arg,
                         **vars(self.common_args),
                         **kwargs,
                     )
                 )
+        craterlist.sort(key=lambda c: c.time, reverse=True)
+        if self.do_quasimc:
+            if time_start is None:
+                N_D = (
+                    diameter_number[0] / self.production.D_conversion_factor,
+                    diameter_number[1] * self.production.N_conversion_factor / self.surface.area,
+                )
+            else:
+                N_D = None
+            if time_end is None:
+                N_D_end = (
+                    diameter_number_end[0] / self.production.D_conversion_factor,
+                    diameter_number_end[1] * self.production.N_conversion_factor / self.surface.area,
+                )
+            else:
+                N_D_end = None
+            craterlist = self.production.quasimc_merge(
+                craterlist, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
+            )
+        if len(craterlist) > 0:
             self.emplace(craterlist, **kwargs)
 
         return
@@ -794,8 +870,7 @@ class Simulation(CratermakerBase):
         save_args = {"interval": self.interval, "time_variables": self.time_variables, **kwargs}
         self.surface.save(**save_args)
 
-        if self.do_counting:
-            self.counting.save(**save_args)
+        self.counting.save(**save_args)
 
         self.to_config(**kwargs)
         super().save(**save_args)
@@ -848,18 +923,98 @@ class Simulation(CratermakerBase):
             **kwargs,
         )
 
-        if self.do_counting:
-            self.counting.export(
-                craters=self.counting.observed,
-                interval=interval,
-                driver=counting_driver,
-                ask_overwrite=ask_overwrite,
-                **kwargs,
-            )
-
+        self.counting.export(
+            driver=counting_driver,
+            interval=interval,
+            ask_overwrite=ask_overwrite,
+            **kwargs,
+        )
         self.ask_overwrite = ask_overwrite_orig
 
         return
+
+    def labelmaker(
+        self,
+        interval: int | None = None,
+        interval_label: bool = False,
+        time_label: bool = False,
+        age_label: bool = True,
+        N_label: bool = False,
+        N_diam_val: float | None = None,
+        compact: bool = False,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Generates a label for the current state of the simulation based on the time variables and other parameters.
+
+        Parameters
+        ----------
+        interval : int, optional
+            The interval number to use for generating the label. Default is None, which will use the most current interval saved in the simulation.
+        interval_label : bool, optional
+            If True, the interval number will be included in the label. Default is False.
+        time_label : bool, optional
+            If True, the time variable will be included in the label if it is available. Default is True.
+        age_label : bool, optional
+            If True, the elapsed time variable will be included in the label if it is available. Default is False.
+        N_label : bool, optional
+            If True, the elapsed N(D) variable will be included in the label if it is available. Default is False.
+        N_diam_val : float, optional
+            The D value in km to use for the N(D) label. If None, a default value is chosen based on the smallest crater size in the simulation. Default is None.
+        compact : bool, optional
+            If True, the label will be formatted in a more compact way with newlines separating the different components. If False, the components will be separated by three spaces. Default is False.
+        **kwargs : Any
+            |kwargs|
+        """
+        if interval is None:
+            interval = self.interval
+            time_variables = self.time_variables
+        else:
+            tda = self.surface.get_time_variables(interval=interval).compute()
+            time_variables = {}
+            for c in tda.coords:
+                time_variables[c] = tda[c].data.item()
+
+        if compact:
+            delim = "\n"
+        else:
+            delim = "   "
+
+        # Set a default value of the D for N(D) format based on the smallest pixel in the simulation
+        if N_diam_val is None:
+            if self.smallest_crater < 1e2:
+                N_diam_val = 1.0
+            elif self.smallest_crater < 10e3:
+                N_diam_val = 20.0
+            else:
+                N_diam_val = 64.0
+
+        time = time_variables.get("time")
+        time_label = time_label and time is not None
+
+        elapsed_time = time_variables.get("elapsed_time")
+        age_label = age_label and elapsed_time is not None
+
+        elapsed_n1 = time_variables.get("elapsed_n1")
+        N_label = N_label and elapsed_n1 is not None
+
+        label = []
+        if interval_label:
+            label.append(f"Interval: {interval}")
+        if time_label:
+            label.append(f"Time: {time:.0f} My bp")
+        if age_label:
+            label.append(f"Age : {elapsed_time:.0f} My")
+        if N_label:
+            nfac = self.production.csfd(diameter=N_diam_val * self.production.D_conversion_factor) / self.production.csfd(
+                diameter=_DSTD
+            )
+            dtxt = f"{N_diam_val:.0f}"
+            ndval = elapsed_n1 * nfac
+            N_unit = self.production.N_unit.replace("⁶", "$^6$")
+            label.append(f"Elapsed N({dtxt}): {ndval:.4g} {N_unit}")
+
+        return delim.join(label)
 
     def plot(
         self,
@@ -884,7 +1039,7 @@ class Simulation(CratermakerBase):
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
         label : str, optional
-            The label to use for the plot. Default is None, which will use a label based on the current time and elapsed time of the simulation.
+            The label to use for the plot. Default is "default", which will use the labelmaker method to build a label based on the current time and age of the simulation.
         show : bool, optional
             If True, the plot will be displayed. Default is False.
         save : bool, optional
@@ -902,43 +1057,108 @@ class Simulation(CratermakerBase):
         if interval is None:
             interval = self.interval
         if label == "default":
-            if self.time is None:
-                label = f"Interval: {interval}"
-            else:
-                if issubclass(self.surface.__class__, HiResLocalSurface):
-                    label = f"Time: {self.time:.0f} My bp\nAge : {self.elapsed_time:.0f} My"  # The line break makes a more compact label that fits in the corner of the plot without overprinting the surface image for this style of plot.
-                else:
-                    label = f"Time: {self.time:.0f} My bp    Age : {self.elapsed_time:.0f} My"  # Prevent the label from overprinting the surface image for this style of plot.
+            compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
+            label = self.labelmaker(interval=interval, compact=compact, **kwargs)
 
         plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
-        if include_counting and self.do_counting:
+        if include_counting:
             ax = self.counting.plot(**plot_args)
         else:
             ax = self.surface.plot(**plot_args)
         return ax
 
-    def show3d(self, engine: str = "pyvista", **kwargs: Any) -> Any:
+    def pyvista_plotter(
+        self,
+        interval: int | None = None,
+        label: str = "default",
+        plotter: pyvista.Plotter | None = None,
+        enable_interactive: bool = True,
+        **kwargs: Any,
+    ) -> pyvista.Plotter:
         """
-        Show the current state of the simulated surface.
+        Create a PyVista plotter for the current state of the surface.
 
         Parameters
         ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        interval : int, optional
+            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+        label : str, optional
+            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_interactive : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        plotter : pyvista.Plotter or other engine-specific plotter object
+        pyvista.Plotter
+            A PyVista Plotter object created by the surface pyvista_plotter method.
         """
-        self.save(**kwargs, skip_actions=True)
-        if "interval" not in kwargs:
-            kwargs["interval"] = self.interval
-        if self.do_counting:
-            return self.counting.show3d(engine=engine, **kwargs)
+        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+
+        class IntervalState:
+            def __init__(self, interval, max_interval):
+                self.interval = interval
+                self.max_interval = max_interval
+
+            def update(self, forward):
+                if forward:
+                    new_interval = self.interval + 1
+                    if new_interval > self.max_interval:
+                        return
+                else:
+                    new_interval = self.interval - 1
+                    if new_interval < 0:
+                        return
+                self.interval = new_interval
+                return new_interval
+
+        def update_interval(plotter, istate, forward):
+            interval = istate.update(forward)
+            plotter.clear_actors()
+            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs)
+            plotter.update()
+            return
+
+        text_arg_keys = ["position", "font_size", "color", "font", "shadow", "viewport", "orientation", "font_file", "render"]
+        new_plotter = plotter is None
+        if interval is None:
+            self.save(**kwargs, skip_actions=True)
+            interval = self.interval
+
+        if self.counting is not None:
+            plotter = self.counting.pyvista_plotter(
+                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+            )
         else:
-            return self.surface.show3d(engine=engine, **kwargs)
+            plotter = self.surface.pyvista_plotter(
+                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+            )
+
+        if label is not None:
+            if label == "default":
+                compact = kwargs.pop("compact", True)
+                label = self.labelmaker(interval=interval, compact=compact, **kwargs)
+            text_args = {k: kwargs[k] for k in text_arg_keys if k in kwargs}
+            label_actor = plotter.add_text(text=label, name="simulation-label", **text_args)
+            plotter.remove_actor("simulation-label")
+            plotter.add_actor(label_actor)
+        if new_plotter:
+            istate = IntervalState(interval, max_interval=self.interval)
+        if enable_interactive and new_plotter:
+            if label is not None:
+                plotter = update_pyvista_help_message(plotter, new_message="l: Show/hide label")
+                plotter.add_key_event(
+                    "l", lambda plotter=plotter, label_actor=label_actor: toggle_pyvista_actor(plotter, label_actor)
+                )
+            plotter = update_pyvista_help_message(plotter, new_message="Right: Next interval")
+            plotter = update_pyvista_help_message(plotter, new_message="Left: Previous interval")
+            plotter.add_key_event("Right", lambda plotter=plotter: update_interval(plotter, istate, forward=True))
+            plotter.add_key_event("Left", lambda plotter=plotter: update_interval(plotter, istate, forward=False))
+
+        return plotter
 
     def to_config(self, save_to_file: bool = True, **kwargs: Any) -> dict:
         """
@@ -969,7 +1189,7 @@ class Simulation(CratermakerBase):
             component_config = component_name + "_config"
             component = getattr(self, component_name, None)
             if component is not None:
-                sim_config[component_name] = component.name if hasattr(component, "name") else component
+                sim_config[component_name] = component.component_name if hasattr(component, "component_name") else component
                 if hasattr(component, "to_config") and callable(getattr(component, "to_config", None)):
                     sim_config[component_config] = component.to_config(remove_common_args=True)
 
@@ -1032,10 +1252,6 @@ class Simulation(CratermakerBase):
         self._elapsed_time = None
         self._time = None
         self._elapsed_n1 = None
-        self._smallest_crater = 0.0  # The smallest crater will be determined by the smallest face area
-        self._smallest_projectile = 0.0  # The smallest crater will be determined by the smallest face area
-        self._largest_crater = np.inf  # The largest crater will be determined by the target body radius
-        self._largest_projectile = np.inf  # The largest projectile will be determined by the target body radius
         self.save(skip_actions=True)
         self.is_new = True
 
@@ -1052,68 +1268,93 @@ class Simulation(CratermakerBase):
         """
         return self.surface.update_elevation(*args, **kwargs)
 
-    def _get_smallest_diameter(self, face_size: ArrayLike | None = None, from_projectile: bool = False) -> float:
+    @property
+    def max_crater_diameter_range(self) -> tuple[float, float]:
+        if self._max_crater_diameter_range is None:
+            return (0.0, np.inf)  # Temporarily set until after the Surface is finished initializing
+        else:
+            return self._max_crater_diameter_range
+
+    def _get_diameter_limit(
+        self,
+        limit: Literal["smallest", "largest"],
+        crater_diameter: FloatLike | None = None,
+        projectile_diameter: FloatLike | None = None,
+    ) -> float:
         """
-        Get the smallest possible crater or projectile be formed on a face.
+        Return an estimated smallest or largest crater given a projectile or projectile given a crater.
 
         Parameters
         ----------
-        face_size : FloatLike, optional
-            The effective size of the face to determine the smallest crater size that can be formed on it. If None, the size of the smallest face on the surface will be used.
-        from_projectile : bool, optional
-            If True, the smallest projectile diameter will be returned instead of the smallest crater diameter. Default is False.
+        limit : Literal["smallest", "largest"]
+            A string indicating whether the scaling should be done to calculate the largest crater (vertical impact at 10x the mean velocity of the Projectile component) or the smallest crater (1 degree impact at 0.1x the mean velocity of the Projectile component).
+        crater_diameter : FloatLike, optional
+            If passed, this will be used as the crater diameter and the projectile diameter will be computed from it. If None, then the crater will be scaled from the projectile_diameter.
+        projectile_diameter : FloatLike, optional
+            If passed, this will be used as the projectile diameter and the crater diameter will be computed from it. If None, then the projectile will be scaled from the crater_diameter.
 
         Returns
         -------
         float
-            The smallest possible crater or projectile diameter that can be formed on the surface.
+            The smallest crater diameter given a projectile diameter or the smallest projectile diameter given a crater diameter
         """
-        if face_size is None:
-            face_size = np.min(self.surface.face_size)
-        if from_projectile:
-            crater = Crater.maker(
-                diameter=face_size,
-                angle=90.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity * 10,
-                scaling=self.scaling,
-                **vars(self.common_args),
-            )
-            return crater.projectile_diameter
+        scaling = Scaling.maker(self.scaling)
+        if limit == "smallest":
+            angle = 1.0
+            projectile_velocity = scaling.projectile.mean_velocity * 0.1
+        elif limit == "largest":
+            angle = 90.0
+            projectile_velocity = scaling.projectile.mean_velocity * 10.0
         else:
-            return float(face_size)
+            raise ValueError("limit must either be 'smallest' or 'largest'")
 
-    def _get_largest_diameter(self, from_projectile: bool = False) -> float:
-        """
-        Get the largest possible crater or projectile that can be formed on the surface.
-        """
-        largest_crater = self.target.radius * 2
-        if from_projectile:
-            crater = Crater.maker(
-                diameter=largest_crater,
-                angle=1.0,
-                projectile_velocity=self.scaling.projectile_mean_velocity / 10.0,
-                scaling=self.scaling,
+        if (crater_diameter is None and projectile_diameter is None) or (
+            crater_diameter is not None and projectile_diameter is not None
+        ):
+            raise ValueError("Must provide exactly one of either crater_diameter or projectile_diameter")
+
+        if crater_diameter is None:
+            crater_diameter = self.Crater.maker(
+                projectile_diameter=projectile_diameter,
+                angle=angle,
+                projectile_velocity=projectile_velocity,
+                scaling=scaling,
                 **vars(self.common_args),
-            )
-            return crater.projectile_diameter
-        else:
-            return largest_crater
+            ).diameter
+            if limit == "smallest":
+                return float(max(crater_diameter, self.max_crater_diameter_range[0]))
+            elif limit == "largest":
+                return float(min(crater_diameter, self.max_crater_diameter_range[1]))
+
+        if projectile_diameter is None:
+            if limit == "smallest":
+                crater_diameter = max(crater_diameter, self.max_crater_diameter_range[0])
+            elif limit == "largest":
+                crater_diameter = min(crater_diameter, self.max_crater_diameter_range[1])
+            projectile_diameter = self.Crater.maker(
+                diameter=crater_diameter,
+                angle=angle,
+                projectile_velocity=projectile_velocity,
+                scaling=scaling,
+                **vars(self.common_args),
+            ).projectile_diameter
+            return float(projectile_diameter)
 
     @property
-    def target(self):
+    def target(self) -> Target | str:
         """
         The target body for the impact simulation. Set during initialization.
         """
         return self._target
 
     @target.setter
-    def target(self, value):
+    def target(self, value: Target | str):
         if not isinstance(value, (Target | str)):
             raise TypeError("target must be an instance of Target or str")
         self._target = value
 
     @property
-    def surface(self):
+    def surface(self) -> Surface:
         """
         Surface mesh data for the simulation. Set during initialization.
         """
@@ -1264,80 +1505,121 @@ class Simulation(CratermakerBase):
         """
         The smallest crater diameter in meters. Set during initialization.
         """
-        return self._smallest_crater
+        if not isinstance(self.production, Production):
+            return self.max_crater_diameter_range[0]
+        if self.production.generator_type == "crater":
+            return self.production.diameter_range[0]
+        elif self.production.generator_type == "projectile":
+            projectile_diameter = self.production.diameter_range[0]
+            return self._get_diameter_limit("smallest", projectile_diameter=projectile_diameter)
 
     @smallest_crater.setter
     def smallest_crater(self, value):
-        if value is None:
-            self._smallest_crater = 0.0
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("smallest_crater must be a scalar value")
-        elif value < 0:
-            raise ValueError("smallest_crater must be greater than or equal to zero")
-        elif self._largest_crater is not None and value > self._largest_crater:
-            raise ValueError("smallest_crater must be less than or equal to largest_crater")
-        self._smallest_crater = float(value)
+        if self.production.generator_type == "crater":
+            minval = max(value, self.max_crater_diameter_range[0])
+            maxval = min(self.production.diameter_range[1], self.max_crater_diameter_range[1])
+        elif self.production.generator_type == "projectile":
+            minval = self._get_diameter_limit("smallest", crater_diameter=value)
+            maxval = min(
+                self.production.diameter_range[1],
+                self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[1]),
+            )
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def largest_crater(self):
         """
         The largest crater diameter in meters. Set during initialization.
         """
-        return self._largest_crater
+        if not isinstance(self.production, Production):
+            return self.max_crater_diameter_range[1]
+        if self.production.generator_type == "crater":
+            return self.production.diameter_range[1]
+        elif self.production.generator_type == "projectile":
+            projectile_diameter = self.production.diameter_range[1]
+            return self._get_diameter_limit("largest", projectile_diameter=projectile_diameter)
 
     @largest_crater.setter
     def largest_crater(self, value):
-        if value is None or np.isinf(value):
-            self._largest_crater = np.inf
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("largest_crater must be a scalar value")
-        elif value <= 0:
-            raise ValueError("largest_crater must be greater than zero")
-        elif self._smallest_crater is not None and value < self._smallest_crater:
-            raise ValueError("largest_crater must be greater than or equal to smallest_crater")
-        self._largest_crater = float(value)
+        if self.production.generator_type == "crater":
+            minval = max(self.production.diameter_range[0], self.max_crater_diameter_range[0])
+            maxval = min(value, self.max_crater_diameter_range[1])
+        elif self.production.generator_type == "projectile":
+            minval = max(
+                self.production.diameter_range[0],
+                self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[0]),
+            )
+            maxval = self._get_diameter_limit("largest", crater_diameter=value)
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def smallest_projectile(self):
         """
         The smallest projectile diameter in meters. Set during initialization.
         """
-        return self._smallest_projectile
+        if not isinstance(self.production, Production):
+            return self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0])
+        if self.production.generator_type == "projectile":
+            return self.production.diameter_range[0]
+        elif self.production.generator_type == "crater":
+            crater_diameter = self.production.diameter_range[0]
+            return self._get_diameter_limit("smallest", crater_diameter=crater_diameter)
 
     @smallest_projectile.setter
     def smallest_projectile(self, value):
-        if value is None:
-            self._smallest_projectile = 0.0
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("smallest_projectile must be a scalar value")
-        elif value < 0:
-            raise ValueError("smallest_projectile must be greater or equal to zero")
-        elif self._largest_projectile is not None and value > self._largest_projectile:
-            raise ValueError("smallest_projectile must be less than or equal to largest_projectile")
-        self._smallest_projectile = float(value)
+        if self.production.generator_type == "projectile":
+            minval = max(value, self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0]))
+            maxval = min(self.production.diameter_range[1], self._get_diameter_limit("largest", self.max_crater_diameter_range[1]))
+        elif self.production.generator_type == "crater":
+            minval = max(value, self.production.diameter_range[0])
+            maxval = min(self.production.diameter_range[1], self.max_crater_diameter_range[1])
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @parameter
     def largest_projectile(self):
         """
         The largest projectile diameter in meters. Set during initialization.
         """
-        return self._largest_projectile
+        if not isinstance(self.production, Production):
+            return self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[1])
+        if self.production.generator_type == "projectile":
+            return self.production.diameter_range[1]
+        elif self.production.generator_type == "crater":
+            crater_diameter = self.production.diameter_range[1]
+            return self._get_diameter_limit("largest", crater_diameter=crater_diameter)
 
     @largest_projectile.setter
     def largest_projectile(self, value):
-        if value is None or np.isinf(value):
-            self._largest_projectile = np.inf
+        if not isinstance(self.production, Production):
             return
-        elif not isinstance(value, FloatLike):
-            raise TypeError("largest_projectile must be a scalar value")
-        elif value <= 0:
-            raise ValueError("largest_projectile must be greater than zero")
-        elif self._smallest_projectile is not None and value < self._smallest_projectile:
-            raise ValueError("largest_projectile must be greater than or equal to smallest_projectile")
-        self._largest_projectile = float(value)
+        if self.production.generator_type == "projectile":
+            minval = max(
+                self.production.diameter_range[0],
+                self._get_diameter_limit("smallest", crater_diameter=self.max_crater_diameter_range[0]),
+            )
+            maxval = min(value, self._get_diameter_limit("largest", crater_diameter=self.max_crater_diameter_range[1]))
+        elif self.production.generator_type == "crater":
+            minval = max(self.production.diameter_range[0], self.max_crater_diameter_range[1])
+            maxval = self._get_diameter_limit("largest", crater_diameter=value)
+        else:
+            raise ValueError("Unknown Production generator_type. Expecting either 'crater' or 'projectile'")
+
+        self.production.diameter_range = (minval, maxval)
 
     @property
     def name(self):
@@ -1407,12 +1689,9 @@ class Simulation(CratermakerBase):
     @property
     def emplaced(self) -> list[Crater] | None:
         """
-        Pass-through to retrieve the current emplaced craters from the morphology model, if it is enabled.
+        Pass-through to retrieve the current emplaced craters from the morphology model.
         """
-        if self.morphology is not None:
-            return self.counting.emplaced
-        else:
-            return None
+        return self.counting.emplaced
 
     @property
     def n_observed(self) -> int | None:
@@ -1427,12 +1706,9 @@ class Simulation(CratermakerBase):
     @property
     def n_emplaced(self) -> int | None:
         """
-        Pass-through to retrieve the current number of emplaced craters from the counting model, if it is enabled.
+        Pass-through to retrieve the current number of emplaced craters from the counting model.
         """
-        if self.do_counting:
-            return self.counting.n_emplaced
-        else:
-            return None
+        return self.counting.n_emplaced
 
     def output_filename(self, interval=None, **kwargs):
         return None
@@ -1455,4 +1731,43 @@ class Simulation(CratermakerBase):
         """
         The Crater class used for crater generation in the simulation. Set during initialization.
         """
-        return self.morphology.Crater if self.morphology is not None else None
+        return self.morphology.Crater if self.morphology is not None else Crater
+
+    @property
+    def do_quasimc(self) -> bool:
+        """
+        A boolean flag indicating whether or not quasi-Monte Carlo sampling is being used for crater generation in the simulation. This is determined by whether or not the production function is using quasi-Monte Carlo sampling.
+
+        Returns
+        -------
+        bool
+            True if quasi-Monte Carlo sampling is being used, False otherwise.
+        """
+        if self._do_quasimc is None:
+            self._do_quasimc = (
+                len(self.production.quasimc_craters) > 0
+                if self.production is not None and self.production.quasimc_craters is not None
+                else False
+            )
+        return self._do_quasimc
+
+    @do_quasimc.setter
+    def do_quasimc(self, value: bool | None):
+        if not isinstance(value, (bool, None)):
+            raise TypeError("do_quasimc must be a boolean value or None")
+        self._do_quasimc = value
+
+    @property
+    def quasimc_craters(self) -> list[Crater]:
+        """
+        List of craters to be emplaced using quasi-Monte Carlo (pass-through to production.quasimc_craters).
+
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.production.Production.time` values.
+        """
+        if self.production is not None:
+            return self.production.quasimc_craters
+
+    @quasimc_craters.setter
+    def quasimc_craters(self, value: list[Crater] | None):
+        if self.production is not None:
+            self.production.quasimc_craters = value

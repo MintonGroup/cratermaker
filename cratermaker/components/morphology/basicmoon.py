@@ -52,6 +52,7 @@ class BasicMoonCraterFixed(CraterFixed):
             return None
 
 
+@Crater.register("basicmooncrater")
 class BasicMoonCrater(MorphologyCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
@@ -60,9 +61,8 @@ class BasicMoonCrater(MorphologyCrater):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return (
-            f"{base}\n"
+        str_repr = super().__str__()
+        str_repr += (
             f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
             f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
             f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
@@ -70,6 +70,7 @@ class BasicMoonCrater(MorphologyCrater):
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
         )
+        return str_repr
 
     @classmethod
     def maker(
@@ -117,11 +118,12 @@ class BasicMoonCrater(MorphologyCrater):
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
+        kwargs = {**args, **kwargs}
 
         return cls(
             crater=crater,
             morphology=morphology,
-            **args,
+            **kwargs,
         )
 
 
@@ -170,12 +172,13 @@ class BasicMoonMorphology(Morphology):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         if self.ejecta_truncation is not None:
-            base += f"\nEjecta Trunction: {self.ejecta_truncation:.2f} * crater.radius"
+            str_repr += f"Ejecta Trunction: {self.ejecta_truncation:.2f} * crater.radius\n"
         else:
-            base += "\nEjecta Truncation: Off"
-        return f"{base}\nEjecta Rays: {self.dorays}"
+            str_repr += "Ejecta Truncation: Off\n"
+        str_repr += f"Ejecta Rays: {self.dorays}\n"
+        return str_repr
 
     def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[BasicMoonCrater]:
         """
@@ -676,8 +679,8 @@ class BasicMoonMorphology(Morphology):
 
         References
         ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
-        .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. https://doi.org/10.1029/2019JE006273
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi:10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
+        .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. `doi:10.1029/2019JE006273 <https://doi.org/10.1029/2019JE006273>`_
         """
 
         def _kdmare(r, fe, psi):

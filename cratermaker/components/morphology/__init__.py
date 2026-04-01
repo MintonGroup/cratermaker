@@ -120,20 +120,25 @@ class MorphologyCraterVariable(CraterVariable):
         return self._crater_region
 
 
+@Crater.register("morphologycrater")
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
     def __str__(self) -> str:
-        output = super().__str__()
-        output += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
-        output += f"\nLarge enough to be emplaced on the grid: {self.emplaceable}\n"
+        horiz_line = "-" * 40 + "\n"
+        str_repr = super().__str__()
+        str_repr += f"Ejecta region maximum radius: {format_large_units(self.ejecta_rmax, quantity='length')}\n"
+        str_repr += f"Large enough to be emplaced on the grid: {self.emplaceable}\n"
         if self.emplaceable:
-            output += f"Face index of crater center: {self.face_index}\n"
-            output += f"Crater region: {self.crater_region}\n"
-            output += f"Ejecta region: {self.ejecta_region}\n"
-        return output
+            str_repr += f"Face index of crater center: {self.face_index}\n"
+            str_repr += horiz_line
+            str_repr += f"Crater region: {self.crater_region}"
+            str_repr += horiz_line
+            str_repr += f"Ejecta region: {self.ejecta_region}"
+            str_repr += horiz_line
+        return str_repr
 
     @classmethod
     def maker(
@@ -397,11 +402,12 @@ class Morphology(ComponentBase):
         else:
             self.surface = Surface.maker(surface, **kwargs)
             if counting is not None:
-                crater_cls = kwargs.pop("Crater", self.Crater)
-                self.counting = Counting.maker(counting, surface=self.surface, Crater=crater_cls, **kwargs)
+                self.counting = Counting.maker(counting, surface=self.surface, **kwargs)
 
         if self.counting is not None and self.counting.morphology is not self:
             self.counting.morphology = self  # Associated counting and morphology with each other
+        else:
+            self.counting = Counting.maker(counting, surface=self.surface, morphology=self, **kwargs)
 
         if do_counting is not None:
             if do_counting and self.counting is None:
@@ -419,13 +425,13 @@ class Morphology(ComponentBase):
         return
 
     def __str__(self) -> str:
-        base = super().__str__()
-        str_repr = f"{base}\n"
-        str_repr += f"\n{self.counting}\n"
+        str_repr = super().__str__()
+        if self.do_counting:
+            str_repr += f"Counting : <{self.counting.component_name}>\n"
         str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
         str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
         if self.do_subpixel_degradation:
-            str_repr += f"\n{self.production}\n"
+            str_repr += f"Production: <{self.production.component_name}>\n"
         return str_repr
 
     @classmethod
@@ -539,7 +545,14 @@ class Morphology(ComponentBase):
             craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
 
         if isinstance(craters, list) and len(craters) > 0:
-            for c in craters:
+            for c in tqdm(
+                craters,
+                total=len(craters),
+                desc="Queueing craters for emplacement",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
                 self._enqueue_crater(c)
 
         self._process_queue(**kwargs)
@@ -585,7 +598,8 @@ class Morphology(ComponentBase):
                     overwrite=True,
                 )
 
-            # Record the crater to the counting layer
+            self.counting.emplaced.append(crater)
+            # Record the crater to the counting layerk
             if self.do_counting:
                 self.counting.add(crater, **kwargs)
 
@@ -695,7 +709,10 @@ class Morphology(ComponentBase):
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values
                     timevals = [crater.time for crater in batch if crater.time is not None]
                     if len(timevals) > 1:
-                        self.compute_subpixel_degradation(time_start=max(timevals), time_end=min(timevals), **kwargs)
+                        maxtime = max(timevals)
+                        mintime = min(timevals)
+                        if maxtime > mintime:
+                            self.compute_subpixel_degradation(time_start=maxtime, time_end=mintime, **kwargs)
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)

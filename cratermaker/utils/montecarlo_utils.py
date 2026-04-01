@@ -421,16 +421,18 @@ def get_random_velocity(
 
 
 def bounded_norm(
-    mean: FloatLike,
+    loc: FloatLike,
     scale: FloatLike,
     size: int | tuple[int, ...] = 1,
+    lower_bound: FloatLike | None = None,
+    upper_bound: FloatLike | None = None,
     rng: Generator | None = None,
     rng_seed: int | None = None,
     rng_state: dict | None = None,
     **kwargs: Any,
 ) -> FloatLike:
     """
-    Sample from a truncated normal distribution that is bounded by 1-sigma stdev.
+    Sample from a truncated normal distribution that is bounded by either an upper and lower bound, or if None is provided, by the 1-sigma stdev.
 
     Parameters
     ----------
@@ -440,6 +442,10 @@ def bounded_norm(
        standard deviation and bounds of the distribution
     size : int or tuple of ints, optional
         The number of samples to generate. If the shape is (m, n, k), then m * n * k samples are drawn. If size is None (the default), a single value is returned if `diameters` is a scalar, otherwise an array of samples is returned with the same size as `diameters`.
+    lower_bound : FloatLike | None, optional
+        The lower bound of the distribution. If None, the lower bound is set to mean - scale.
+    upper_bound : FloatLike | None, optional
+        The upper bound of the distribution. If None, the upper bound is set to mean + scale.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -455,12 +461,14 @@ def bounded_norm(
     """
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    lower_bound = mean - scale
-    upper_bound = mean + scale
+    if lower_bound is None:
+        lower_bound = loc - scale
+    if upper_bound is None:
+        upper_bound = loc + scale
     truncated_normal = truncnorm(
-        (lower_bound - mean) / scale,
-        (upper_bound - mean) / scale,
-        loc=mean,
+        (lower_bound - loc) / scale,
+        (upper_bound - loc) / scale,
+        loc=loc,
         scale=scale,
     )
 
