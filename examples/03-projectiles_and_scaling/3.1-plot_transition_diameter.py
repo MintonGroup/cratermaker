@@ -9,7 +9,7 @@ This example demonstrates how to use the :ref:`Scaling <ug-scaling>` class to ca
 References
 ----------
 
-.. [#] Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O’Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., (2021) Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. https://doi.org/10.1016/j.icarus.2021.114343
+.. [#] Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O’Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., (2021) Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. `doi: 10.1016/j.icarus.2021.114343 <https://doi.org/10.1016/j.icarus.2021.114343>`_
 
 """
 

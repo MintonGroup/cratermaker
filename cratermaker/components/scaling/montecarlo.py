@@ -62,13 +62,13 @@ class MonteCarloScaling(Scaling):
 
     References
     ----------
-    - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. https://doi.org/10.1016/j.icarus.2009.07.029
-    - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
-    - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
+    - Richardson, J.E., 2009. Cratering saturation and equilibrium: A new model looks at an old problem. Icarus 204, 697-715. `doi:10.1016/j.icarus.2009.07.029 <https://doi.org/10.1016/j.icarus.2009.07.029>`_
+    - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. `doi:10.1146/annurev.ea.21.050193.002001 <https://doi.org/10.1146/annurev.ea.21.050193.002001>`_
+    - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. `doi:10.1016/j.icarus.2011.05.016 <https://doi.org/10.1016/j.icarus.2011.05.016>`_
     - Pike, R.J., 1980. Control of crater morphology by gravity and target type - Mars, earth, moon. In: Lunar and Planetary Science Conference 11, 2159-2189.
     - Croft, S.K., 1985. The scaling of complex craters. Proceedings of the Fifteenth Lunar and Planetary Science Conference, Part 2 Journal of Geophysical Research 90, Supplement, C828-C842.
-    - Schenk, P.M., Chapman, C.R., Zahnle, K., Moore, J.M., 2004. Ages and interiors: the cratering record of the Galilean satellites, Cambridge University Press. Cambridge University Press, Cambridge, UK.
-    - Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O'Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., 2021. Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. https://doi.org/10.1016/j.icarus.2021.114343
+    - Schenk, P.M., Chapman, C.R., Zahnle, K., Moore, J.M., 2004. Ages and interiors: the cratering record of the Galilean satellites, Cambridge University Press.
+    - Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O'Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., 2021. Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. `doi:10.1016/j.icarus.2021.114343 <https://doi.org/10.1016/j.icarus.2021.114343>`_
 
     """
 
@@ -400,8 +400,8 @@ class MonteCarloScaling(Scaling):
 
         References
         ----------
-        - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. https://doi.org/10.1146/annurev.ea.21.050193.002001
-        - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. https://doi.org/10.1016/j.icarus.2011.05.016
+        - Holsapple, K.A., 1993. The scaling of impact processes in planetary sciences 21, 333-373. `doi:10.1146/annurev.ea.21.050193.002001 <https://doi.org/10.1146/annurev.ea.21.050193.002001>`_
+        - Kraus, R.G., Senft, L.E., Stewart, S.T., 2011. Impacts onto H2O ice: Scaling laws for melting, vaporization, excavation, and final crater size. Icarus 214, 724-738. `doi:10.1016/j.icarus.2011.05.016 <https://doi.org/10.1016/j.icarus.2011.05.016>`_
         """
 
         def _create_material_catalogue():
