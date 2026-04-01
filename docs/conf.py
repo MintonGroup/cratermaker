@@ -47,6 +47,7 @@ extensions = [
     "pyvista.ext.plot_directive",
     "pyvista.ext.viewer_directive",
     "sphinxcontrib.video",
+    "matplotlib.sphinxext.plot_directive",
 ]
 
 extlinks = {
@@ -139,6 +140,8 @@ html_theme_options = {
         "image_dark": "_images/logos/Cratermaker_Social_Preview_dark.svg",
     },
     "show_toc_level": 4,
+    "collapse_navigation": True,
+    "navigation_depth": 2,
 }
 
 

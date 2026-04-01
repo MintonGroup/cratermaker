@@ -28,8 +28,8 @@ The |sim.show3d| method is a fast way to get a fully three dimensional visualiza
 .. code-block:: python
 
     from cratermaker import Simulation
-    sim = Simulation(gridlevel=8)
-    sim.emplace(diameter=500e3, location=(45,60))
+    sim = Simulation(gridlevel=7)
+    sim.emplace(diameter=500e3, location=(25,30))
     sim.show3d()
 
 .. ipython:: python
@@ -40,7 +40,7 @@ The |sim.show3d| method is a fast way to get a fully three dimensional visualiza
     from cratermaker import cleanup, Simulation
     import pyvista
     cleanup()
-    sim = Simulation(gridlevel=8)
+    sim = Simulation(gridlevel=7)
     sim.emplace(diameter=500e3, location=(25,30))
     sim.save()
 
@@ -107,7 +107,7 @@ This high resolution simulation could take many hours to run, and it would be in
 
 Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth:`~cratermaker.components.surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
 
-Here I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation.
+Here I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation.  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`.
 
 .. code-block:: python
 
@@ -120,7 +120,7 @@ Here I've included a script for generating a movie of the surface evolution of t
 
     simname = "quasimc"
 
-    # Set up some spacy looking lighting and background
+    # Set up some spacey looking lighting and background
     pv.set_plot_theme("dark")
     pl = pv.Plotter(off_screen=True, lighting="none", window_size=(1280, 960))
     pl.enable_hidden_line_removal()
@@ -202,22 +202,42 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
     :okwarning:
     :suppress:
 
-    from cratermaker import cleanup
-    cleanup()
+   from cratermaker import Simulation, cleanup
+   import shutil
+   cleanup()
+   sim = Simulation(
+       surface="hireslocal",
+       local_location=(0, 0),
+       pix=50.0,
+       local_radius=20.0e3,
+   )
+   sim.emplace(diameter=10e3, location=(0, 0))
+   sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=False, save=True)
+   shutil.move(str(sim.surface.plot_dir / "local_surface_hillshade000000.png"), "_images/")
 
 
-.. ipython:: python
-    :okwarning:
 
-    from cratermaker import Simulation
-    sim = Simulation(
-        surface="hireslocal",
-        local_location=(0, 0),
-        pix=100.0,
-        local_radius=20.0e3,
-    )
-    sim.emplace(diameter=10e3, location=(0, 0))
-    sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=True)
+
+.. code-block:: python
+
+   from cratermaker import Simulation
+   sim = Simulation(
+       surface="hireslocal",
+       local_location=(0, 0),
+       pix=50.0,
+       local_radius=20.0e3,
+   )
+   sim.emplace(diameter=10e3, location=(0, 0))
+   sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=True, save=False)
+
+
+
+.. image:: ../_images/local_surface_hillshade000000.png"
+    :alt: Simulation
+    :align: center
+    :width: 800px
+    :class: dark-light
+
 
 Exporting data
 ==============
@@ -244,7 +264,7 @@ ParaView can be used to visualize the surface mesh, and also to create animation
 .. image:: ../_images/paraview_500km_crater_moon.png
     :alt: Simulation
     :align: center
-    :width: 600px
+    :width: 800px
     :class: dark-light
 
 
@@ -257,5 +277,22 @@ ParaView can be used to visualize the surface mesh, and also to create animation
 Exporting multi-interval data
 -----------------------------
 
-By default, :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>` will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the ``intervals`` parameter, where passing "None" will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them. For example, take the following global lunar bombardment simulation with quasi-Monte Carlo emplaced craters (see :ref:`gal-simulation` for quasi-Monte Carlo file used for this simulation).  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`.
+By default, |sim.export| will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the "intervals" parameter, where passing "None" will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them.
 
+
+More Examples
+-------------
+
+More detailed component examples are provided in the Gallery section.
+
+.. seealso::
+
+    - :ref:`api-simulation` for the API reference
+    - :ref:`gal-simulation` for example simulations, including visualizations
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()

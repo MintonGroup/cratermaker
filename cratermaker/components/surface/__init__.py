@@ -3335,6 +3335,7 @@ class LocalSurface(CratermakerBase):
         show=True,
         save=False,
         ax: Axes | None = None,
+        close_when_done: bool = True,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -3360,6 +3361,8 @@ class LocalSurface(CratermakerBase):
             If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
+        close_when_done : bool, optional
+            If True, the figure will be closed after plotting. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -3492,7 +3495,7 @@ class LocalSurface(CratermakerBase):
             plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
         if show:
             plt.show()
-        if save or show:
+        if close_when_done and (save or show):
             plt.close()
         return ax
 

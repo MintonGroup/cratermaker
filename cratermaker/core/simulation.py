@@ -1035,6 +1035,7 @@ class Simulation(CratermakerBase):
         show=False,
         save=True,
         ax: Axes | None = None,
+        close_when_done: bool = True,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -1048,6 +1049,14 @@ class Simulation(CratermakerBase):
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
+        cmap : str, optional
+            The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
+        observed_color : str | None, optional
+            The color to use for observed craters using their measured properties. If None, observed craters will not be plotted. Default is "white".
+        observed_original_color : str | None, optional
+            The color to use for observed craters using their original properties. If None, observed craters will not be plotted. Default is None.
+        emplaced_color : str | None, optional
+            The color to use for emplaced craters in the interval. If None, emplaced craters will not be plotted. Default is None.
         label : str, optional
             The label to use for the plot. Default is "default", which will use the labelmaker method to build a label based on the current time and age of the simulation.
         show : bool, optional
@@ -1056,6 +1065,8 @@ class Simulation(CratermakerBase):
             If True, the plot will be saved to a file. Default is True.
         ax : matplotlib.axes.Axes, optional
             An optional matplotlib Axes object to plot on. If not provided, a new figure and Axes will be created. Default is None.
+        close_when_done : bool, optional
+            If True, the figure will be closed after plotting. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -1071,7 +1082,16 @@ class Simulation(CratermakerBase):
             compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
             label = self.labelmaker(interval=interval, compact=compact, **kwargs)
 
-        plot_args = {"interval": interval, "plot_style": plot_style, "label": label, "show": show, "save": save, "ax": ax, **kwargs}
+        plot_args = {
+            "interval": interval,
+            "plot_style": plot_style,
+            "label": label,
+            "show": show,
+            "save": save,
+            "ax": ax,
+            "close_when_done": close_when_done,
+            **kwargs,
+        }
         if include_counting:
             ax = self.counting.plot(**plot_args)
         else:
