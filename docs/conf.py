@@ -157,16 +157,21 @@ rst_prolog = """
 .. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
 .. |ask_overwrite_methods| replace:: If True, the user will be prompted to confirm before overwriting any existing files. If False, existing files will be overwritten without confirmation. If None, the default behavior of the class will be used. This will only persist for the duration of the export, and will be reset to its original value afterwards.
 .. |Simulation| replace:: :py:class:`~cratermaker.core.simulation.Simulation`
-.. |sim.run| replace:: :py:class:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
-.. |sim.populate| replace:: :py:class:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
-.. |sim.emplace| replace:: :py:class:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
+.. |sim.run| replace:: :py:meth:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
+.. |sim.populate| replace:: :py:meth:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
+.. |sim.emplace| replace:: :py:meth:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
+.. |sim.show3d| replace:: :py:meth:`Simulation.show3d() <cratermaker.core.simulation.Simulation.show3d>`
+.. |sim.pyvista_plotter| replace:: :py:meth:`Simulation.pyvista_plotter() <cratermaker.core.simulation.Simulation.pyvista_plotter>`
+.. |sim.export| replace:: :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>`
+.. |sim.plot| replace:: :py:meth:`Simulation.plot() <cratermaker.core.simulation.Simulation.plot>`
+.. |sim.labelmaker| replace:: :py:meth:`Simulation.labelmaker() <cratermaker.core.simulation.Simulation.labelmaker>`
 .. |save_actions| replace:: :py:attr:`~cratermaker.core.base.CratermakerBase.save_actions`
 .. |add_save_action| replace:: :py:meth:`~cratermaker.core.base.CratermakerBase.add_save_action`
 .. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
 .. |sim.largest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.largest_crater`
 .. |sim.quasimc_craters| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_craters`
 .. |sim.quasimc_file| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_file`
-.. |sim.quasimc_merge| replace:: :py:meth:`~cratermaker.components.production.Simulation.quasimc_merge`
+.. |sim.quasimc_merge| replace:: :py:meth:`~cratermaker.core.simulation.Simulation.quasimc_merge`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
 .. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
 .. |PowerLawProduction| replace:: :py:class:`~cratermaker.components.production.powerlaw.PowerLawProduction`
@@ -183,6 +188,8 @@ rst_prolog = """
 .. |production.quasimc_merge| replace:: :py:meth:`~cratermaker.components.production.Production.quasimc_merge`
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
+.. |HiResLocalSurface| replace:: :py:class:`~cratermaker.components.surface.hireslocal.HiResLocalSurface`
+.. |surface.face_variables| replace:: :py:meth:`~cratermaker.components.surface.face_variables`
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`
 .. |Crater| replace:: :py:class:`~cratermaker.components.crater.Crater`
 .. |Crater.maker| replace:: :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`

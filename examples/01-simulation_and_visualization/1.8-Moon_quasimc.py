@@ -10,7 +10,7 @@ We will use the |sim.run| method in a Cratermaker Simulation object for an age o
 
 Like example 1.2, we also reduce the gridlevel to 6 to speed up the simulation for this example. Even at low resolution, it will take several minutes to run the simulation. We will plot using a reversed grayscale colormap to somewhat mimic the appearence of the lunar surface.
 
-The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`
+
 
 References
 ----------
@@ -38,3 +38,15 @@ sim = cm.Simulation(
 sim.largest_crater = 200e3
 sim.run(age=4310)
 sim.show3d(variable_name="face_elevation", cmap="Greys_r")
+
+
+###############################################################################
+# Quasi Monte Carlo input values
+# ------------------------------
+#
+#  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`
+#
+# .. csv-table:: qmc_input.csv
+#   :file: /_static/qmc_input.csv
+#   :widths: auto
+#

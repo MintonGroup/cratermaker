@@ -1077,6 +1077,53 @@ class Simulation(CratermakerBase):
             ax = self.surface.plot(**plot_args)
         return ax
 
+    def show3d(
+        self,
+        **kwargs: Any,
+    ):
+        """
+        Show the component using an interactive 3D plot.
+
+        Valid arguments are those that are passed the engine functions (e.g. arguments to pyvista_plotter(), and plotter.show())
+
+        Parameters
+        ----------
+        engine : str, optional
+            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
+        interval : int, optional
+            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+        label : str, optional
+            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation. When "default" is used, additional options for |sim.labelmaker| can be passed as kwargs.
+        plotter : pv.Plotter, optional
+            An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
+        enable_interactive : bool, optional
+            If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
+        interval : int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
+        theme : str, optional
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain (|HiResLocalSurface| variants only). If False, show only the local region. Default is False.
+        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+            This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
+        crater_color: str | tuple[str] = ("white", "yellow")
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
+        crater_style : Literal["rings", "points"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_size_scale_factor : FloatLike, optional
+            A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        **kwargs : Any
+            |kwargs|
+
+        """
+        return super().show3d(**kwargs)
+
     def pyvista_plotter(
         self,
         interval: int | None = None,
@@ -1093,13 +1140,31 @@ class Simulation(CratermakerBase):
         interval : int, optional
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         label : str, optional
-            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation.
+            The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation. When "default" is used, additional options for |sim.labelmaker| can be passed as kwargs.
         plotter : pv.Plotter, optional
             An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
         enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
-        **kwargs : Any
-            |kwargs|
+        variable_name : str | None, optional
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+        variable : (n_face) array, optional
+            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
+        interval : int | None, optional
+            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
+        theme : str, optional
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
+        superdomain : bool, optional
+            If True, show the full surface including the superdomain (|HiResLocalSurface| variants only). If False, show only the local region. Default is False.
+        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+            This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
+        crater_color: str | tuple[str] = ("white", "yellow")
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
+        crater_style : Literal["rings", "points"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_size_scale_factor : FloatLike, optional
+            A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
 
         Returns
         -------
@@ -1824,9 +1889,9 @@ class Simulation(CratermakerBase):
         time_end : float, optional
             The ending time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
         N_D : PairOfFloats, optional
-            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
         N_D_end : PairOfFloats, optional
-            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
         **kwargs: Any
             |kwargs|
 
@@ -1845,3 +1910,10 @@ class Simulation(CratermakerBase):
             )
         else:
             raise RuntimeError("Production model must be defined to use quasimc_merge")
+
+    @property
+    def face_variables(self) -> list[str]:
+        """
+        Returns a list of the data variables currently being stored on the faces.
+        """
+        return self.surface.face_variables

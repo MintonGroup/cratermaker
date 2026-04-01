@@ -1,0 +1,6 @@
+name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence
+South Pole-Aitken,-53,191,2400000,,,20,999,,0
+Vaporum,14.2,3.1,410000,,,,,,5
+Fecunditatis,-4.6,52,690000,,,90,10,4,10
+Nectaris,-15.6,35.1,885000,,,20,172,20,40
+Imbrium,37,341.5,1321000,3922,12,,,,100

@@ -880,9 +880,9 @@ class Production(ComponentBase):
         time_end : float, optional
             The ending time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
         N_D : PairOfFloats, optional
-            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
         N_D_end : PairOfFloats, optional
-            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.ND_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
         **kwargs: Any
             |kwargs|
 
@@ -1016,11 +1016,13 @@ class Production(ComponentBase):
                 tmean, tsig = crater.production_time
                 if has_sequence:
                     if tsig > 0 and seq_tsig > 0.0:
-                        t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng).item()
+                        t = bounded_norm(loc=tmean, scale=tsig, lower_bound=seq_tlo, upper_bound=seq_thi, rng=self.rng)
                     else:
                         t = max(min(tmean, seq_thi), seq_tlo)
                 else:
-                    t = self.rng.normal(loc=tmean, scale=tsig).item() if tsig > 0 else tmean
+                    t = self.rng.normal(loc=tmean, scale=tsig) if tsig > 0 else tmean
+                if isinstance(t, np.ndarray):
+                    t = t.item()
                 max(t, 0.0)
                 return float(t)
             else:

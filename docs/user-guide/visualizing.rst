@@ -13,23 +13,24 @@
 
 
 
-Visualizing the surface 
-=======================
+Visualizing Cratermaker Data
+============================
 
-Cratermaker can export the surface mesh to a VTK file, which can be visualized with tools like `PyVista <https://docs.pyvista.org/>`__  and `ParaView <https://www.paraview.org/>`__. In this example, we will emplace a 500 km crater on the Moon at a location of 60° N, 45°E, and then visualize the surface mesh using Pyvista.
+Cratermaker's |Simulation| class has a number built-in methods for visualizing output data. These include |sim.show3d|, which will visualize both the surface mesh and crater counts with `PyVista <https://docs.pyvista.org/>`__, |sim.plot| for making 2D plots with `Matplotlib <https://matplotlib.org/>`__ and `GeoPandas <https://geopandas.org/en/stable/>`__. In addition, the internal UxDataset representation of |Surface| data can be visualized with the array of tools available using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. You can also export data in a number of different formats using the |sim.export| method. 
 
-The simulation will generate several files in a folder called ``surface``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will also be placed in the ``export`` folder. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
 
-We can then open up the mesh in PyVista for visualization
+Visualizing with PyVista
+------------------------
+
+The |sim.show3d| method is a fast way to get a fully three dimensional visualization of a surface. In the example below, we emplace a 500km crater onto a lunar surface at 60° N latitude, 60° E 
 
 
 .. code-block:: python
 
-    import cratermaker as cm
-    sim = cm.Simulation(gridlevel=6)
+    from cratermaker import Simulation
+    sim = Simulation(gridlevel=8)
     sim.emplace(diameter=500e3, location=(45,60))
-    sim.show3d(variable_name="face_elevation")
-
+    sim.show3d()
 
 .. ipython:: python
     :okwarning:
@@ -39,8 +40,8 @@ We can then open up the mesh in PyVista for visualization
     from cratermaker import cleanup, Simulation
     import pyvista
     cleanup()
-    sim = Simulation(gridlevel=6)
-    sim.emplace(diameter=500e3, location=(45,60))
+    sim = Simulation(gridlevel=8)
+    sim.emplace(diameter=500e3, location=(25,30))
     sim.save()
 
 .. pyvista-plot::
@@ -48,44 +49,35 @@ We can then open up the mesh in PyVista for visualization
    :include-source: False 
 
     >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
-    >>> import cratermaker as cm
+    >>> from cratermaker import Simulation
     >>> import pyvista as pv
-    >>> sim = cm.Simulation(reset=False)
-    >>> plotter = sim.pyvista_plotter(variable_name="face_elevation")
+    >>> sim = Simulation(reset=False)
+    >>> plotter = sim.pyvista_plotter()
     >>> plotter.show()
 
 
-Exporting data
-==============
+There are number of different options for data to display by passing the "variable_name" argument to paint the surface mesh with colors using the particular data variable you want. To see what is currently available on your surface, you can inspect the |surface.face_variables| property for their names. For our simulation, we could plot the ejecta thickness, like:
 
-If you have old simulation data that you want to visualize it, you can make use of the :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>` method. This method allows for exporting component data into multiple different formats, including "VTK', "GeoTIFF", "GPKG", "Esri Shapefile", and more, depending on the component. 
-
-For instance, to export the surface mesh to a VTK file that can be opened up with other visualization tools, like `ParaView <https://www.paraview.org/>`__.
 
 .. code-block:: python
 
-    sim.export(driver="VTK")
-
-ParaView can be used to visualize the surface mesh, and also to create animations of the surface evolution. For more information on how to use ParaView, see the `ParaView documentation <https://www.paraview.org/documentation/>`__.
+    sim.show3d(variable_name="ejecta_thickness")
 
 
-.. image:: ../_images/paraview_500km_crater_moon.png
-    :alt: Simulation
-    :align: center
-    :width: 600px
-    :class: dark-light
+.. pyvista-plot::
+   :caption: Using show3d to visualize the surface mesh.
+   :include-source: False 
+
+    >>> # The pyvista-plot tool apparently doesn't recognize the show3d method, so we will just show how to do this manually with pyvista.
+    >>> from cratermaker import Simulation
+    >>> import pyvista as pv
+    >>> sim = Simulation(reset=False)
+    >>> plotter = sim.pyvista_plotter(variable_name="ejecta_thickness")
+    >>> plotter.show()
 
 
-.. ipython:: python
-    :okwarning:
-    :suppress:
 
-    cleanup()
-
-Exporting multi-interval data
------------------------------
-
-By default, :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>` will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the ``intervals`` parameter, where passing "None" will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them. For example, take the following global lunar bombardment simulation with quasi-Monte Carlo emplaced craters (see :ref:`gal-simulation` for quasi-Monte Carlo file used for this simulation):
+When using as a standalone tool (not embedded in a website like here), you can bring up a menu of options using the "h" key. For instantance, you can cycle through all of the surface datasets using the "j" key.  Sometimes you may want to have more control over the visualization. In this case, you can use the |sim.pyvista_plotter| method to get direct access to the PyVista plotter object, which you can then customize with all of the tools available in the PyVista documentation. For instance, you could add a fancy space background and some custom lighting to make your visualizations look extra spacy.
 
 .. code-block:: python
 
@@ -199,3 +191,71 @@ Here I've included a script for generating a movie of the surface evolution of t
     :alt: Quasi-Monte Carlo simulation of the Moon
     :align: center
     :class: dark-light
+
+
+Two-Dimensional Plots
+----------------------
+
+Two dimensional plots of the surface can be made with the |sim.plot| method, which uses `Matplotlib <https://matplotlib.org/>`__ and `GeoPandas <https://geopandas.org/en/stable/>`__. This is useful for making quick plots of the surface, and also for plotting crater counts. For instance, to make a simple plot of the surface mesh colored by ejecta thickness for a local crater:
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    from cratermaker import cleanup
+    cleanup()
+
+
+.. ipython:: python
+    :okwarning:
+
+    from cratermaker import Simulation
+    sim = Simulation(
+        surface="hireslocal",
+        local_location=(0, 0),
+        pix=100.0,
+        local_radius=20.0e3,
+    )
+    sim.emplace(diameter=10e3)
+    sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=True)
+
+Exporting data
+==============
+
+If you have old simulation data that you want to visualize it, you can make use of the |sim.export| method. This method allows for exporting component data into multiple different formats, including "VTK', "GeoTIFF", "GPKG", "Esri Shapefile", and more, depending on the component. 
+
+For instance, to export the surface mesh to a VTK file that can be opened up with other visualization tools, like `ParaView <https://www.paraview.org/>`__.
+
+.. code-block:: python
+
+    sim.export(driver="VTK")
+
+For a more sophisticated set of post-processsing analysis tools, you can also export the surface mesh and data in other formats using |sim.export| using the "driver" option to control how to export the data. For instance, with the "vtk" driver, you can visualize Cratermaker data using `ParaView <https://www.paraview.org/>`__. In this example, we will emplace a 500 km crater on the Moon at a location of 60° N, 45°E, and then visualize the surface mesh using Pyvista.
+
+The simulation will generate several files in a folder called ``surface``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will also be placed in the ``export`` folder. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
+
+We can then open up the mesh in PyVista for visualization.
+
+
+
+ParaView can be used to visualize the surface mesh, and also to create animations of the surface evolution. For more information on how to use ParaView, see the `ParaView documentation <https://www.paraview.org/documentation/>`__.
+
+
+.. image:: ../_images/paraview_500km_crater_moon.png
+    :alt: Simulation
+    :align: center
+    :width: 600px
+    :class: dark-light
+
+
+.. ipython:: python
+    :okwarning:
+    :suppress:
+
+    cleanup()
+
+Exporting multi-interval data
+-----------------------------
+
+By default, :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>` will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the ``intervals`` parameter, where passing "None" will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them. For example, take the following global lunar bombardment simulation with quasi-Monte Carlo emplaced craters (see :ref:`gal-simulation` for quasi-Monte Carlo file used for this simulation).  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`.
+

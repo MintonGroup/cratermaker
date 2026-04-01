@@ -201,7 +201,7 @@ Setting |crater.production_time| specifies the time when the crater should form 
 
 The equivalent in a CSV file would be:
 
-.. csv-table:: qmc_imbrium
+.. csv-table:: qmc_imbrium.csv
    :header: "name","latitude","longitude","diameter","production_time","production_time_stdev"
    :widths: auto
 
@@ -226,14 +226,13 @@ Rather than a specific time, you can specify a crater's "age" by its position on
    :okwarning:
 
 
-   qmc_list.append(sim.Crater.maker(name="Nectaris", diameter=885e3, location=(35.1, -15.6), production_ND=(20, 172, 20)))
-   sim.quasimc_craters = qmc_list # This will process the craters and give it a time values bsed on their production metadata
+   sim.quasimc_craters.append(sim.Crater.maker(name="Nectaris", diameter=885e3, location=(35.1, -15.6), production_ND=(20, 172, 20)))
    print(sim.quasimc_craters[-1])
 
 
 The equivalent in a CSV file would be:
 
-.. csv-table:: qmc_nectaris
+.. csv-table:: qmc_with_nectaris.csv
    :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev"
    :widths: auto
 
@@ -249,17 +248,6 @@ In this example, will add the basins Fecunditatis and Vaporum. Fecunditatis was 
 
 Our input file for this set of craters would look like this:
 
-.. csv-table:: qmc_selected_basins
-   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev","production_sequence"
-   :widths: auto
-
-   South Pole-Aitken,-53,191,2400000,,,20,999,,0
-   Vaporum,14.2,3.1,410000,,,,,,5
-   Fecunditatis,-4.6,52,690000,,,90,10,4,10
-   Nectaris,-15.6,35.1,885000,,,20,172,20,40
-   Imbrium,37,341.5,1321000,3922,12,,,,100
-
-
 .. ipython:: python
     :okwarning:
     :suppress:
@@ -272,6 +260,12 @@ Our input file for this set of craters would look like this:
         f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
         f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
         f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")
+
+
+.. csv-table:: qmc_selected_basins.csv
+   :file: ../qmc_selected_basins.csv
+   :widths: auto
+
 
 .. ipython:: python
    :okwarning:
@@ -296,16 +290,6 @@ Adjusting the automatic crater size limit
 By default, when a list of craters with production metadata is loaded into |production.quasimc_craters|, the upper range of the randomly-generated craters is adjusted so that it is limited to the size of the smallest crater in the |production.quasimc_craters| list. However, sometimes this is not desirable. For instance, suppose we want to add Copernicus to our list. If we didn't change the range of craters, this would mean that the simulation would never create random craters larger than the 96 km diameter of Copernicus. We can therefore adjust the |sim.largest_crater| attribute as needed. 
 
 
-.. csv-table:: qmc_with_copernicus
-   :header: "name","latitude","longitude","diameter","production_time","production_time_stdev","production_D","production_N","production_N_stdev","production_sequence"
-   :widths: auto
-
-   South Pole-Aitken,-53,191,2400000,,,20,999,,0
-   Vaporum,14.2,3.1,410000,,,,,,5
-   Fecunditatis,-4.6,52,690000,,,90,10,4,10
-   Nectaris,-15.6,35.1,885000,,,20,172,20,40
-   Imbrium,37,341.5,1321000,3922,12,,,,100
-   Copernicus,9.6209,339.9214,96070,800.0,15,,,,200
 
 
 .. ipython:: python
@@ -323,6 +307,11 @@ By default, when a list of craters with production metadata is loaded into |prod
         f.write("Copernicus,9.6209,339.9214,96070,800.0,15,,,,200\n")   
 
 
+.. csv-table:: qmc_with_copernicus.csv
+   :file: ../qmc_with_copernicus.csv
+   :widths: auto
+
+
 .. ipython:: python
    :okwarning:
 
@@ -338,9 +327,9 @@ By default, when a list of craters with production metadata is loaded into |prod
 Merging the Quasi Monte Carlo craters with random craters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When running in Quasi Monte Carlo mode, the randomly-generated and Quasi Monte Carlo generated craters are combined using the |production.quasimc_merge| (or its convenience wrapper |sim.quasimc_merge|). The arguments to this function are "craters", which holds a list of |Crater| objects that you have previously created, and either "time_start" and "time_end" or "N_D" and "N_D_end". "N_D" and "N_D_end" are the N(D) values expressed as a tuple of (D, N), where D is in km and N is in units of per 10⁶ km² (unless these have been modified by setting |production.D_conversion_factor| and/or |production.N_conversion_factor|).  Internally, the "N_D" and "N_D_end" values are converted to "time_start" and "time_end" values using the |produciton.age_from_D_N| function.
+When running in Quasi Monte Carlo mode, the randomly-generated and Quasi Monte Carlo generated craters are combined using the |production.quasimc_merge| (or its convenience wrapper |sim.quasimc_merge|). The arguments to this function are "craters", which holds a list of |Crater| objects that you have previously created, and either "time_start" and "time_end" or "N_D" and "N_D_end". "N_D" and "N_D_end" are the N(D) values expressed as a tuple of (D, N), where D is in km and N is in units of per 10⁶ km² (unless these have been modified by setting |production.D_conversion_factor| and/or |production.N_conversion_factor|).  Internally, the "N_D" and "N_D_end" values are converted to "time_start" and "time_end" values using the |production.age_from_D_N| function.
 
-The |production.quasimc_merge| method will do a number of things to process both the input list of |Crater| objects given by the "craters" argument as well as the stored |production.quasimc_craters| list to produce a consistent merge. First, it checks all of the "craters" list to see if they have a |crater.time| value set, set them using the |production.compute_time| method if they don't have one or drop them if the pre-existing |crater.time| value falls outside the range. Then it successively checks the two lists for overlapping diameters, starting with the smallest craters in both. If a crater from the input (i.e. random) list has a diameter greater than the smallest of the quasimc list, then the quasimc crater takes its place, and then the next largest quasimc crater is checked against the next largest input crater. This continues intil both lists are exhausted.  The purpose of this is to ensure that the total number of craters produced over a time interval with a |production.quasimc_list| component is roughly consistent with the total number that would be produced without. 
+The |production.quasimc_merge| method will do a number of things to process both the input list of |Crater| objects given by the "craters" argument as well as the stored |production.quasimc_craters| list to produce a consistent merge. First, it checks all of the "craters" list to see if they have a |crater.time| value set, set them using the |production.compute_time| method if they don't have one or drop them if the pre-existing |crater.time| value falls outside the range. Then it successively checks the two lists for overlapping diameters, starting with the smallest craters in both. If a crater from the input (i.e. random) list has a diameter greater than the smallest of the quasimc list, then the quasimc crater takes its place, and then the next largest quasimc crater is checked against the next largest input crater. This continues intil both lists are exhausted.  The purpose of this is to ensure that the total number of craters produced over a time interval with a |production.quasimc_craters| component is roughly consistent with the total number that would be produced without. 
 
 To demonstrate this functionality, consider the case where we want to model the total number of craters produced during the Copernican period, but we also want to include Copernicus and Tycho. First let's set up a low resolution |Simulation| object and not specify any Quasi Monte Carlo craters, but give it a random seed for repeatability
 

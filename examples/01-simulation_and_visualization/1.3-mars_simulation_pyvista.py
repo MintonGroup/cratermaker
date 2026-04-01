@@ -14,7 +14,7 @@ We also pass an option that will automatically generate hillshade plots each tim
 
 from IPython.display import Image
 
-import cratermaker as cm
+from cratermaker import Simulation
 
 simdir = "simdata-1_3"
 
@@ -23,7 +23,7 @@ simdir = "simdata-1_3"
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 # Run a simple Mars sim
-sim = cm.Simulation(
+sim = Simulation(
     target="Mars",
     surface="hireslocal",
     local_location=(0, 0),
