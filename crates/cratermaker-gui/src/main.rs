@@ -1,6 +1,6 @@
-mod context_menu;
-mod loader;
-mod pythonio;
+pub mod context_menu;
+pub mod loader;
+pub mod pythonio;
 
 use std::sync::{Arc, RwLock};
 
@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 
 use crate::{
     context_menu::{context_area, context_menu},
-    loader::{Class, Cratermaker, Method},
+    loader::{Class, Method, PythonManager},
     pythonio::PythonIO,
 };
 
@@ -150,7 +150,7 @@ impl ContextMenuTarget {
 }
 
 struct App {
-    cratermaker: Cratermaker,
+    py_manager: PythonManager,
     simulation_class: Arc<Class>,
     variables_pane: VariablesPane,
     pythonio_pane: PythonIO,
@@ -175,13 +175,15 @@ impl App {
     fn boot() -> (Self, Task<Message>) {
         Python::attach(|py| {
             let (pythonio_pane, task) = PythonIO::setup(py);
-            let cratermaker = Cratermaker::load(py).unwrap();
+            let mut py_manager: PythonManager = Default::default();
             (
                 Self {
-                    simulation_class: cratermaker
-                        .get_class(&["core", "simulation"], "Simulation")
+                    simulation_class: py_manager
+                        .get_or_import_module(py, "cratermaker.core.simulation")
+                        .unwrap()
+                        .get_class("Simulation")
                         .unwrap(),
-                    cratermaker,
+                    py_manager,
                     variables_pane: Default::default(),
                     toolbar: Toolbar,
                     pythonio_pane,
@@ -247,7 +249,7 @@ impl App {
                     .unwrap();
                     let variable = Variable {
                         name: "simulation".to_string(),
-                        class: None,
+                        class: method.signature.return_type.as_ref().cloned(),
                         value,
                         focused: false,
                     };
