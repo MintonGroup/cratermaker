@@ -496,7 +496,7 @@ class NeukumProduction(Production):
                     return A * (Dkm / Dkm_lo) ** p
                 elif Dkm > Dkm_hi:
                     A, p = _extrapolate_sfd(side="hi")
-                    p -= 2.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
+                    p -= 5.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / Dkm_hi) ** p
                 else:
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
