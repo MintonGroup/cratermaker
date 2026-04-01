@@ -2373,6 +2373,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
+        delta_face_elevation = np.where(delta_face_elevation > 0.0, delta_face_elevation, 0.0)
         self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
         return
 
