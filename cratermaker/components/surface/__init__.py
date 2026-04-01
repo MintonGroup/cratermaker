@@ -2199,7 +2199,7 @@ class LocalSurface(CratermakerBase):
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
             dims = ("n_face", "layer")
-            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint64)
+            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
             if long_name is not None:
                 attrs = {"long_name": long_name}
             else:
@@ -4226,7 +4226,7 @@ class LocalSurface(CratermakerBase):
                 uxds[v].attrs = ds[v].attrs.copy()
                 # Ensure that the tags are the correct data type
                 if "layer" in ds[v].dims:
-                    uxds[v] = uxds[v].astype(np.uint64)
+                    uxds[v] = uxds[v].astype(np.uint32)
         return uxds
 
     @property

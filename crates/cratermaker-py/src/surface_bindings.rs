@@ -46,7 +46,7 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_bearing: Option<PyReadonlyArray1<'py, f64>>,
     pub region_radius: Option<f64>,
     pub location: Option<(f64, f64)>,
-    pub crater_id: Option<PyReadonlyArray2<'py, u64>>,
+    pub crater_id: Option<PyReadonlyArray2<'py, u32>>,
     pub desloped_face_elevation: Option<PyReadonlyArray1<'py, f64>>,
 }
 
