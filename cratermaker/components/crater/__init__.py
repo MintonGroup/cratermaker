@@ -30,7 +30,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 
 @dataclass(frozen=True, slots=True)
 class CraterFixed:
-    id: np.uint32 = None
+    id: np.uint64 = None
     """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
     semimajor_axis: float | None = None
     """The semimajor axis of the crater in meters. For a circular crater, this is equal to the semiminor axis and the radius."""
@@ -727,7 +727,7 @@ class Crater(ComponentBase):
 
         make_copy = crater is not None
 
-        def _set_id(**kwargs: Any) -> np.uint32:
+        def _set_id(**kwargs: Any) -> np.uint64:
             """
             Sets the hash id of the crater based on input parameters.
 
@@ -753,8 +753,8 @@ class Crater(ComponentBase):
             combined_args = [k for k in kwargs if k in id_args]
             combined_args.sort()  # Sort to ensure consistent ordering
             combined = "::".join(f"{k}:{kwargs[k]}" for k in combined_args)
-            hexid = hashlib.shake_256(combined.encode()).hexdigest(4)
-            return np.uint32(int(f"0x{hexid}", 16))
+            hexid = hashlib.shake_256(combined.encode()).hexdigest(8)
+            return np.uint64(int(f"0x{hexid}", 16))
 
         # Convert from the old API "final_diameter/final_radius" to "diameter/radius"
         if final_diameter is not None:

@@ -157,7 +157,7 @@ Mix pre-determined impacts with random ones using :ref:`Quasi Monte-Carlo <ug-pr
 Save Actions
 ------------
 
-The |Simulation| class has a "save_actions" parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
+The |Simulation| class has a |save_actions| parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
 
 .. ipython:: python
     :okwarning:
@@ -171,14 +171,14 @@ The |Simulation| class has a "save_actions" parameter that can be set by any com
     sim = Simulation(gridlevel=4)
     print(sim.save_actions)
 
-If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you could set the following save actions:
+If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you can use |add_save_actions| to add an export command to the |Counting| component's save actions, like this:
 
 .. code-block:: python
 
     from cratermaker import Simulation
 
     sim = Simulation()
-    sim.counting.save_actions = [{"export": {"driver": "SCC"}}]
+    sim.counting.add_save_actions({"export": {"driver": "SCC"}})
     sim.run(time_start=3000, time_interval=1000)
 
 You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:

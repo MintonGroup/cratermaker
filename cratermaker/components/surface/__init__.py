@@ -2199,7 +2199,7 @@ class LocalSurface(CratermakerBase):
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
             dims = ("n_face", "layer")
-            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
+            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint64)
             if long_name is not None:
                 attrs = {"long_name": long_name}
             else:
@@ -2384,9 +2384,7 @@ class LocalSurface(CratermakerBase):
         return
 
     def calculate_face_and_node_distances(
-        self,
-        location: tuple[float, float] | None = None,
-        validate: bool = True
+        self, location: tuple[float, float] | None = None, validate: bool = True
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Computes the distances between nodes and faces and a given location.
@@ -2420,9 +2418,9 @@ class LocalSurface(CratermakerBase):
             location = validate_and_normalize_location(location)
         node_locations = np.vstack((self.node_lon, self.node_lat)).T
         face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(locations=face_locations, reference_location=location, validate=False), self.compute_distances(
-            locations=node_locations, reference_location=location, validate=False
-        )
+        return self.compute_distances(
+            locations=face_locations, reference_location=location, validate=False
+        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -4228,7 +4226,7 @@ class LocalSurface(CratermakerBase):
                 uxds[v].attrs = ds[v].attrs.copy()
                 # Ensure that the tags are the correct data type
                 if "layer" in ds[v].dims:
-                    uxds[v] = uxds[v].astype(np.uint32)
+                    uxds[v] = uxds[v].astype(np.uint64)
         return uxds
 
     @property

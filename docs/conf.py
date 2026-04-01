@@ -160,6 +160,8 @@ rst_prolog = """
 .. |sim.run| replace:: :py:class:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
 .. |sim.populate| replace:: :py:class:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
 .. |sim.emplace| replace:: :py:class:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
+.. |save_actions| replace:: :py:attr:`_cratermaker.core.base.CratermakerBase.save_actions`
+.. |add_save_actions| replace:: :py:meth:`~cratermaker.core.base.CratermakerBase.add_save_actions`
 .. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
 .. |sim.largest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.largest_crater`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
