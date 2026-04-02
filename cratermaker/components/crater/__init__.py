@@ -424,7 +424,13 @@ class CraterVariable:
 class Crater(ComponentBase):
     _registry: dict[str, Crater] = {}
 
-    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
+    def __init__(
+        self,
+        crater: Crater | None = None,
+        fixed_cls: type[CraterFixed] = CraterFixed,
+        variable_cls: type[CraterVariable] = CraterVariable,
+        **kwargs: Any,
+    ):
         if crater is not None:
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be an instance of Crater or None")

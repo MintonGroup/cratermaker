@@ -70,7 +70,7 @@ class TestSimulation(unittest.TestCase):
     def test_emplace(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             cdiam = 2 * self.pix
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None)
             crater = cratermaker.Crater.maker(diameter=cdiam)
             sim.emplace(crater)
             pdiam = crater.projectile_diameter
@@ -81,7 +81,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_populate(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None)
             # Test that populate will work even if no craters are returned
             sim.populate(age=1e-6)
             sim.populate(age=3.8e3)
@@ -89,20 +89,25 @@ class TestSimulation(unittest.TestCase):
 
     def test_run(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(
-                simdir=simdir, gridlevel=self.gridlevel, do_subpixel_degradation=True, reset=True, ask_overwrite=False
-            )
+            common_args = {
+                "simdir": simdir,
+                "gridlevel": self.gridlevel,
+                "reset": True,
+                "ask_overwrite": False,
+                "save_actions": None,
+            }
+            sim = cratermaker.Simulation(do_subpixel_degradation=True, **common_args)
             sim.run(age=1000)
 
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            sim = cratermaker.Simulation(**common_args)
             sim.run(age=1000, time_interval=100)
 
             # Test that the simulation doesn't fail when the age doesn't divide evenly by the time_interval
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            sim = cratermaker.Simulation(**common_args)
             sim.run(age=1010, time_interval=100)
 
             # Test runs with a single time interval between time_start and time_end
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            sim = cratermaker.Simulation(**common_args)
             sim.run(time_start=1010, time_end=1000, time_interval=10)
 
             # Tests if a run can continue where a previous run left off
@@ -114,7 +119,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_invalid_run_args(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False)
+            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None)
 
             # Test case: Neither the age nor the diameter_number argument is provided
             with self.assertRaises(ValueError):
@@ -188,7 +193,17 @@ class TestSimulation(unittest.TestCase):
 
     def test_save_actions(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            sim = cratermaker.Simulation(simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False)
+            common_args = {"simdir": simdir, "gridlevel": self.gridlevel, "reset": True, "ask_overwrite": False}
+
+            # Test default behavior
+            sim = cratermaker.Simulation(**common_args)
+            default_sim_save_actions = sim.save_actions.copy()
+            self.assertEqual(len(default_sim_save_actions), 1)
+            sim = cratermaker.Simulation(save_actions="default", **common_args)
+            self.assertEqual(sim.save_actions, default_sim_save_actions)
+            sim = cratermaker.Simulation(save_actions=None, **common_args)
+            self.assertEqual(len(sim.save_actions), 0)
+
             new_sim_save_action = {
                 "plot": {
                     "include_counting": True,
@@ -288,6 +303,16 @@ class TestSimulation(unittest.TestCase):
             sim.largest_crater = 200e3
             self.assertEqual(sim.largest_crater, 200e3)
             self.assertEqual(sim.production.diameter_range[1], 200e3)
+
+        return
+
+    def test_positive_only_ejecta(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(
+                simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None, do_counting=False
+            )
+            sim.run(age=4310)
+            self.assertFalse(any(sim.surface.ejecta_thickness < 0))
 
         return
 

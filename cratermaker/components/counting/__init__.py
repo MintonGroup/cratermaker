@@ -280,7 +280,15 @@ class Counting(ComponentBase):
 
         return crater
 
-    def score_rim(self, crater: Crater, quantile=0.95, gradmult=1.0, curvmult=1.0, heightmult=1.0) -> None:
+    def score_rim(
+        self,
+        crater: Crater,
+        quantile: float = 0.95,
+        gradmult: float = 1.0,
+        curvmult: float = 1.0,
+        heightmult: float = 1.0,
+        **kwargs: Any,
+    ) -> None:
         """
         Score the rim region of a crater on the surface.
 
@@ -296,6 +304,8 @@ class Counting(ComponentBase):
             Curvature multiplier for scoring. Default is 1.0.
         heightmult : float, optional
             Height multiplier for scoring. Default is 1.0.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------

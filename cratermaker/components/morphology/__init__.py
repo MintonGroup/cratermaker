@@ -630,6 +630,7 @@ class Morphology(ComponentBase):
         if not self._excavated_volume:
             return
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
+        ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
         ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
         conservation_factor = -self._excavated_volume / ejecta_volume
         ejecta_thickness *= conservation_factor

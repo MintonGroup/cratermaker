@@ -332,6 +332,8 @@ class Surface(ComponentBase):
         overwrite: bool = False,
         fill_value: float = 0.0,
         dtype=np.float64,
+        positive_only: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
         Adds new data to the surface.
@@ -356,6 +358,10 @@ class Surface(ComponentBase):
             The fill value to use for new data variables. Default is 0.0.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
+        positive_only: bool, optional
+            If True, only allow positive values on the data (data will be clipped at 0.0). Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -370,6 +376,8 @@ class Surface(ComponentBase):
             overwrite=overwrite,
             fill_value=fill_value,
             dtype=dtype,
+            positive_only=positive_only,
+            **kwargs,
         )
 
     def update_elevation(
@@ -1209,11 +1217,7 @@ class Surface(ComponentBase):
         )
 
     def _save_data(
-        self,
-        ds: xr.Dataset | xr.DataArray,
-        interval: int = 0,
-        filename: Path | None = None,
-        reset: bool = False,
+        self, ds: xr.Dataset | xr.DataArray, interval: int = 0, filename: Path | None = None, reset: bool = False, **kwargs: Any
     ) -> None:
         """
         Save the data to the specified directory.
@@ -1226,6 +1230,8 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         filename : Path | None = None
             The name of the data file. If None, the name will be generated from the variable name and interval number.
+        **kwargs : Any
+            |kwargs|
 
         Notes
         -----
@@ -1245,7 +1251,7 @@ class Surface(ComponentBase):
             filename = self.output_filename(interval)
         else:
             filename = Path(filename)
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True, **kwargs) as temp_dir:
             data_file = self.output_dir / filename
             if data_file.exists():
                 with xr.open_mfdataset(data_file) as ds_old:
@@ -1258,7 +1264,7 @@ class Surface(ComponentBase):
 
             comp = {"zlib": True, "complevel": 9}
             encoding = dict.fromkeys(ds_file.data_vars, comp)
-            ds_file.to_netcdf(temp_file, encoding=encoding)
+            ds_file.to_netcdf(temp_file, encoding=encoding, **kwargs)
             ds_file.close()
             ds.close()
             shutil.move(temp_file, data_file)
@@ -1275,6 +1281,7 @@ class Surface(ComponentBase):
         save_to_file: bool = False,
         interval: int = 0,
         dtype=np.float64,
+        **kwargs: Any,
     ) -> None:
         """
         Generate either a node or face data variable and optionally save it to a file. If the data variable already exists, it will be overwritten.
@@ -1297,13 +1304,11 @@ class Surface(ComponentBase):
             The interval number to use when saving the data to the data file.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
-
-        Returns
-        -------
-        None
+        **kwargs : Any
+            |kwargs|
         """
         if self.uxgrid is None:
-            with xr.open_dataset(self.grid_file) as ds:
+            with xr.open_dataset(self.grid_file, **kwargs) as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
         else:
@@ -1331,21 +1336,12 @@ class Surface(ComponentBase):
         else:
             if data.size != size:
                 raise ValueError("data must have the same size as the number of faces or nodes in the grid")
-        uxda = UxDataArray(
-            data=data,
-            dims=dims,
-            attrs=attrs,
-            name=name,
-            uxgrid=uxgrid,
-        )
+        uxda = UxDataArray(data=data, dims=dims, attrs=attrs, name=name, uxgrid=uxgrid, **kwargs)
 
         self._uxds[name] = uxda
 
         if save_to_file:
-            self._save_data(
-                uxda,
-                interval=interval,
-            )
+            self._save_data(uxda, interval=interval, **kwargs)
         return
 
     @abstractmethod
@@ -2118,6 +2114,8 @@ class LocalSurface(CratermakerBase):
         overwrite: bool = False,
         fill_value: float = 0.0,
         dtype=np.float64,
+        positive_only: bool = False,
+        **kwargs,
     ) -> None:
         """
         Adds new data to the surface.
@@ -2140,10 +2138,11 @@ class LocalSurface(CratermakerBase):
             The fill value to use for new data variables. Default is 0.0.
         dtype : data-type, optional
             The data type of the data variable. Default is np.float64.
+        positive_only: bool, optional
+            If True, only allow positive values on the data (data will be clipped at 0.0). Default is False.
+        **kwargs
+            |kwargs|
 
-        Returns
-        -------
-        None
         """
         # Check if the data is a scalar or an array
         if np.isscalar(data):
@@ -2165,18 +2164,16 @@ class LocalSurface(CratermakerBase):
         if name not in self.surface.uxds.data_vars:
             overwrite = True
             self.surface._add_new_data(
-                name,
-                data=fill_value,
-                long_name=long_name,
-                units=units,
-                isfacedata=isfacedata,
-                dtype=dtype,
+                name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
             )
 
         if overwrite:
             self.surface.uxds[name].data[indices] = data
         else:
             self.surface.uxds[name].data[indices] += data
+
+        if positive_only:
+            self.surface.uxds[name].data[indices] = np.maximum(0.0, self.surface.uxds[name].data[indices])
 
         return
 
@@ -2373,8 +2370,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
-        delta_face_elevation = np.where(delta_face_elevation > 0.0, delta_face_elevation, 0.0)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
+        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
         return
 
     def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
@@ -2393,7 +2389,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
+        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
 
     def compute_slope(self) -> NDArray[np.float64]:
         """
@@ -3335,7 +3331,8 @@ class LocalSurface(CratermakerBase):
         show=True,
         save=False,
         ax: Axes | None = None,
-        close_when_done: bool = True,
+        close_when_done: bool | None = None,
+        minimum_plot_width: float | None = 800,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -3362,7 +3359,9 @@ class LocalSurface(CratermakerBase):
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         close_when_done : bool, optional
-            If True, the figure will be closed after plotting. Default is True.
+            If True, the figure will be closed after plotting. Default is True when save is True and show is False, and False otherwise.
+        minimum_plot_width : float, optional
+            Because the width of the plot is determined by the number of faces, small regions will generate small plots with labels that are hard to read. This parameter sets a lower limit to the width of the image that is generated by the plot. By default it is 800. Set to None to turn it off.
         **kwargs : Any
             |kwargs|
 
@@ -3372,7 +3371,7 @@ class LocalSurface(CratermakerBase):
             A Matplotlib Axes object containing the plot.
         """
         import matplotlib.pyplot as plt
-        from matplotlib.colors import LightSource
+        from matplotlib.colors import LightSource, Normalize
         from scipy.ndimage import gaussian_filter
 
         file_prefix = f"{self.output_file_prefix}_{plot_style}"
@@ -3394,15 +3393,24 @@ class LocalSurface(CratermakerBase):
                 do_overlay = False
             else:
                 do_overlay = True
+        if close_when_done is None:
+            close_when_done = save and not show
+        colorbar = kwargs.pop("colorbar", True)
+        colorbar = colorbar and (plot_style == "map" or do_overlay)
 
         if variable_name is not None:
             ret = self.to_raster(uxds[variable_name].load())
+            variable_long_name = uxds[variable_name].attrs.get("long_name", variable_name)
+            variable_units = uxds[variable_name].attrs.get("units", "")
             variable_raster = ret[0]
             extent = ret[1]
             H, W = variable_raster.shape
             vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
             vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
+            norm = Normalize(vmin=vmin, vmax=vmax)
         else:
+            variable_long_name = ""
+            variable_units = ""
             vmin = kwargs.pop("vmin", 0.0)
             vmax = kwargs.pop("vmax", 1.0)
 
@@ -3436,12 +3444,14 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError("plot_style must be either 'map' or 'hillshade'")
 
+        if minimum_plot_width is not None:
+            W = max(minimum_plot_width, W)
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
-            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False, layout="constrained")
         ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
         ax.axis("off")
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        # plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         fontsize_px = W * 0.03
         fontsize = fontsize_px * 72 / W
         xmin, xmax, ymin, ymax = extent
@@ -3491,8 +3501,14 @@ class LocalSurface(CratermakerBase):
                 fontsize=fontsize,
                 fontweight="bold",
             )
+        if colorbar:
+            norm = Normalize(vmin=vmin, vmax=vmax)
+            sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+            cbar = plt.colorbar(sm, ax=ax, orientation="horizontal", shrink=0.5)
+            cbar.set_label(label=f"{variable_long_name} [{variable_units}]", size=fontsize)
+            cbar.ax.tick_params(labelsize=fontsize, length=fontsize, width=0.2 * fontsize)
         if save:
-            plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
+            plt.savefig(filename, pad_inches=0, dpi=W)
         if show:
             plt.show()
         if close_when_done and (save or show):

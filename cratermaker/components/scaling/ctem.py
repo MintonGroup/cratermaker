@@ -1,3 +1,5 @@
+from typing import Any
+
 from cratermaker.components.projectile import Projectile
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.scaling.montecarlo import MonteCarloScaling
@@ -59,7 +61,7 @@ class CTEMScaling(MonteCarloScaling):
         mu: FloatLike | None = None,
         Ybar: FloatLike | None = None,
         density: FloatLike | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(
             target=target,

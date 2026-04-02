@@ -61,7 +61,7 @@ class Simulation(CratermakerBase):
     do_counting : bool, optional
         If True, the counting component will keep track of observable craters during the simulation. If False, emplaced craters that are large enoug to be observable are saved, but the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
     save_actions: list[dict[str, dict]], optional
-        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
+        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved. Set to None to disable or "default" to use the default save actions.
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -83,7 +83,7 @@ class Simulation(CratermakerBase):
         reset: bool = None,
         ask_overwrite: bool = True,
         do_counting: bool = True,
-        save_actions: list[dict[str, dict]] | None = None,
+        save_actions: list[dict[str, dict]] | None | str = "default",
         **kwargs: Any,
     ):
         object.__setattr__(self, "_target", None)
@@ -241,8 +241,7 @@ class Simulation(CratermakerBase):
             skip_components = ["surface"]
             self.reset(skip_component=skip_components)
 
-        if save_actions is None:
-            self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
+        self.save_actions = save_actions
 
         self.to_config()
 
@@ -919,7 +918,7 @@ class Simulation(CratermakerBase):
 
         if interval is not None and interval < 0:
             interval = self.interval + 1 + interval
-        self.save(**kwargs, skip_actions=True, ask_overwrite=ask_overwrite)
+        self.save(skip_actions=True, ask_overwrite=ask_overwrite, **kwargs)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -1938,3 +1937,9 @@ class Simulation(CratermakerBase):
         Returns a list of the data variables currently being stored on the faces.
         """
         return self.surface.face_variables
+
+    @CratermakerBase.save_actions.setter
+    def save_actions(self, value):
+        if value == "default":
+            value = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
+        CratermakerBase.save_actions.fset(self, value)

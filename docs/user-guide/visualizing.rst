@@ -87,7 +87,7 @@ When using as a standalone tool (not embedded in a website like here), you can b
         gridlevel=9,
         ask_overwrite=False,
         reset=True,
-        save_actions=[],
+        save_actions=None,
         rng_seed=252346663,
     )
     sim.run(age=4310, time_interval=10)
