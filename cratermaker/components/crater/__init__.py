@@ -538,7 +538,7 @@ class Crater(ComponentBase):
         if self.production_sequence is not None:
             str_repr += f"Production sequence: {self.production_sequence}\n"
         if self.production_ND is not None:
-            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
+            str_repr += f"Production N({self.production_ND[0]}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
         if self.production_time is not None:
             str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
         if self.time is not None:
