@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
-import rasterio
 import pyvista as pv
+import rasterio
 import uxarray as uxr
 import xarray as xr
 from affine import Affine
@@ -1963,6 +1963,20 @@ class Surface(ComponentBase):
         """
         return self._full().data_composer()
 
+    @property
+    def face_variables(self) -> list[str]:
+        """
+        Returns a list of the data variables currently being stored on the faces.
+        """
+        return self._full().face_variables
+
+    @property
+    def node_variables(self) -> list[str]:
+        """
+        Returns a list of the data variables currently being stored on the nodes.
+        """
+        return self._full().node_variables
+
 
 class LocalSurface(CratermakerBase):
     """
@@ -2359,6 +2373,7 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
+        delta_face_elevation = np.where(delta_face_elevation > 0.0, delta_face_elevation, 0.0)
         self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation)
         return
 
@@ -3320,6 +3335,7 @@ class LocalSurface(CratermakerBase):
         show=True,
         save=False,
         ax: Axes | None = None,
+        close_when_done: bool = True,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -3345,6 +3361,8 @@ class LocalSurface(CratermakerBase):
             If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
+        close_when_done : bool, optional
+            If True, the figure will be closed after plotting. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -3477,7 +3495,7 @@ class LocalSurface(CratermakerBase):
             plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=W)
         if show:
             plt.show()
-        if save or show:
+        if close_when_done and (save or show):
             plt.close()
         return ax
 
@@ -4479,6 +4497,20 @@ class LocalSurface(CratermakerBase):
         """
         return DataComposer(self)
 
+    @property
+    def face_variables(self) -> list[str]:
+        """
+        Returns a list of the data variables currently being stored on the faces.
+        """
+        return [v for v in self.uxds.variables if "n_face" in self.uxds[v].dims]
+
+    @property
+    def node_variables(self) -> list[str]:
+        """
+        Returns a list of the data variables currently being stored on the nodes.
+        """
+        return [v for v in self.uxds.variables if "n_node" in self.uxds[v].dims]
+
 
 class DataComposer(AbstractContextManager):
     """
@@ -4494,8 +4526,8 @@ class DataComposer(AbstractContextManager):
         self._finished = False
 
     def add_data(
-            self,
-            data: DatasetReader | str | list[DatasetReader | str],
+        self,
+        data: DatasetReader | str | list[DatasetReader | str],
     ):
         """
         Adds data to eventually be applied to the surface.
@@ -4529,7 +4561,6 @@ class DataComposer(AbstractContextManager):
         self._data_list = []
         self._finished = True
 
-
     def finish(self):
         """
         Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
@@ -4543,9 +4574,9 @@ class DataComposer(AbstractContextManager):
             lon2 = np.deg2rad(lon2)
             lat2 = np.deg2rad(lat2)
 
-            dlon = (lon2 - lon1 + np.pi)%(2*np.pi)
+            dlon = (lon2 - lon1 + np.pi) % (2 * np.pi)
             dlat = lat2 - lat1
-            return np.pow(np.sin(dlat/2), 2) + np.cos(lat1)*np.cos(lat2)*np.pow(np.sin(dlon/2), 2)
+            return np.pow(np.sin(dlat / 2), 2) + np.cos(lat1) * np.cos(lat2) * np.pow(np.sin(dlon / 2), 2)
 
         def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
             block_windows = []
@@ -4561,8 +4592,8 @@ class DataComposer(AbstractContextManager):
 
             for block in tqdm(block_windows):
                 out = res[
-                    block.row_off-res_window.row_off : block.row_off-res_window.row_off+block.height,
-                    block.col_off-res_window.col_off : block.col_off-res_window.col_off+block.width
+                    block.row_off - res_window.row_off : block.row_off - res_window.row_off + block.height,
+                    block.col_off - res_window.col_off : block.col_off - res_window.col_off + block.width,
                 ]
                 dataset.read(1, window=block, out=out)
 
@@ -4578,7 +4609,6 @@ class DataComposer(AbstractContextManager):
 
         pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
         for n, dataset in enumerate(self._data_list):
-
             to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
             from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
 
@@ -4607,7 +4637,7 @@ class DataComposer(AbstractContextManager):
             mask3 = np.isfinite(values) & (values != dataset.nodata)
             mask1[mask1] = mask3
             x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
-            pix_dist[n,mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
+            pix_dist[n, mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
 
         idx = np.argmin(pix_dist, axis=0)
         global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
@@ -4645,7 +4675,9 @@ class DataComposer(AbstractContextManager):
             self.cancel()
 
     @staticmethod
-    def _get_lola_cylindrical_url_from_pds(pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)) -> str:
+    def _get_lola_cylindrical_url_from_pds(
+        pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)
+    ) -> str:
         """
         Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
 
@@ -4726,7 +4758,9 @@ class DataComposer(AbstractContextManager):
         return url
 
     @staticmethod
-    def get_lola_cylindrical_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats, lon_range: PairOfFloats) -> tuple[list[str], int]:
+    def get_lola_cylindrical_files_from_pds(
+        resolution: FloatLike, lat_range: PairOfFloats, lon_range: PairOfFloats
+    ) -> tuple[list[str], int]:
         """
         Retrieve the appropriate cylindrically projected LOLA DEM file url or list of urls for a given location and resolution from the PDS.
 
@@ -4747,12 +4781,15 @@ class DataComposer(AbstractContextManager):
 
         lat_min, lat_max = lat_range
         lon_min, lon_max = lon_range
-        center = ((lon_min + lon_max)/2.0, (lat_min + lat_max)/2.0)
+        center = ((lon_min + lon_max) / 2.0, (lat_min + lat_max) / 2.0)
 
         # First, retrive the file for the centerpoint:
         filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
         if pds_file_resolution < 256:
-            return filelist, pds_file_resolution  # These files cover the entire globe, no need to determine if boundaries are crossed
+            return (
+                filelist,
+                pds_file_resolution,
+            )  # These files cover the entire globe, no need to determine if boundaries are crossed
 
         combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
@@ -4825,13 +4862,15 @@ class DataComposer(AbstractContextManager):
         lon_range : PairOfFloats, optional
             The (min_lon, max_lon) in degrees of the local region.
         """
-        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix # The moon's radius
+        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix  # The moon's radius
         if target_pds_resolution > 10 and (
             lat_range[0] > 60 or lat_range[1] < -60
         ):  # Use polar files high latitude, high resolution regions.
             return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
         else:  # Use cylindrical for all other cases
-            return DataComposer.get_lola_cylindrical_files_from_pds(resolution=target_pds_resolution, lat_range=lat_range, lon_range=lon_range)
+            return DataComposer.get_lola_cylindrical_files_from_pds(
+                resolution=target_pds_resolution, lat_range=lat_range, lon_range=lon_range
+            )
 
     def populate_with_lola_data(self, pix: FloatLike | None = None):
         """

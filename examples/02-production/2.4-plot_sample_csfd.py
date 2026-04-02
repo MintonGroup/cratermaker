@@ -47,7 +47,7 @@ for name, ax in axes.items():
 
     # Plot each sampled population Monte Carlo style
     for i in range(Nevaluations):
-        Dsampled, _ = production[name].sample(age=age, diameter_range=diameter_range, area=area, return_age=False)
+        Dsampled, _ = production[name].sample(age=age, diameter_range=diameter_range, area=area, compute_time=False)
         Dsampled = np.sort(Dsampled)[::-1]
         Nsampled = range(1, len(Dsampled) + 1)
         ax.plot(

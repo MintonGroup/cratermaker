@@ -26,7 +26,7 @@ keywords = [
     'landscape evolution',
 ]
 dependencies = [
-    'numpy<2.4',
+    'numpy',
     'dask>=2026.1.2',
     'xarray>=2026.1.0',
     'uxarray>=2025.12.0',

@@ -29,8 +29,8 @@ class NeukumProduction(Production):
     References
     ----------
     - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to
-      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263
-    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
+      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. `doi:10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`_
+    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. `doi:10.1023/A:1011941121102 <https://doi.org/10.1023/A:1011941121102>`_
     - Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters
       and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34.
       https://doi.org/10.1007/978-94-010-0712-2_1
@@ -496,7 +496,7 @@ class NeukumProduction(Production):
                     return A * (Dkm / Dkm_lo) ** p
                 elif Dkm > Dkm_hi:
                     A, p = _extrapolate_sfd(side="hi")
-                    p -= 2.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
+                    p -= 5.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / Dkm_hi) ** p
                 else:
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))

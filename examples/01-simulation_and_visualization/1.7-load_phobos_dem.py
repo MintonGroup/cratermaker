@@ -2,6 +2,8 @@
 Load a DEM of phobos
 ====================
 
+.. rubric:: By Leo Minton
+
 This example shows how to load arbitrary DEM data using the data composer.
 
 """

@@ -47,6 +47,7 @@ extensions = [
     "pyvista.ext.plot_directive",
     "pyvista.ext.viewer_directive",
     "sphinxcontrib.video",
+    "matplotlib.sphinxext.plot_directive",
 ]
 
 extlinks = {
@@ -139,6 +140,8 @@ html_theme_options = {
         "image_dark": "_images/logos/Cratermaker_Social_Preview_dark.svg",
     },
     "show_toc_level": 4,
+    "collapse_navigation": True,
+    "navigation_depth": 2,
 }
 
 
@@ -157,35 +160,51 @@ rst_prolog = """
 .. |interval_export| replace:: The interval number to export. If None, all intervals currently saved will be exported. Default is None.
 .. |ask_overwrite_methods| replace:: If True, the user will be prompted to confirm before overwriting any existing files. If False, existing files will be overwritten without confirmation. If None, the default behavior of the class will be used. This will only persist for the duration of the export, and will be reset to its original value afterwards.
 .. |Simulation| replace:: :py:class:`~cratermaker.core.simulation.Simulation`
-.. |sim.run| replace:: :py:class:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
-.. |sim.populate| replace:: :py:class:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
-.. |sim.emplace| replace:: :py:class:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
+.. |sim.run| replace:: :py:meth:`Simulation.run() <cratermaker.core.simulation.Simulation.run>`
+.. |sim.populate| replace:: :py:meth:`Simulation.populate() <cratermaker.core.simulation.Simulation.populate>`
+.. |sim.emplace| replace:: :py:meth:`Simulation.emplace() <cratermaker.core.simulation.Simulation.emplace>`
+.. |sim.show3d| replace:: :py:meth:`Simulation.show3d() <cratermaker.core.simulation.Simulation.show3d>`
+.. |sim.pyvista_plotter| replace:: :py:meth:`Simulation.pyvista_plotter() <cratermaker.core.simulation.Simulation.pyvista_plotter>`
+.. |sim.export| replace:: :py:meth:`Simulation.export() <cratermaker.core.simulation.Simulation.export>`
+.. |sim.plot| replace:: :py:meth:`Simulation.plot() <cratermaker.core.simulation.Simulation.plot>`
+.. |sim.labelmaker| replace:: :py:meth:`Simulation.labelmaker() <cratermaker.core.simulation.Simulation.labelmaker>`
 .. |save_actions| replace:: :py:attr:`~cratermaker.core.base.CratermakerBase.save_actions`
 .. |add_save_action| replace:: :py:meth:`~cratermaker.core.base.CratermakerBase.add_save_action`
 .. |sim.smallest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.smallest_crater`
 .. |sim.largest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.largest_crater`
+.. |sim.quasimc_craters| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_craters`
+.. |sim.quasimc_file| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_file`
+.. |sim.quasimc_merge| replace:: :py:meth:`~cratermaker.core.simulation.Simulation.quasimc_merge`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
 .. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
 .. |PowerLawProduction| replace:: :py:class:`~cratermaker.components.production.powerlaw.PowerLawProduction`
 .. |production.function| replace:: :py:meth:`Production.function() <cratermaker.components.production.Production.function>`
 .. |production.sample| replace:: :py:meth:`Production.sample() <cratermaker.components.production.Production.sample>`
+.. |production.chronology| replace:: :py:meth:`Production.chronology() <cratermaker.components.production.Production.chronology>`
+.. |production.compute_time| replace:: :py:meth:`Production.compute_time() <cratermaker.components.production.Production.compute_time>`
 .. |production.age_from_D_N| replace:: :py:meth:`Production.age_from_D_N() <cratermaker.components.production.Production.age_from_D_N>`
 .. |production.N_D_units| replace:: :py:attr:`~cratermaker.components.production.Production.N_D_units`
 .. |production.N_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`
 .. |production.D_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.D_conversion_factor`
 .. |production.quasimc_craters| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_craters`
 .. |production.quasimc_file| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_file`
+.. |production.quasimc_merge| replace:: :py:meth:`~cratermaker.components.production.Production.quasimc_merge`
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
+.. |HiResLocalSurface| replace:: :py:class:`~cratermaker.components.surface.hireslocal.HiResLocalSurface`
+.. |surface.face_variables| replace:: :py:meth:`~cratermaker.components.surface.face_variables`
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`
 .. |Crater| replace:: :py:class:`~cratermaker.components.crater.Crater`
 .. |Crater.maker| replace:: :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`
-.. |Crater.diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.diameter`
-.. |Crater.projectile_diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter`
-.. |Crater.production_time| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_time`
-.. |Crater.production_ND| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_ND`
-.. |Crater.production_sequence| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_sequence`
+.. |Crater.from_file| replace:: :py:meth:`Crater.from_file() <cratermaker.components.crater.Crater.from_file>`
+.. |crater.diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.diameter`
+.. |crater.projectile_diameter| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter`
+.. |crater.production_time| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_time`
+.. |crater.production_ND| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_ND`
+.. |crater.production_sequence| replace:: :py:attr:`~cratermaker.components.crater.CraterVariable.production_sequence`
+.. |crater.time| replace:: :py:attr:`~cratermaker.components.crater.CraterFixed.time`
 .. |Morphology| replace:: :py:class:`~cratermaker.components.morphology.Morphology`
+.. |morphology.Crater| replace:: :py:attr:`~cratermaker.components.morphology.Morphology.Crater`
 .. |BasicMoon| replace:: :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoonMorphology`
 .. |Counting| replace:: :py:class:`~cratermaker.components.counting.Counting`
 .. |Projectile| replace:: :py:class:`~cratermaker.components.projectile.Projectile`

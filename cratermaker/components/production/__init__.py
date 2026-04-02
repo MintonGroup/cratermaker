@@ -65,22 +65,20 @@ class Production(ComponentBase):
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_valid_generator_types", ["crater", "projectile"])
         object.__setattr__(self, "_quasimc_file", None)
-        object.__setattr__(self, "_quasimc_craters", None)
+        object.__setattr__(self, "_quasimc_craters", [])
         object.__setattr__(self, "_N_conversion_factor", None)
         object.__setattr__(self, "_D_conversion_factor", None)
         object.__setattr__(self, "_diameter_range", None)
+        object.__setattr__(self, "_Crater", None)
         self.diameter_range = diameter_range
 
         if quasimc_file is not None and quasimc_craters is not None:
             raise ValueError("Cannot provide both quasimc_file and quasimc_craters")
 
         if quasimc_file is not None:
-            if Path(quasimc_file).exists():
-                self.read_quasimc_file(filename=quasimc_file, **kwargs)
-            else:
-                raise FileNotFoundError(f"quasimc_file {quasimc_file} not found")
-        elif quasimc_craters is not None:
-            self.quasimc_craters = quasimc_craters
+            self.quasimc_file = quasimc_file
+        if quasimc_craters is not None:
+            self.quasimc_craters += quasimc_craters
         self.N_conversion_factor = N_conversion_factor
         self.D_conversion_factor = D_conversion_factor
 
@@ -164,6 +162,8 @@ class Production(ComponentBase):
                 set_version = True
             if set_version:
                 version = kwargs.pop("version", None)
+                if target is None and version is not None and version in ["Moon", "Mars"]:
+                    target = version
                 target = Target.maker(target, **kwargs)
                 if target.name in ["Mercury", "Venus", "Earth", "Moon", "Mars"]:
                     production = "neukum"
@@ -198,7 +198,7 @@ class Production(ComponentBase):
         diameter_number_end: PairOfFloats | None = None,
         diameter_range: PairOfFloats | None = None,
         area: FloatLike | None = None,
-        return_age: bool = True,
+        compute_time: bool = True,
         **kwargs: Any,
     ) -> np.ndarray:
         """
@@ -224,17 +224,17 @@ class Production(ComponentBase):
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
-        return_age : bool, optional
+        compute_time : bool, optional
             If True, the function will return the sampled ages in addition to the diameters. The default is True.
         **kwargs: Any
-            Any additional keywords that are passed to the function method.
+            Any additional keywords that are passed to |production.function|.
 
         Returns
         -------
         numpy array
             The sampled diameter values
         numpy array or None
-            The sampled age values if return_age is True, otherwise None.
+            The sampled age values if compute_time is True, otherwise None.
 
         """
         arguments = {
@@ -244,7 +244,7 @@ class Production(ComponentBase):
             "diameter_number_end": diameter_number_end,
             "diameter_range": diameter_range,
             "area": area,
-            "return_age": return_age,
+            "compute_time": compute_time,
             **kwargs,
         }
         arguments = self._validate_sample_args(**arguments)
@@ -252,7 +252,7 @@ class Production(ComponentBase):
         time_end = arguments["time_end"]
         diameter_range = arguments["diameter_range"]
         area = arguments["area"]
-        return_age = arguments["return_age"]
+        compute_time = arguments["compute_time"]
         validate_inputs = kwargs.pop("validate_inputs", False)
 
         # Build the cumulative distribution function from which we will sample
@@ -276,63 +276,90 @@ class Production(ComponentBase):
         if diameters.size == 0:
             return np.empty(0), np.empty(0)
 
-        if return_age:
-            time_subinterval = np.linspace(time_end, time_start, num=1000)
-            N_vs_age = self.function(
-                diameter=diameters,
-                time_start=time_subinterval,
-                validate_inputs=validate_inputs,
-                **kwargs,
-            )
-
-            # Normalize the weights for each diameter
-            if N_vs_age.ndim > 1:
-                N_vs_age -= np.min(N_vs_age, axis=1)[:, None]  # Subtract the min along age dimension
-                N_vs_age = N_vs_age[:, :-1]  # Remove the last value to avoid the cumulative sum reaching 1
-                weights_sum = np.sum(N_vs_age, axis=1)[:, None]  # Sum of weights for each diameter
-                weights = N_vs_age / weights_sum  # Normalize weights for each diameter
-
-                # Compute the CDF for each diameter
-                cdf = np.cumsum(weights, axis=1)
-
-            else:
-                if len(N_vs_age) > 0:
-                    N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
-                    N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
-                    weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
-                    weights = N_vs_age / weights_sum  # Normalize weights for each diameter
-                    # Compute the CDF for each diameter
-                    cdf = np.cumsum(weights)
-                else:
-                    cdf = np.empty(0)
-
-            # Generate uniform random numbers for each diameter
-            random_values = self.rng.uniform(0, 1, size=diameters.size)
-            if N_vs_age.ndim > 1:
-                chosen_subinterval_indices = np.zeros(diameters.size, dtype=int)
-                # For each diameter, find the corresponding index in the CDF
-                for i, cdf_row in enumerate(cdf):
-                    # Find the corresponding index in the CDF for each diameter
-                    chosen_subinterval_indices[i] = np.searchsorted(cdf_row, random_values[i], side="right") - 1
-            else:
-                chosen_subinterval_indices = np.searchsorted(cdf, random_values[:], side="right") - 1
-
-            # Ensure indices are within valid range
-            chosen_subinterval_indices = np.clip(chosen_subinterval_indices, 0, len(time_subinterval) - 2)
-            # Sample a random age within the selected subinterval for each diameter
-            time_lo = time_subinterval[chosen_subinterval_indices]
-            time_hi = time_subinterval[chosen_subinterval_indices + 1]
-            timevals = self.rng.uniform(low=time_lo, high=time_hi)
-
-            # Sort the ages and diameters so that they are in order of decreasing age
-            if timevals.size > 1:
-                sort_indices = np.argsort(timevals)[::-1]
-                diameters = diameters[sort_indices]
-                timevals = timevals[sort_indices]
+        if compute_time:
+            timevals = self.compute_time(diameters=diameters, time_start=time_start, time_end=time_end)
         else:
             timevals = np.empty(0)
 
         return diameters, timevals
+
+    def compute_time(self, diameters: ArrayLike, time_start: float, time_end: float = 0.0, **kwargs: Any) -> np.ndarray:
+        """
+        Compute the ages of craters with given diameters based on the production function.
+
+        Parameters
+        ----------
+        diameters : ArrayLike
+            The diameters of the craters in meters.
+        time_start : float
+            The starting age in My relative to the present, which is used to compute the cumulative SFD.
+        time_end : float, optional
+            The ending age in My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        **kwargs: Any
+            Any additional keywords that are passed to |production.function|.
+
+        Returns
+        -------
+        numpy array
+            The computed ages for the given diameters, sorted in order of decreasing age.
+        """
+        time_subinterval = np.linspace(time_end, time_start, num=1000)
+        diameters = np.atleast_1d(diameters)
+        if len(diameters) == 0:
+            return []
+        N_vs_age = self.function(
+            diameter=diameters,
+            time_start=time_subinterval,
+            validate_inputs=False,
+            **kwargs,
+        )
+
+        # Normalize the weights for each diameter
+        if N_vs_age.ndim > 1:
+            N_vs_age -= np.min(N_vs_age, axis=1)[:, None]  # Subtract the min along age dimension
+            N_vs_age = N_vs_age[:, :-1]  # Remove the last value to avoid the cumulative sum reaching 1
+            weights_sum = np.sum(N_vs_age, axis=1)[:, None]  # Sum of weights for each diameter
+            weights = N_vs_age / weights_sum  # Normalize weights for each diameter
+
+            # Compute the CDF for each diameter
+            cdf = np.cumsum(weights, axis=1)
+
+        else:
+            if len(N_vs_age) > 0:
+                N_vs_age -= np.min(N_vs_age)  # Subtract the min along age dimension
+                N_vs_age = N_vs_age[:-1]  # Remove the last value to avoid the cumulative sum reaching 1
+                weights_sum = np.sum(N_vs_age)  # Sum of weights for each diameter
+                weights = N_vs_age / weights_sum  # Normalize weights for each diameter
+                # Compute the CDF for each diameter
+                cdf = np.cumsum(weights)
+            else:
+                cdf = np.empty(0)
+
+        # Generate uniform random numbers for each diameter
+        random_values = self.rng.uniform(0, 1, size=diameters.size)
+        if N_vs_age.ndim > 1:
+            chosen_subinterval_indices = np.zeros(diameters.size, dtype=int)
+            # For each diameter, find the corresponding index in the CDF
+            for i, cdf_row in enumerate(cdf):
+                # Find the corresponding index in the CDF for each diameter
+                chosen_subinterval_indices[i] = np.searchsorted(cdf_row, random_values[i], side="right") - 1
+        else:
+            chosen_subinterval_indices = np.searchsorted(cdf, random_values[:], side="right") - 1
+
+        # Ensure indices are within valid range
+        chosen_subinterval_indices = np.clip(chosen_subinterval_indices, 0, len(time_subinterval) - 2)
+        # Sample a random age within the selected subinterval for each diameter
+        time_lo = time_subinterval[chosen_subinterval_indices]
+        time_hi = time_subinterval[chosen_subinterval_indices + 1]
+        timevals = self.rng.uniform(low=time_lo, high=time_hi)
+
+        # Sort the ages and diameters so that they are in order of decreasing age
+        if timevals.size > 1:
+            sort_indices = np.argsort(timevals)[::-1]
+            diameters = diameters[sort_indices]
+            timevals = timevals[sort_indices]
+
+        return timevals
 
     @abstractmethod
     def function(
@@ -362,7 +389,7 @@ class Production(ComponentBase):
         validate_inputs : bool, optional
             If True, the function will validate the inputs. The default is True.
         **kwargs: Any
-            Any additional keywords that are passed to the function method.
+            Any additional keywords that are passed to |production.function|.
 
         Returns
         -------
@@ -395,8 +422,10 @@ class Production(ComponentBase):
         converged = []
         flag = []
         for i, d in np.ndenumerate(darr):
+            dval = float(d.item())
+            nval = float(narr[i].item())
             sol = root_scalar(
-                lambda t, d=d, n_i=narr[i]: _root_func(t, d, n_i),
+                lambda t, d=dval, n_i=nval: _root_func(t, d, n_i),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -437,7 +466,7 @@ class Production(ComponentBase):
         validate_inputs : bool, optional
             If True, the function will validate the inputs. The default is True.
         **kwargs: Any
-            Any additional keywords that are passed to the function method.
+            Any additional keywords that are passed to |production.function|.
 
         Returns
         -------
@@ -472,8 +501,9 @@ class Production(ComponentBase):
         converged = []
         flag = []
         for _, n in np.ndenumerate(narr):
+            nval = float(n.item())
             sol = root_scalar(
-                lambda d, n=n: _root_func(d, n, time_start, time_end),
+                lambda d, n=nval, time_start=time_start, time_end=time_end: _root_func(d, n, time_start, time_end),
                 x0=x0,
                 xtol=xtol,
                 method="brentq",
@@ -589,7 +619,7 @@ class Production(ComponentBase):
         area : FloatLike, optional
             The area in m² over which the production function is evaluated to generate the expected number, which is the production
             function over the input age/cumulative number range at the minimum diameter.
-        return_age : bool, optional
+        compute_time : bool, optional
             If True, the function will return the sampled ages in addition to the diameters. The default is True.
 
         Returns
@@ -649,7 +679,7 @@ class Production(ComponentBase):
         diameter_number_end = kwargs.get("diameter_number_end")
         diameter_range = kwargs.pop("diameter_range", self.diameter_range)
         area = kwargs.get("area")
-        return_age = kwargs.get("return_age", True)
+        compute_time = kwargs.get("compute_time", True)
 
         if time_start is None and diameter_number is None:
             raise ValueError("Either the 'time_start' or 'diameter_number' must be provided")
@@ -737,8 +767,8 @@ class Production(ComponentBase):
                 self.function(diameter=diameter_number[0], time_start=time_end) * area,
             )
 
-        if not isinstance(return_age, bool):
-            raise TypeError("The 'return_age' argument must be a boolean")
+        if not isinstance(compute_time, bool):
+            raise TypeError("The 'compute_time' argument must be a boolean")
 
         kwargs["time_start"] = time_start
         kwargs["time_end"] = time_end
@@ -746,7 +776,7 @@ class Production(ComponentBase):
         kwargs["diameter_number_end"] = diameter_number_end
         kwargs["diameter_range"] = diameter_range
         kwargs["area"] = area
-        kwargs["return_age"] = return_age
+        kwargs["compute_time"] = compute_time
 
         return kwargs
 
@@ -794,7 +824,7 @@ class Production(ComponentBase):
                     f"time_start must be less than the maximum valid time {self.valid_time[1]} (it is in units of My before present)"
                 )
         else:
-            if isinstance(time_start, (list, tuple, ArrayLike)):
+            if isinstance(time_start, (list, tuple)):
                 time_start = np.array(time_start, dtype=np.float64)
             elif not isinstance(time_start, np.ndarray):
                 raise TypeError("time_start must be a numeric value (float or int) or an array")
@@ -803,7 +833,7 @@ class Production(ComponentBase):
                 time_end = np.zeros_like(time_start, dtype=np.float64)
             elif np.isscalar(time_end):
                 time_end = np.full_like(time_start, time_end, dtype=np.float64)
-            elif isinstance(time_end, (list, tuple, ArrayLike)):
+            elif isinstance(time_end, (list, tuple)):
                 time_end = np.array(time_end, dtype=np.float64)
             elif not isinstance(time_end, np.ndarray):
                 raise TypeError("time_end must be a numeric value (float or int) or an array")
@@ -839,7 +869,31 @@ class Production(ComponentBase):
         """
         Merge a randomly-generated list of craters with the quasi-Monte Carlo craters over a given time interval.
 
+        It will extract any craters from |production.quasimc_craters| that have time values that overlap those of the arguments. Then it will successively check the to see if any in the "craters" list are larger than the largest in
+
+        Parameters
+        ----------
+        craters : list[Crater]
+            The list of Crater objects to merge with the quasi-Monte Carlo craters.
+        time_start : float, optional
+            The starting time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
+        time_end : float, optional
+            The ending time in units of My relative to the present in which to extract the quasi-Monte Carlo craters.
+        N_D : PairOfFloats, optional
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the start of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+        N_D_end : PairOfFloats, optional
+            A pair of D, N values that represent the N(D) format for the cumulative number density at the end of the sample, which is used to extract the quasi-Monte Carlo craters. The units given by |production.N_D_units| and can be adjusted by setting |production.D_conversion_factor| and |production.N_conversion_factor|.
+        **kwargs: Any
+            |kwargs|
+
+        Returns
+        -------
+        list[Crater]
+            The merged list of Crater objects, sorted in order of decreasing age.
         """
+        if not isinstance(craters, (list, tuple)) or (len(craters) > 0 and any(not isinstance(c, Crater) for c in craters)):
+            raise ValueError("craters must be a list of Crater objects.")
+
         arguments = {
             "time_start": time_start,
             "time_end": time_end,
@@ -850,29 +904,43 @@ class Production(ComponentBase):
         arguments = self._validate_sample_args(**arguments)
         time_start = arguments["time_start"]
         time_end = arguments["time_end"]
+        rnglist = []
+        if len(craters) > 0:
+            rnglist = [c for c in craters if c.time is not None and c.time <= time_start and c.time > time_end]
+            untimed_craters = [c for c in craters if c.time is None]
+            time_vals = self.compute_time(
+                diameters=np.array([c.diameter for c in untimed_craters]),
+                time_start=time_start,
+                time_end=time_end,
+            )
+            for c, t in zip(untimed_craters, time_vals, strict=True):
+                rnglist.append(self.Crater.maker(c, time=t))
+
+            rnglist.sort(key=lambda c: c.diameter, reverse=False)
 
         if self.quasimc_craters is not None:
             qmclist = [c for c in self.quasimc_craters if c.time <= time_start and c.time > time_end]
-            # First we'll compare the two lists of craters against their diameters from smallest to largest. For each random crater that is larger than the smallest remaining qmc crater, put the qmc crater in its place in the final list, and continue until all qmc craters are in the merge list.
-            qmclist.sort(key=lambda c: c.diameter, reverse=True)
-            craters.sort(key=lambda c: c.diameter, reverse=False)
-            merged = []
-            qidx = len(qmclist) - 1
-            for c in craters:
-                if qidx >= 0:
-                    qmc = qmclist[qidx]
-                    if c.diameter < qmc.diameter:
-                        merged.append(c)
-                    else:
-                        merged.append(qmc)
-                        qidx -= 1
-                else:
+            qmclist.sort(key=lambda c: c.diameter, reverse=False)
+        else:
+            return rnglist
+
+        merged = []
+        qidx = 0
+        nqmc = len(qmclist)
+        for c in rnglist:
+            if qidx < nqmc:
+                qmc = qmclist[qidx]
+                if c.diameter < qmc.diameter:
                     merged.append(c)
-            if qidx >= 0:
-                merged += qmclist[0 : qidx + 1]
-            craters = merged
-        craters.sort(key=lambda c: c.time, reverse=True)
-        return craters
+                else:
+                    merged.append(qmc)
+                    qidx += 1
+            else:
+                merged.append(c)
+        if qidx < nqmc:
+            merged += qmclist[qidx:]
+        merged.sort(key=lambda c: c.time, reverse=True)
+        return merged
 
     def _process_quasimc_craters(self, craters: list[Crater], **kwargs: Any) -> list[Crater]:
         """
@@ -953,6 +1021,8 @@ class Production(ComponentBase):
                         t = max(min(tmean, seq_thi), seq_tlo)
                 else:
                     t = self.rng.normal(loc=tmean, scale=tsig) if tsig > 0 else tmean
+                if isinstance(t, np.ndarray):
+                    t = t.item()
                 max(t, 0.0)
                 return float(t)
             else:
@@ -1158,13 +1228,13 @@ class Production(ComponentBase):
                 raise RuntimeError("Could not satisfy production_sequence ordering constraints ")
 
         # Build output crater list
-        processed: list[Crater] = []
+        processed: list[self.Crater] = []
         smallest_diameter = self.diameter_range[1]
         for i, c in enumerate(valid_craters):
             t = times_by_idx.get(i)
             if t is None:
                 continue
-            processed.append(Crater.maker(crater=c, time=t))
+            processed.append(self.Crater.maker(crater=c, time=t))
             if self.generator_type == "crater":
                 smallest_diameter = min(smallest_diameter, c.diameter)
             else:
@@ -1174,25 +1244,6 @@ class Production(ComponentBase):
 
         processed.sort(key=lambda c: c.time, reverse=True)
         return processed
-
-    def read_quasimc_file(
-        self,
-        filename: Path | str | None = None,
-        **kwargs: Any,
-    ) -> list[Crater]:
-        """
-        Reads in the quasi-Monte Carlo crater from file, processes the ages and sorts the crater list by age in order of decreasing age (increasing time) and computes production_time if present, production_ND if present, and will drop craters that have neither.
-
-        Parameters
-        ----------
-        filename : Path | str | None, optional
-            The path to the quasi-Monte Carlo file. If not provided, the Simulation must have a quasimc_file attribute set. This function will replace the stored quasimc_file attribute.
-        """
-        if filename is not None:
-            self._quasimc_file = filename
-        input_craters = Crater.from_file(self.quasimc_file)
-        self.quasimc_craters = input_craters
-        return
 
     @parameter
     def generator_type(self):
@@ -1231,6 +1282,8 @@ class Production(ComponentBase):
     def quasimc_file(self) -> Path:
         """
         File containing the quasi-Monte Carlo craters.
+
+        When assigned, the file will be read and processed to set the |production.quasimc_craters| list. The file must be in a format that can be read by the |Crater.from_file| method, and the craters must have production metadata (production_time, production_ND, and/or production_sequence) to be included in the quasimc_craters list. When accessed, it will return the Path to the file containing the quasi-Monte Carlo craters.
         """
         return self._quasimc_file
 
@@ -1243,21 +1296,33 @@ class Production(ComponentBase):
                 if not value.exists():
                     raise FileNotFoundError(f"quasimc_file {str(value)} not found")
                 self._quasimc_file = value
-                return
+            else:
+                raise TypeError("quasimc_file must be a string or Path")
+
+            self.quasimc_craters = self.Crater.from_file(self._quasimc_file)
+        return
 
     @property
     def quasimc_craters(self) -> list[Crater]:
         """
         List of craters to be emplaced using quasi-Monte Carlo.
 
-        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their :py:attr:`~cratermaker.components.crater.CraterFixed.time` values.
+        When assigned a list of Crater objects with production metadata (production_time, production_ND, and/or production_sequence), they will be processed to set their |crater.time| value. Any craters without production metadata will be dropped. When accessed, if any of the craters have a None value for time, they will be reprocessed to set their time value. This allows for the quasimc_craters to be dynamically updated.
         """
+        if len(self._quasimc_craters) > 0:
+            reprocess = False
+            for crater in self._quasimc_craters:
+                if crater.time is None:
+                    reprocess = True
+                    break
+            if reprocess:
+                self._quasimc_craters = self._process_quasimc_craters(self._quasimc_craters)
         return self._quasimc_craters
 
     @quasimc_craters.setter
     def quasimc_craters(self, value: list[Crater] | None):
-        if value is None:
-            self._quasimc_craters = None
+        if value is None or value == []:
+            self._quasimc_craters = []
         elif not isinstance(value, list) or not all(isinstance(c, Crater) for c in value):
             raise TypeError("quasimc_craters must be a list of Crater objects")
         else:
@@ -1350,6 +1415,15 @@ class Production(ComponentBase):
         Units used in the N(D) format convention.
         """
         return f"N>D({self.D_unit}) {self.N_unit}"
+
+    @property
+    def Crater(self) -> type[Crater]:
+        """
+        The Crater class used for crater generation.
+
+        This is set by the Simulation object when initializing a crater.
+        """
+        return self._Crater if self._Crater is not None else Crater
 
 
 import_components(__name__, __path__)
