@@ -72,7 +72,7 @@ cratermaker/_version.py
 !docs/
 !docs/_static/qmc_input.csv
 docs/sg_execution_times.rst
-docs/_images/local_surface_hillshade000000.png
+docs/_images/local_surface_hillshade_ejecta_thickness000000.png
 !examples/
 !examples/01-simulation_and_visualization/
 !examples/01-simulation_and_visualization/qmc_input.csv
