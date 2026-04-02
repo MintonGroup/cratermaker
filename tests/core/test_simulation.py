@@ -10,7 +10,7 @@ import numpy as np
 import xarray as xr
 
 import cratermaker
-from cratermaker import Target
+from cratermaker import Crater, Target
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 warnings.filterwarnings("ignore", category=FutureWarning, module="uxarray")
@@ -210,6 +210,85 @@ class TestSimulation(unittest.TestCase):
             self.assertEqual(len(img_out), ninterval + 1)
             scc_out = list(sim.counting.export_dir.glob("*.scc"))
             self.assertEqual(len(scc_out), 2 * (ninterval + 1))
+        return
+
+    def test_quasimc(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            quasimc_file = Path(simdir) / "qmc.csv"
+            with Path.open(quasimc_file, "w") as f:
+                f.write(
+                    "name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence\n"
+                )
+                f.write("South Pole-Aitken,-53,191,2400000,,,20,999,,0\n")
+                f.write("Vaporum,14.2,3.1,410000,,,,,,5\n")
+                f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
+                f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
+                f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")
+
+            sim = cratermaker.Simulation(
+                simdir=simdir, gridlevel=self.gridlevel, reset=True, ask_overwrite=False, quasimc_file=quasimc_file
+            )
+            self.assertEqual(len(sim.quasimc_craters), 5)
+            self.assertTrue(all(isinstance(crater, Crater) for crater in sim.quasimc_craters))
+            self.assertTrue(
+                all(
+                    crater.name in ["South Pole-Aitken", "Vaporum", "Fecunditatis", "Nectaris", "Imbrium"]
+                    for crater in sim.quasimc_craters
+                )
+            )
+            self.assertTrue(all(crater.time is not None for crater in sim.quasimc_craters))
+            min_diameter = min([crater.diameter for crater in sim.quasimc_craters])
+            self.assertEqual(sim.largest_crater, min_diameter)
+
+            sim.quasimc_craters.append(
+                sim.Crater.maker(
+                    name="Copernicus",
+                    location=(339.9214, 9.6209),
+                    diameter=96070,
+                    production_time=(800.0, 15.0),
+                    production_sequence=200,
+                )
+            )
+
+            self.assertEqual(len(sim.quasimc_craters), 6)
+            self.assertTrue(all(isinstance(crater, Crater) for crater in sim.quasimc_craters))
+            self.assertTrue(
+                all(
+                    crater.name in ["South Pole-Aitken", "Vaporum", "Fecunditatis", "Nectaris", "Imbrium", "Copernicus"]
+                    for crater in sim.quasimc_craters
+                )
+            )
+            self.assertTrue(all(crater.time is not None for crater in sim.quasimc_craters))
+            min_diameter = min([crater.diameter for crater in sim.quasimc_craters])
+            self.assertEqual(sim.largest_crater, min_diameter)
+
+            with Path.open(quasimc_file, "w") as f:
+                f.write(
+                    "name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence\n"
+                )
+                f.write("South Pole-Aitken,-53,191,2400000,,,20,999,,0\n")
+                f.write("Vaporum,14.2,3.1,410000,,,,,,5\n")
+                f.write("Fecunditatis,-4.6,52,690000,,,90,10,4,10\n")
+                f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
+                f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")
+                f.write("Tycho,-43.2958,348.7847,85294,109,4,,,,300\n")
+
+            sim.quasimc_file = quasimc_file
+            self.assertEqual(len(sim.quasimc_craters), 6)
+            self.assertTrue(
+                all(
+                    crater.name in ["South Pole-Aitken", "Vaporum", "Fecunditatis", "Nectaris", "Imbrium", "Tycho"]
+                    for crater in sim.quasimc_craters
+                )
+            )
+            self.assertTrue(all(crater.time is not None for crater in sim.quasimc_craters))
+            min_diameter = min([crater.diameter for crater in sim.quasimc_craters])
+            self.assertEqual(sim.largest_crater, min_diameter)
+
+            sim.largest_crater = 200e3
+            self.assertEqual(sim.largest_crater, 200e3)
+            self.assertEqual(sim.production.diameter_range[1], 200e3)
+
         return
 
 

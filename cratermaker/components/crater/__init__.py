@@ -1365,7 +1365,7 @@ class Crater(ComponentBase):
         for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
             crater_data = dataset.sel(id=id).to_dict()["data_vars"]
             crater_data = {k: v["data"] for k, v in crater_data.items()}
-            if np.isnan(crater_data["semimajor_axis"]):
+            if not isinstance(crater_data["semimajor_axis"], (float, int)):
                 continue
             crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
             for k, v in crater_data.items():
