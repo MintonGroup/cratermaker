@@ -213,7 +213,7 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
     )
     sim.emplace(diameter=10e3, location=(0, 0))
     sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=False, save=True)
-    shutil.move(str(sim.surface.plot_dir / "local_surface_hillshade000000.png"), "_images/local_surface_hillshade000000.png")
+    shutil.move(str(sim.surface.plot_dir / "local_surface_hillshade_ejecta_thickness000000.png"), "_images/local_surface_hillshade_ejecta_thickness000000.png")
 
 
 
@@ -231,7 +231,7 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
    sim.plot(plot_style="hillshade", variable_name="ejecta_thickness", show=True, save=False)
 
 
-.. image:: ../_images/local_surface_hillshade000000.png
+.. image:: ../_images/local_surface_hillshade_ejecta_thickness000000.png
     :alt: Simulation
     :align: center
     :width: 800px

@@ -670,12 +670,12 @@ class Counting(ComponentBase):
             observed_intervals, emplaced_intervals = self.get_saved_interval_numbers()
             # Check if we are in the current interval, otherwise we have to read data from file.
             trigger_read = False
-            if (observed_intervals is not None and len(observed_intervals) == 0) or observed_intervals[-1] == interval:
+            if observed_intervals is not None and (len(observed_intervals) == 0 or observed_intervals[-1] == interval):
                 observed = list(self.observed.values())
             else:
                 observed = None
                 trigger_read = True
-            if (observed_intervals is not None and len(emplaced_intervals) == 0) or emplaced_intervals[-1] == interval:
+            if emplaced_intervals is not None and (len(emplaced_intervals) == 0 or emplaced_intervals[-1] == interval):
                 emplaced = self.emplaced
             else:
                 emplaced = None
