@@ -9,7 +9,7 @@ In this example, we will plot the cumulative size-frequency distribution of proj
 References
 ----------
 
-.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34.  https://doi.org/10.1007/978-94-010-0712-2_1
+.. [#] Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34.  `doi:10.1007/978-94-010-0712-2_1 <https://doi.org/10.1007/978-94-010-0712-2_1>`_
 """
 
 import matplotlib.pyplot as plt

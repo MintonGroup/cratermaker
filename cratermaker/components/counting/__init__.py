@@ -326,7 +326,7 @@ class Counting(ComponentBase):
 
         References
         ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
 
         """
         if region is None:
@@ -712,7 +712,7 @@ class Counting(ComponentBase):
         crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
         surface: Surface | LocalSurface | None = None,
         plotter: pyvista.Plotter | None = None,
-        size_scale_factor: FloatLike = 1.0,
+        crater_size_scale_factor: FloatLike = 1.0,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -736,7 +736,7 @@ class Counting(ComponentBase):
             The surface or local surface view to be displayed. If None, uses the associated surface property
         plotter : pyvista.Plotter, optional
             An existing pyvista Plotter to add the crater counts to. If None, a new Plotter will be created by the surface pyvista_plotter method. Default is None.
-        size_scale_factor : FloatLike, optional
+        crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
         **kwargs : Any
             |kwargs|
@@ -761,25 +761,25 @@ class Counting(ComponentBase):
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
                 point_size = 1
-                size_scale = np.array([size_scale_factor * surface.face_size[c.face_index] for c in craters])
+                size_scale = np.array([crater_size_scale_factor * surface.face_size[c.face_index] for c in craters])
             elif crater_style == "impacts":
                 add_mesh_kwargs["render_points_as_spheres"] = False
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
                 add_mesh_kwargs["pbr"] = True
-                size_scale = np.array([size_scale_factor * c.floor_diameter for c in craters])
+                size_scale = np.array([crater_size_scale_factor * c.floor_diameter for c in craters])
                 point_size = 1
             elif crater_style == "spheres":
                 add_mesh_kwargs["render_points_as_spheres"] = True
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["pbr"] = True
                 point_size = 1
-                size_scale = np.array([size_scale_factor * c.projectile_radius for c in craters])
+                size_scale = np.array([crater_size_scale_factor * c.projectile_radius for c in craters])
             mesh = self.to_vtk_mesh(
                 craters=craters,
                 use_measured_properties=use_measured_properties,
                 crater_style=crater_style,
-                size_scale_factor=size_scale_factor,
+                crater_size_scale_factor=crater_size_scale_factor,
                 **kwargs,
             )
             pdata = pyvista.PolyData(mesh)
@@ -1068,7 +1068,7 @@ class Counting(ComponentBase):
         craters: list[Crater] | None = None,
         use_measured_properties: bool = True,
         crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
-        size_scale_factor: FloatLike = 1.0,
+        crater_size_scale_factor: FloatLike = 1.0,
         **kwargs: Any,
     ) -> vtkPolyData:
         """
@@ -1086,7 +1086,7 @@ class Counting(ComponentBase):
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         crater_style : Literal["rings", "points", "impacts", "spheres"], optional
             Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
-        size_scale_factor : FloatLike, optional
+        crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles, which places the center point of the actor above the surface by its radius. Default is 1.0.
         **kwargs : Any
             |kwargs|
@@ -1171,11 +1171,11 @@ class Counting(ComponentBase):
             for crater in craters:
                 z = surface.face_elevation[crater.face_index]
                 if crater_style == "points":
-                    z += size_scale_factor * surface.face_size[crater.face_index] / 2
+                    z += crater_size_scale_factor * surface.face_size[crater.face_index] / 2
                 elif crater_style == "spheres":
-                    z += size_scale_factor * crater.projectile_radius
+                    z += crater_size_scale_factor * crater.projectile_radius
                 elif crater_style == "impacts":
-                    z += np.sqrt(size_scale_factor) * crater.floor_diameter / 2
+                    z += np.sqrt(crater_size_scale_factor) * crater.floor_diameter / 2
                 geoms.append(Point(crater.location[0], crater.location[1], z))
             gs = GeoSeries(geoms, crs=surface.crs)
 
@@ -1236,7 +1236,7 @@ class Counting(ComponentBase):
         craters: list[Crater] | None = None,
         use_measured_properties: bool = True,
         crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
-        size_scale_factor: FloatLike = 1.0,
+        crater_size_scale_factor: FloatLike = 1.0,
         **kwargs,
     ) -> None:
         """
@@ -1256,7 +1256,7 @@ class Counting(ComponentBase):
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
         crater_style : Literal["rings", "points", "impacts", "spheres"], optional
             Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
-        size_scale_factor : FloatLike, optional
+        crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles, which places the center point of the actor above the surface by its radius. Default is 1.0.
         **kwargs : Any
             |kwargs|
@@ -1619,7 +1619,7 @@ def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> Flo
 
     References
     ----------
-    .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. https://doi.org/10.1016/j.icarus.2019.02.021
+    .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
 
     """
     return f_geometric * csfd_geometric_saturation(diameter)
