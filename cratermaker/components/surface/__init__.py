@@ -842,12 +842,13 @@ class Surface(ComponentBase):
         variable_name: str | None = None,
         interval: int | None = None,
         cmap: str | None = None,
-        label=None,
+        label: str | None = None,
         scalebar: bool | None = None,
         colorbar: bool = True,
         show: bool = True,
         save: bool = False,
         ax: Axes | None = None,
+        close_when_done: bool | None = None,
         minimum_plot_width: float | None = 800.0,
         **kwargs: Any,
     ) -> Axes:
@@ -2842,7 +2843,6 @@ class LocalSurface(CratermakerBase):
             |kwargs|
         """
         from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP
-        from cratermaker.utils.general_utils import get_saved_interval_numbers
 
         def _write_dataset(uxds, filename, layer_name, driver, **kwargs):
             if self.is_global:
@@ -3334,6 +3334,7 @@ class LocalSurface(CratermakerBase):
 
     def plot(
         self,
+        filename: Path | str | None = None,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         interval: int | None = None,
@@ -3353,6 +3354,8 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -3370,7 +3373,7 @@ class LocalSurface(CratermakerBase):
         show : bool, optional
             If True, the plot will be displayed. Default for local surfaces is True.
         save : bool, optional
-            If True, the plot will be saved to the default plot directory. Default is False.
+            If True, the plot will be saved to the default plot directory. Default is False unless filename is provided, in which case the default is True.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         close_when_done : bool, optional
@@ -3386,21 +3389,19 @@ class LocalSurface(CratermakerBase):
             A Matplotlib Axes object containing the plot.
         """
         import matplotlib.pyplot as plt
+        from matplotlib import rc_context, rcParams
         from matplotlib.colors import LightSource, Normalize
         from scipy.ndimage import gaussian_filter
 
         if scalebar is None:
             scalebar = True
-
-        file_prefix = f"{self.output_file_prefix}_{plot_style}"
-        if interval is None:
+        interval_numbers = self.surface.get_saved_interval_numbers()[0]
+        if interval is None or interval == interval_numbers[-1]:
             uxds = self.uxds
-            filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
             interval = uxds.interval.values.item()
             uxds = uxds.sel(interval=interval)
-            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
 
         if variable_name is not None and variable_name not in uxds:
             raise ValueError(f"Variable '{variable_name}' not found in the surface data.")
@@ -3462,74 +3463,93 @@ class LocalSurface(CratermakerBase):
             raise ValueError("plot_style must be either 'map' or 'hillshade'")
 
         if minimum_plot_width is not None:
-            W = max(minimum_plot_width, W)
+            dpi = max(minimum_plot_width, W)
+
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
         if ax is None:
-            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False, layout="constrained")
-        ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
-        ax.axis("off")
-        # plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        fontsize_px = W * 0.03
-        fontsize = fontsize_px * 72 / W
-        xmin, xmax, ymin, ymax = extent
-        # Add scale bar before saving/showing image
-        if scalebar and self.is_local:
-            # Determine max physical size for the scale bar
-            max_physical_size = xmax / 2 / np.sqrt(2)
+            _, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False, layout="constrained")
 
-            # Choose "nice" scale bar length
-            nice_values = np.array([1, 10, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
-            scale_length = nice_values[nice_values <= max_physical_size].max()
-            bar_height = ymax * 0.01
-            scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+        # This helps scale plot elements that are sized in points, because we're using a somewhat non-standard dpi and figure size to plot the rasterio-genrated surface data
+        scale_fraction = 72 / dpi
+        scaled_params = {
+            k: v * scale_fraction
+            for k, v in rcParams.items()
+            if v is not None and type(v) is float and ("pad" in k or "width" in k or "size" in k)
+        }
+        scaled_params["font.size"] = 24 * scale_fraction
 
-            # Position in lower right corner
-            x_start = xmax - scale_length + xmin * 0.1
-            y_start = -(ymax - bar_height + ymin * 0.1)
+        with rc_context(scaled_params):
+            ax.imshow(cvals, interpolation=interpolation, cmap=cmap, vmin=vmin, vmax=vmax, aspect="equal", extent=extent)
+            ax.axis("off")
+            xmin, xmax, ymin, ymax = extent
+            # Add scale bar before saving/showing image
+            if scalebar and self.is_local:
+                # Determine max physical size for the scale bar
+                max_physical_size = xmax / 2 / np.sqrt(2)
 
-            rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
-            ax.add_patch(rect)
-            # Label above the scale bar
-            ax.text(
-                x_start + scale_length / 2,
-                y_start + 2 * bar_height,
-                scale_text,
-                color="black",
-                ha="center",
-                va="bottom",
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if label:
-            # Label in the upper left corner
-            x_start = xmin
-            y_start = ymax
-            if self.is_local:
-                va = "top"  # Local surfaces are a circle with empty corners, so we can put the label in the upper left corner without it overlapping the surface image.
-            else:
-                va = "bottom"  # Global surfaces fill most of the entire image, so we need to place the label above the plotting area to avoid overlap.
-            ax.text(
-                x_start,
-                y_start,
-                label,
-                color="black",
-                ha="left",
-                va=va,
-                fontsize=fontsize,
-                fontweight="bold",
-            )
-        if colorbar:
-            norm = Normalize(vmin=vmin, vmax=vmax)
-            sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-            cbar = plt.colorbar(sm, ax=ax, orientation="horizontal", shrink=0.5)
-            cbar.set_label(label=f"{variable_long_name} [{variable_units}]", size=fontsize)
-            cbar.ax.tick_params(labelsize=fontsize, length=fontsize, width=0.2 * fontsize)
-        if save:
-            plt.savefig(filename, pad_inches=0, dpi=W)
-        if show:
-            plt.show()
-        if close_when_done and (save or show):
-            plt.close()
+                # Choose "nice" scale bar length
+                nice_values = np.array([1, 10, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000])  # in meters
+                scale_length = nice_values[nice_values <= max_physical_size].max()
+                bar_height = 0.2 * scale_length
+                scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
+
+                # Position in lower right corner
+                x_start = xmax - scale_length + xmin * 0.1
+                y_start = -(ymax - bar_height + ymin * 0.1)
+
+                rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
+                ax.add_patch(rect)
+                # Label above the scale bar
+                ax.text(
+                    x_start + scale_length / 2,
+                    y_start + 2 * bar_height,
+                    scale_text,
+                    color="black",
+                    ha="center",
+                    va="bottom",
+                    fontweight="bold",
+                )
+            if label:
+                # Label in the upper left corner
+                x_start = xmin
+                y_start = ymax
+                if self.is_local:
+                    va = "top"  # Local surfaces are a circle with empty corners, so we can put the label in the upper left corner without it overlapping the surface image.
+                else:
+                    va = "bottom"  # Global surfaces fill most of the entire image, so we need to place the label above the plotting area to avoid overlap.
+                ax.text(
+                    x_start,
+                    y_start,
+                    label,
+                    color="black",
+                    ha="left",
+                    va=va,
+                    fontweight="bold",
+                )
+            if colorbar:
+                norm = Normalize(vmin=vmin, vmax=vmax)
+                sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+                cbar = plt.colorbar(sm, ax=ax, orientation="horizontal", shrink=0.5)
+                cbar.set_label(label=f"{variable_long_name} [{variable_units}]")
+
+            if save:
+                file_prefix = f"{self.output_file_prefix}_{plot_style}"
+                if variable_name is not None:
+                    file_prefix += f"_{variable_name}"
+                if interval is None:
+                    uxds = self.uxds
+                    filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
+                else:
+                    uxds = self.read_saved_output(interval=interval, reset=False)
+                    interval = uxds.interval.values.item()
+                    uxds = uxds.sel(interval=interval)
+                    filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
+
+                plt.savefig(filename, pad_inches=0, dpi=ax.figure.get_dpi())
+            if show:
+                plt.show()
+            if close_when_done and (save or show):
+                plt.close()
         return ax
 
     def pyvista_plotter(

@@ -1083,12 +1083,12 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        if interval is None:
-            interval = self.interval
-            self.save(**kwargs, skip_actions=True)
         if label == "default":
             compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
             label = self.labelmaker(interval=interval, compact=compact, **kwargs)
+        if interval is None:
+            interval = self.interval
+            self.save(**kwargs, skip_actions=True)
 
         plot_args = {
             "interval": interval,

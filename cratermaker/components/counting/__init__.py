@@ -592,6 +592,9 @@ class Counting(ComponentBase):
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         cmap: str | None = None,
+        label: str | None = None,
+        scalebar: bool | None = None,
+        colorbar: bool = True,
         show: bool = False,
         save: bool = True,
         ax: Axes | None = None,
@@ -618,6 +621,12 @@ class Counting(ComponentBase):
             The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
+        label : str | None, optional
+            A label for the plot. If None, no label will be added.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is True.
+        colorbar : bool, optional
+            If True, a colorbar will be added to the plot when using "map" plot_style or "hillshade" with a variable overlay. Default is True.
         show : bool, optional
             If True, the plot will be displayed. Default is True.
         save : bool, optional
@@ -640,6 +649,9 @@ class Counting(ComponentBase):
 
         from cratermaker.components.surface.hireslocal import HiResLocalSurface
 
+        if close_when_done is None:
+            close_when_done = save and not show
+
         crs = self.surface.crs
         split_antimeridian = True
         file_prefix = f"{self.surface.output_file_prefix}"
@@ -652,33 +664,49 @@ class Counting(ComponentBase):
                 file_prefix = f"{self.surface.local.output_file_prefix}"
 
         file_prefix += f"_{self.output_file_prefix}"
+        if variable_name is not None:
+            file_prefix += f"_{variable_name}"
         if interval is not None:
-            observed, emplaced = self.read_saved_output(interval=interval)
-            if observed:
-                interval = observed.interval.values[-1]
-                observed = self.Crater.from_xarray(observed, interval=interval)
-            if emplaced:
-                emplaced_interval = emplaced.interval.values[-1]
-                if emplaced_interval == interval:
-                    emplaced = self.Crater.from_xarray(emplaced, interval=interval)
+            observed_intervals, emplaced_intervals = self.get_saved_interval_numbers()
+            # Check if we are in the current interval, otherwise we have to read data from file.
+            trigger_read = False
+            if (observed_intervals is not None and len(observed_intervals) == 0) or observed_intervals[-1] == interval:
+                observed = list(self.observed.values())
+            else:
+                observed = None
+                trigger_read = True
+            if (observed_intervals is not None and len(emplaced_intervals) == 0) or emplaced_intervals[-1] == interval:
+                emplaced = self.emplaced
+            else:
+                emplaced = None
+                trigger_read = True
+
+            if trigger_read:
+                observed_ds, emplaced_ds = self.read_saved_output(interval=interval)
+                if observed is None and observed_ds:
+                    interval = observed_ds.interval.values[-1]
+                    observed = self.Crater.from_xarray(observed_ds, interval=interval)
+                if emplaced is None and emplaced_ds:
+                    emplaced_interval = emplaced.interval.values[-1]
+                    if emplaced_interval == interval:
+                        emplaced = self.Crater.from_xarray(emplaced_ds, interval=interval)
             filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
-            observed = [c for _, c in self.observed.items()]
+            observed = list(self.observed.values())
             emplaced = self.emplaced
             filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
-        if ax is None:
-            W, H = self.surface.get_raster_dims()
-            if minimum_plot_width is not None:
-                W = max(minimum_plot_width, W)
-            _, ax = plt.subplots(figsize=(1, 1), dpi=W, frameon=False)
+
         ax = self.surface.plot(
+            plot_style=plot_style,
+            variable_name=variable_name,
             interval=interval,
+            cmap=cmap,
+            label=label,
+            scalebar=scalebar,
+            colorbar=colorbar,
             show=False,
             save=False,
             ax=ax,
-            plot_style=plot_style,
-            variable_name=variable_name,
-            cmap=cmap,
             minimum_plot_width=minimum_plot_width,
             close_when_done=False,
             **kwargs,
@@ -715,7 +743,7 @@ class Counting(ComponentBase):
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
 
         if save:
-            plt.savefig(filename, dpi=W)
+            plt.savefig(filename, dpi=ax.figure.get_dpi())
         if show:
             plt.show()
         if close_when_done and (save or show):
