@@ -3,12 +3,28 @@
 What's New
 ==========
 
-.. _whats-new.2026.3.8-alpha:
+.. _whats-new.2026.4.2-alpha:
 
-:release:`v2026.3.8-alpha`
+- Improved the documentation with more thorough discussion of how Quasi Monte Carlo works and how its behavior can be modified in the production user guide. :pull:`122` `David Minton`_
+- Fixed a bug that was causing a failure when numpy>2.3. This was caused by sloppy conversions between 0-d Numpy arrays and floats. Conversions are now done explicitly for the affected root finding functions.
+- Fixed :issue:`121` :pull:`122` `David Minton`_
+- Fixed a bug causing the Neukum production functions to revert to the Moon if version was specified but not target, which caused the plots to show only the Moon versions instead of the Moon and Mars. `David Minton`_
+
+.. _whats-new.2026.4.1-alpha:
+
+- Fixed minor issues with documentation to ensure all elements are included in the build. `David Minton`_
+- Fixed problem where the Neukum production function was creating too many basins by adjusting the power law exponent of the upper extrapolation to be steeper by -5.0. :pull:`120` `David Minton`_
+
+:release:`v2026.4.1-alpha`
+
+.. _whats-new.2026.4.0-alpha:
+
+:release:`v2026.4.0-alpha`
 
 - Fixed bug that was causing incorrect polar data files from being requested from the PDS for DataSurface :pull:`112` `David Minton`_ `Leo Minton`_
 - Fixed bug that was causing `fill_value` and `dtype` arguments to be ignored in `add_data`. :pull:`114` `David Minton`_ `Leo Minton`_
+- Created a new system to retrieve, merge, and apply data to surfaces :pull:`118` `Leo Minton`_
+- Added Quasi-Monte Carlo :pull:`119` `David Minton`_ `Austin Blevins`_`
 
 .. _whats-new.2026.3.7-alpha:
 

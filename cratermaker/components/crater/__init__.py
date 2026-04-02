@@ -7,11 +7,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import xarray as xr
 from geopandas import GeoSeries
 from numpy.random import Generator
+from shapely.ops import transform
+from tqdm import tqdm
+from vtk import vtkPolyData
 
-from cratermaker.constants import PairOfFloats
-from cratermaker.core.base import CratermakerBase
+from cratermaker.constants import _VBIG, PairOfFloats
+from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
 
 if TYPE_CHECKING:
@@ -19,6 +23,9 @@ if TYPE_CHECKING:
     from cratermaker.components.scaling import Scaling
     from cratermaker.components.surface import Surface
     from cratermaker.components.target import Target
+
+
+_TALLY_LONG_NAME = "Unique crater identification number"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +102,10 @@ class CraterVariable:
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
+        production_time: tuple[float, float] | float | None = None,
+        production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
+        production_sequence: int | None = None,
+        name: str | None = None,
         **kwargs: Any,
     ):
         object.__setattr__(self, "_measured_semimajor_axis", None)
@@ -105,6 +116,10 @@ class CraterVariable:
         object.__setattr__(self, "_measured_rim_height", None)
         object.__setattr__(self, "_measured_floor_depth", None)
         object.__setattr__(self, "_degradation_state", None)
+        object.__setattr__(self, "_production_time", None)
+        object.__setattr__(self, "_production_ND", None)
+        object.__setattr__(self, "_production_sequence", None)
+        object.__setattr__(self, "_name", None)
 
         if measured_diameter is not None:
             self.measured_diameter = measured_diameter
@@ -124,6 +139,14 @@ class CraterVariable:
             self.measured_floor_depth = measured_floor_depth
         if degradation_state is not None:
             self.degradation_state = degradation_state
+        if production_time is not None:
+            self.production_time = production_time
+        if production_ND is not None:
+            self.production_ND = production_ND
+        if production_sequence is not None:
+            self.production_sequence = production_sequence
+        if name is not None:
+            self.name = name
         return
 
     def __repr__(self):
@@ -136,10 +159,19 @@ class CraterVariable:
             f"measured_location={self.measured_location}, "
             f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_depth={self.measured_floor_depth}, "
-            f"degradation_state={self.degradation_state})"
+            f"degradation_state={self.degradation_state}, "
+            f"production_time={self.production_time}, "
+            f"production_ND={self.production_ND}, "
+            f"production_sequence={self.production_sequence}, "
+            f"name={self.name} "
         )
 
     def as_dict(self):
+        """
+        Convert the variable attributes to a dictionary for serialization, excluding any attributes that are None.
+
+        If both measured_diameter and measured_semimajor_axis are provided and consistent, only include measured_diameter. If both measured_radius and measured_semimajor_axis are provided and consistent, only include measured_radius. This is to avoid redundancy in the output.
+        """
         dict_repr = {
             "measured_orientation": self.measured_orientation,
             "measured_location": self.measured_location,
@@ -153,7 +185,25 @@ class CraterVariable:
             else:
                 dict_repr["measured_semimajor_axis"] = self.measured_semimajor_axis
                 dict_repr["measured_semiminor_axis"] = self.measured_semiminor_axis
+        if self.production_time is not None:
+            dict_repr["production_time"] = self.production_time
+        if self.production_ND is not None:
+            dict_repr["production_ND"] = self.production_ND
+        if self.name is not None:
+            dict_repr["name"] = self.name
+        if self.production_sequence is not None:
+            dict_repr["production_sequence"] = self.production_sequence
         return dict_repr
+
+    @property
+    def name(self) -> str | None:
+        """Optional name of the crater, which does not need to be unique."""
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if value is not None:
+            self._name = str(value)
 
     @property
     def measured_diameter(self) -> float | None:
@@ -324,8 +374,56 @@ class CraterVariable:
         self._degradation_state = float(value)
         return
 
+    @property
+    def production_time(self) -> float | None:
+        """The range of ages of the crater in Myr before present, used by the quasi-monte carlo sampling method to emplace a user-defined crater within a time period."""
+        return self._production_time
 
-class Crater:
+    @production_time.setter
+    def production_time(self, value: tuple[float, float] | float | None):
+        if value is not None:
+            if isinstance(value, (int, float)):
+                value = (value, 0)
+            if len(value) != 2:
+                raise ValueError("production_time must be a single float or a tuple of (time, time_stdev).")
+            if value[0] is None:
+                return
+            self._production_time = float(value[0]), float(value[1])
+        return
+
+    @property
+    def production_ND(self) -> tuple[float, float, float] | tuple[float, float] | None:
+        """A tuple of diameter and cumulative number values, in the form of a (D, N), or (D, N, N_stdev) used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
+        return self._production_ND
+
+    @production_ND.setter
+    def production_ND(self, value: tuple[float, float, float] | tuple[float, float] | None):
+        if value is not None:
+            if len(value) != 3 and len(value) != 2:
+                raise ValueError("production_ND must be a tuple of floats in the form of either (D, N) or (D, N, N_stdev).")
+            if value[0] is None:
+                return
+            if len(value) == 2:
+                self._production_ND = (float(value[0]), float(value[1]), 0.0)
+            else:
+                self._production_ND = (float(value[0]), float(value[1]), float(value[2]))
+        return
+
+    @property
+    def production_sequence(self) -> int | None:
+        """The production sequence number of the crater, used by the quasi-monte carlo sampling method to emplace a user-defined crater in a relative sequence order with other quasi-monte carlo sampled craters."""
+        return self._production_sequence
+
+    @production_sequence.setter
+    def production_sequence(self, value: int | None):
+        if value is not None:
+            self._production_sequence = int(value)
+        return
+
+
+class Crater(ComponentBase):
+    _registry: dict[str, Crater] = {}
+
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
         if crater is not None:
             if not isinstance(crater, Crater):
@@ -407,38 +505,47 @@ class Crater:
         return sorted(base)
 
     def __str__(self):
-        if self.time is None:
-            timetext = "Not set"
-        else:
-            timetext = f"{format_large_units(self.time, quantity='time')}"
+        str_repr = super().__str__()
+        str_repr += f"ID: {self.id}\n"
+        if self.name is not None and self.name != "":
+            str_repr += f"Name: {self.name}\n"
         if self.semimajor_axis != self.semiminor_axis:
-            size_text = f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}"
+            str_repr += f"Elliptical size {format_large_units(self.semimajor_axis, quantity='length')} x {format_large_units(self.semiminor_axis, quantity='length')}\nMean Diameter: {format_large_units(self.diameter, quantity='length')}\n"
         else:
-            size_text = f"Diameter: {format_large_units(self.diameter, quantity='length')}"
+            str_repr += f"Diameter: {format_large_units(self.diameter, quantity='length')}\n"
         if self.measured_semimajor_axis is not None and self.measured_semimajor_axis != self.semimajor_axis:
             if self.measured_semimajor_axis != self.measured_semiminor_axis:
-                size_text += f"\nMeasured elliptical size {format_large_units(self.measured_semimajor_axis, quantity='length')} x {format_large_units(self.measured_semiminor_axis, quantity='length')}\nMeasured Mean Diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                str_repr += f"Measured elliptical size {format_large_units(self.measured_semimajor_axis, quantity='length')} x {format_large_units(self.measured_semiminor_axis, quantity='length')}\nMeasured Mean Diameter: {format_large_units(self.measured_diameter, quantity='length')}\n"
             else:
-                size_text += f"\nMeasured diameter: {format_large_units(self.measured_diameter, quantity='length')}"
+                str_repr += f"Measured diameter: {format_large_units(self.measured_diameter, quantity='length')}\n"
+        str_repr += f"morphology_type: {self.morphology_type}\n"
+        str_repr += f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
+        str_repr += f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
+        str_repr += f"projectile_mass: {self.projectile_mass:.4e} kg\n"
+        str_repr += f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
+        str_repr += f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
+        str_repr += f"projectile_angle: {self.projectile_angle:.1f}°\n"
+        str_repr += f"projectile_direction: {self.projectile_direction:.1f}°\n"
         if self.measured_orientation is not None and self.measured_orientation != self.orientation:
-            size_text += f"\nMeasured orientation: {self.measured_orientation:.1f}°"
+            str_repr += f"Measured orientation: {self.measured_orientation:.1f}°\n"
+        str_repr += f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
         if self.measured_location is not None and self.measured_location != self.location:
-            size_text += f"\nMeasured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
-
-        return (
-            f"ID: {self.id}\n"
-            f"{size_text}\n"
-            f"transient_diameter: {format_large_units(self.transient_diameter, quantity='length')}\n"
-            f"projectile_diameter: {format_large_units(self.projectile_diameter, quantity='length')}\n"
-            f"projectile_mass: {self.projectile_mass:.4e} kg\n"
-            f"projectile_density: {self.projectile_density:.0f} kg/m³\n"
-            f"projectile_velocity: {format_large_units(self.projectile_velocity, quantity='velocity')}\n"
-            f"projectile_angle: {self.projectile_angle:.1f}°\n"
-            f"projectile_direction: {self.projectile_direction:.1f}°\n"
-            f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
-            f"morphology_type: {self.morphology_type}\n"
-            f"time: {timetext}"
-        )
+            str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
+        if self.measured_rim_height is not None and np.abs(self.measured_rim_height) < _VBIG:
+            str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
+        if self.measured_floor_depth is not None and np.abs(self.measured_floor_depth) < _VBIG:
+            str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_depth, quantity='length')}\n"
+        if self.production_sequence is not None:
+            str_repr += f"Production sequence: {self.production_sequence}\n"
+        if self.production_ND is not None:
+            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
+        if self.production_time is not None:
+            str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
+        if self.time is not None:
+            str_repr += f"Emplacement time: {format_large_units(self.time, quantity='time')}\n"
+        if self.degradation_state is not None:
+            str_repr += f"Degradation state: {format_large_units(self.degradation_state, quantity='area')}\n"
+        return str_repr
 
     def _scrub_measured_input_size(self, **kwargs: Any):
         if "measured_diameter" in kwargs:
@@ -478,7 +585,10 @@ class Crater:
         projectile_direction: float | None = None,
         projectile_location: PairOfFloats | None = None,
         location: PairOfFloats | None = None,
+        longitude: float | None = None,
+        latitude: float | None = None,
         time: float | None = None,
+        name: str | None = None,
         measured_semimajor_axis: float | None = None,
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
@@ -488,6 +598,9 @@ class Crater:
         measured_rim_height: float | None = None,
         measured_floor_depth: float | None = None,
         degradation_state: float | None = None,
+        production_time: tuple[float, float] | float | None = None,
+        production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
+        production_sequence: int | None = None,
         simdir: str | Path | None = None,
         rng: Generator = None,
         rng_seed: str | int | None = None,
@@ -547,7 +660,11 @@ class Crater:
         projectile_location : pair of float, optional
             The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
         location : pair of floats, optional
-            The (longitude, latitude) location of the crater.
+            The (longitude, latitude) location of the crater on the target surface in degrees.
+        longitude : float, optional
+            The longitude of the crater on the target surface in degrees. If used, you must also pass `latitude` and cannot pass `location`.
+        latitude : float, optional
+            The latitude of the crater on the target surface in degrees. If used, you must also pass `longitude` and cannot pass `location`.
         time : float, optional
             The time of the crater impact in Myr before present.
         measured_semimajor_axis : float, optional
@@ -568,6 +685,12 @@ class Crater:
             The measured floor depth of the crater in meters.
         degradation_state : float, optional
             The current degradation state of the crater in meters squared.
+        production_ND: tuple[float, float, float] | tuple[float, float], optional
+            The production N(D) value for quasi-Monte Carlo emplacement. Can either be the form of a tuple, of [D, N, Nsigma] or [D, N], where D is the reference diameter in km and N is number of craters per 1 million sq. km, with an optional 1 sigma undertainty Nsigma
+        production_time: tuple[float, float] | float, optional
+            The production time for quasi-Monte Carlo emplacement. Can either be in the form of a tuple of [t,tsigma] or a float of t, where t is the emplacement time in My with an optional 1 sigma uncertainty tsigma.
+        production_sequence: int | None = None,
+            A positive integer value used to constrain the sequence of quasi-Monte Carlo craters. Craters with a sequence number can only form after craters with a lower sequence number.
         simdir : str | Path
             |simdir|
         rng : numpy.random.Generator | None
@@ -604,7 +727,7 @@ class Crater:
 
         make_copy = crater is not None
 
-        def _set_id(**kwargs: Any) -> np.uint32:
+        def _set_id(**kwargs: Any) -> str:
             """
             Sets the hash id of the crater based on input parameters.
 
@@ -618,19 +741,19 @@ class Crater:
             """
             id_args = [
                 "semimajor_axis",
-                "semiminor_axis",
+                "projectile_angle",
+                "location",
                 "orientation",
                 "transient_diameter",
                 "projectile_diameter",
                 "projectile_velocity",
-                "projectile_angle",
                 "projectile_mass",
-                "location",
+                "semiminor_axis",
             ]
             combined_args = [k for k in kwargs if k in id_args]
             combined_args.sort()  # Sort to ensure consistent ordering
             combined = "::".join(f"{k}:{kwargs[k]}" for k in combined_args)
-            hexid = hashlib.shake_128(combined.encode()).hexdigest(4)
+            hexid = hashlib.shake_256(combined.encode()).hexdigest(4)
             return np.uint32(int(f"0x{hexid}", 16))
 
         # Convert from the old API "final_diameter/final_radius" to "diameter/radius"
@@ -643,6 +766,12 @@ class Crater:
                 raise ValueError("Only one of diameter or radius may be set.")
             else:
                 diameter = None  # Give priority to radius if both are set and we aren't checking for redundant inputs
+        if latitude is not None or longitude is not None:
+            if latitude is None or longitude is None:
+                raise ValueError("Both longitude and latitude must be passed or location must be passed.")
+            if check_redundant_inputs and (location is not None or projectile_location is not None):
+                raise ValueError("location cannot be used with longitude and latitude as separate arguments")
+            location = [longitude, latitude]
 
         if location is None:
             location = projectile_location
@@ -742,6 +871,12 @@ class Crater:
             args["measured_floor_depth"] = measured_floor_depth
         if degradation_state is not None:
             args["degradation_state"] = degradation_state
+        if production_time is not None:
+            args["production_time"] = production_time
+        if production_ND is not None:
+            args["production_ND"] = production_ND
+        if production_sequence is not None:
+            args["production_sequence"] = production_sequence
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -782,7 +917,7 @@ class Crater:
 
             # Now set the local arguments to be what's left from the old_parameters
             for field in old_parameters:
-                if field in args and args[field] is None:
+                if field in args and args[field] is None or field not in args:
                     args[field] = old_parameters[field]
 
         if n_size_inputs != 1:
@@ -821,7 +956,7 @@ class Crater:
 
             measured_orientation = args.pop("measured_orientation", None)
             measured_location = args.pop("measured_location", None)
-
+            name = args.pop("name", None)
             if crater is not None:
                 mt = crater.morphology_type
             else:
@@ -991,11 +1126,12 @@ class Crater:
         args["measured_semiminor_axis"] = float(measured_semiminor_axis) if measured_semiminor_axis is not None else None
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
+        args["name"] = str(name) if name is not None else None
         return cls(**args, **kwargs)
 
     def to_geoseries(
         self,
-        n: int = 150,
+        n: int = 121,
         surface: Surface | None = None,
         split_antimeridian: bool = True,
         use_measured_properties: bool = True,
@@ -1007,7 +1143,7 @@ class Crater:
         Parameters
         ----------
         n : int, optional
-            Number of points to use for the polygon, by default 150.
+            Number of points to use for the polygon, by default 121 (every 3 degrees plus the end point).
         surface : Surface | None, optional
             Surface object providing planetary radius and CRS.
         split_antimeridian : bool, optional
@@ -1023,13 +1159,13 @@ class Crater:
         """
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
-        from shapely.ops import split, transform
+        from shapely.ops import split
 
         from cratermaker.components.surface import Surface
 
         surface = Surface.maker(surface)
         geod = Geod(a=surface.target.radius, b=surface.target.radius)
-        theta = np.linspace(0.0, 360.0, num=n, endpoint=False)
+        theta = np.linspace(0.0, 360.0, num=n, endpoint=True)
         if use_measured_properties:
             a = self.measured_semimajor_axis
             b = self.measured_semiminor_axis
@@ -1082,6 +1218,164 @@ class Crater:
 
         return GeoSeries([poly], crs=surface.crs)
 
+    @classmethod
+    def from_file(cls, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
+        """
+        Load a list of craters from a file.
+
+        Parameters
+        ----------
+        filename : str | Path
+            The path to the file to load from.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        list[Crater] | None
+            A list of Crater objects loaded from the file, or None if no data.
+        """
+        filename = Path(filename)
+        if not filename.exists():
+            raise FileNotFoundError(f"File {filename} does not exist.")
+        extension = filename.suffix.lower().lstrip(".")
+        if extension == "nc":
+            ds = xr.open_dataset(filename)
+            craters = cls.from_xarray(ds, **kwargs)
+        elif extension == "csv":
+            craters = cls.from_csv_file(filename, **kwargs)
+        elif extension == "scc":
+            craters = cls.from_scc_file(filename, **kwargs)
+        return craters
+
+    @classmethod
+    def from_csv_file(cls, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a CSV file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the CSV file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the CSV file.
+        """
+        import csv
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        with input_file.open(mode="r", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                crater_data = _convert_tuple_vars(input_dict=row, inverse=True)
+                crater_data = {k: v for k, v in crater_data.items() if v is not None and v != ""}
+                for key, value in crater_data.items():
+                    if key in ["id", "production_sequence"]:
+                        crater_data[key] = int(value)
+                    elif isinstance(value, tuple | list):
+                        vnew = []
+                        for v in value:
+                            if v is None or v == "":
+                                continue
+                            vnew.append(float(v))
+                        if len(vnew) == len(value):
+                            crater_data[key] = vnew
+                        else:
+                            crater_data[key] = None
+
+                    else:
+                        try:
+                            crater_data[key] = float(value)
+                        except ValueError:
+                            crater_data[key] = value
+                crater_data = {k: v for k, v in crater_data.items() if v is not None}
+                crater = cls.maker(**crater_data, check_redundant_inputs=False)
+                craters.append(crater)
+
+        return craters
+
+    @classmethod
+    def from_scc_file(cls, input_file: Path | str) -> list[Crater]:
+        """
+        Import crater data from a Spatial Crater Count file.
+
+        Parameters
+        ----------
+        input_file : Path | str
+            The path to the SCC file containing crater data.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the SCC file.
+        """
+        from craterstats import Spatialcount
+
+        craters = []
+        input_file = Path(input_file)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
+        if input_file.suffix != ".scc":
+            raise ValueError(f"Input file '{input_file}' is not a .scc file.")
+        scc = Spatialcount(filename=str(input_file))
+        for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
+            crater = cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            craters.append(crater)
+
+        return craters
+
+    @classmethod
+    def from_xarray(cls, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
+        """
+        Import crater data from an xarray Dataset.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset | dict
+            The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+
+        Returns
+        -------
+        list[Crater]
+            A list of Crater objects imported from the xarray Dataset.
+        """
+        craters = []
+        if type(dataset) is dict:
+            if interval is None:
+                dataset = dataset[-1]
+            elif interval in dataset:
+                dataset = dataset[interval]
+            else:
+                return craters
+        if "interval" in dataset.coords:
+            if interval is None:
+                dataset = dataset.isel(interval=-1)
+            elif interval in dataset.interval:
+                dataset = dataset.sel(interval=interval)
+            else:
+                return craters
+        dataset.load()
+        if len(dataset) == 0:
+            return craters
+        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
+            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
+            crater_data = {k: v["data"] for k, v in crater_data.items()}
+            if not isinstance(crater_data["semimajor_axis"], (float, int)):
+                continue
+            crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
+            for k, v in crater_data.items():
+                if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
+                    crater_data[k] = None
+            crater = cls.maker(**crater_data, check_redundant_inputs=False)
+            craters.append(crater)
+
+        return craters
+
     @property
     def final_diameter(self) -> float | None:
         """Final diameter of the crater in meters."""
@@ -1099,3 +1393,47 @@ class Crater:
         This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The base  Crater type does not have any complex data types, but is used by derived types that do, so this method is included here for consistency and to allow for future expansion of the base Crater type without breaking the API.
         """
         pass
+
+
+def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
+    tuple_map = {
+        "location": ["longitude", "latitude"],
+        "measured_location": ["measured_longitude", "measured_latitude"],
+        "production_ND": ["production_D", "production_N", "production_N_stdev"],
+        "production_time": ["production_time", "production_time_stdev"],
+    }
+    new_dict = {k: v for k, v in input_dict.items() if v is not None and v != ""}
+
+    if inverse:
+        # Process aliases
+        if "production_D" in input_dict and "production_N" in input_dict:
+            prod_diam = input_dict.pop("production_D")
+            nval = input_dict.pop("production_N")
+            nstdev = input_dict.pop("production_N_stdev", 0.0)
+            if nstdev is None or nstdev == "":
+                nstdev = 0.0
+            new_dict["production_ND"] = [prod_diam, nval, nstdev]
+        if "production_time" in input_dict:
+            time_mean = input_dict.pop("production_time")
+            time_stdev = input_dict.pop("production_time_stdev", 0.0)
+            if time_stdev is None or time_stdev == "":
+                time_stdev = 0.0
+            new_dict["production_time"] = [time_mean, time_stdev]
+
+    for tup, varlist in tuple_map.items():
+        if inverse:
+            if any(var in varlist for var in input_dict):
+                if tup not in input_dict:
+                    new_dict[tup] = [None] * len(varlist)
+                for idx, var in enumerate(varlist):
+                    if var != tup and var in input_dict and input_dict[var] is not None:
+                        new_dict[tup][idx] = input_dict.get(var)
+        else:
+            if tup in input_dict:
+                _ = new_dict.pop(tup, None)
+                for idx, var in enumerate(varlist):
+                    new_dict[var] = input_dict[tup][idx]
+    return new_dict
+
+
+import_components(__name__, __path__)

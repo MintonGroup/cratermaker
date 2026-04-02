@@ -349,7 +349,7 @@ As we can see, this selects only 33 of the full 655362 faces, which is a signifi
 Using a Surface object
 ----------------------
 
-Once you have either a :py:class:`~cratermaker.components.surface.Surface` or :py:class:`~cratermaker.components.surface.LocalSurface` object, you are now able to perform numerous surface-related computations. 
+Once you have either a |Surface| or :py:class:`~cratermaker.components.surface.LocalSurface` object, you are now able to perform numerous surface-related computations. 
 
 - :py:meth:`~cratermaker.components.surface.Surface.extract_region`: Extracts a local region of the surface, which is useful for performing operations on a small portion of the surface without affecting the full surface. This returns a :py:class:`~cratermaker.components.surface.LocalSurface` object.
 - :py:meth:`~cratermaker.components.surface.Surface.add_data`: Adds a new data variable that is associated with either faces (default) or nodes of the surface. 

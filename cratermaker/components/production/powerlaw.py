@@ -79,8 +79,10 @@ class PowerLawProduction(Production):
         self.slope = slope
 
     def __str__(self) -> str:
-        base = super().__str__()
-        return f"{base}\nN1 Coefficient: {self.N1_coef:.2e}\nSlope: {self.slope:.3f}"
+        str_repr = super().__str__()
+        str_repr += "N1 Coefficient: {self.N1_coef:.2e}\n"
+        str_repr += "Slope: {self.slope:.3f}\n"
+        return str_repr
 
     def function(
         self,

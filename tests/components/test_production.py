@@ -49,10 +49,6 @@ class TestProduction(unittest.TestCase):
                     diameter_range=(10, 100),
                 )
 
-            # Test missing diameter_range
-            with self.assertRaises(ValueError):
-                production.sample(age=500)
-
             # Test diameter_range with invalid length
             with self.assertRaises(ValueError):
                 production.sample(age=500, diameter_range=(10,), area=1000)

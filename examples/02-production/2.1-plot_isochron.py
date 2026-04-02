@@ -15,8 +15,8 @@ For this example, we plot the valid range of the NPF in solid black, and the ext
 References
 ----------
 
-.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., (2001) Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi: 10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`
-.. [#] Minton, D.A., Richardson, J.E., Fassett, C.I., (2015) Re-examining the main asteroid belt as the primary source of ancient lunar craters. Icarus 247, 172-190. `doi: 10.1016/j.icarus.2014.10.018 <https://doi.org/10.1016/j.icarus.2014.10.018>`
+.. [#] Neukum, G., Ivanov, B.A., Hartmann, W.K., (2001) Cratering Records in the Inner Solar System in Relation to the Lunar Reference System. Space Science Reviews 96, 55-86. `doi: 10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`_
+.. [#] Minton, D.A., Richardson, J.E., Fassett, C.I., (2015) Re-examining the main asteroid belt as the primary source of ancient lunar craters. Icarus 247, 172-190. `doi: 10.1016/j.icarus.2014.10.018 <https://doi.org/10.1016/j.icarus.2014.10.018>`_
 
 """
 

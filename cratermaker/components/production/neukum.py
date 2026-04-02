@@ -29,8 +29,8 @@ class NeukumProduction(Production):
     References
     ----------
     - Neukum, G., Ivanov, B.A., Hartmann, W.K., 2001. Cratering Records in the Inner Solar System in Relation to
-      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. https://doi.org/10.1023/A:1011989004263
-    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. https://doi.org/10.1023/A:1011941121102
+      the Lunar Reference System. *Space Science Reviews*, 96, 55-86. `doi:10.1023/A:1011989004263 <https://doi.org/10.1023/A:1011989004263>`_
+    - Ivanov, B.A., 2001. Mars/Moon Cratering Rate Ratio Estimates. *Space Science Reviews*, 96, 87-104. `doi:10.1023/A:1011941121102 <https://doi.org/10.1023/A:1011941121102>`_
     - Ivanov, B.A., Neukum, G., Wagner, R., 2001. Size-Frequency Distributions of Planetary Impact Craters
       and Asteroids. In *Collisional Processes in the Solar System*, Springer Netherlands, Dordrecht, pp. 1-34.
       https://doi.org/10.1007/978-94-010-0712-2_1
@@ -63,20 +63,23 @@ class NeukumProduction(Production):
         **kwargs : Any
             |kwargs|
         """
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_Cexp", None)
         object.__setattr__(self, "_Clin", None)
         object.__setattr__(self, "_tau", None)
 
         self.version = version or "Moon"
+        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def __str__(self) -> str:
-        base = super().__str__()
+        str_repr = super().__str__()
         timelo = format_large_units(self.valid_time[0], quantity="time")
         timehi = format_large_units(self.valid_time[1], quantity="time")
         dlo = format_large_units(self.sfd_range[0], quantity="length")
         dhi = format_large_units(self.sfd_range[1], quantity="length")
-        return f"{base}\nVersion: {self.version}\nValid Time Range: {timelo} - {timehi}\nValid Diameter Range: {dlo} - {dhi}"
+        str_repr += f"Version: {self.version}\n"
+        str_repr += f"Valid Time Range: {timelo} - {timehi}\n"
+        str_repr += f"Valid Diameter Range: {dlo} - {dhi}"
+        return str_repr
 
     def function(
         self,
@@ -493,7 +496,7 @@ class NeukumProduction(Production):
                     return A * (Dkm / Dkm_lo) ** p
                 elif Dkm > Dkm_hi:
                     A, p = _extrapolate_sfd(side="hi")
-                    p -= 2.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
+                    p -= 5.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
                     return A * (Dkm / Dkm_hi) ** p
                 else:
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))

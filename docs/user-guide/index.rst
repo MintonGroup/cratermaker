@@ -17,13 +17,57 @@ Components of Cratermaker
     :gutter: 2
 
     .. grid-item-card:: Simulation
-        :columns: 12
+        :columns: 12 6 6 6
         :img-top: ../_images/full_simulation.png
         :class-img-top: dark-light
         :link: simulation
         :link-type: doc
 
         This is main class that can be used to run a comprehensive cratered landscape evolution model. 
+
+
+    .. grid-item-card::  Example gallery
+        :columns: 12 6 6 6
+        :img-top: ../_images/gallery_icon.png
+        :class-img-top: dark-light
+        :link: ../auto_examples/index
+        :link-type: doc
+
+        See full working examples of how to use Cratermaker.
+
+
+    .. grid-item-card::  Exporting and Visualization
+        :columns: 12 6 6 6
+        :img-top: ../_images/visualizing_icon.svg
+        :class-img-top: dark-light
+        :link: visualizing
+        :link-type: doc
+
+        Visualizing data and exporting it to different formats for use with other tools.
+
+
+    .. grid-item-card::  API reference
+        :columns: 12 6 6 6
+        :img-top: ../_images/api_icon_dark.svg
+        :class-img-top: only-dark
+        :class-item: only-dark
+        :link: ../api/index
+        :link-type: doc
+
+
+        The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
+
+
+    .. grid-item-card::  API reference
+        :columns: 12 6 6 6
+        :img-top: ../_images/api_icon_light.svg
+        :class-img-top: only-light
+        :class-item: only-light
+        :link: ../api/index
+        :link-type: doc
+
+
+        The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
 
 
     .. grid-item-card::  Surface
@@ -147,45 +191,6 @@ Components of Cratermaker
 
         Contains the model for relating projectile size and crater size. 
 
-
-    .. grid-item-card::  Exporting and Visualization
-        :columns: 12 6 4 4
-        :img-top: ../_images/visualizing_icon.svg
-        :class-img-top: dark-light
-        :link: visualizing
-        :link-type: doc
-
-        Visualizing data and exporting it to different formats for use with other tools.
-
-    .. grid-item-card::  Example gallery
-        :columns: 12 6 4 4
-        :img-top: ../_images/gallery_icon.png
-        :class-img-top: dark-light
-        :link: ../auto_examples/index
-        :link-type: doc
-
-        See full working examples of how to use Cratermaker.
-
-    .. grid-item-card::  API reference
-        :columns: 12 6 4 4
-        :img-top: ../_images/api_icon_light.svg
-        :class-img-top: only-light
-        :class-item: only-light
-        :link: ../api/index
-        :link-type: doc
-
-        The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
-
-    .. grid-item-card::  API reference
-        :columns: 12 6 4 4
-        :img-top: ../_images/api_icon_dark.svg
-        :class-img-top: only-dark
-        :class-item: only-dark
-        :link: ../api/index
-        :link-type: doc
-
-
-        The API guide contains a detailed description of the Cratermaker API.  The reference describes how the methods work and which parameters can be used. It assumes that you have an understanding of the key concepts.
 
 .. toctree::
    :maxdepth: 4
