@@ -83,7 +83,10 @@ impl VariableInfoPane {
             if let Some(class) = &lock.class {
                 Python::attach(|py| {
                     col.extend(class.properties.iter().map(|(name, value)| {
-                        text(format!("{}: {}", name, value.get(&lock.value.bind(py)))).into()
+                        let value = value
+                            .get(&lock.value.bind(py))
+                            .map_or_else(|e| e.to_string(), |v| v.to_string());
+                        text(format!("{}: {}", name, value)).into()
                     }))
                 })
             } else {
@@ -143,14 +146,15 @@ impl ContextMenuTarget {
         opaque(
             container(contents)
                 .style(container::bordered_box)
-                .width(Length::Fixed(320.0)),
+                .width(Length::Fixed(320.0))
+                .height(Length::Shrink),
         )
         .into()
     }
 }
 
 struct App {
-    py_manager: PythonManager,
+    py_manager: Arc<RwLock<PythonManager>>,
     simulation_class: Arc<Class>,
     variables_pane: VariablesPane,
     pythonio_pane: PythonIO,
@@ -169,6 +173,7 @@ enum Message {
     OpenContextMenu(Point, ContextMenuTarget),
     CloseContextMenu,
     FocusVariable(Arc<RwLock<Variable>>),
+    DoNothing,
 }
 
 impl App {
@@ -183,7 +188,7 @@ impl App {
                         .unwrap()
                         .get_class("Simulation")
                         .unwrap(),
-                    py_manager,
+                    py_manager: Arc::new(RwLock::new(py_manager)),
                     variables_pane: Default::default(),
                     toolbar: Toolbar,
                     pythonio_pane,
@@ -237,26 +242,39 @@ impl App {
                 self.context_menu_target = None;
                 Task::none()
             }
-            Message::RunMethod(variable, method) => Task::perform(
-                tokio::task::spawn_blocking(move || {
-                    let value = Python::attach(|py| {
-                        variable
-                            .read()
-                            .unwrap()
-                            .value
-                            .call_method0(py, &method.name)
-                    })
-                    .unwrap();
-                    let variable = Variable {
-                        name: "simulation".to_string(),
-                        class: method.signature.return_type.as_ref().cloned(),
-                        value,
-                        focused: false,
-                    };
-                    Message::AddVariable(Arc::new(RwLock::new(variable)))
-                }),
-                |res| res.unwrap(),
-            ),
+            Message::RunMethod(variable, method) => {
+                let py_manager = self.py_manager.clone();
+                Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let value = variable
+                                .read()
+                                .unwrap()
+                                .value
+                                .bind(py)
+                                .call_method0(&method.name)
+                                .unwrap();
+                            if !value.is_none() {
+                                let variable = Variable {
+                                    name: "result".to_string(),
+                                    class: py_manager
+                                        .write()
+                                        .unwrap()
+                                        .get_or_load_class(&value.get_type())
+                                        .ok()
+                                        .flatten(),
+                                    value: value.unbind(),
+                                    focused: false,
+                                };
+                                Message::AddVariable(Arc::new(RwLock::new(variable)))
+                            } else {
+                                Message::DoNothing
+                            }
+                        })
+                    }),
+                    |res| res.unwrap(),
+                )
+            }
             Message::FocusVariable(variable) => {
                 for var in &self.variables_pane.variables {
                     if var.read().unwrap().focused {
@@ -267,6 +285,7 @@ impl App {
                 self.variable_info_pane.variable = Some(variable);
                 Task::none()
             }
+            Message::DoNothing => Task::none(),
         }
     }
     fn view(&self) -> Element<'_, Message> {

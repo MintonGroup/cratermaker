@@ -1,4 +1,8 @@
-use std::{collections::HashMap, ffi::CStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    ffi::CStr,
+    sync::{Arc, RwLock},
+};
 
 use itertools::Itertools;
 use pyo3::{
@@ -36,23 +40,16 @@ pub mod inspect {
     }
 }
 
-pub fn get_indexable_members<'py>(
-    obj: &Bound<'py, PyAny>,
-) -> PyResult<Vec<(String, Bound<'py, PyAny>)>> {
-    Ok(inspect::getmembers(obj)?
-        .into_iter()
-        .filter(|(name, _)| !name.starts_with('_'))
-        .collect())
-}
-
 #[derive(Debug, Default)]
 pub struct PythonManager {
-    loaded_modules: HashMap<String, Arc<Module>>,
+    /// If a module is None, it is in the process of being initialized.
+    /// This is because the progam can end up in an infinite loop when a class references itself, either directly or indirectly. (eg. in return type)
+    loaded_modules: HashMap<String, Option<Arc<Module>>>,
 }
 
 impl PythonManager {
     pub fn get_loaded_module(&self, name: &str) -> Option<Arc<Module>> {
-        self.loaded_modules.get(name).cloned()
+        self.loaded_modules.get(name).cloned().flatten()
     }
     pub fn get_or_import_module<'py>(
         &mut self,
@@ -62,29 +59,55 @@ impl PythonManager {
         if let Some(module) = self.get_loaded_module(name) {
             Ok(module)
         } else {
+            self.loaded_modules.insert(name.to_owned(), None);
             let module = Arc::new(Module::load(self, py.import(name)?)?);
-            self.loaded_modules.insert(name.to_owned(), module.clone());
+            *self.loaded_modules.get_mut(name).unwrap() = Some(module.clone());
             Ok(module)
         }
     }
-    pub fn get_or_load_module<'py>(
+    fn get_or_load_module<'py>(
         &mut self,
         module: Bound<'py, PyModule>,
-    ) -> PyResult<Arc<Module>> {
+    ) -> PyResult<Option<Arc<Module>>> {
         let mod_name: String = module.name()?.extract()?;
-        if let Some(module) = self.get_loaded_module(&mod_name) {
-            Ok(module)
+        if let Some(module) = self.loaded_modules.get(&mod_name) {
+            Ok(module.clone())
         } else {
+            self.loaded_modules.insert(mod_name.clone(), None);
             let module = Arc::new(Module::load(self, module)?);
-            self.loaded_modules.insert(mod_name, module.clone());
-            Ok(module)
+            self.loaded_modules.insert(mod_name, Some(module.clone()));
+            module.finish_loading(self);
+            Ok(Some(module))
         }
     }
-    pub fn get_or_load_class<'py>(&mut self, typ: Bound<'py, PyType>) -> PyResult<Arc<Class>> {
-        let module = self.get_or_load_module(inspect::getmodule(typ.as_any())?)?;
-        Ok(module
-            .get_class(typ.name()?.extract()?)
-            .expect("module should contain the class"))
+    fn get_or_load_class_inner<'py>(
+        &mut self,
+        class: &Bound<'py, PyType>,
+    ) -> PyResult<Option<MaybeUnloadedClass>> {
+        let module_py = inspect::getmodule(class.as_any())?;
+        let module = self.get_or_load_module(module_py.clone())?;
+        let class_name: String = class.name()?.extract()?;
+        if let Some(module) = module {
+            Ok(module
+                .get_class(&class_name)
+                .map(|class| MaybeUnloadedClass::init_loaded(class)))
+        } else {
+            let module_name: String = module_py.name()?.extract()?;
+            Ok(Some(MaybeUnloadedClass::init_unloaded(
+                module_name,
+                class_name,
+            )))
+        }
+    }
+    pub fn get_or_load_class<'py>(
+        &mut self,
+        class: &Bound<'py, PyType>,
+    ) -> PyResult<Option<Arc<Class>>> {
+        Ok(self.get_or_load_class_inner(class)?.map(|class| {
+            class
+                .loaded()
+                .expect("loaded_modules should not contain any uninitialized values")
+        }))
     }
 }
 
@@ -98,10 +121,13 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn load<'py>(py_manager: &PythonManager, module: Bound<'py, PyModule>) -> PyResult<Self> {
-        let mut name = module.name()?.extract::<String>()?;
+    pub fn load<'py>(
+        py_manager: &mut PythonManager,
+        module: Bound<'py, PyModule>,
+    ) -> PyResult<Self> {
+        let name = module.name()?.extract::<String>()?;
         let docstring = inspect::getdoc(module.as_any())?;
-        let members = get_indexable_members(module.as_any())?;
+        let members = inspect::getmembers(module.as_any())?;
         let submodules = members
             .iter()
             .filter_map(|(_, item)| item.cast::<PyModule>().ok())
@@ -119,20 +145,10 @@ impl Module {
         let classes = members
             .iter()
             .filter_map(|(_, item)| item.cast::<PyType>().ok())
-            .filter(|class| {
-                class
-                    .fully_qualified_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .starts_with(&name)
-            })
+            .filter(|class| class.module().unwrap().extract::<&str>().unwrap() == &name)
             .map(|class| Class::load(py_manager, Some(&module), class.clone()))
             .map_ok(|class| (class.name.clone(), Arc::new(class)))
             .try_collect()?;
-        if let Some((_, shortname)) = name.rsplit_once('.') {
-            name = shortname.to_string();
-        }
         Ok(Self {
             inner: module.unbind(),
             docstring,
@@ -140,6 +156,17 @@ impl Module {
             name,
             classes,
         })
+    }
+    fn finish_loading(&self, py_manager: &PythonManager) {
+        for module in self.submodules.values() {
+            module.finish_loading(py_manager);
+        }
+        for class in self.classes.values() {
+            class.create_method.finish_loading(py_manager);
+            for method in class.methods.values() {
+                method.finish_loading(py_manager);
+            }
+        }
     }
     pub fn get_submodule(&self, name: &str) -> Option<Arc<Module>> {
         self.submodules.get(name).cloned()
@@ -157,11 +184,12 @@ pub struct Class {
     pub methods: HashMap<String, Arc<Method>>,
     pub properties: HashMap<String, Arc<Property>>,
     pub create_method: Arc<Method>,
+    pub module: String,
 }
 
 impl Class {
     pub fn load<'py>(
-        py_manager: &PythonManager,
+        py_manager: &mut PythonManager,
         module: Option<&Bound<'py, PyModule>>,
         class: Bound<'py, PyType>,
     ) -> PyResult<Self> {
@@ -169,11 +197,13 @@ impl Class {
             .cloned()
             .map(Ok)
             .unwrap_or_else(|| -> PyResult<_> { Ok(class.py().import(class.module()?)?) })?;
-        let name = class.name().unwrap().extract::<String>().unwrap();
+        let module_name = module.name()?.extract::<String>()?;
+        let name = class.name()?.extract::<String>()?;
         let docstring = inspect::getdoc(class.as_any())?;
-        let members = get_indexable_members(class.as_any())?;
+        let members = inspect::getmembers(class.as_any())?;
         let mut methods: HashMap<String, Arc<Method>> = members
             .iter()
+            .filter(|(name, _)| !name.starts_with('_'))
             .filter_map(|(name, item)| item.cast::<PyFunction>().ok().map(|item| (name, item)))
             .map(|(name, method)| -> PyResult<_> {
                 Ok((
@@ -193,6 +223,7 @@ impl Class {
             .unwrap();
         let properties = members
             .iter()
+            .filter(|(name, _)| !name.starts_with('_'))
             .filter(|(_, item)| item.is_instance(&property).unwrap())
             .map(|(name, property)| -> PyResult<_> {
                 Ok((
@@ -223,6 +254,7 @@ impl Class {
             name,
             docstring,
             inner: class.unbind(),
+            module: module_name,
             methods,
             create_method,
             properties,
@@ -231,15 +263,78 @@ impl Class {
 }
 
 #[derive(Debug)]
+enum MaybeUnloadedClassInner {
+    Loaded(Arc<Class>),
+    Unloaded { module: String, class: String },
+}
+
+#[derive(Debug)]
+struct MaybeUnloadedClass(RwLock<MaybeUnloadedClassInner>);
+
+impl MaybeUnloadedClass {
+    fn init_loaded(class: Arc<Class>) -> Self {
+        Self(RwLock::new(MaybeUnloadedClassInner::Loaded(class)))
+    }
+    fn init_unloaded(module: String, class: String) -> Self {
+        Self(RwLock::new(MaybeUnloadedClassInner::Unloaded {
+            module,
+            class,
+        }))
+    }
+    fn loaded(&self) -> Option<Arc<Class>> {
+        if let MaybeUnloadedClassInner::Loaded(class) = &*self.0.read().unwrap() {
+            Some(class.clone())
+        } else {
+            None
+        }
+    }
+    fn finish_loading(&self, py_manager: &PythonManager) {
+        let mut lock = self.0.write().unwrap();
+        if let MaybeUnloadedClassInner::Unloaded { module, class } = &*lock
+            && let Some(module) = py_manager.get_loaded_module(module)
+        {
+            *lock = MaybeUnloadedClassInner::Loaded(module.get_class(class).unwrap());
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Argument {
     pub name: String,
-    pub typ: Option<Arc<Class>>,
+    typ: Option<MaybeUnloadedClass>,
+}
+
+impl Argument {
+    pub fn get_typ(&self) -> Option<Arc<Class>> {
+        self.typ.as_ref().and_then(MaybeUnloadedClass::loaded)
+    }
+    fn finish_loading(&self, py_manager: &PythonManager) {
+        if let Some(class) = &self.typ {
+            class.finish_loading(py_manager);
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Signature {
     pub args: Vec<Argument>,
-    pub return_type: Option<Arc<Class>>,
+    return_type: Option<MaybeUnloadedClass>,
+}
+
+impl Signature {
+    pub fn get_return_type(&self) -> Option<Arc<Class>> {
+        self.return_type
+            .as_ref()
+            .and_then(MaybeUnloadedClass::loaded)
+    }
+    fn finish_loading(&self, py_manager: &PythonManager) {
+        if let Some(class) = &self.return_type {
+            class.finish_loading(py_manager);
+        }
+        for arg in &self.args {
+            arg.finish_loading(py_manager);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -260,8 +355,11 @@ impl Method {
             .eval(annotation, Some(&module.dict()), None)?
             .cast_into()?)
     }
+    fn finish_loading<'py>(&self, py_manager: &PythonManager) {
+        self.signature.finish_loading(py_manager);
+    }
     pub fn load<'py>(
-        py_manager: &PythonManager,
+        py_manager: &mut PythonManager,
         method: Bound<'py, PyAny>,
         module: &Bound<'py, PyModule>,
         name: String,
@@ -283,8 +381,9 @@ impl Method {
                     name,
                     typ: annotation.and_then(|annotation| {
                         Self::parse_annotation(module, annotation)
-                            .and_then(|typ| Ok(Arc::new(Class::load(py_manager, None, typ)?)))
+                            .and_then(|typ| py_manager.get_or_load_class_inner(&typ))
                             .ok()
+                            .flatten()
                     }),
                 })
             })
@@ -295,8 +394,9 @@ impl Method {
 
         let return_type = return_annotation.and_then(|annotation| {
             Self::parse_annotation(module, annotation)
-                .and_then(|typ| Ok(Arc::new(Class::load(py_manager, None, typ)?)))
+                .and_then(|typ| py_manager.get_or_load_class_inner(&typ))
                 .ok()
+                .flatten()
         });
 
         Ok(Self {
@@ -324,7 +424,7 @@ impl Property {
             inner: property.unbind(),
         })
     }
-    pub fn get<'py>(&self, obj: &Bound<'py, PyAny>) -> Bound<'py, PyAny> {
-        obj.getattr(&self.name).unwrap()
+    pub fn get<'py>(&self, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        obj.getattr(&self.name)
     }
 }
