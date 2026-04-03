@@ -3447,8 +3447,15 @@ class LocalSurface(CratermakerBase):
                     cmap = "cividis"
                 cmap = plt.get_cmap(cmap)
                 variable_raster = np.clip((variable_raster - vmin) / (vmax - vmin), 0.0, 1.0)
-                rgb = cmap(variable_raster)[:, :, 0:3]  # drop alpha channel
-                cvals = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
+                rgb = cmap(variable_raster)  # [:, :, 0:3]  # drop alpha channel
+                blended = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
+                if np.any(np.isnan(variable_raster)):
+                    hillshade = ls.hillshade(elevation, **hill_args)
+                    graymap = plt.get_cmap("gray")
+                    hillshade = graymap(hillshade)
+                    cvals = np.where(blended == 0, hillshade, blended)
+                else:
+                    cvals = blended
             else:
                 if cmap is None:
                     cmap = "gray"
@@ -3494,8 +3501,8 @@ class LocalSurface(CratermakerBase):
                 scale_text = f"{int(scale_length)} m" if scale_length < 1000 else f"{int(scale_length / 1000)} km"
 
                 # Position in lower right corner
-                x_start = xmax - scale_length + xmin * 0.1
-                y_start = -(ymax - bar_height + ymin * 0.1)
+                x_start = xmax - scale_length + xmin * 0.05
+                y_start = -(ymax - bar_height + ymin * 0.05)
 
                 rect = plt.Rectangle((x_start, y_start), scale_length, bar_height, color="black")
                 ax.add_patch(rect)

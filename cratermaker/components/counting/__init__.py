@@ -164,7 +164,7 @@ class Counting(ComponentBase):
         super().reset(**kwargs)
         return
 
-    def add(self, crater: MorphologyCrater, **kwargs: Any):
+    def add(self, crater: MorphologyCrater, **kwargs: Any) -> MorphologyCrater:
         """
         Add a crater to the surface.
 
@@ -174,9 +174,16 @@ class Counting(ComponentBase):
             The crater to be added to the surface.
         **kwargs : Any
             |kwargs|
+
+        Returns
+        -------
+        MorphologyCrater:
+            The emplacec crater
         """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
         if not isinstance(crater, MorphologyCrater):
-            raise TypeError("crater must be an instance of MorphologyCrater")
+            crater = self.morphology.Crater.maker(crater=crater)
 
         if self.surface.uxds is None:
             raise ValueError(
@@ -217,7 +224,7 @@ class Counting(ComponentBase):
                     ):  # Check to see if this crater id still appears, and if not, it's gone man.
                         self.observed.pop(remove_id, None)
 
-        return
+        return crater
 
     def remove(self, crater_id: int) -> None:
         """
@@ -729,7 +736,7 @@ class Counting(ComponentBase):
             facecolor = kwargs.pop("facecolor", "none")
             edgecolor = observed_original_color
             linewidth = kwargs.pop("linewidth", 0.1)
-            linestyle = kwargs.pop("linestyle", "solid")
+            linestyle = kwargs.pop("linestyle", ":")
             ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
 
         if observed_color is not None and observed is not None and len(observed) > 0:
@@ -947,7 +954,9 @@ class Counting(ComponentBase):
             leave=False,
         ):
             crater_gs.append(
-                crater.to_geoseries(surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=False)
+                crater.to_geoseries(
+                    surface=surface, split_antimeridian=split_antimeridian, use_measured_properties=use_measured_properties
+                )
             )
         return pd.concat(crater_gs)
 

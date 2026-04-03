@@ -1177,14 +1177,16 @@ class Crater(ComponentBase):
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location
             phi = self.measured_orientation
+            radius = self.measured_radius
         else:
             a = self.semimajor_axis
             b = self.semiminor_axis
             lon, lat = self.location
             phi = self.orientation
+            radius = self.radius
 
         # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        region = surface.extract_region(location=self.location, region_radius=self.measured_radius, at_least_one_face=True)
+        region = surface.extract_region(location=(lon, lat), region_radius=radius, at_least_one_face=True)
         rim_height = np.max(region.face_elevation)
         z = np.full_like(theta, rim_height)
 
