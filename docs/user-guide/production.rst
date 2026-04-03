@@ -324,6 +324,46 @@ By default, when a list of craters with production metadata is loaded into |prod
    print(f"Largest random crater: {sim.largest_crater * 1e-3:.1f} km")
 
 
+
+
+Modifying the Quasi Monte Carlo crater list
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The list of craters stored in |production.quasimc_craters| can be modified at any time. Reprocessing is triggered any time a crater in the list is found without a |crater.time| value. For instance, if you append to the list, the new crater will be added and the list will be reprocessed to extract new |crater.time| values. 
+
+.. 
+   Note that all craters in the list with production metadata will be reprocessed to generate a new |crater.time| value, even if they had one previously. 
+
+.. ipython:: python
+   :okwarning:
+
+   # Append the crater Tycho to the list
+
+   # Before adding Tycho
+   for c in sim.quasimc_craters:
+       print(f"{c.name}: Emplacement time {c.time} My bp")
+
+   # Append Tycho to the list
+   sim.quasimc_craters.append(
+       sim.Crater.maker(
+           name="Tycho",
+           location=(348.7847, -43.2958),
+           diameter=85294,
+           production_time=(109, 4.0),
+           production_sequence=300,
+       )
+   )
+
+   # After adding Tycho
+   for c in sim.quasimc_craters:
+       print(f"{c.name}: Emplacement time {c.time} My bp")
+
+
+In addition, setting a new file to |production.quasimc_file| will replace the existing |production.quasimc_craters| list and reprocess the new one.
+
+
+
+
 Merging the Quasi Monte Carlo craters with random craters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -351,7 +391,7 @@ To demonstrate this functionality, consider the case where we want to model the 
 
 Next we will use |sim.populate| to generate a set of craters for the last 1 billion years. This method will return the list of randomly generated emplaced craters, which we will sort by diameter and plot them
 
-.. ipython::python
+.. ipython:: python
    :okwarning:
 
    random_craters = sim.populate(time_start=1000)
@@ -360,12 +400,12 @@ Next we will use |sim.populate| to generate a set of craters for the last 1 bill
    print(f"Random crater count: {len(random_craters)}")
    name = "Random"
    for c in random_craters:
-      print(f"{name:10} crater: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
+       print(f"{name:10} crater: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
 
 
 Now we will add Copernicus and Tycho to the |sim.quasimc_craters| list.
 
-.. ipython::python
+.. ipython:: python
    :okwarning:
    
    sim.quasimc_craters = [
@@ -376,56 +416,25 @@ Now we will add Copernicus and Tycho to the |sim.quasimc_craters| list.
 
 We then merge the two lists and print the resulting list.
 
-.. ipython::python
+.. ipython:: python
    :okwarning:
 
    merged_craters = sim.quasimc_merge(craters=random_craters, time_start=1000)
-   print()
+   
    print(f"Merged crater count: {len(merged_craters)}")
    merged_craters.sort(key=lambda c: c.diameter, reverse=True)
    for c in merged_craters:
-      if c.name is not None:
-         name = c.name
-      else:
-         name = "Random"
-      print(f"{name:10}: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
+       if c.name is not None:
+           name = c.name
+       else:
+           name = "Random"
+       print(f"{name:10}: diameter = {c.diameter * 1e-3:.2f} km, time = {c.time:.2f} Myr")
 
 
 Notice that the total number of craters in the merged list is the same as the original random list, but that some of the random craters have been substituted for quasimc ones. 
 
 .. note::
    Usually you would not need to call the |production.quasimc_merge| or |sim.quasimc_merge| method directly. This method is automatically called by |sim.run| and |sim.populate| when creating the population of craters to emplace during a running simulation. 
-
-
-Modifying the Quasi Monte Carlo crater list
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The list of craters stored in |production.quasimc_craters| can be modified at any time. Reprocessing is triggered any time a crater in the list is found without a |crater.time| value. For instance, if you append to the list, the new crater will be added and the list will be reprocessed to extract new |crater.time| values. Note that all craters in the list with production metadata will be reprocessed to generate a new |crater.time| value, even if they had one previously. 
-
-.. ipython:: python
-   :okwarning:
-
-   # Append the crater Tycho to the list
-
-   print("Before adding Tycho")
-   for c in sim.quasimc_craters:
-      print(f"{c.name}: Emplacement time {c.time} My bp")
-   sim.quasimc_craters.append(
-       sim.Crater.maker(
-           name="Tycho",
-           location=(348.7847, -43.2958),
-           diameter=85294,
-           production_time=(109, 4.0),
-           production_sequence=300,
-       )
-   )
-   print("After adding Tycho")
-   for c in sim.quasimc_craters:
-      print(f"{c.name}: Emplacement time {c.time} My bp")
-
-
-In addition, setting a new file to |production.quasimc_file| will replace the existing |production.quasimc_craters| list and reprocess the new one.
-
 
    
 
