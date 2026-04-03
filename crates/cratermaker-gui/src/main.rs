@@ -2,11 +2,12 @@ pub mod context_menu;
 pub mod loader;
 pub mod pythonio;
 
+use iced::widget::scrollable;
 use std::sync::{Arc, RwLock};
 
 use iced::{
     Element, Length, Point, Task,
-    widget::{button, column, container, opaque, row, space, text},
+    widget::{button, column, container, opaque, row, scrollable::Scrollbar, space, text},
 };
 use pyo3::prelude::*;
 
@@ -52,66 +53,62 @@ fn view_variable(var: &Arc<RwLock<Variable>>) -> Element<'_, Message> {
 }
 
 #[derive(Default)]
-struct VariablesPane {
-    variables: Vec<Arc<RwLock<Variable>>>,
+struct Variables {
+    list: Vec<Arc<RwLock<Variable>>>,
+    selected_variable: Option<Arc<RwLock<Variable>>>,
 }
 
-impl VariablesPane {
-    fn view(&self) -> Element<'_, Message> {
+fn view_variable_pane(variables: &Variables) -> Element<'_, Message> {
+    scrollable(
         column!["Variables"]
             .extend(
-                self.variables
+                variables
+                    .list
                     .iter()
                     .map(|variable| view_variable(variable)),
             )
             .spacing(6)
-            .padding(2)
-            .into()
-    }
+            .padding(2),
+    )
+    .into()
 }
 
-#[derive(Default)]
-struct VariableInfoPane {
-    variable: Option<Arc<RwLock<Variable>>>,
-}
-
-impl VariableInfoPane {
-    fn view(&self) -> Element<'_, Message> {
-        let col = column!["Variable Info",].spacing(6).padding(2);
-        if let Some(variable) = &self.variable {
-            let lock = variable.read().unwrap();
-            if let Some(class) = &lock.class {
-                Python::attach(|py| {
-                    col.extend(class.properties.iter().map(|(name, value)| {
-                        let value = value
-                            .get(&lock.value.bind(py))
-                            .map_or_else(|e| e.to_string(), |v| v.to_string());
-                        text(format!("{}: {}", name, value)).into()
-                    }))
-                })
-            } else {
-                col.push(text(lock.value.to_string()))
-            }
+fn view_variable_info(variable: Option<&Arc<RwLock<Variable>>>) -> Element<'_, Message> {
+    let mut col = column!["Variable Info",].spacing(6).padding(2);
+    col = if let Some(variable) = variable {
+        let lock = variable.read().unwrap();
+        if let Some(class) = &lock.class {
+            Python::attach(|py| {
+                col.extend(class.properties.iter().map(|(name, value)| {
+                    let value = value
+                        .get(&lock.value.bind(py))
+                        .map_or_else(|e| e.to_string(), |v| v.to_string());
+                    text(format!("{}: {}", name, value)).into()
+                }))
+            })
         } else {
-            col.push(text("No variable selected.").style(text::secondary))
+            col.push(text(lock.value.to_string()))
         }
+    } else {
+        col.push(text("No variable selected.").style(text::secondary))
+    };
+    scrollable(col)
+        .direction(scrollable::Direction::Both {
+            vertical: Scrollbar::new(),
+            horizontal: Scrollbar::new(),
+        })
         .into()
-    }
 }
 
-struct Toolbar;
-
-impl Toolbar {
-    fn view(&self) -> Element<'_, Message> {
-        row![
-            button("New simulation")
-                .style(button::subtle)
-                .on_press(Message::CreateSimulation)
-        ]
-        .spacing(2)
-        .padding(2)
-        .into()
-    }
+fn view_toolbar<'a>() -> Element<'a, Message> {
+    row![
+        button("New simulation")
+            .style(button::subtle)
+            .on_press(Message::CreateSimulation)
+    ]
+    .spacing(2)
+    .padding(2)
+    .into()
 }
 
 #[derive(Debug, Clone)]
@@ -156,10 +153,8 @@ impl ContextMenuTarget {
 struct App {
     py_manager: Arc<RwLock<PythonManager>>,
     simulation_class: Arc<Class>,
-    variables_pane: VariablesPane,
+    variables: Variables,
     pythonio_pane: PythonIO,
-    variable_info_pane: VariableInfoPane,
-    toolbar: Toolbar,
     context_menu_pos: Option<Point>,
     context_menu_target: Option<ContextMenuTarget>,
 }
@@ -189,12 +184,10 @@ impl App {
                         .get_class("Simulation")
                         .unwrap(),
                     py_manager: Arc::new(RwLock::new(py_manager)),
-                    variables_pane: Default::default(),
-                    toolbar: Toolbar,
+                    variables: Default::default(),
                     pythonio_pane,
                     context_menu_pos: None,
                     context_menu_target: None,
-                    variable_info_pane: Default::default(),
                 },
                 task.map(Message::PythonIO),
             )
@@ -225,7 +218,7 @@ impl App {
                 )
             }
             Message::AddVariable(variable) => {
-                self.variables_pane.variables.push(variable);
+                self.variables.list.push(variable);
                 Task::none()
             }
             Message::PythonIO(message) => {
@@ -276,13 +269,13 @@ impl App {
                 )
             }
             Message::FocusVariable(variable) => {
-                for var in &self.variables_pane.variables {
+                for var in &self.variables.list {
                     if var.read().unwrap().focused {
                         var.write().unwrap().focused = false;
                     }
                 }
                 variable.write().unwrap().focused = true;
-                self.variable_info_pane.variable = Some(variable);
+                self.variables.selected_variable = Some(variable);
                 Task::none()
             }
             Message::DoNothing => Task::none(),
@@ -290,19 +283,21 @@ impl App {
     }
     fn view(&self) -> Element<'_, Message> {
         let main = column![
-            container(self.toolbar.view())
+            container(view_toolbar())
                 .style(container::bordered_box)
                 .width(Length::Fill)
                 .height(Length::Shrink),
             row![
-                container(self.variables_pane.view())
+                container(view_variable_pane(&self.variables))
                     .style(container::bordered_box)
                     .width(Length::FillPortion(1))
                     .height(Length::Fill),
-                container(self.variable_info_pane.view())
-                    .style(container::bordered_box)
-                    .width(Length::FillPortion(2))
-                    .height(Length::Fill),
+                container(view_variable_info(
+                    self.variables.selected_variable.as_ref()
+                ))
+                .style(container::bordered_box)
+                .width(Length::FillPortion(2))
+                .height(Length::Fill),
             ]
             .spacing(2)
             .width(Length::Fill)
