@@ -329,10 +329,7 @@ By default, when a list of craters with production metadata is loaded into |prod
 Modifying the Quasi Monte Carlo crater list
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The list of craters stored in |production.quasimc_craters| can be modified at any time. Reprocessing is triggered any time a crater in the list is found without a |crater.time| value. For instance, if you append to the list, the new crater will be added and the list will be reprocessed to extract new |crater.time| values. 
-
-.. 
-   Note that all craters in the list with production metadata will be reprocessed to generate a new |crater.time| value, even if they had one previously. 
+The list of craters stored in |production.quasimc_craters| can be modified at any time. Reprocessing is triggered any time a crater in the list is found without a |crater.time| value. For instance, if you append to the list, the new crater will be added and the list will be reprocessed to extract new |crater.time| values.  Note that all craters in the list with production metadata will be reprocessed to generate a new |crater.time| value, even if they had one previously. 
 
 .. ipython:: python
    :okwarning:
