@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker-py"
-version = "2026.4.1-a4+g401fe7ed"
+version = "2026.4.2-a10+gc46afec9d"
 edition = "2021"
 
 [lib]
