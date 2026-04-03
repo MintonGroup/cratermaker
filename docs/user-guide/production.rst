@@ -227,7 +227,7 @@ Rather than a specific time, you can specify a crater's "age" by its position on
 
 
    sim.quasimc_craters.append(sim.Crater.maker(name="Nectaris", diameter=885e3, location=(35.1, -15.6), production_ND=(20, 172, 20)))
-   print(sim.quasimc_craters[-1])
+   print(sim.quasimc_craters[0]) # The quasimc_craters list is sorted by age, from oldest to youngest. So even though Nectaris was added after Imbrium, it is actually the oldest crater in the list, so it is at index 0.
 
 
 The equivalent in a CSV file would be:

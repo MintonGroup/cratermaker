@@ -396,15 +396,15 @@ def format_large_units(value: float, quantity) -> str:
         return "N/A"
 
     unit_index = 0
-    while unit_index + 1 < len(units) and value >= threshold:
+    while unit_index + 1 < len(units) and abs(value) >= threshold:
         value /= threshold
         unit_index += 1
 
-    if value >= 100:
+    if abs(value) >= 100:
         fmt = "{:.1f} {}"
-    elif value >= 10:
+    elif abs(value) >= 10:
         fmt = "{:.2f} {}"
-    elif value >= 1:
+    elif abs(value) >= 1:
         fmt = "{:.3f} {}"
     else:
         fmt = "{:.4g} {}"
