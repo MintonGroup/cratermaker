@@ -3447,9 +3447,9 @@ class LocalSurface(CratermakerBase):
                     cmap = "cividis"
                 cmap = plt.get_cmap(cmap)
                 variable_raster = np.clip((variable_raster - vmin) / (vmax - vmin), 0.0, 1.0)
-                rgb = cmap(variable_raster)  # [:, :, 0:3]  # drop alpha channel
+                rgb = cmap(variable_raster)
                 blended = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
-                if np.any(np.isnan(variable_raster)):
+                if np.any(np.isnan(variable_raster[~np.isnan(elevation)])):
                     hillshade = ls.hillshade(elevation, **hill_args)
                     graymap = plt.get_cmap("gray")
                     hillshade = graymap(hillshade)

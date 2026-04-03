@@ -37,7 +37,7 @@ sim = Simulation(
 
 lansberg_b = sim.counting.add(lansberg_b)
 # Now refine the fit of the crater rim using the Counting class.
-lansberg_b = sim.counting.fit_rim(crater=lansberg_b, fit_ellipse=False, fit_center=True)
+sim.counting.fit_rim(crater=lansberg_b, fit_ellipse=False, fit_center=True)
 
 # If we print the crater object, we will see that the original parameters are retained, but the values from the fit are prepended by `measured_`
 print(lansberg_b)
