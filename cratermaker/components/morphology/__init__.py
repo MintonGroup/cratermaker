@@ -180,8 +180,7 @@ class MorphologyCrater(Crater):
                 raise TypeError("relative_location must be a dict with keys 'distance' and 'bearing'.")
             location = morphology.surface.compute_location_from_distance_bearing(**relative_location)
 
-        if crater is None:
-            crater = super().maker(location=location, check_redundant_inputs=check_redundant_inputs, **kwargs)
+        crater = super().maker(crater=crater, location=location, check_redundant_inputs=check_redundant_inputs, **kwargs)
         args = {}
 
         return cls(
@@ -630,6 +629,7 @@ class Morphology(ComponentBase):
         if not self._excavated_volume:
             return
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
+        ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
         ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
         conservation_factor = -self._excavated_volume / ejecta_volume
         ejecta_thickness *= conservation_factor
@@ -876,6 +876,7 @@ class Morphology(ComponentBase):
                 @classmethod
                 def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
                     kwargs["morphology"] = self
+                    kwargs = {**kwargs, **vars(self.common_args)}
                     return self._CraterType.maker(**kwargs)
 
             self._Crater = _WrappedMorphologyCrater

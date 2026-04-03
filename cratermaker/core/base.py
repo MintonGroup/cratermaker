@@ -556,7 +556,10 @@ class CratermakerBase:
         return self._save_actions
 
     @save_actions.setter
-    def save_actions(self, value) -> None:
+    def save_actions(self, value: list[dict[str, dict]] | None) -> None:
+        if value is None or (isinstance(value, list) and len(value) == 0):
+            self._save_actions = []
+            return
         if not isinstance(value, list):
             raise TypeError(
                 "save_actions must be a list where each entry is a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"

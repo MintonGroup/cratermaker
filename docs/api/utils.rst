@@ -31,7 +31,6 @@ General utilities
     general_utils.Parameter
     general_utils.normalize_coords
     general_utils.validate_and_normalize_location
-    general_utils.get_saved_interval_numbers
     general_utils.format_large_units
     general_utils.toggle_pyvista_actor
     general_utils.update_pyvista_help_message

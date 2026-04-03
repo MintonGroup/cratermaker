@@ -3,6 +3,19 @@
 What's New
 ==========
 
+.. _whats-new.2026.4.4-alpha:
+
+- Fixed :issue:`124` :pull:`125` `David Minton`_
+- Fixed a problem where the Simulation's rng was not being passed to the Crater wrapper, so that the simulation.Crater was not producing repeatable results. :pull:`125` `David Minton`_
+- Removed "addopts = tests" option from the pytest.ini addopts so that individual tests can be run rather than always all of them. :pull:`125` `David Minton`_
+
+.. _whats-new.2026.4.3-alpha:
+
+- Fixed :issue:`106` :pull:`123` `David Minton`_
+- Fixed format_large_units to handle negative values.
+- Added a colorbar and a minimum_plot_width option to the plot method of Surface. :pull:`123` `David Minton`_
+
+
 .. _whats-new.2026.4.2-alpha:
 
 - Improved the documentation with more thorough discussion of how Quasi Monte Carlo works and how its behavior can be modified in the production user guide. :pull:`122` `David Minton`_
