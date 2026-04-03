@@ -184,11 +184,11 @@ First, we we will create a CSV file called "qmc_inputs.csv" and populate it with
    - Sequence numbers are determined by stratigraphic relationships from Wilhelms et al. (1987) [#]_ and Fassett et al. (2012) [#]_
    - Fecunditatis and Australe North are assigned N(90) values from Evans et al. (2018) [#]_.
    - We do not consider the evidence for Procellarum being an impact basin as particularly strong, and so we do not include it.
-   - Basins with on N(20) values or those with stratigraphic sequences but no ages are taken from Orgel et al. (2018) [#]_.
+   - Basins with N(20) values or those with stratigraphic sequences but no ages are taken from Orgel et al. (2018) [#]_.
    - Imbrium is set to 3922±12 My based on U-Pb ages of Apollo 14 and 15 impact breccias from Nemchin et al. (2021) [#]_.
    - The age of Copernicus of 800±15 My is from Bogard et al. (1994) [#]_, and is based on :sup:`39`\ Ar - :sup:`40`\ Ar ages of Apollo 12 soil samples that are thought to have been reset by ejecta from Copernicus.
    - The age of Tycho of 109±4 My is based on cosmic ray exposure dating of the South Massif landslide deposit in Taurus Littrow Valley from Apollo 17 by Drozd et al. (1977) [#]_.
-   - Serenetatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2015) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
+   - Serenetatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
    
 
 

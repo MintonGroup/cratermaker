@@ -174,7 +174,7 @@ rst_prolog = """
 .. |sim.largest_crater| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.largest_crater`
 .. |sim.quasimc_craters| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_craters`
 .. |sim.quasimc_file| replace:: :py:attr:`~cratermaker.core.simulation.Simulation.quasimc_file`
-.. |sim.quasimc_merge| replace:: :py:meth:`~cratermaker.core.simulation.Simulation.quasimc_merge`
+.. |sim.quasimc_merge| replace:: :py:meth:`sim.quasimc_merge() <cratermaker.core.simulation.Simulation.quasimc_merge>`
 .. |Production| replace:: :py:class:`~cratermaker.components.production.Production`
 .. |NPF| replace:: :py:class:`~cratermaker.components.production.neukum.NeukumProduction`
 .. |PowerLawProduction| replace:: :py:class:`~cratermaker.components.production.powerlaw.PowerLawProduction`
@@ -188,7 +188,7 @@ rst_prolog = """
 .. |production.D_conversion_factor| replace:: :py:attr:`~cratermaker.components.production.Production.D_conversion_factor`
 .. |production.quasimc_craters| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_craters`
 .. |production.quasimc_file| replace:: :py:attr:`~cratermaker.components.production.Production.quasimc_file`
-.. |production.quasimc_merge| replace:: :py:meth:`~cratermaker.components.production.Production.quasimc_merge`
+.. |production.quasimc_merge| replace:: :py:meth:`production.quasimc_merge() <cratermaker.components.production.Production.quasimc_merge>`
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
 .. |HiResLocalSurface| replace:: :py:class:`~cratermaker.components.surface.hireslocal.HiResLocalSurface`
