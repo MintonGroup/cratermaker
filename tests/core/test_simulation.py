@@ -316,6 +316,54 @@ class TestSimulation(unittest.TestCase):
 
         return
 
+    def test_repeatable_crater_copy(self):
+        """
+        Tests two things: Copied+modified craters retain their old non-modified values and repeated craters called with the same simulation rng_seed are the same.
+        """
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            crater_vals = []
+            diffs = ["location", "projectile_velocity", "orientation", "id"]
+            sames = ["diameter", "time"]
+            for sim_num in range(2):
+                sim = cratermaker.Simulation(
+                    simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, reset=True, rng_seed=2345253
+                )
+
+                for iteration in range(2):
+                    crater = sim.Crater.maker(diameter=5000.0, time=1000.0)
+                    new_crater = sim.Crater.maker(crater=crater, time=2000.0)
+                    crater_dict = crater.as_dict()
+                    crater_vals.append(crater_dict)
+                    new_crater_dict = new_crater.as_dict()
+                    self.assertTrue(
+                        all(
+                            crater_dict[k] != new_crater_dict[k]
+                            if k == "time" or k == "id"
+                            else crater_dict[k] == new_crater_dict[k]
+                            for k in crater_dict
+                        ),
+                        msg=f"Failed for sim_num {sim_num} iteration {iteration}",
+                    )
+
+                self.assertTrue(
+                    all(crater_vals[-2][k] == crater_vals[-1][k] for k in sames),
+                    msg=f"Failed same values check on sim_num {sim_num}",
+                )
+                self.assertTrue(
+                    all(crater_vals[-2][k] != crater_vals[-1][k] for k in diffs),
+                    msg=f"Failed different values check on sim_num {sim_num}",
+                )
+
+            combo = diffs + sames
+            self.assertTrue(
+                all(crater_vals[0][k] == crater_vals[2][k] for k in combo),
+                msg="Failed repeatability of iteration 0 between the two sims",
+            )
+            self.assertTrue(
+                all(crater_vals[1][k] == crater_vals[3][k] for k in combo),
+                msg="Failed repeatability of iteration 1 between the two sims",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
