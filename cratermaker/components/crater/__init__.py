@@ -424,7 +424,13 @@ class CraterVariable:
 class Crater(ComponentBase):
     _registry: dict[str, Crater] = {}
 
-    def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=CraterVariable, **kwargs):
+    def __init__(
+        self,
+        crater: Crater | None = None,
+        fixed_cls: type[CraterFixed] = CraterFixed,
+        variable_cls: type[CraterVariable] = CraterVariable,
+        **kwargs: Any,
+    ):
         if crater is not None:
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be an instance of Crater or None")
@@ -538,7 +544,7 @@ class Crater(ComponentBase):
         if self.production_sequence is not None:
             str_repr += f"Production sequence: {self.production_sequence}\n"
         if self.production_ND is not None:
-            str_repr += f"Production N({format_large_units(self.production_ND[0] * 1e3, quantity='length')}): {self.production_ND[1]} ± {self.production_ND[2]}\n"
+            str_repr += f"Production N({self.production_ND[0]:.0f}): {self.production_ND[1]:.4f} ± {self.production_ND[2]:.4f}\n"
         if self.production_time is not None:
             str_repr += f"Production time: {format_large_units(self.production_time[0], quantity='time')} ± {format_large_units(self.production_time[1], quantity='time')}\n"
         if self.time is not None:
@@ -740,6 +746,7 @@ class Crater(ComponentBase):
 
             """
             id_args = [
+                "time",
                 "semimajor_axis",
                 "projectile_angle",
                 "location",
@@ -750,9 +757,8 @@ class Crater(ComponentBase):
                 "projectile_mass",
                 "semiminor_axis",
             ]
-            combined_args = [k for k in kwargs if k in id_args]
-            combined_args.sort()  # Sort to ensure consistent ordering
-            combined = "::".join(f"{k}:{kwargs[k]}" for k in combined_args)
+            combined_args = [k for k in id_args if k in kwargs and kwargs[k] is not None]
+            combined = "".join(f"{kwargs[k]}" for k in combined_args)
             hexid = hashlib.shake_256(combined.encode()).hexdigest(4)
             return np.uint32(int(f"0x{hexid}", 16))
 
@@ -1171,14 +1177,16 @@ class Crater(ComponentBase):
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location
             phi = self.measured_orientation
+            radius = self.measured_radius
         else:
             a = self.semimajor_axis
             b = self.semiminor_axis
             lon, lat = self.location
             phi = self.orientation
+            radius = self.radius
 
         # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        region = surface.extract_region(location=self.location, region_radius=self.measured_radius, at_least_one_face=True)
+        region = surface.extract_region(location=(lon, lat), region_radius=radius, at_least_one_face=True)
         rim_height = np.max(region.face_elevation)
         z = np.full_like(theta, rim_height)
 

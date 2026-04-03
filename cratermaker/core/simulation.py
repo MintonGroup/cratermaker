@@ -61,7 +61,7 @@ class Simulation(CratermakerBase):
     do_counting : bool, optional
         If True, the counting component will keep track of observable craters during the simulation. If False, emplaced craters that are large enoug to be observable are saved, but the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
     save_actions: list[dict[str, dict]], optional
-        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved.
+        A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved. Set to None to disable or "default" to use the default save actions.
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -83,7 +83,7 @@ class Simulation(CratermakerBase):
         reset: bool = None,
         ask_overwrite: bool = True,
         do_counting: bool = True,
-        save_actions: list[dict[str, dict]] | None = None,
+        save_actions: list[dict[str, dict]] | None | str = "default",
         **kwargs: Any,
     ):
         object.__setattr__(self, "_target", None)
@@ -241,8 +241,7 @@ class Simulation(CratermakerBase):
             skip_components = ["surface"]
             self.reset(skip_component=skip_components)
 
-        if save_actions is None:
-            self.save_actions = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
+        self.save_actions = save_actions
 
         self.to_config()
 
@@ -919,7 +918,7 @@ class Simulation(CratermakerBase):
 
         if interval is not None and interval < 0:
             interval = self.interval + 1 + interval
-        self.save(**kwargs, skip_actions=True, ask_overwrite=ask_overwrite)
+        self.save(skip_actions=True, ask_overwrite=ask_overwrite, **kwargs)
         if driver.lower() == "opencratertool":
             surface_driver = "GeoTIFF"
             counting_driver = "SCC"
@@ -1028,7 +1027,6 @@ class Simulation(CratermakerBase):
 
     def plot(
         self,
-        include_counting: bool = False,
         interval: int | None = None,
         plot_style: str = "hillshade",
         label="default",
@@ -1036,6 +1034,14 @@ class Simulation(CratermakerBase):
         save=True,
         ax: Axes | None = None,
         close_when_done: bool = True,
+        scalebar: bool | None = None,
+        colorbar: bool = True,
+        include_counting: bool = False,
+        observed_color: str | None = "white",
+        observed_original_color: str | None = None,
+        emplaced_color: str | None = None,
+        minimum_plot_width: float | None = 800.0,
+        superdomain: bool = False,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -1059,14 +1065,22 @@ class Simulation(CratermakerBase):
             The color to use for emplaced craters in the interval. If None, emplaced craters will not be plotted. Default is None.
         label : str, optional
             The label to use for the plot. Default is "default", which will use the labelmaker method to build a label based on the current time and age of the simulation.
+        scalebar : bool, optional
+            If True, a scalebar will be added to the plot. Default is False for global surfaces.
+        colorbar : bool, optional
+            If True, a colorbar will be added to the plot when using "map" plot_style or "hillshade" with a variable overlay. Default is True.
         show : bool, optional
-            If True, the plot will be displayed. Default is False.
+            If True, the plot will be displayed. Default for local surfaces is True.
         save : bool, optional
-            If True, the plot will be saved to a file. Default is True.
+            If True, the plot will be saved to the default plot directory. Default is False.
         ax : matplotlib.axes.Axes, optional
-            An optional matplotlib Axes object to plot on. If not provided, a new figure and Axes will be created. Default is None.
+            An existing Axes object to plot on. If None, a new figure and axes will be created.
         close_when_done : bool, optional
-            If True, the figure will be closed after plotting. Default is True.
+            If True, the figure will be closed after plotting. Default is True when save is True and show is False, and False otherwise.
+        minimum_plot_width : float, optional
+            Because the width of the plot is determined by the number of faces, small regions will generate small plots with labels that are hard to read. This parameter sets a lower limit to the width of the image that is generated by the plot. By default it is 800. Set to None to turn it off.
+        superdomain : bool, optional
+            |HiResLocalSurface| variants only. If True, the full surface including the superdomain will be plotted. If False, only the local region will be plotted. Default is False
         **kwargs : Any
             |kwargs|
 
@@ -1075,12 +1089,12 @@ class Simulation(CratermakerBase):
         Axes
             The matplotlib Axes object created by the surface plot method.
         """
-        if interval is None:
-            interval = self.interval
-            self.save(**kwargs, skip_actions=True)
         if label == "default":
             compact = kwargs.pop("compact", issubclass(self.surface.__class__, HiResLocalSurface))
             label = self.labelmaker(interval=interval, compact=compact, **kwargs)
+        if interval is None:
+            interval = self.interval
+            self.save(**kwargs, skip_actions=True)
 
         plot_args = {
             "interval": interval,
@@ -1088,8 +1102,15 @@ class Simulation(CratermakerBase):
             "label": label,
             "show": show,
             "save": save,
+            "scalebar": scalebar,
+            "colorbar": colorbar,
+            "observed_color": observed_color,
+            "observed_original_color": observed_original_color,
+            "emplaced_color": emplaced_color,
             "ax": ax,
             "close_when_done": close_when_done,
+            "minimum_plot_width": minimum_plot_width,
+            "superdomain": superdomain,
             **kwargs,
         }
         if include_counting:
@@ -1938,3 +1959,9 @@ class Simulation(CratermakerBase):
         Returns a list of the data variables currently being stored on the faces.
         """
         return self.surface.face_variables
+
+    @CratermakerBase.save_actions.setter
+    def save_actions(self, value):
+        if value == "default":
+            value = [{"plot": {"plot_style": "hillshade", "show": False, "save": True}}]
+        CratermakerBase.save_actions.fset(self, value)
