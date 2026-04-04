@@ -98,9 +98,9 @@ class Scaling(ComponentBase):
         Raises
         ------
         KeyError
-            If the specified scaling model name is not found in the registry.
+            If the specified scaling component name not found in the registry.
         TypeError
-            If the specified scaling model is not a string or a subclass of Scaling.
+            If the specified scaling component type is not a string or a subclass of Scaling.
         """
         if scaling is None:
             scaling = "montecarlo"

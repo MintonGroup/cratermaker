@@ -145,9 +145,9 @@ class Production(ComponentBase):
         Raises
         ------
         KeyError
-            If the specified production model name is not found in the registry.
+            If the specified production component name not found in the registry.
         TypeError
-            If the specified production model is not a string or a subclass of Production.
+            If the specified production component type is not a string or a subclass of Production.
         ValueError
             If there is an error initializing the production model.
 

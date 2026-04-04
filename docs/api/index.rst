@@ -20,5 +20,6 @@ This section of the documentation provides a detailed reference for the core fun
     surface
     target
     counting
+    layers
     utils
     base

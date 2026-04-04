@@ -125,9 +125,9 @@ class Counting(ComponentBase):
         Raises
         ------
         KeyError
-            If the specified counting model name is not found in the registry.
+            If the specified counting component name not found in the registry.
         TypeError
-            If the specified counting model is not a string or a subclass of Scaling.
+            If the specified counting component type is not a string or a subclass of Counting.
         """
         if counting is None:
             counting = "depthcount"

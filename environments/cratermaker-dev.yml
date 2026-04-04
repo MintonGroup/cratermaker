@@ -45,3 +45,6 @@ dependencies:
   - trame>=2.5.2
   - rasterio>=1.5.0
   - craterstats >= 3.6.3
+  - awkward
+  - ragged
+  - uproot

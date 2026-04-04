@@ -472,9 +472,9 @@ class Morphology(ComponentBase):
         Raises
         ------
         KeyError
-            If the specified morphology model name is not found in the registry.
+            If the specified morphology component name not found in the registry.
         TypeError
-            If the specified morphology model is not a string or a subclass of Morphology.
+            If the specified morphology component type is not a string or a subclass of Morphology.
         """
         # Call the base class version of make and pass the morphology argument as the component argument
         if morphology is None:

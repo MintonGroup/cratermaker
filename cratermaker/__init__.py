@@ -11,6 +11,7 @@ import warnings
 from cratermaker._version import version as __version__
 from cratermaker.components.counting import Counting
 from cratermaker.components.crater import Crater
+from cratermaker.components.layers import Layers
 from cratermaker.components.morphology import Morphology
 from cratermaker.components.production import Production
 from cratermaker.components.projectile import Projectile
@@ -20,7 +21,7 @@ from cratermaker.components.target import Target
 from cratermaker.core.simulation import Simulation
 from cratermaker.utils.general_utils import cleanup
 
-_COMPONENT_NAMES = ["crater", "counting", "morphology", "production", "projectile", "scaling", "surface", "target"]
+_COMPONENT_NAMES = ["crater", "counting", "morphology", "production", "projectile", "scaling", "surface", "target", "layers"]
 
 __all__ = ["Simulation", "__version__"] + [n.capitalize() for n in _COMPONENT_NAMES]
 

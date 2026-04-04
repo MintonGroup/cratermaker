@@ -848,9 +848,9 @@ class ComponentBase(CratermakerBase, ABC):
         Raises
         ------
         KeyError
-            If the specified component model name is not found in the registry.
+            If the specified component name is not found in the registry.
         TypeError
-            If the specified component model is not a string or a subclass of component.
+            If the specified component type is not a string or a subclass of the component's base class.
         """
         if component is None:
             component = cls.available()[0]  # Default to the first available component

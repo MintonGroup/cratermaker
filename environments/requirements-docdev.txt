@@ -39,3 +39,6 @@ trame-vtk<2.10.3
 trame-vuetify>=2.3.1
 trame>=2.5.2
 craterstats>=3.6.3
+awkward
+ragged
+uproot

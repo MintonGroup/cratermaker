@@ -224,7 +224,7 @@ class Projectile(ComponentBase):
         KeyError
             If the specified projectile model is not found in the registry.
         TypeError
-            If the specified projectile model is not a string or a subclass of Projectile.
+            If the specified projectile component type is not a string or a subclass of Projectile.
         """
         from cratermaker.components.projectile.asteroids import AsteroidProjectiles
         from cratermaker.components.projectile.comets import CometProjectiles

@@ -209,4 +209,5 @@ rst_prolog = """
 .. |Counting| replace:: :py:class:`~cratermaker.components.counting.Counting`
 .. |Projectile| replace:: :py:class:`~cratermaker.components.projectile.Projectile`
 .. |Scaling| replace:: :py:class:`~cratermaker.components.scaling.Scaling`
+.. |Layers| replace:: :py:class:`~cratermaker.components.layers.Layers`
 """

@@ -1,6 +1,7 @@
 def process_component_docstring(app, what, name, obj, options, lines):
     from cratermaker.components.counting import Counting
     from cratermaker.components.crater import Crater
+    from cratermaker.components.layers import Layers
     from cratermaker.components.morphology import Morphology
     from cratermaker.components.production import Production
     from cratermaker.components.projectile import Projectile
@@ -17,6 +18,7 @@ def process_component_docstring(app, what, name, obj, options, lines):
         "Target": Target,
         "Counting": Counting,
         "Crater": Crater,
+        "Layers": Layers,
     }
 
     if name.endswith(".maker"):
