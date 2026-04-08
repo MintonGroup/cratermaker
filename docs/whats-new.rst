@@ -3,7 +3,28 @@
 What's New
 ==========
 
+.. _whats-new.2026.4.4-alpha:
+
+:release:`v2026.4.4-alpha`
+--------------------------
+
+- Fixed :issue:`124` :pull:`125` `David Minton`_
+- Fixed a problem where the Simulation's rng was not being passed to the Crater wrapper, so that the simulation.Crater was not producing repeatable results. :pull:`125` `David Minton`_
+- Removed "addopts = tests" option from the pytest.ini addopts so that individual tests can be run rather than always all of them. :pull:`125` `David Minton`_
+
+.. _whats-new.2026.4.3-alpha:
+
+:release:`v2026.4.3-alpha`
+--------------------------
+
+- Fixed :issue:`106` :pull:`123` `David Minton`_
+- Fixed format_large_units to handle negative values.
+- Added a colorbar and a minimum_plot_width option to the plot method of Surface. :pull:`123` `David Minton`_
+
 .. _whats-new.2026.4.2-alpha:
+
+:release:`v2026.4.2-alpha`
+--------------------------
 
 - Improved the documentation with more thorough discussion of how Quasi Monte Carlo works and how its behavior can be modified in the production user guide. :pull:`122` `David Minton`_
 - Fixed a bug that was causing a failure when numpy>2.3. This was caused by sloppy conversions between 0-d Numpy arrays and floats. Conversions are now done explicitly for the affected root finding functions.
@@ -12,14 +33,16 @@ What's New
 
 .. _whats-new.2026.4.1-alpha:
 
+:release:`v2026.4.1-alpha`
+--------------------------
+
 - Fixed minor issues with documentation to ensure all elements are included in the build. `David Minton`_
 - Fixed problem where the Neukum production function was creating too many basins by adjusting the power law exponent of the upper extrapolation to be steeper by -5.0. :pull:`120` `David Minton`_
-
-:release:`v2026.4.1-alpha`
 
 .. _whats-new.2026.4.0-alpha:
 
 :release:`v2026.4.0-alpha`
+--------------------------
 
 - Fixed bug that was causing incorrect polar data files from being requested from the PDS for DataSurface :pull:`112` `David Minton`_ `Leo Minton`_
 - Fixed bug that was causing `fill_value` and `dtype` arguments to be ignored in `add_data`. :pull:`114` `David Minton`_ `Leo Minton`_
@@ -29,6 +52,7 @@ What's New
 .. _whats-new.2026.3.7-alpha:
 
 :release:`v2026.3.7-alpha`
+--------------------------
 
 - Include new argument pass-throughs for the show3d methods to better control PyVista output. :pull:`104` `David Minton`_
 - Updated the README with better instructions. :pull:`105` `David Minton`_
@@ -37,13 +61,14 @@ What's New
 .. _whats-new.2026.3.6-alpha:
 
 :release:`v2026.3.6-alpha`
+--------------------------
 
 - More updates to the documentation, including the return of the long-running DataSurface examples thanks to an upgrade in our ReadtheDocs time limit, and a fancy new animated gif of the Moon being bombarded for the visualization user guide. :pull:`101` `David Minton`_
-
 
 .. _whats-new.2026.3.5-alpha:
 
 :release:`v2026.3.5-alpha`
+--------------------------
 
 - Gave the documentation pages a thorough makeover. :pull:`99` `David Minton`_
 
@@ -51,14 +76,12 @@ What's New
    - Improved the formatting of the documentation pages to make them more readable and easier to navigate. 
    - Added new sections to the user guide, including a new section on visualizing and exporting data. 
 
-
 .. _whats-new.2026.3.4-alpha:
 
 :release:`v2026.3.4-alpha`
 --------------------------
 
 - Fixed bug that was causing restarted runs to fail with the message "AttributeError: Crater has no attribute 'measured_depth_to_diameter'."  :pull:`96` `David Minton`_
-
 
 .. _whats-new.2026.3.3-alpha:
 
@@ -79,7 +102,6 @@ What's New
    - Turned off scalebar by default in the default Simulation save_action.
    - Placed the plt.close() call after both show and save have been called so that the plot is active until the end.
    - Restructured installation guide page to put dependency install instructions at the beginning.
-   
 
 .. _whats-new.2026.3.1-alpha:
 
@@ -94,7 +116,6 @@ What's New
    - Improved the consistency of docstrings for class properties.
    - Added the missing Target API page.
    - Improved the organization of the API pages. 
-
 
 .. _whats-new.2026.3.0-alpha:
 
