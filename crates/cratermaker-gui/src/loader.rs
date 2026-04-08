@@ -65,6 +65,18 @@ impl PythonManager {
             Ok(module)
         }
     }
+    pub fn get_or_import_module_unbound(&mut self, name: &str) -> PyResult<Arc<Module>> {
+        if let Some(module) = self.get_loaded_module(name) {
+            Ok(module)
+        } else {
+            self.loaded_modules.insert(name.to_owned(), None);
+            let module = Arc::new(Python::attach(|py| -> PyResult<Module> {
+                Ok(Module::load(self, py.import(name)?)?)
+            })?);
+            *self.loaded_modules.get_mut(name).unwrap() = Some(module.clone());
+            Ok(module)
+        }
+    }
     fn get_or_load_module<'py>(
         &mut self,
         module: Bound<'py, PyModule>,
@@ -162,7 +174,6 @@ impl Module {
             module.finish_loading(py_manager);
         }
         for class in self.classes.values() {
-            class.create_method.finish_loading(py_manager);
             for method in class.methods.values() {
                 method.finish_loading(py_manager);
             }
@@ -183,7 +194,6 @@ pub struct Class {
     pub inner: Py<PyType>,
     pub methods: HashMap<String, Arc<Method>>,
     pub properties: HashMap<String, Arc<Property>>,
-    pub create_method: Arc<Method>,
     pub module: String,
 }
 
@@ -201,7 +211,7 @@ impl Class {
         let name = class.name()?.extract::<String>()?;
         let docstring = inspect::getdoc(class.as_any())?;
         let members = inspect::getmembers(class.as_any())?;
-        let mut methods: HashMap<String, Arc<Method>> = members
+        let methods: HashMap<String, Arc<Method>> = members
             .iter()
             .filter(|(name, _)| !name.starts_with('_'))
             .filter_map(|(name, item)| item.cast::<PyFunction>().ok().map(|item| (name, item)))
@@ -232,23 +242,6 @@ impl Class {
                 ))
             })
             .try_collect()?;
-        let create_method = methods
-            .remove("maker")
-            .map(Ok)
-            .unwrap_or_else(|| -> PyResult<_> {
-                let mut method = Method::load(
-                    py_manager,
-                    class
-                        .getattr(intern!(class.py(), "__init__"))
-                        .unwrap()
-                        .cast_into()
-                        .unwrap(),
-                    &module,
-                    "__init__".to_string(),
-                )?;
-                method.inner = class.clone().unbind().into_any();
-                Ok(Arc::new(method))
-            })?;
 
         Ok(Self {
             name,
@@ -256,7 +249,6 @@ impl Class {
             inner: class.unbind(),
             module: module_name,
             methods,
-            create_method,
             properties,
         })
     }

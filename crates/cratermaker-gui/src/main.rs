@@ -1,6 +1,7 @@
 pub mod context_menu;
 pub mod loader;
 pub mod pythonio;
+pub mod surface_view;
 
 use iced::widget::scrollable;
 use std::sync::{Arc, RwLock};
@@ -9,12 +10,13 @@ use iced::{
     Element, Length, Point, Task,
     widget::{button, column, container, opaque, row, scrollable::Scrollbar, space, text},
 };
-use pyo3::prelude::*;
+use pyo3::{intern, prelude::*, types::IntoPyDict};
 
 use crate::{
     context_menu::{context_area, context_menu},
     loader::{Class, Method, PythonManager},
     pythonio::PythonIO,
+    surface_view::{SurfaceView, view_surface},
 };
 
 #[derive(Debug)]
@@ -76,19 +78,7 @@ fn view_variable_pane(variables: &Variables) -> Element<'_, Message> {
 fn view_variable_info(variable: Option<&Arc<RwLock<Variable>>>) -> Element<'_, Message> {
     let mut col = column!["Variable Info",].spacing(6).padding(2);
     col = if let Some(variable) = variable {
-        let lock = variable.read().unwrap();
-        if let Some(class) = &lock.class {
-            Python::attach(|py| {
-                col.extend(class.properties.iter().map(|(name, value)| {
-                    let value = value
-                        .get(&lock.value.bind(py))
-                        .map_or_else(|e| e.to_string(), |v| v.to_string());
-                    text(format!("{}: {}", name, value)).into()
-                }))
-            })
-        } else {
-            col.push(text(lock.value.to_string()))
-        }
+        col.push(text(variable.read().unwrap().value.to_string()))
     } else {
         col.push(text("No variable selected.").style(text::secondary))
     };
@@ -152,9 +142,9 @@ impl ContextMenuTarget {
 
 struct App {
     py_manager: Arc<RwLock<PythonManager>>,
-    simulation_class: Arc<Class>,
     variables: Variables,
-    pythonio_pane: PythonIO,
+    pythonio: PythonIO,
+    surface_view: Option<SurfaceView>,
     context_menu_pos: Option<Point>,
     context_menu_target: Option<ContextMenuTarget>,
 }
@@ -165,6 +155,7 @@ enum Message {
     AddVariable(Arc<RwLock<Variable>>),
     RunMethod(Arc<RwLock<Variable>>, Arc<Method>),
     PythonIO(pythonio::Message),
+    SurfaceView(surface_view::Message),
     OpenContextMenu(Point, ContextMenuTarget),
     CloseContextMenu,
     FocusVariable(Arc<RwLock<Variable>>),
@@ -175,37 +166,38 @@ impl App {
     fn boot() -> (Self, Task<Message>) {
         Python::attach(|py| {
             let (pythonio_pane, task) = PythonIO::setup(py);
-            let mut py_manager: PythonManager = Default::default();
             (
                 Self {
-                    simulation_class: py_manager
-                        .get_or_import_module(py, "cratermaker.core.simulation")
-                        .unwrap()
-                        .get_class("Simulation")
-                        .unwrap(),
-                    py_manager: Arc::new(RwLock::new(py_manager)),
+                    py_manager: Default::default(),
                     variables: Default::default(),
-                    pythonio_pane,
+                    pythonio: pythonio_pane,
                     context_menu_pos: None,
                     context_menu_target: None,
+                    surface_view: None,
                 },
                 task.map(Message::PythonIO),
             )
         })
     }
     fn run() -> iced::Result {
-        iced::application(Self::boot, Self::update, Self::view).run()
+        iced::application(Self::boot, Self::update, Self::view)
+            .title("Cratermaker GUI")
+            .run()
     }
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::CreateSimulation => {
-                let simulation_class = self.simulation_class.clone();
-
+                let py_manager = self.py_manager.clone();
                 Task::perform(
-                    tokio::task::spawn_blocking(|| {
-                        let value = Python::attach(|py| {
-                            simulation_class.create_method.inner.call0(py).unwrap()
-                        });
+                    tokio::task::spawn_blocking(move || {
+                        let simulation_class = py_manager
+                            .write()
+                            .unwrap()
+                            .get_or_import_module_unbound("cratermaker.core.simulation")
+                            .unwrap()
+                            .get_class("Simulation")
+                            .expect("cratermaker.core.simulation.Simulation should exist");
+                        let value = Python::attach(|py| simulation_class.inner.call0(py).unwrap());
                         let variable = Variable {
                             name: "simulation".to_string(),
                             class: Some(simulation_class),
@@ -222,7 +214,7 @@ impl App {
                 Task::none()
             }
             Message::PythonIO(message) => {
-                self.pythonio_pane.update(message);
+                self.pythonio.update(message);
                 Task::none()
             }
             Message::OpenContextMenu(point, target) => {
@@ -275,6 +267,16 @@ impl App {
                     }
                 }
                 variable.write().unwrap().focused = true;
+
+                self.surface_view = Python::attach(|py| {
+                    SurfaceView::new(
+                        &mut *self.py_manager.write().unwrap(),
+                        variable.read().unwrap().value.bind(py).clone(),
+                    )
+                })
+                .unwrap()
+                .or(self.surface_view.take());
+
                 self.variables.selected_variable = Some(variable);
                 Task::none()
             }
@@ -292,6 +294,10 @@ impl App {
                     .style(container::bordered_box)
                     .width(Length::FillPortion(1))
                     .height(Length::Fill),
+                container(view_surface(self.surface_view.as_ref()).map(Message::SurfaceView))
+                    .style(container::bordered_box)
+                    .width(Length::FillPortion(3))
+                    .height(Length::Fill),
                 container(view_variable_info(
                     self.variables.selected_variable.as_ref()
                 ))
@@ -302,7 +308,7 @@ impl App {
             .spacing(2)
             .width(Length::Fill)
             .height(Length::FillPortion(2)),
-            container(self.pythonio_pane.view().map(Message::PythonIO))
+            container(self.pythonio.view().map(Message::PythonIO))
                 .width(Length::Fill)
                 .height(Length::FillPortion(1)),
         ]

@@ -80,7 +80,7 @@ class Simulation(CratermakerBase):
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
-        reset: bool = None,
+        reset: bool | None = None,
         ask_overwrite: bool = True,
         do_counting: bool = True,
         save_actions: list[dict[str, dict]] | None = None,
