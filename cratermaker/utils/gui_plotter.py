@@ -215,7 +215,7 @@ class GuiPlotter(BasePlotter):
     def set_size(self, width: int, height: int):
         self.render_window.SetSize(width, height)  # type: ignore[union-attr]
 
-    def size(self) -> tuple[int, int]:
+    def get_size(self) -> tuple[int, int]:
         return self.render_window.GetSize()  # type: ignore[union-attr]
 
     def frame_data(self):

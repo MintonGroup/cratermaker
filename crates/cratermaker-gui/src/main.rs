@@ -10,7 +10,7 @@ use iced::{
     Element, Length, Point, Task,
     widget::{button, column, container, opaque, row, scrollable::Scrollbar, space, text},
 };
-use pyo3::{intern, prelude::*, types::IntoPyDict};
+use pyo3::prelude::*;
 
 use crate::{
     context_menu::{context_area, context_menu},
