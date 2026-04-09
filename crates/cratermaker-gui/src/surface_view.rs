@@ -91,7 +91,6 @@ impl<'a, Message> canvas::Program<Message> for Viewer<'a> {
                     .call_method1(intern!(py, "set_size"), &(width, height))
                     .unwrap();
             }
-            plotter.call_method0(intern!(py, "render")).unwrap();
             let ptr_string = plotter
                 .call_method0(intern!(py, "frame_data"))
                 .unwrap()
