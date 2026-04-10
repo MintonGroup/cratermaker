@@ -1,13 +1,14 @@
-use std::ptr::slice_from_raw_parts;
+use std::{iter, ptr::slice_from_raw_parts};
 
 use iced::{
-    Element, Length, Rectangle, Renderer, Theme,
+    Element, Length, Point, Rectangle, Renderer, Theme,
     advanced::{image, mouse::Cursor},
     widget::{canvas, text},
 };
-use pyo3::{intern, prelude::*, types::IntoPyDict};
+use itertools::Itertools;
+use pyo3::{IntoPyObjectExt, intern, prelude::*, types::IntoPyDict};
 
-use crate::loader::PythonManager;
+use crate::{keysym::keysym_from_key, loader::PythonManager};
 
 #[derive(Debug, Clone)]
 pub enum Message {}
@@ -36,7 +37,13 @@ impl SurfaceView {
         object.call_method(
             intern!(object.py(), "pyvista_plotter"),
             (),
-            Some(&[("plotter", &plotter)].into_py_dict(object.py())?),
+            Some(
+                &[
+                    ("plotter", &plotter),
+                    ("setup_plotter", &true.into_bound_py_any(object.py())?),
+                ]
+                .into_py_dict(object.py())?,
+            ),
         )?;
         plotter.call_method0(intern!(object.py(), "show"))?;
         Ok(Some(Self {
@@ -65,6 +72,7 @@ struct Viewer<'a> {
 struct ViewerState {
     scroll_diff_x: f32,
     scroll_diff_y: f32,
+    cursor_pos: Point,
 }
 
 impl<'a, Message> canvas::Program<Message> for Viewer<'a> {
@@ -98,9 +106,16 @@ impl<'a, Message> canvas::Program<Message> for Viewer<'a> {
                 .unwrap();
             let ptr_int = usize::from_str_radix(ptr_string.split('_').nth(1).unwrap(), 16).unwrap();
             let pixels = unsafe {
-                slice_from_raw_parts(ptr_int as *const u8, width * height * 4)
+                slice_from_raw_parts(ptr_int as *const u8, width * height * 3)
                     .as_ref()
                     .unwrap()
+                    .rchunks_exact(width * 3)
+                    .into_iter()
+                    .flatten()
+                    .chunks(3)
+                    .into_iter()
+                    .flat_map(|chunk| chunk.cloned().chain(iter::once(255)))
+                    .collect_vec()
             };
             canvas::Image::new(image::Handle::from_rgba(
                 width as u32,
@@ -118,199 +133,228 @@ impl<'a, Message> canvas::Program<Message> for Viewer<'a> {
         state: &mut Self::State,
         event: &iced::Event,
         bounds: Rectangle,
-        cursor: Cursor,
+        _cursor: Cursor,
     ) -> Option<canvas::Action<Message>> {
-        if let Cursor::Available(cursor_pos) = cursor
-            && bounds.contains(cursor_pos)
-        {
-            let cursor_pos_in_viewer = cursor_pos - bounds.position();
-            Python::attach(|py| {
-                let interactor = self
-                    .plotter
-                    .bind(py)
-                    .call_method0(intern!(py, "get_interactor"))
-                    .unwrap();
+        let cursor_pos_in_bounds = state.cursor_pos - bounds.position();
+        Python::attach(|py| {
+            let interactor = self
+                .plotter
+                .bind(py)
+                .call_method0(intern!(py, "get_interactor"))
+                .unwrap();
 
-                interactor
-                    .call_method1(
-                        intern!(py, "SetEventPosition"),
-                        (cursor_pos_in_viewer.x as i32, cursor_pos_in_viewer.y as i32),
-                    )
-                    .unwrap();
-                match event {
-                    iced::Event::Keyboard(event) => match event {
-                        iced::keyboard::Event::KeyPressed {
-                            key,
-                            modified_key: _,
-                            physical_key,
-                            location: _,
-                            modifiers,
-                            text: _,
-                            repeat,
-                        } => {
-                            let ctrl = modifiers.control() as i32;
-                            let alt = modifiers.alt() as i32;
-                            let repeat_count = *repeat as i32;
-                            let keycode = key.to_latin(physical_key.clone()).unwrap_or_default();
+            interactor
+                .call_method1(
+                    intern!(py, "SetEventPositionFlipY"),
+                    (cursor_pos_in_bounds.x as i32, cursor_pos_in_bounds.y as i32),
+                )
+                .unwrap();
+            let res = match event {
+                iced::Event::Keyboard(event) if bounds.contains(state.cursor_pos) => match event {
+                    iced::keyboard::Event::KeyPressed {
+                        key,
+                        modified_key: _,
+                        physical_key,
+                        location: _,
+                        modifiers,
+                        text: _,
+                        repeat,
+                    } => {
+                        let ctrl = modifiers.control() as i32;
+                        let alt = modifiers.alt() as i32;
+                        let repeat_count = *repeat as i32;
+                        let keycode = key.to_latin(*physical_key);
+                        interactor
+                            .call_method1(
+                                intern!(py, "SetKeyEventInformation"),
+                                (
+                                    ctrl,
+                                    alt,
+                                    keycode.unwrap_or_default(),
+                                    repeat_count,
+                                    unsafe {
+                                        char::from_u32_unchecked(keysym_from_key(key.clone()).raw())
+                                    },
+                                ),
+                            )
+                            .unwrap();
+                        interactor
+                            .call_method0(intern!(py, "KeyPressEvent"))
+                            .unwrap();
+                        if keycode.is_some() {
+                            interactor.call_method0(intern!(py, "CharEvent")).unwrap();
+                        }
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::keyboard::Event::KeyReleased {
+                        key: _,
+                        modified_key,
+                        physical_key,
+                        location: _,
+                        modifiers,
+                    } => {
+                        let ctrl = modifiers.control() as i32;
+                        let alt = modifiers.alt() as i32;
+                        let keycode = modified_key
+                            .to_latin(physical_key.clone())
+                            .unwrap_or_default();
+                        interactor
+                            .call_method1(
+                                intern!(py, "SetKeyEventInformation"),
+                                (ctrl, alt, keycode),
+                            )
+                            .unwrap();
+                        interactor
+                            .call_method0(intern!(py, "KeyReleaseEvent"))
+                            .unwrap();
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::keyboard::Event::ModifiersChanged(modifiers) => {
+                        let ctrl = modifiers.control() as i32;
+                        let shift = modifiers.shift() as i32;
+                        let alt = modifiers.alt() as i32;
+                        interactor
+                            .call_method1(intern!(py, "SetControlKey"), (ctrl,))
+                            .unwrap();
+                        interactor
+                            .call_method1(intern!(py, "SetShiftKey"), (shift,))
+                            .unwrap();
+                        interactor
+                            .call_method1(intern!(py, "SetAltKey"), (alt,))
+                            .unwrap();
+                        Some(canvas::Action::capture())
+                    }
+                },
+                iced::Event::Mouse(event) => match event {
+                    iced::mouse::Event::CursorEntered => {
+                        interactor.call_method0(intern!(py, "EnterEvent")).unwrap();
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::mouse::Event::CursorLeft => {
+                        interactor.call_method0(intern!(py, "LeaveEvent")).unwrap();
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::mouse::Event::CursorMoved { position } => {
+                        state.cursor_pos = *position;
+                        let cursor_pos_in_bounds = state.cursor_pos - bounds.position();
+
+                        if bounds.contains(state.cursor_pos) {
                             interactor
                                 .call_method1(
-                                    intern!(py, "SetKeyEventInformation"),
-                                    (ctrl, alt, keycode, repeat_count),
+                                    intern!(py, "SetEventPositionFlipY"),
+                                    (cursor_pos_in_bounds.x as i32, cursor_pos_in_bounds.y as i32),
                                 )
                                 .unwrap();
-                            interactor
-                                .call_method0(intern!(py, "KeyPressEvent"))
-                                .unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::keyboard::Event::KeyReleased {
-                            key: _,
-                            modified_key,
-                            physical_key,
-                            location: _,
-                            modifiers,
-                        } => {
-                            let ctrl = modifiers.control() as i32;
-                            let alt = modifiers.alt() as i32;
-                            let keycode = modified_key
-                                .to_latin(physical_key.clone())
-                                .unwrap_or_default();
-                            interactor
-                                .call_method1(
-                                    intern!(py, "SetKeyEventInformation"),
-                                    (ctrl, alt, keycode),
-                                )
-                                .unwrap();
-                            interactor
-                                .call_method0(intern!(py, "KeyReleaseEvent"))
-                                .unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::keyboard::Event::ModifiersChanged(modifiers) => {
-                            let ctrl = modifiers.control() as i32;
-                            let shift = modifiers.shift() as i32;
-                            let alt = modifiers.alt() as i32;
-                            interactor
-                                .call_method1(intern!(py, "SetControlKey"), (ctrl,))
-                                .unwrap();
-                            interactor
-                                .call_method1(intern!(py, "SetShiftKey"), (shift,))
-                                .unwrap();
-                            interactor
-                                .call_method1(intern!(py, "SetAltKey"), (alt,))
-                                .unwrap();
-                            Some(canvas::Action::capture())
-                        }
-                    },
-                    iced::Event::Mouse(event) => match event {
-                        iced::mouse::Event::CursorEntered => {
-                            interactor.call_method0(intern!(py, "EnterEvent")).unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::mouse::Event::CursorLeft => {
-                            interactor.call_method0(intern!(py, "LeaveEvent")).unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::mouse::Event::CursorMoved { position: _ } => {
                             interactor
                                 .call_method0(intern!(py, "MouseMoveEvent"))
                                 .unwrap();
                             Some(canvas::Action::request_redraw().and_capture())
+                        } else {
+                            None
                         }
-                        iced::mouse::Event::ButtonPressed(button) => {
-                            interactor
-                                .call_method0(match button {
-                                    iced::mouse::Button::Left => {
-                                        intern!(py, "LeftButtonPressEvent")
-                                    }
-                                    iced::mouse::Button::Right => {
-                                        intern!(py, "RightButtonPressEvent")
-                                    }
-                                    iced::mouse::Button::Middle => {
-                                        intern!(py, "MiddleButtonPressEvent")
-                                    }
-                                    iced::mouse::Button::Back => {
-                                        intern!(py, "FourthButtonPressEvent")
-                                    }
-                                    iced::mouse::Button::Forward => {
-                                        intern!(py, "FifthButtonPressEvent")
-                                    }
-                                    _ => return None,
-                                })
-                                .unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::mouse::Event::ButtonReleased(button) => {
-                            interactor
-                                .call_method0(match button {
-                                    iced::mouse::Button::Left => {
-                                        intern!(py, "LeftButtonReleaseEvent")
-                                    }
-                                    iced::mouse::Button::Right => {
-                                        intern!(py, "RightButtonReleaseEvent")
-                                    }
-                                    iced::mouse::Button::Middle => {
-                                        intern!(py, "MiddleButtonReleaseEvent")
-                                    }
-                                    iced::mouse::Button::Back => {
-                                        intern!(py, "FourthButtonReleaseEvent")
-                                    }
-                                    iced::mouse::Button::Forward => {
-                                        intern!(py, "FifthButtonReleaseEvent")
-                                    }
-                                    _ => return None,
-                                })
-                                .unwrap();
-                            Some(canvas::Action::request_redraw().and_capture())
-                        }
-                        iced::mouse::Event::WheelScrolled { delta } => {
-                            let (x, y) = match delta {
-                                iced::mouse::ScrollDelta::Lines { x, y } => (*x, *y),
-                                iced::mouse::ScrollDelta::Pixels { x, y } => (*x / 20.0, *y / 20.0),
-                            };
-                            state.scroll_diff_x += x;
-                            state.scroll_diff_y += y;
-                            let mut request_redraw = false;
-                            while state.scroll_diff_x < -1.0 {
-                                interactor
-                                    .call_method0(intern!(py, "MouseWheelLeftEvent"))
-                                    .unwrap();
-                                state.scroll_diff_x += 1.0;
-                                request_redraw = true;
-                            }
-                            while state.scroll_diff_x > 1.0 {
-                                interactor
-                                    .call_method0(intern!(py, "MouseWheelRightEvent"))
-                                    .unwrap();
-                                state.scroll_diff_x -= 1.0;
-                                request_redraw = true;
-                            }
-                            while state.scroll_diff_y < -1.0 {
-                                interactor
-                                    .call_method0(intern!(py, "MouseWheelBackwardEvent"))
-                                    .unwrap();
-                                state.scroll_diff_y += 1.0;
-                                request_redraw = true;
-                            }
-                            while state.scroll_diff_y > 1.0 {
-                                interactor
-                                    .call_method0(intern!(py, "MouseWheelForwardEvent"))
-                                    .unwrap();
-                                state.scroll_diff_y -= 1.0;
-                                request_redraw = true;
-                            }
-                            Some(if request_redraw {
-                                canvas::Action::request_redraw().and_capture()
-                            } else {
-                                canvas::Action::capture()
+                    }
+                    iced::mouse::Event::ButtonPressed(button)
+                        if bounds.contains(state.cursor_pos) =>
+                    {
+                        interactor
+                            .call_method0(match button {
+                                iced::mouse::Button::Left => {
+                                    intern!(py, "LeftButtonPressEvent")
+                                }
+                                iced::mouse::Button::Right => {
+                                    intern!(py, "RightButtonPressEvent")
+                                }
+                                iced::mouse::Button::Middle => {
+                                    intern!(py, "MiddleButtonPressEvent")
+                                }
+                                iced::mouse::Button::Back => {
+                                    intern!(py, "FourthButtonPressEvent")
+                                }
+                                iced::mouse::Button::Forward => {
+                                    intern!(py, "FifthButtonPressEvent")
+                                }
+                                _ => return None,
                             })
+                            .unwrap();
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::mouse::Event::ButtonReleased(button)
+                        if bounds.contains(state.cursor_pos) =>
+                    {
+                        interactor
+                            .call_method0(match button {
+                                iced::mouse::Button::Left => {
+                                    intern!(py, "LeftButtonReleaseEvent")
+                                }
+                                iced::mouse::Button::Right => {
+                                    intern!(py, "RightButtonReleaseEvent")
+                                }
+                                iced::mouse::Button::Middle => {
+                                    intern!(py, "MiddleButtonReleaseEvent")
+                                }
+                                iced::mouse::Button::Back => {
+                                    intern!(py, "FourthButtonReleaseEvent")
+                                }
+                                iced::mouse::Button::Forward => {
+                                    intern!(py, "FifthButtonReleaseEvent")
+                                }
+                                _ => return None,
+                            })
+                            .unwrap();
+                        Some(canvas::Action::request_redraw().and_capture())
+                    }
+                    iced::mouse::Event::WheelScrolled { delta }
+                        if bounds.contains(state.cursor_pos) =>
+                    {
+                        let (x, y) = match delta {
+                            iced::mouse::ScrollDelta::Lines { x, y } => (*x, *y),
+                            iced::mouse::ScrollDelta::Pixels { x, y } => (*x / 20.0, *y / 20.0),
+                        };
+                        state.scroll_diff_x += x;
+                        state.scroll_diff_y += y;
+                        let mut request_redraw = false;
+                        while state.scroll_diff_x < -1.0 {
+                            interactor
+                                .call_method0(intern!(py, "MouseWheelLeftEvent"))
+                                .unwrap();
+                            state.scroll_diff_x += 1.0;
+                            request_redraw = true;
                         }
-                    },
+                        while state.scroll_diff_x > 1.0 {
+                            interactor
+                                .call_method0(intern!(py, "MouseWheelRightEvent"))
+                                .unwrap();
+                            state.scroll_diff_x -= 1.0;
+                            request_redraw = true;
+                        }
+                        while state.scroll_diff_y < -1.0 {
+                            interactor
+                                .call_method0(intern!(py, "MouseWheelBackwardEvent"))
+                                .unwrap();
+                            state.scroll_diff_y += 1.0;
+                            request_redraw = true;
+                        }
+                        while state.scroll_diff_y > 1.0 {
+                            interactor
+                                .call_method0(intern!(py, "MouseWheelForwardEvent"))
+                                .unwrap();
+                            state.scroll_diff_y -= 1.0;
+                            request_redraw = true;
+                        }
+                        Some(if request_redraw {
+                            canvas::Action::request_redraw().and_capture()
+                        } else {
+                            canvas::Action::capture()
+                        })
+                    }
                     _ => None,
-                }
-            })
-        } else {
-            None
-        }
+                },
+                _ => None,
+            };
+            interactor
+                .call_method0(intern!(py, "ProcessEvents"))
+                .unwrap();
+            res
+        })
     }
 }

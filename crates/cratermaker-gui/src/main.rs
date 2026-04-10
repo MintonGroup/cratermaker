@@ -1,4 +1,5 @@
 pub mod context_menu;
+pub mod keysym;
 pub mod loader;
 pub mod pythonio;
 pub mod surface_view;

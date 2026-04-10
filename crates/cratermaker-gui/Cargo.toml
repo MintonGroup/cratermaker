@@ -9,3 +9,4 @@ itertools = "0.14.0"
 pyo3 = {version="0.27", features=["auto-initialize"]}
 tokio = { version = "1.50.0", features = ["full"] }
 tokio-stream = "0.1.18"
+xkeysym = "0.2.1"

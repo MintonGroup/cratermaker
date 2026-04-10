@@ -18,10 +18,6 @@ class GuiPlotter(BasePlotter):
 
     Parameters
     ----------
-    off_screen : bool, optional
-        Renders off screen when ``True``.  Useful for automated
-        screenshots.
-
     notebook : bool, optional
         When ``True``, the resulting plot is placed inline a jupyter
         notebook.  Assumes a jupyter console is active.  Automatically
@@ -155,11 +151,15 @@ class GuiPlotter(BasePlotter):
         self.render_window.ShowWindowOff()  # type: ignore[union-attr]
 
         # Add ren win and interactor
-        self.iren = RenderWindowInteractor(self, light_follow_camera=False)
+        interactor = vtk.vtkGenericRenderWindowInteractor()
+        interactor.EnableRenderOff()
+
+        self.iren = RenderWindowInteractor(self, light_follow_camera=False, interactor=interactor)
         self.iren.set_render_window(self.render_window)
-        self.reset_key_events()
         self.enable_trackball_style()  # type: ignore[call-arg] # internally calls update_style()
-        self.iren.add_observer("KeyPressEvent", self.key_press_event)
+        self.reset_key_events()
+        self.iren.initialize()
+        self.iren.add_observer("KeyPressEvent", self.key_press_event)  # type: ignore[union-attr]
 
         # Set camera widget based on theme. This requires that an
         # interactor be present.
@@ -220,21 +220,11 @@ class GuiPlotter(BasePlotter):
 
     def frame_data(self):
         self.render_window.MakeCurrent()  # type: ignore[union-attr]
-        off = not self.render_window.GetInteractor().GetEnableRender()  # type: ignore[union-attr]
-        if off:
-            self.render_window.GetInteractor().EnableRenderOn()  # type: ignore[union-attr]
-        imfilter = vtk.vtkWindowToImageFilter()
-        imfilter.SetInput(self.render_window)
-        imfilter.FixBoundaryOn()
-        imfilter.ShouldRerenderOff()
-        imfilter.ReadFrontBufferOff()
-        imfilter.SetInputBufferTypeToRGBA()
-        imfilter.Modified()
-        imfilter.Update()
-        image = imfilter.GetOutput()
-        data = image.GetScalarPointer()
-        if off:
-            self.render_window.GetInteractor().EnableRenderOff()  # type: ignore[union-attr]
+        width, height = self.get_size()
+        self.get_interactor().EnableRenderOn()  # type: ignore[union-attr]
+        self.get_interactor().Render()  # type: ignore[union-attr]
+        self.get_interactor().EnableRenderOff()  # type: ignore[union-attr]
+        data = self.render_window.GetPixelData(0, 0, width - 1, height - 1, 0, 0)  # type: ignore[union-attr]
         return data
 
     def get_interactor(self):

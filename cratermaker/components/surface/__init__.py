@@ -3568,6 +3568,7 @@ class LocalSurface(CratermakerBase):
         transparent_background: bool | None = None,
         plotter: pv.Plotter | None = None,
         enable_interactive: bool = True,
+        setup_plotter: bool = False,
         **kwargs: Any,
     ) -> pv.Plotter:
         """
@@ -3589,6 +3590,8 @@ class LocalSurface(CratermakerBase):
             A pre-existing Plotter object to use. If None, then a new one will be created and returned. Default is None.
         enable_interactive : bool, optional
             If True, the default PyVista key events will be updated to include custom events for toggling scalar visibility, changing the camera view, and showing a help message. Default is True.
+        setup_plotter : bool, optional
+            If True and a plotter is passed in, setup operations will still be ran on it. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -3698,6 +3701,7 @@ class LocalSurface(CratermakerBase):
         new_plotter = plotter is None
         if new_plotter:
             plotter = pv.Plotter()
+        if new_plotter or setup_plotter:
             plotter.enable_hidden_line_removal()
 
         if interval is None:
@@ -3707,7 +3711,7 @@ class LocalSurface(CratermakerBase):
             interval = None
         mesh = self.to_vtk_mesh(uxds)
 
-        if new_plotter:
+        if new_plotter or setup_plotter:
             reset_view(plotter)
 
         face_variables = []
@@ -3756,14 +3760,14 @@ class LocalSurface(CratermakerBase):
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)
-        if new_plotter and self.is_global:
+        if (new_plotter or setup_plotter) and self.is_global:
             plotter.view_yz()
 
         if variable_name is None:
             mesh_actor.mapper.SetScalarVisibility(False)
         else:
             plotter.add_scalar_bar(title=title, mapper=mesh_actor.mapper)
-        if enable_interactive and new_plotter:
+        if enable_interactive:
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
             plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
             plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
