@@ -26,7 +26,7 @@ pyvista.BUILDING_GALLERY = True
 pyvista.OFF_SCREEN = True
 os.environ["PYVISTA_BUILDING_GALLERY"] = "true"
 
-sys.path.insert(0, os.path.abspath("_exts"))
+sys.path.insert(0, str(Path("_exts").resolve()))
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -38,7 +38,6 @@ extensions = [
     "sphinx.ext.doctest",
     "IPython.sphinxext.ipython_directive",
     "IPython.sphinxext.ipython_console_highlighting",
-    "sphinx_autosummary_accessors",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
