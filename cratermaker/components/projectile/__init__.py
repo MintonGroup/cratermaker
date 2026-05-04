@@ -230,8 +230,8 @@ class Projectile(ComponentBase):
         from cratermaker.components.projectile.comets import CometProjectiles
         from cratermaker.components.target import Target
 
+        target = Target.maker(target, **kwargs)
         if projectile is None:
-            target = Target.maker(target, **kwargs)
             if target.name in AsteroidProjectiles._catalogue:
                 projectile = "asteroids"
             elif target.name in CometProjectiles._catalogue:
@@ -241,7 +241,14 @@ class Projectile(ComponentBase):
                 mean_velocity = 20.0e3 if mean_velocity is None else mean_velocity
 
         # if this is a brand new uninstantiated projectile, we need to flag it so that it its properties can be set propertly. Otherwise, it should just pass through as is.
-        isfresh = isinstance(projectile, str)
+        isfresh = (
+            isinstance(projectile, str)
+            or velocity is not None
+            or angle is not None
+            or direction is not None
+            or location is not None
+            or density is not None
+        )
 
         projectile = super().maker(
             component=projectile,
@@ -264,6 +271,7 @@ class Projectile(ComponentBase):
                 angle=angle,
                 direction=direction,
                 location=location,
+                density=density,
                 **kwargs,
             )
         else:
@@ -275,6 +283,7 @@ class Projectile(ComponentBase):
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
         location: tuple[float, float] | None = None,
+        density: FloatLike | None = None,
         **kwargs: Any,
     ) -> Self:
         """
@@ -290,6 +299,8 @@ class Projectile(ComponentBase):
             The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False.
         location : tuple[float, float] | None
             The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
+        density : float | None
+            The density of the projectile in kg/m³. If None, the density will be the default for this Projectile type.
         **kwargs : Any
             |kwargs|
 
@@ -335,6 +346,9 @@ class Projectile(ComponentBase):
             new_obj._location = mc.get_random_location(rng=new_obj.rng)[0]
         elif new_obj._location is None:
             new_obj._location = (0, 0)
+
+        if density is not None:
+            new_obj.density = density
 
         return new_obj
 

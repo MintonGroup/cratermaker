@@ -991,7 +991,7 @@ class Crater(ComponentBase):
             projectile = Projectile.maker(
                 projectile,
                 target=target,
-                **kwargs,
+                **{**projectile_args, **kwargs},
             ).new_projectile(
                 **projectile_args,
             )
