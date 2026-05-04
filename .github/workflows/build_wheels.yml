@@ -41,7 +41,11 @@ jobs:
 
       - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
         if: runner.os == 'macOS'
-        run: brew install gdal openssl@3 openblas
+        run: |
+          brew install openssl@3 openblas gcc
+          GCC_VER=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
+          GCC_LIB="$(brew --prefix gcc)/lib/gcc/${GCC_VER}"
+          echo "DYLD_LIBRARY_PATH=${GCC_LIB}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" >> $GITHUB_ENV
 
       - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
