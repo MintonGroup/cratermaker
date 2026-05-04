@@ -424,7 +424,6 @@ class HiResLocalSurface(Surface):
 
     def set_superdomain(
         self,
-        scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
         reset: bool = False,
         regrid: bool = False,
@@ -437,8 +436,6 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        scaling : Scaling | str | None, optional
-            The scaling model to use. If None, the default scaling model will be used.
         morphology : Morphology | str | None, optional
             The morphology model to use. If None, the default morphology model will be used.
         reset : bool, optional
@@ -452,11 +449,10 @@ class HiResLocalSurface(Surface):
 
         from cratermaker import Crater
 
-        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
         antipode_distance = np.pi * self.target.radius
-        projectile_velocity = scaling.projectile.mean_velocity * 10
+        projectile_velocity = morphology.scaling.projectile.mean_velocity * 10
 
         distance = 1.0
         dvals = []
@@ -468,10 +464,9 @@ class HiResLocalSurface(Surface):
                 np.log10(self.target.radius * 2),
                 1000,
             ):
-                crater = Crater.maker(
+                crater = morphology.Crater.maker(
                     diameter=diameter,
                     angle=90.0,
-                    scaling=scaling,
                     projectile_velocity=projectile_velocity,
                 )
                 rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
@@ -495,7 +490,7 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
+        self._load_from_files(reset=reset, regrid=regrid, **kwargs)
         return
 
     def set_face_proj(self):

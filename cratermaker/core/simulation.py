@@ -211,6 +211,7 @@ class Simulation(CratermakerBase):
             surface=self.surface,
             production=self.production,
             counting=self.counting,
+            scaling=self.scaling,
             **morphology_config,
         )
 
@@ -218,7 +219,6 @@ class Simulation(CratermakerBase):
         # This is because when creating a new Surface object of this type, the grid generation is deferred until the Scaling and Morphology objects are initialized in order to set the superdomain properly.
         if issubclass(self.surface.__class__, HiResLocalSurface) and self.surface.uxgrid is None:
             self.surface.set_superdomain(
-                scaling=self.scaling,
                 morphology=self.morphology,
                 reset=self.is_new,
                 **surface_config,
@@ -786,7 +786,6 @@ class Simulation(CratermakerBase):
                     self.Crater.maker(
                         location=location,
                         time=time,
-                        scaling=self.scaling,
                         **diam_arg,
                         **vars(self.common_args),
                         **kwargs,
@@ -862,8 +861,6 @@ class Simulation(CratermakerBase):
             sim.emplace(craters)
 
         """
-        if craters is None and "scaling" not in kwargs:
-            kwargs["scaling"] = self.scaling
         self.is_new = False
         return self.morphology.emplace(craters=craters, **kwargs)
 
@@ -1435,7 +1432,6 @@ class Simulation(CratermakerBase):
                 projectile_diameter=projectile_diameter,
                 angle=angle,
                 projectile_velocity=projectile_velocity,
-                scaling=scaling,
                 **vars(self.common_args),
             ).diameter
             if limit == "smallest":
@@ -1452,7 +1448,6 @@ class Simulation(CratermakerBase):
                 diameter=crater_diameter,
                 angle=angle,
                 projectile_velocity=projectile_velocity,
-                scaling=scaling,
                 **vars(self.common_args),
             ).projectile_diameter
             return float(projectile_diameter)
@@ -1628,7 +1623,10 @@ class Simulation(CratermakerBase):
             return self.production.diameter_range[0]
         elif self.production.generator_type == "projectile":
             projectile_diameter = self.production.diameter_range[0]
-            return self._get_diameter_limit("smallest", projectile_diameter=projectile_diameter)
+            if projectile_diameter > 0:
+                return self._get_diameter_limit("smallest", projectile_diameter=projectile_diameter)
+            else:
+                return projectile_diameter
 
     @smallest_crater.setter
     def smallest_crater(self, value):
@@ -1659,7 +1657,10 @@ class Simulation(CratermakerBase):
             return self.production.diameter_range[1]
         elif self.production.generator_type == "projectile":
             projectile_diameter = self.production.diameter_range[1]
-            return self._get_diameter_limit("largest", projectile_diameter=projectile_diameter)
+            if not np.isinf(projectile_diameter):
+                return self._get_diameter_limit("largest", projectile_diameter=projectile_diameter)
+            else:
+                return projectile_diameter
 
     @largest_crater.setter
     def largest_crater(self, value):
