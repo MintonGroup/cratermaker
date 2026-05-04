@@ -41,7 +41,7 @@ jobs:
 
       - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
         if: runner.os == 'macOS'
-        run: brew install coreutils gcc openssl@3 openblas
+        run: brew install gdal openssl@3 openblas
 
       - name: Install OpenBLAS via vcpkg (Windows)
         if: runner.os == 'Windows'
