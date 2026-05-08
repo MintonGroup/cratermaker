@@ -104,13 +104,13 @@ class BasicMoonCrater(MorphologyCrater):
         if crater.morphology_type in ["simple", "transitional"]:
             args["rim_height"] = 0.043 * diameter_km**1.014 * 1e3
             args["rim_width"] = 0.257 * diameter_km**1.011 * 1e3
-            args["floor_depth"] = -0.224 * diameter_km**1.010 * 1e3
+            args["floor_depth"] = -0.224 * diameter_km**1.010 * 1e3 + args["rim_height"]
             args["floor_diameter"] = 0.200 * diameter_km**1.143 * 1e3
             args["peak_height"] = None
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
             args["rim_height"] = 0.236 * diameter_km**0.399 * 1e3
             args["rim_width"] = 0.467 * diameter_km**0.836 * 1e3
-            args["floor_depth"] = -1.044 * diameter_km**0.301 * 1e3
+            args["floor_depth"] = -1.044 * diameter_km**0.301 * 1e3 + args["rim_height"]
             args["floor_diameter"] = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
             args["peak_height"] = 0.032 * diameter_km**0.900 * 1e3
         else:
@@ -451,7 +451,7 @@ class BasicMoonMorphology(Morphology):
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
         intensity = morphology_bindings.ray_intensity(
-            radial_distance=rflat,
+            radial_distances=rflat,
             initial_bearing=np.radians(theta_flat),
             crater_diameter=crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),

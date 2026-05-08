@@ -51,7 +51,7 @@ pub fn crater_profile<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
-    diameter: f64,
+    crater_diameter: f64,
     floor_depth: f64,
     floor_diameter: f64,
     rim_height: f64,
@@ -62,7 +62,7 @@ pub fn crater_profile<'py>(
     let result = cratermaker_components::morphology::basicmoon::crater_profile(
         radial_distances_v,
         reference_elevations_v,
-        diameter,
+        crater_diameter,
         floor_depth,
         floor_diameter,
         rim_height,
@@ -79,7 +79,7 @@ pub fn crater_profile<'py>(
 /// # Arguments
 ///
 /// * `py` - Python GIL token.
-/// * `radial_distance` - 1D array of radial distances from crater center.
+/// * `radial_distances` - 1D array of radial distances from crater center.
 /// * `crater_diameter` - Diameter of the crater (meters).
 /// * `ejrim` - Profile scaling factor.
 ///
@@ -89,13 +89,13 @@ pub fn crater_profile<'py>(
 #[pyfunction]
 pub fn ejecta_profile<'py>(
     py: Python<'py>,
-    radial_distance: PyReadonlyArray1<'py, f64>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
     ejrim: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distance_v = radial_distance.as_array();
+    let radial_distances_v = radial_distances.as_array();
     let result = cratermaker_components::morphology::basicmoon::ejecta_profile(
-        radial_distance_v,
+        radial_distances_v,
         crater_diameter,
         ejrim,
     )
@@ -108,7 +108,7 @@ pub fn ejecta_profile<'py>(
 /// # Arguments
 ///
 /// * `py` - Python GIL token.
-/// * `radial_distance` - 1D array of radial distances from crater center.
+/// * `radial_distances` - 1D array of radial distances from crater center.
 /// * `initial_bearing` - 1D array of bearing angles (radians).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
@@ -118,15 +118,15 @@ pub fn ejecta_profile<'py>(
 #[pyfunction]
 pub fn ray_intensity<'py>(
     py: Python<'py>,
-    radial_distance: PyReadonlyArray1<'py, f64>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
     initial_bearing: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
     seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distance_v = radial_distance.as_array();
+    let radial_distances_v = radial_distances.as_array();
     let initial_bearing_v = initial_bearing.as_array();
     let result = cratermaker_components::morphology::basicmoon::ray_intensity(
-        radial_distance_v,
+        radial_distances_v,
         initial_bearing_v,
         crater_diameter,
         seed,
