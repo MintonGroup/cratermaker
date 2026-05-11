@@ -56,6 +56,7 @@ pub fn crater_profile<'py>(
     floor_diameter: f64,
     rim_height: f64,
     ejrim: f64,
+    fmix: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let reference_elevations_v = reference_elevations.as_array();
@@ -67,6 +68,7 @@ pub fn crater_profile<'py>(
         floor_diameter,
         rim_height,
         ejrim,
+        fmix,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

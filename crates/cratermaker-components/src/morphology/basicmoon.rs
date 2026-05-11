@@ -1,8 +1,9 @@
 use crate::ArrayResult;
 use itertools::Itertools;
-use libm::erf;
+use libm::{erf, exp};
 use numpy::ndarray::prelude::*;
 use rand::prelude::*;
+use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -17,11 +18,48 @@ const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.90;
 
-/// Computes a crater profile elevation array from input radial distances and reference elevations.
+pub fn crater_profile(
+    radial_distances: ArrayView1<'_, f64>,
+    reference_elevations: ArrayView1<'_, f64>,
+    crater_diameter: f64,
+    floor_depth: f64,
+    floor_diameter: f64,
+    rim_height: f64,
+    ejrim: f64,
+    fmix: f64,
+) -> ArrayResult {
+    let p1 = fassett2020_profile(
+        radial_distances,
+        reference_elevations,
+        crater_diameter,
+        floor_depth,
+        floor_diameter,
+        rim_height,
+        ejrim,
+    )?;
+    if fmix < 1.0 {
+        let p2 = yang2021_profile(
+            radial_distances,
+            reference_elevations,
+            crater_diameter,
+            floor_depth,
+            floor_diameter,
+            rim_height,
+            ejrim,
+        )?;
+        Ok(p1 * fmix + p2 * (1.0 - fmix))
+    } else {
+        Ok(p1)
+    }
+}
+
+/// Computes a crater profile elevation array from input radial distances and reference elevations using modification of the model
+/// given in Fassett and Thomson (2014) and Fassett et al. (2020).
 ///
 /// This function applies `profile_function` to each radial distance in the input array.
 /// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
 /// on the polynomial crater profile model described in Fassett and Thomson (2014).
+///
 ///
 /// # Arguments
 ///
@@ -40,7 +78,17 @@ const FRAYREDUCTION: f64 = 0.90;
 /// # Errors
 ///
 /// Returns a `PyValueError` if the input arrays have mismatched lengths.
-pub fn crater_profile(
+///
+/// # References
+///
+/// Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the
+///     Moon. J. Geophys. Res. 119, 2014JE004698-2271. https://doi.org/10.1002/2014JE004698
+///
+/// Fassett, C.I., Beyer, R.A., Deutsch, A.N., Hirabayashi, M., Leight, C., Mahanti, P., Nypaver, C.A., Thomson, B.J.,
+///     Minton, D.A., 2022. Topographic Diffusion Revisited: Small Crater Lifetime on the Moon and Implications for Volatile
+///     Exploration. Journal of Geophysical Research: Planets 127, e2022JE007510. https://doi.org/10.1029/2022JE007510
+
+pub fn fassett2020_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
@@ -64,7 +112,10 @@ pub fn crater_profile(
     let c2 = A * c1;
     let c3 = B * c1;
 
-    let ninc = radial_distances.iter().filter(|&&x| x <= crater_radius).count();
+    let ninc = radial_distances
+        .iter()
+        .filter(|&&x| x <= crater_radius)
+        .count();
     let meanref = if ninc == 0 {
         *radial_distances
             .iter()
@@ -90,7 +141,7 @@ pub fn crater_profile(
             .map(|(&elevation, &radial_distances)| {
                 let r = radial_distances / crater_radius;
                 (
-                    crater_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
+                    fassett2020_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
                     radial_distances,
                 )
             })
@@ -129,7 +180,7 @@ pub fn crater_profile(
 ///
 /// * Adjusted elevation according to crater profile at distance `r`.
 #[inline]
-fn crater_profile_function(
+fn fassett2020_profile_function(
     r: f64,
     elevation: f64,
     c0: f64,
@@ -143,6 +194,220 @@ fn crater_profile_function(
         elevation + (rim_height - ejrim) * r.powf(RIMDROP)
     } else {
         elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
+    }
+}
+
+/// Computes a crater profile elevation array from input radial distances and reference elevations using modification of the model
+/// given in Yang et al. (2021) for small craters.
+///
+/// This function applies `profile_function` to each radial distance in the input array.
+/// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
+/// on the polynomial crater profile model described in Fassett and Thomson (2014).
+///
+///
+/// # Arguments
+///
+/// * `r_array` - 1D array of radial distances from crater center (in meters).
+/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
+/// * `crater_diameter` - Total diameter of the crater (in meters).
+/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters, relative to datum).
+/// * `floor_diameter` - Diameter of the crater floor (in meters).
+/// * `rim_height` - Height of the crater rim above mean surface level (in meters, relative to datum).
+/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
+///
+/// # Returns
+///
+/// * A NumPy array of modified elevations based on the crater model.
+///
+/// # Errors
+///
+/// Returns a `PyValueError` if the input arrays have mismatched lengths.
+///
+/// # References
+///
+/// Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for
+///     Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. https://doi.org/10.1029/2021GL095537
+pub fn yang2021_profile(
+    radial_distances: ArrayView1<'_, f64>,
+    reference_elevations: ArrayView1<'_, f64>,
+    crater_diameter: f64,
+    floor_depth: f64,
+    floor_diameter: f64,
+    rim_height: f64,
+    ejrim: f64,
+) -> ArrayResult {
+    assert_eq!(radial_distances.len(), reference_elevations.len());
+    let hr = rim_height / crater_diameter;
+    let d0 = -floor_depth / crater_diameter - hr;
+    let alpha = -3.1906;
+    let crater_radius = crater_diameter * 0.5;
+    let rb = floor_diameter / crater_diameter;
+    let he = ejrim / crater_diameter;
+    let mut version = "normal";
+
+    if crater_diameter < 180.0 {
+        let versions = vec!["normal", "mound", "flat", "concentric"];
+        let sample: Vec<&&str> = versions.choose_multiple(&mut rand::rng(), 1).collect();
+        // set version to be the string that was sampled
+        version = sample[0];
+    }
+
+    let ninc = radial_distances
+        .iter()
+        .filter(|&&x| x <= crater_radius)
+        .count();
+    let meanref = if ninc == 0 {
+        *radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .unwrap()
+            .1
+    } else {
+        radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .filter(|(&r, _)| r <= crater_radius)
+            .map(|(_, &e)| e)
+            .sum::<f64>()
+            / ninc as f64
+    };
+    let min_elevation = meanref + floor_depth;
+
+    Ok(Array1::from_iter(
+        reference_elevations
+            .iter()
+            .zip(radial_distances)
+            .map(|(&elevation, &radial_distances)| {
+                let r = radial_distances / crater_radius;
+                (
+                    if version == "normal" {
+                        (yang2021_normal_profile(r, elevation, alpha, d0, hr, he) + hr)
+                            * crater_diameter
+                    } else if version == "mound" {
+                        let rm = 0.293 * crater_diameter.powf(-0.086);
+                        let hm = 0.23e-3 * crater_diameter.powf(0.64);
+                        (yang2021_centralmound_profile(r, elevation, alpha, d0, hr, he, rb, rm, hm)
+                            + hr)
+                            * crater_diameter
+                    } else if version == "flat" {
+                        (yang2021_flatbottom_profile(r, elevation, alpha, d0, hr, he, rb) + hr)
+                            * crater_diameter
+                    } else if version == "concentric" {
+                        let c3 = 0.0155 * crater_diameter.powf(0.343);
+                        let ri = 0.383 * crater_diameter.powf(0.053);
+                        let ro = 0.421 * crater_diameter.powf(0.102);
+                        (yang2021_concentric_profile(r, elevation, alpha, d0, hr, he, ri, ro, c3)
+                            + hr)
+                            * crater_diameter
+                    } else {
+                        panic!("Unknown version: {}", version);
+                    },
+                    radial_distances,
+                )
+            })
+            .map(|(elevation, radial_distances)| {
+                if radial_distances <= crater_radius {
+                    elevation.max(min_elevation)
+                } else {
+                    elevation
+                }
+            }),
+    ))
+}
+
+fn yang2021_normal_profile(r: f64, elevation: f64, alpha: f64, d0: f64, hr: f64, he: f64) -> f64 {
+    if r >= 1.0 {
+        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+    } else {
+        let a = -2.8567;
+        let b = 5.8270;
+        let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
+        //let r0 = (r - rb) / (1.0 - rb);
+
+        elevation + c * (exp(b * r) - exp(b)) / (1.0 + exp(a + b * r))
+    }
+}
+
+fn yang2021_centralmound_profile(
+    r: f64,
+    elevation: f64,
+    alpha: f64,
+    d0: f64,
+    hr: f64,
+    he: f64,
+    rb: f64,
+    rm: f64,
+    hm: f64,
+) -> f64 {
+    if r >= 1.0 {
+        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+    } else if r <= rm {
+        elevation - (1.0 - r / rm) * (hm - d0)
+    } else {
+        let a = -2.6921;
+        let b = 6.1678;
+        let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
+        let r0 = (r - rb) / (1.0 - rb);
+
+        elevation + c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+    }
+}
+
+fn yang2021_flatbottom_profile(
+    r: f64,
+    elevation: f64,
+    alpha: f64,
+    d0: f64,
+    hr: f64,
+    he: f64,
+    rb: f64,
+) -> f64 {
+    if r >= 1.0 {
+        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+    } else if r <= rb {
+        elevation - d0
+    } else {
+        let a = -2.6003;
+        let b = 5.8783;
+        let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
+        let r0 = (r - rb) / (1.0 - rb);
+
+        elevation + c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+    }
+}
+
+fn yang2021_concentric_profile(
+    r: f64,
+    elevation: f64,
+    alpha: f64,
+    d0: f64,
+    hr: f64,
+    he: f64,
+    ri: f64,
+    ro: f64,
+    c3: f64,
+) -> f64 {
+    let c1 = 0.192;
+    let c2 = 0.01;
+    let r0 = (r - ro) / (1.0 - ro);
+    let a = -1.6536;
+    let b = 4.7626;
+    let f0 = c1 * r.powi(2) + c2 * r - d0;
+    let h1 = c1 * ri.powi(2) + c2 * ri - d0;
+    let f1 = c3 * (r - ri) + h1;
+    let h2 = c3 * (r - ro) + h1;
+    let c = -h2 * (exp(a) + 1.0) / (exp(b) - 1.0);
+    let f2 = c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0));
+
+    if r <= ri {
+        elevation + f0
+    } else if r <= ro {
+        elevation + f1
+    } else if r <= 1.0 {
+        elevation + f2
+    } else {
+        elevation + (hr - he) * (r.powf(alpha) - 1.0)
     }
 }
 

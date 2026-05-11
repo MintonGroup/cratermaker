@@ -36,6 +36,8 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original central peak height of the crater in meters relative to the reference surface. None for simple craters."""
     ejrim: float | None = None
     """Original ejecta rim thickness of the crater in meters."""
+    fmix: float | None = None
+    """The mixing fraction between the Pike (1977) and Yang et al. (2021) models for the crater morphology parameters. Only relevant for simple and transitional craters."""
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -127,12 +129,12 @@ class BasicMoonCrater(MorphologyCrater):
             scale = np.where(diameter < dlo, slo, np.where(diameter > dhi, shi, ms * np.log(diameter) + bs))
             val = bounded_norm(loc=loc, scale=scale, lower_bound=0.0, upper_bound=1.0)
 
-            return val
+            return val.item()
 
         if crater.morphology_type in ["simple", "transitional"]:
             fmix = modelMixer(diameter_m)
-            rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062) * 1e3
-            depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027) * 1e3 + rh_pike
+            rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
+            depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027)[0] * 1e3 + rh_pike
             floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
 
             rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
@@ -145,14 +147,14 @@ class BasicMoonCrater(MorphologyCrater):
             args["peak_height"] = None
             args["fmix"] = fmix
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-            args["rim_height"] = sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031) * 1e3
+            args["rim_height"] = sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031)[0] * 1e3
             args["floor_depth"] = (
-                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063) * 1e3 + args["rim_height"]
+                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063)[0] * 1e3 + args["rim_height"]
             )
             args["floor_diameter"] = min(
-                sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011) * 1e3, 0.9 * diameter_m
+                sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011)[0] * 1e3, 0.9 * diameter_m
             )
-            args["peak_height"] = sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008) * 1e3
+            args["peak_height"] = sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008)[0] * 1e3
             args["fmix"] = 1.0
         else:
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
@@ -385,6 +387,7 @@ class BasicMoonMorphology(Morphology):
             crater.floor_diameter,
             crater.rim_height,
             crater.ejrim,
+            crater.fmix,
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
