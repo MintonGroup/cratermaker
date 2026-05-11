@@ -473,3 +473,56 @@ def bounded_norm(
     )
 
     return truncated_normal.rvs(size, random_state=rng)
+
+
+def sample_logfit(
+    x: float,
+    a: float,
+    b: float,
+    errhi: float,
+    errlo: float,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with residual uncertainty in log-space.
+
+    This is used for reproducing the models in Pike (1977) [#]_.
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    a : float
+        The slope of the log-log fit.
+    b : float
+        The intercept of the log-log fit.
+    err : float
+        The standard deviation of the residuals in log-space.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+
+    se_log_from_upper = np.log(1 + errhi)
+    se_log_from_lower = -np.log(1 + errlo)
+
+    # Averagte the logspace upper/lower error values
+    err = (se_log_from_upper + se_log_from_lower) / 2
+    log_errors = rng.normal(0, err, size=1)
+    log_y = np.log(b) + a * np.log(x) + log_errors
+    y = np.exp(log_y)
+
+    return y

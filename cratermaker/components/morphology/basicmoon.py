@@ -64,7 +64,6 @@ class BasicMoonCrater(MorphologyCrater):
         str_repr = super().__str__()
         str_repr += (
             f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
-            f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
             f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
             f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
@@ -82,7 +81,7 @@ class BasicMoonCrater(MorphologyCrater):
         """
         Initialize a BasicMoonCrater object either from an existing Crater object or from parameters.
 
-        This generates a specialized Crater object with morphology parameters.
+        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977)[#]_ for D>5 km craters with a higher value of d/D and floor_diameter from Fassett and Thomson (2014), Yang et al. (2021)[#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024)[#]_.
 
         Parameters
         ----------
@@ -92,8 +91,18 @@ class BasicMoonCrater(MorphologyCrater):
             The morphology model to use for generating morphology parameters.
         kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+
+        References
+        ----------
+        .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+        .. [#]Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. [doi:10.1002/2014JE004698](https://doi.org/10.1002/2014JE004698)
+        .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. [doi:10.1029/2021GL095537](https://doi.org/10.1029/2021GL095537)
+        .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. [doi:10.3847/PSJ/ad18d4](https://doi.org/10.3847/PSJ/ad18d4)
+
+
         """
         from cratermaker.components.morphology import Morphology
+        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
@@ -101,18 +110,50 @@ class BasicMoonCrater(MorphologyCrater):
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
 
+        def modelMixer(diameter):
+
+            dlo = 50.0
+            dhi = 5000.0
+            flo = 0.4
+            fhi = 1.0
+            slo = 0.2
+            shi = 0.01
+            mf = (fhi - flo) / (np.log(dhi) - np.log(dlo))
+            bf = (fhi + flo - mf * (np.log(dhi) + np.log(dlo))) / 2
+            ms = (shi - slo) / (np.log(dhi) - np.log(dlo))
+            bs = (shi + slo - ms * (np.log(dhi) + np.log(dlo))) / 2
+
+            loc = np.where(diameter < dlo, flo, np.where(diameter > dhi, fhi, mf * np.log(diameter) + bf))
+            scale = np.where(diameter < dlo, slo, np.where(diameter > dhi, shi, ms * np.log(diameter) + bs))
+            val = bounded_norm(loc=loc, scale=scale, lower_bound=0.0, upper_bound=1.0)
+
+            return val
+
         if crater.morphology_type in ["simple", "transitional"]:
-            args["rim_height"] = 0.043 * diameter_km**1.014 * 1e3
-            args["rim_width"] = 0.257 * diameter_km**1.011 * 1e3
-            args["floor_depth"] = -0.224 * diameter_km**1.010 * 1e3 + args["rim_height"]
-            args["floor_diameter"] = 0.200 * diameter_km**1.143 * 1e3
+            fmix = modelMixer(diameter_m)
+            rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062) * 1e3
+            depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027) * 1e3 + rh_pike
+            floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
+
+            rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
+            depth_yang = 0.08 * diameter_m
+            floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+
+            args["rim_height"] = rh_pike * fmix + rh_yang * (1.0 - fmix)
+            args["floor_depth"] = depth_pike * fmix + depth_yang * (1.0 - fmix)
+            args["floor_diameter"] = floor_diam_fassett * fmix + floor_diam_yang * (1.0 - fmix)
             args["peak_height"] = None
+            args["fmix"] = fmix
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-            args["rim_height"] = 0.236 * diameter_km**0.399 * 1e3
-            args["rim_width"] = 0.467 * diameter_km**0.836 * 1e3
-            args["floor_depth"] = -1.044 * diameter_km**0.301 * 1e3 + args["rim_height"]
-            args["floor_diameter"] = min(0.187 * diameter_km**1.249 * 1e3, 0.9 * diameter_m)
-            args["peak_height"] = 0.032 * diameter_km**0.900 * 1e3
+            args["rim_height"] = sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031) * 1e3
+            args["floor_depth"] = (
+                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063) * 1e3 + args["rim_height"]
+            )
+            args["floor_diameter"] = min(
+                sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011) * 1e3, 0.9 * diameter_m
+            )
+            args["peak_height"] = sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008) * 1e3
+            args["fmix"] = 1.0
         else:
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
 
