@@ -38,6 +38,8 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original ejecta rim thickness of the crater in meters."""
     fassett_yang_fraction: float | None = None
     """The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters."""
+    morphology_subtype: str | None = None
+    """The subtype of the morphology to use for generating morphology parameters (e.g. "simple" morphology_type could have "flat-bottomed", "central mound", "concentric", and "normal" when using the Yang et al. 2021 profile function). """
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -71,6 +73,8 @@ class BasicMoonCrater(MorphologyCrater):
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
         )
+        if self.morphology_subtype is not None:
+            str_repr += f"Morphology subtype: {self.morphology_subtype}\n"
         return str_repr
 
     @classmethod
@@ -85,6 +89,7 @@ class BasicMoonCrater(MorphologyCrater):
         ejrim: float | None = None,
         peak_height: float | None = None,
         fassett_yang_fraction: float | None = None,
+        morphology_subtype: str | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -112,7 +117,9 @@ class BasicMoonCrater(MorphologyCrater):
             Original central peak height of the crater in meters relative to the reference surface. None for simple craters. If None, it will be computed for complex craters and set to None for simple craters.
         fassett_yang_fraction : float, optional
             The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters. If None, it will be computed based on the crater diameter using the modelMixer function in the code which is based on the d/D vs D trend seen in Hoover at al. (2024)[#]_. For complex craters, this will be set to 1.0 since the Pike (1977) model is more appropriate for complex craters.
-        kwargs : Any
+        morphology_subtype : str, optional
+            The subtype of the morphology to use for generating morphology parameters. For craters with "simple" morphology_type, the Yang et al. (2021) profile model includes "normal", "flat-bottomed", "central mound", and "concentric" subtypes. The Fassett et al. (2021) model will ignore this.
+        **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         References
@@ -149,8 +156,25 @@ class BasicMoonCrater(MorphologyCrater):
 
             return val.item()
 
+        # subtype_options = ["normal", "central mound", "flat-bottomed", "concentric"]
         if crater.morphology_type in ["simple", "transitional"]:
             fassett_yang_fraction = modelMixer(diameter_m) if fassett_yang_fraction is None else fassett_yang_fraction
+
+            if fassett_yang_fraction < 1.0:
+                subtype_options = ["normal", "central mound", "flat-bottomed", "concentric"]
+                if crater.diameter > 180.0:
+                    morphology_subtype = "normal"
+                elif morphology_subtype is None:
+                    # randomly choose one form subtype_options
+                    morphology_subtype = morphology.rng.choice(subtype_options).item()
+                elif morphology_subtype.lower() not in subtype_options:
+                    raise ValueError(
+                        f"{morphology_subtype} is not a valid morphology_subtype for this morphology_type. Must  be one of {subtype_options}"
+                    )
+            else:
+                morphology_subtype = None
+            args["morphology_subtype"] = morphology_subtype
+
             args["fassett_yang_fraction"] = fassett_yang_fraction
             if rim_height is None:
                 rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
@@ -424,6 +448,7 @@ class BasicMoonMorphology(Morphology):
             crater.rim_height,
             crater.ejrim,
             crater.fassett_yang_fraction,
+            crater.morphology_subtype if crater.morphology_subtype is not None else "",
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)

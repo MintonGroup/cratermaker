@@ -57,6 +57,7 @@ pub fn crater_profile<'py>(
     rim_height: f64,
     ejrim: f64,
     fassett_yang_fraction: f64,
+    morphology_subtype: &str,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let reference_elevations_v = reference_elevations.as_array();
@@ -69,6 +70,7 @@ pub fn crater_profile<'py>(
         rim_height,
         ejrim,
         fassett_yang_fraction,
+        morphology_subtype,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

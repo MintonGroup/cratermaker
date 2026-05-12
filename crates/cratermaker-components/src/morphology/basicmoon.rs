@@ -27,6 +27,7 @@ pub fn crater_profile(
     rim_height: f64,
     ejrim: f64,
     fassett_yang_fraction: f64,
+    morphology_subtype: &str,
 ) -> ArrayResult {
     let p1 = fassett2020_profile(
         radial_distances,
@@ -46,6 +47,7 @@ pub fn crater_profile(
             floor_diameter,
             rim_height,
             ejrim,
+            morphology_subtype,
         )?;
         Ok(p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction))
     } else {
@@ -235,6 +237,7 @@ pub fn yang2021_profile(
     floor_diameter: f64,
     rim_height: f64,
     ejrim: f64,
+    morphology_subtype: &str,
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
     let hr = rim_height / crater_diameter;
@@ -243,36 +246,6 @@ pub fn yang2021_profile(
     let crater_radius = crater_diameter * 0.5;
     let rb = floor_diameter / crater_diameter;
     let he = ejrim / crater_diameter;
-    let mut version = "normal";
-
-    if crater_diameter < 180.0 {
-        let versions = vec!["normal", "mound", "flat", "concentric"];
-        let sample: Vec<&&str> = versions.choose_multiple(&mut rand::rng(), 1).collect();
-        // set version to be the string that was sampled
-        version = sample[0];
-    }
-
-    let ninc = radial_distances
-        .iter()
-        .filter(|&&x| x <= crater_radius)
-        .count();
-    let meanref = if ninc == 0 {
-        *radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
-            .unwrap()
-            .1
-    } else {
-        radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .filter(|(&r, _)| r <= crater_radius)
-            .map(|(_, &e)| e)
-            .sum::<f64>()
-            / ninc as f64
-    };
-    let min_elevation = meanref + floor_depth;
 
     Ok(Array1::from_iter(
         reference_elevations
@@ -281,34 +254,24 @@ pub fn yang2021_profile(
             .map(|(&elevation, &radial_distances)| {
                 let r = radial_distances / crater_radius;
                 let h = elevation / crater_diameter;
-                (
-                    if version == "normal" {
-                        (yang2021_normal_profile(r, alpha, d0, hr, he) + hr) * crater_diameter
-                    } else if version == "mound" {
-                        let rm = 0.293 * crater_diameter.powf(-0.086);
-                        let hm = 0.23e-3 * crater_diameter.powf(0.64);
-                        (yang2021_centralmound_profile(r, alpha, d0, hr, he, rb, rm, hm) + hr + h)
-                            * crater_diameter
-                    } else if version == "flat" {
-                        (yang2021_flatbottom_profile(r, alpha, d0, hr, he, rb) + hr + h)
-                            * crater_diameter
-                    } else if version == "concentric" {
-                        let c3 = 0.0155 * crater_diameter.powf(0.343);
-                        let ri = 0.383 * crater_diameter.powf(0.053);
-                        let ro = 0.421 * crater_diameter.powf(0.102);
-                        (yang2021_concentric_profile(r, alpha, d0, hr, he, ri, ro, c3) + hr + h)
-                            * crater_diameter
-                    } else {
-                        panic!("Unknown version: {}", version);
-                    },
-                    radial_distances,
-                )
-            })
-            .map(|(elevation, radial_distances)| {
-                if radial_distances <= crater_radius {
-                    elevation.max(min_elevation)
+                if morphology_subtype == "normal" {
+                    (yang2021_normal_profile(r, alpha, d0, hr, he) + hr) * crater_diameter
+                } else if morphology_subtype == "central mound" {
+                    let rm = 0.293 * crater_diameter.powf(-0.086);
+                    let hm = 0.23e-3 * crater_diameter.powf(0.64);
+                    (yang2021_centralmound_profile(r, alpha, d0, hr, he, rb, rm, hm) + hr + h)
+                        * crater_diameter
+                } else if morphology_subtype == "flat-bottomed" {
+                    (yang2021_flatbottom_profile(r, alpha, d0, hr, he, rb) + hr + h)
+                        * crater_diameter
+                } else if morphology_subtype == "concentric" {
+                    let c3 = 0.0155 * crater_diameter.powf(0.343);
+                    let ri = 0.383 * crater_diameter.powf(0.053);
+                    let ro = 0.421 * crater_diameter.powf(0.102);
+                    (yang2021_concentric_profile(r, alpha, d0, hr, he, ri, ro, c3) + hr + h)
+                        * crater_diameter
                 } else {
-                    elevation
+                    panic!("Unknown morphology_subtype: {}", morphology_subtype);
                 }
             }),
     ))
