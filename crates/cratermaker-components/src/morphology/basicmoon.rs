@@ -299,32 +299,34 @@ fn yang2021_centralmound_profile(
     rm: f64,
     hm: f64,
 ) -> f64 {
-    if r >= 1.0 {
-        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
-    } else if r <= rm {
-        -(1.0 - r / rm) * (hm - d0)
-    } else {
+    if r <= rm {
+        (1.0 - r / rm) * hm - d0
+    } else if r <= rb {
+        -d0
+    } else if r <= 1.0 {
         let a = -2.6921;
         let b = 6.1678;
         let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
         let r0 = (r - rb) / (1.0 - rb);
 
         c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+    } else {
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     }
 }
 
 fn yang2021_flatbottom_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64, rb: f64) -> f64 {
-    if r >= 1.0 {
-        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
-    } else if r <= rb {
-        d0
-    } else {
+    if r <= rb {
+        -d0
+    } else if r <= 1.0 {
         let a = -2.6003;
         let b = 5.8783;
         let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
         let r0 = (r - rb) / (1.0 - rb);
 
         c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+    } else {
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     }
 }
 
@@ -346,7 +348,7 @@ fn yang2021_concentric_profile(
     let f0 = c1 * r.powi(2) + c2 * r - d0;
     let h1 = c1 * ri.powi(2) + c2 * ri - d0;
     let f1 = c3 * (r - ri) + h1;
-    let h2 = c3 * (r - ro) + h1;
+    let h2 = c3 * (ro - ri) + h1;
     let c = -h2 * (exp(a) + 1.0) / (exp(b) - 1.0);
     let f2 = c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0));
 
