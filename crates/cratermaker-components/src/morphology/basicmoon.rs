@@ -280,25 +280,23 @@ pub fn yang2021_profile(
             .zip(radial_distances)
             .map(|(&elevation, &radial_distances)| {
                 let r = radial_distances / crater_radius;
+                let h = elevation / crater_diameter;
                 (
                     if version == "normal" {
-                        (yang2021_normal_profile(r, elevation, alpha, d0, hr, he) + hr)
-                            * crater_diameter
+                        (yang2021_normal_profile(r, alpha, d0, hr, he) + hr) * crater_diameter
                     } else if version == "mound" {
                         let rm = 0.293 * crater_diameter.powf(-0.086);
                         let hm = 0.23e-3 * crater_diameter.powf(0.64);
-                        (yang2021_centralmound_profile(r, elevation, alpha, d0, hr, he, rb, rm, hm)
-                            + hr)
+                        (yang2021_centralmound_profile(r, alpha, d0, hr, he, rb, rm, hm) + hr + h)
                             * crater_diameter
                     } else if version == "flat" {
-                        (yang2021_flatbottom_profile(r, elevation, alpha, d0, hr, he, rb) + hr)
+                        (yang2021_flatbottom_profile(r, alpha, d0, hr, he, rb) + hr + h)
                             * crater_diameter
                     } else if version == "concentric" {
                         let c3 = 0.0155 * crater_diameter.powf(0.343);
                         let ri = 0.383 * crater_diameter.powf(0.053);
                         let ro = 0.421 * crater_diameter.powf(0.102);
-                        (yang2021_concentric_profile(r, elevation, alpha, d0, hr, he, ri, ro, c3)
-                            + hr)
+                        (yang2021_concentric_profile(r, alpha, d0, hr, he, ri, ro, c3) + hr + h)
                             * crater_diameter
                     } else {
                         panic!("Unknown version: {}", version);
@@ -316,22 +314,20 @@ pub fn yang2021_profile(
     ))
 }
 
-fn yang2021_normal_profile(r: f64, elevation: f64, alpha: f64, d0: f64, hr: f64, he: f64) -> f64 {
+fn yang2021_normal_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64) -> f64 {
     if r >= 1.0 {
-        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+        (hr - he) * (r.powf(alpha) - 1.0)
     } else {
         let a = -2.8567;
         let b = 5.8270;
         let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
-        //let r0 = (r - rb) / (1.0 - rb);
 
-        elevation + c * (exp(b * r) - exp(b)) / (1.0 + exp(a + b * r))
+        c * (exp(b * r) - exp(b)) / (1.0 + exp(a + b * r))
     }
 }
 
 fn yang2021_centralmound_profile(
     r: f64,
-    elevation: f64,
     alpha: f64,
     d0: f64,
     hr: f64,
@@ -341,45 +337,36 @@ fn yang2021_centralmound_profile(
     hm: f64,
 ) -> f64 {
     if r >= 1.0 {
-        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+        (hr - he) * (r.powf(alpha) - 1.0)
     } else if r <= rm {
-        elevation - (1.0 - r / rm) * (hm - d0)
+        -(1.0 - r / rm) * (hm - d0)
     } else {
         let a = -2.6921;
         let b = 6.1678;
         let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
         let r0 = (r - rb) / (1.0 - rb);
 
-        elevation + c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+        c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
     }
 }
 
-fn yang2021_flatbottom_profile(
-    r: f64,
-    elevation: f64,
-    alpha: f64,
-    d0: f64,
-    hr: f64,
-    he: f64,
-    rb: f64,
-) -> f64 {
+fn yang2021_flatbottom_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64, rb: f64) -> f64 {
     if r >= 1.0 {
-        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+        (hr - he) * (r.powf(alpha) - 1.0)
     } else if r <= rb {
-        elevation - d0
+        d0
     } else {
         let a = -2.6003;
         let b = 5.8783;
         let c = d0 * (exp(a) + 1.0) / (exp(b) - 1.0);
         let r0 = (r - rb) / (1.0 - rb);
 
-        elevation + c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
+        c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0))
     }
 }
 
 fn yang2021_concentric_profile(
     r: f64,
-    elevation: f64,
     alpha: f64,
     d0: f64,
     hr: f64,
@@ -401,13 +388,13 @@ fn yang2021_concentric_profile(
     let f2 = c * (exp(b * r0) - exp(b)) / (1.0 + exp(a + b * r0));
 
     if r <= ri {
-        elevation + f0
+        f0
     } else if r <= ro {
-        elevation + f1
+        f1
     } else if r <= 1.0 {
-        elevation + f2
+        f2
     } else {
-        elevation + (hr - he) * (r.powf(alpha) - 1.0)
+        (hr - he) * (r.powf(alpha) - 1.0)
     }
 }
 
