@@ -26,7 +26,7 @@ pub fn crater_profile(
     floor_diameter: f64,
     rim_height: f64,
     ejrim: f64,
-    fmix: f64,
+    fassett_yang_fraction: f64,
 ) -> ArrayResult {
     let p1 = fassett2020_profile(
         radial_distances,
@@ -37,7 +37,7 @@ pub fn crater_profile(
         rim_height,
         ejrim,
     )?;
-    if fmix < 1.0 {
+    if fassett_yang_fraction < 1.0 {
         let p2 = yang2021_profile(
             radial_distances,
             reference_elevations,
@@ -47,7 +47,7 @@ pub fn crater_profile(
             rim_height,
             ejrim,
         )?;
-        Ok(p1 * fmix + p2 * (1.0 - fmix))
+        Ok(p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction))
     } else {
         Ok(p1)
     }
@@ -238,7 +238,7 @@ pub fn yang2021_profile(
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
     let hr = rim_height / crater_diameter;
-    let d0 = -floor_depth / crater_diameter - hr;
+    let d0 = -floor_depth / crater_diameter + hr;
     let alpha = -3.1906;
     let crater_radius = crater_diameter * 0.5;
     let rb = floor_diameter / crater_diameter;
@@ -316,7 +316,7 @@ pub fn yang2021_profile(
 
 fn yang2021_normal_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64) -> f64 {
     if r >= 1.0 {
-        (hr - he) * (r.powf(alpha) - 1.0)
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     } else {
         let a = -2.8567;
         let b = 5.8270;
@@ -337,7 +337,7 @@ fn yang2021_centralmound_profile(
     hm: f64,
 ) -> f64 {
     if r >= 1.0 {
-        (hr - he) * (r.powf(alpha) - 1.0)
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     } else if r <= rm {
         -(1.0 - r / rm) * (hm - d0)
     } else {
@@ -352,7 +352,7 @@ fn yang2021_centralmound_profile(
 
 fn yang2021_flatbottom_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64, rb: f64) -> f64 {
     if r >= 1.0 {
-        (hr - he) * (r.powf(alpha) - 1.0)
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     } else if r <= rb {
         d0
     } else {
@@ -394,7 +394,7 @@ fn yang2021_concentric_profile(
     } else if r <= 1.0 {
         f2
     } else {
-        (hr - he) * (r.powf(alpha) - 1.0)
+        hr * (r.powf(alpha) - 1.0) - ejecta_profile_function(r, 1.0, he)
     }
 }
 
@@ -431,7 +431,7 @@ pub fn ejecta_profile(
 ///
 /// # Arguments
 ///
-/// * `r_actual` - Radial distance from the crater center (in meters).
+/// * `r` - Radial distance from the crater center (in meters).
 /// * `crater_radius` - Radius of the crater (in meters).
 /// * `ejrim` - Rim elevation parameter used to scale the profile.
 ///
@@ -439,10 +439,10 @@ pub fn ejecta_profile(
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
-    if r_actual >= crater_radius {
-        let r = r_actual / crater_radius;
-        ejrim * r.powf(EJPROFILE)
+pub fn ejecta_profile_function(r: f64, crater_radius: f64, ejrim: f64) -> f64 {
+    if r >= crater_radius {
+        let rej = r / crater_radius;
+        ejrim * rej.powf(EJPROFILE)
     } else {
         0.0
     }

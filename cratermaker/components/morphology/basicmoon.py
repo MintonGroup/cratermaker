@@ -36,15 +36,15 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original central peak height of the crater in meters relative to the reference surface. None for simple craters."""
     ejrim: float | None = None
     """Original ejecta rim thickness of the crater in meters."""
-    fmix: float | None = None
-    """The mixing fraction between the Pike (1977) and Yang et al. (2021) models for the crater morphology parameters. Only relevant for simple and transitional craters."""
+    fassett_yang_fraction: float | None = None
+    """The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters."""
 
     @property
     def depth_to_diameter(self) -> float | None:
         """
         The depth to diameter ratio of the crater.
 
-        This is computed from `rim_height`-`floor_depth`
+        This is computed from `rim_height`-`floor_depth`.
         """
         floor_depth = self.floor_depth
         rim_height = self.rim_height
@@ -78,6 +78,13 @@ class BasicMoonCrater(MorphologyCrater):
         cls,
         crater: Crater | None = None,
         morphology: Morphology | None = None,
+        rim_height: float | None = None,
+        rim_width: float | None = None,
+        floor_depth: float | None = None,
+        floor_diameter: float | None = None,
+        ejrim: float | None = None,
+        peak_height: float | None = None,
+        fassett_yang_fraction: float | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -91,17 +98,29 @@ class BasicMoonCrater(MorphologyCrater):
             The crater object to be converted into a BasicMoonCrater. If None, then a new crater is created using the provided parameters.
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
+        rim_height : float, optional
+            Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
+        rim_width : float, optional
+            Original rim width of the crater in meters. If None, it will be computed.
+        floor_depth : float, optional
+            Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
+        floor_diameter : float, optional
+            Original floor diameter of the crater in meters. If None, it will be computed.
+        ejrim : float, optional
+            Original ejecta rim thickness of the crater in meters. If None, it will be computed.
+        peak_height : float, optional
+            Original central peak height of the crater in meters relative to the reference surface. None for simple craters. If None, it will be computed for complex craters and set to None for simple craters.
+        fassett_yang_fraction : float, optional
+            The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters. If None, it will be computed based on the crater diameter using the modelMixer function in the code which is based on the d/D vs D trend seen in Hoover at al. (2024)[#]_. For complex craters, this will be set to 1.0 since the Pike (1977) model is more appropriate for complex craters.
         kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
         References
         ----------
         .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
-        .. [#]Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. [doi:10.1002/2014JE004698](https://doi.org/10.1002/2014JE004698)
+        .. [#] Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. [doi:10.1002/2014JE004698](https://doi.org/10.1002/2014JE004698)
         .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. [doi:10.1029/2021GL095537](https://doi.org/10.1029/2021GL095537)
         .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. [doi:10.3847/PSJ/ad18d4](https://doi.org/10.3847/PSJ/ad18d4)
-
-
         """
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit
@@ -113,7 +132,6 @@ class BasicMoonCrater(MorphologyCrater):
         diameter_km = diameter_m * 1e-3
 
         def modelMixer(diameter):
-
             dlo = 50.0
             dhi = 5000.0
             flo = 0.4
@@ -132,34 +150,52 @@ class BasicMoonCrater(MorphologyCrater):
             return val.item()
 
         if crater.morphology_type in ["simple", "transitional"]:
-            fmix = modelMixer(diameter_m)
-            rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
-            depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027)[0] * 1e3 + rh_pike
-            floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
+            fassett_yang_fraction = modelMixer(diameter_m) if fassett_yang_fraction is None else fassett_yang_fraction
+            args["fassett_yang_fraction"] = fassett_yang_fraction
+            if rim_height is None:
+                rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
+                rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
+                rim_height = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
+            args["rim_height"] = rim_height
 
-            rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
-            depth_yang = 0.08 * diameter_m
-            floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+            if floor_depth is None:
+                depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027)[0] * 1e3 + rh_pike
+                depth_yang = -0.08 * diameter_m
+                floor_depth = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
+            args["floor_depth"] = floor_depth
 
-            args["rim_height"] = rh_pike * fmix + rh_yang * (1.0 - fmix)
-            args["floor_depth"] = depth_pike * fmix + depth_yang * (1.0 - fmix)
-            args["floor_diameter"] = floor_diam_fassett * fmix + floor_diam_yang * (1.0 - fmix)
+            if floor_diameter is None:
+                floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
+                floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+                floor_diameter = floor_diam_fassett * fassett_yang_fraction + floor_diam_yang * (1.0 - fassett_yang_fraction)
+            args["floor_diameter"] = floor_diameter
             args["peak_height"] = None
-            args["fmix"] = fmix
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-            args["rim_height"] = sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031)[0] * 1e3
+            args["rim_height"] = (
+                sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031)[0] * 1e3
+                if rim_height is None
+                else rim_height
+            )
             args["floor_depth"] = (
                 -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063)[0] * 1e3 + args["rim_height"]
+                if floor_depth is None
+                else floor_depth
             )
-            args["floor_diameter"] = min(
-                sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011)[0] * 1e3, 0.9 * diameter_m
+            args["floor_diameter"] = (
+                min(sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011)[0] * 1e3, 0.9 * diameter_m)
+                if floor_diameter is None
+                else floor_diameter
             )
-            args["peak_height"] = sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008)[0] * 1e3
-            args["fmix"] = 1.0
+            args["peak_height"] = (
+                sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008)[0] * 1e3
+                if peak_height is None
+                else peak_height
+            )
+            args["fassett_yang_fraction"] = 1.0
         else:
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
 
-        args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74
+        args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
         kwargs = {**args, **kwargs}
 
         return cls(
@@ -387,7 +423,7 @@ class BasicMoonMorphology(Morphology):
             crater.floor_diameter,
             crater.rim_height,
             crater.ejrim,
-            crater.fmix,
+            crater.fassett_yang_fraction,
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
