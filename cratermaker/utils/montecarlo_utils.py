@@ -481,6 +481,7 @@ def sample_logfit(
     b: float,
     errhi: float,
     errlo: float,
+    n: int,
     rng: Generator | None = None,
     rng_seed: int | None = None,
     rng_state: dict | None = None,
@@ -499,8 +500,12 @@ def sample_logfit(
         The slope of the log-log fit.
     b : float
         The intercept of the log-log fit.
-    err : float
-        The standard deviation of the residuals in log-space.
+    errhi : float
+        The standard error of the fit in log-space in the positive direction.
+    errlo : float
+        The standard error of the fit in log-space in the negative direction.
+    n : int
+        The number of data points used to compute the fit.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -516,13 +521,17 @@ def sample_logfit(
     """
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    se_log_from_upper = np.log(1 + errhi)
-    se_log_from_lower = -np.log(1 + errlo)
+    log_y = np.log(b) + a * np.log(x)
 
-    # Averagte the logspace upper/lower error values
-    err = (se_log_from_upper + se_log_from_lower) / 2
-    log_errors = rng.normal(0, err, size=1)
-    log_y = np.log(b) + a * np.log(x) + log_errors
-    y = np.exp(log_y)
+    sighi = np.sqrt(n) * errhi
+    siglo = -np.sqrt(n) * errlo
+
+    # Average the logspace upper/lower error values
+    var = rng.normal(0, 0.5, size=np.size(x))
+    if var > 0.0:
+        var *= sighi
+    else:
+        var *= siglo
+    y = np.exp(log_y + var)
 
     return y

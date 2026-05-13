@@ -79,10 +79,13 @@ docs/_images/local_surface_hillshade_ejecta_thickness000000.png
 !examples/02-production/
 !examples/03-projectiles_and_scaling/
 !examples/04-topography/
+!examples/04-topography/Hoover2024Table2.csv
+!examples/04-topography/S2-Stopar_et_al._Simple_Craters.csv
+!examples/04-topography/Pike1974-Mare.csv
+!examples/04-topography/Pike1974-Highlands.csv
 !examples/05-counting/
 !examples/**/*.rst 
 !examples/**/*.py
-!examples/**/*.txt
 !.gitattributes
 !buildscripts/
 !buildscripts/*.py

@@ -95,7 +95,7 @@ class BasicMoonCrater(MorphologyCrater):
         """
         Initialize a BasicMoonCrater object either from an existing Crater object or from parameters.
 
-        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977)[#]_ for D>5 km craters with a higher value of d/D and floor_diameter from Fassett and Thomson (2014), Yang et al. (2021)[#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024)[#]_.
+        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977) [#]_ for D>5 km craters with a higher value of d/D and floor_diameter from Fassett and Thomson (2014) [#]_, Yang et al. (2021) [#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024) [#]_.
 
         Parameters
         ----------
@@ -116,7 +116,7 @@ class BasicMoonCrater(MorphologyCrater):
         peak_height : float, optional
             Original central peak height of the crater in meters relative to the reference surface. None for simple craters. If None, it will be computed for complex craters and set to None for simple craters.
         fassett_yang_fraction : float, optional
-            The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters. If None, it will be computed based on the crater diameter using the modelMixer function in the code which is based on the d/D vs D trend seen in Hoover at al. (2024)[#]_. For complex craters, this will be set to 1.0 since the Pike (1977) model is more appropriate for complex craters.
+            The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters. If None, it will be computed based on the crater diameter using the modelMixer function in the code which is based on the d/D vs D trend seen in Hoover at al. (2024). For complex craters, this will be set to 1.0 since the Pike (1977) model is more appropriate for complex craters.
         morphology_subtype : str, optional
             The subtype of the morphology to use for generating morphology parameters. For craters with "simple" morphology_type, the Yang et al. (2021) profile model includes "normal", "flat-bottomed", "central mound", and "concentric" subtypes. The Fassett et al. (2021) model will ignore this.
         **kwargs : Any
@@ -156,7 +156,6 @@ class BasicMoonCrater(MorphologyCrater):
 
             return val.item()
 
-        # subtype_options = ["normal", "central mound", "flat-bottomed", "concentric"]
         if crater.morphology_type in ["simple", "transitional"]:
             fassett_yang_fraction = modelMixer(diameter_m) if fassett_yang_fraction is None else fassett_yang_fraction
 
@@ -177,13 +176,13 @@ class BasicMoonCrater(MorphologyCrater):
 
             args["fassett_yang_fraction"] = fassett_yang_fraction
             if rim_elevation is None:
-                rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
+                rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
                 rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
                 rim_elevation = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
             args["rim_elevation"] = rim_elevation
 
             if floor_elevation is None:
-                depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027)[0] * 1e3 + rh_pike
+                depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.196, errhi=0.038, errlo=-0.027, n=171)[0] * 1e3 + rh_pike
                 depth_yang = -0.08 * diameter_m
                 floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
             args["floor_elevation"] = floor_elevation
@@ -196,22 +195,22 @@ class BasicMoonCrater(MorphologyCrater):
             args["peak_height"] = None
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
             args["rim_elevation"] = (
-                sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031)[0] * 1e3
+                sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031, n=38)[0] * 1e3
                 if rim_elevation is None
                 else rim_elevation
             )
             args["floor_elevation"] = (
-                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063)[0] * 1e3 + args["rim_elevation"]
+                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063, n=33)[0] * 1e3 + args["rim_elevation"]
                 if floor_elevation is None
                 else floor_elevation
             )
             args["floor_diameter"] = (
-                min(sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011)[0] * 1e3, 0.9 * diameter_m)
+                min(sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011, n=53)[0] * 1e3, 0.9 * diameter_m)
                 if floor_diameter is None
                 else floor_diameter
             )
             args["peak_height"] = (
-                sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008)[0] * 1e3
+                sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
                 if peak_height is None
                 else peak_height
             )
