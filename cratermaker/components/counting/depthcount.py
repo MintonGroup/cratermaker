@@ -54,13 +54,13 @@ class DepthCount(Counting):
         _DTR = 10.0e3
 
         # The following are empirically-derived constants determined through numerical experiments
-        c0 = 0.2771649498066961
-        c1 = 0.1032775007149389
-        d_scale = 178.40182304735092
-        s0 = 0.11511000581387373
-        s1 = 0.017078961587273955
-        p0 = 2.0700104291102317
-        p1 = 0.0920770504148557
+        c0 = 0.22979873828950528
+        c1 = 0.06918108652674912
+        d_scale = 291.904218250004
+        s0 = 0.12448013389142543
+        s1 = 0.01379734645741164
+        p0 = 2.2539723263482068
+        p1 = 0.05565419806380163
 
         def a_vs_diameter(diameter):
             if diameter < _DTR:
