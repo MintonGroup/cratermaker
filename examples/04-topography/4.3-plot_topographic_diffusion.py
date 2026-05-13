@@ -16,6 +16,9 @@ from scipy.interpolate import griddata
 
 from cratermaker import Surface
 
+fig, ax = plt.subplots(layout="constrained")
+
+
 simdir = "simdata-4_3"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
@@ -69,19 +72,18 @@ for i in range(nsteps + 1):
     label_ana = "Analytical" if i == nsteps else None
     h_numerical = surface.local.face_elevation
     h_analytical = analytical_elevation(r, h0, sigma, kappa, t)
-    plt.plot(r[isort], h_numerical[isort], label=label_num)
-    plt.plot(r[isort], h_analytical[isort], linestyle="--", color="black", alpha=0.5, label=label_ana)
+    ax.plot(r[isort], h_numerical[isort], label=label_num)
+    ax.plot(r[isort], h_analytical[isort], linestyle="--", color="black", alpha=0.5, label=label_ana)
     # Compare difference between analytical and numerical statistically
     rmse = np.sqrt(np.mean((h_numerical - h_analytical) ** 2))
     nrmse = rmse / np.ptp(h_analytical)
     print(f"{label_num:<7}: Normalized root mean square error = {nrmse:.4%}")
     surface.local.apply_diffusion(kappa)
 
-plt.xlabel("Distance (m)")
-plt.ylabel("Elevation (m)")
-plt.xlim(0, local_radius)
+ax.set_xlabel("Distance (m)")
+ax.set_ylabel("Elevation (m)")
+ax.set_xlim(0, local_radius)
 
-plt.title("Elevation Profile with Topographic Diffusion")
-plt.legend()
-plt.tight_layout()
+ax.set_title("Elevation Profile with Topographic Diffusion")
+ax.legend()
 plt.show()

@@ -21,11 +21,11 @@ markersize = 6
 # Define different marker styles for each body
 markerstyles = ["o", "X", "D"]
 morphology_types = ["simple", "transitional", "complex"]
-markerstyle_map = dict(zip(morphology_types, markerstyles))
+markerstyle_map = dict(zip(morphology_types, markerstyles, strict=True))
 colors = ["gray", "gold", "dodgerblue", "saddlebrown", "salmon", "powderblue", "mediumorchid"]
-color_map = dict(zip(bodies, colors))
+color_map = dict(zip(bodies, colors, strict=True))
 
-fig, ax = plt.subplots(figsize=(9, 7))
+fig, ax = plt.subplots(figsize=(9, 7), layout="constrained")
 ax.set_xscale("log")
 ax.set_yscale("log")
 ax.set_xlabel("Projectile Diameter [km]")
@@ -88,5 +88,4 @@ morph_legend = [
 ax.legend(handles=body_legend + morph_legend, fontsize=9, loc="best")
 
 ax.grid(True, which="both", linestyle="--", alpha=0.3)
-plt.tight_layout()
 plt.show()

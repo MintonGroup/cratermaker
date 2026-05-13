@@ -19,7 +19,7 @@ age_vals = np.linspace(4.5e3, 0.0, num=1000)
 N1_moon = moon.chronology(age=age_vals)
 N1_mars = mars.chronology(age=age_vals)
 
-fig, ax = plt.subplots(figsize=(8, 4))
+fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 ax.set_yscale("log")
 ax.set_ylabel("$\\mathregular{N(1) (km^{-2})}$")
 ax.set_xlabel("Time (Gy ago)")
@@ -47,5 +47,4 @@ ax.plot(
 
 ax.legend()
 
-plt.tight_layout()
 plt.show()

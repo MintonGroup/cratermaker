@@ -28,7 +28,7 @@ transformed_angles = np.rad2deg(np.arcsin(np.sqrt(uniform_dist)))
 expected_counts, _ = np.histogram(transformed_angles, bins=bins, range=(0.0, 90.0))
 
 # Plotting distribution
-fig, ax = plt.subplots(figsize=(8, 4))
+fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 ax.bar(
     bins_ang[:-1],
     observed_counts,
@@ -42,5 +42,4 @@ ax.set_xlabel("Impact Angle (deg)")
 ax.set_ylabel("Count")
 ax.legend()
 ax.set_title("Impact Angle Distribution")
-plt.tight_layout()
 plt.show()

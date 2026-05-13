@@ -49,7 +49,7 @@ theta_flat = theta.ravel()
 intensity_flat = morphology.ray_intensity(crater, r_flat, theta_flat)
 intensity = intensity_flat.reshape(r.shape)
 # Plot the intensity colormap
-fig, ax = plt.subplots(figsize=(6, 5))
+fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
 c = ax.imshow(
     intensity,
     norm=LogNorm(vmin=1e-4, vmax=intensity.max()),
@@ -62,6 +62,4 @@ ax.set_ylabel("y (r_c)")
 ax.set_title("Ray Intensity Map")
 fig.colorbar(c, ax=ax, label="Intensity")
 
-plt.tight_layout()
 plt.show()
-print("Done")
