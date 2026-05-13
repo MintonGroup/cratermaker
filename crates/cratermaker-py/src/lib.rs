@@ -20,8 +20,8 @@ mod cratermaker {
     mod counting_bindings {
         #[pymodule_export]
         use crate::counting_bindings::{
-            fit_one_ellipse, fit_one_ellipse_fixed_center, fit_rim, measure_floor_depth,
-            measure_rim_height, score_rim,
+            fit_one_ellipse, fit_one_ellipse_fixed_center, fit_rim, measure_floor_elevation,
+            measure_rim_elevation, score_rim,
         };
     }
 

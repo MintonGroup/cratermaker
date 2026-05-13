@@ -42,7 +42,7 @@ fn filter_crater_faces(
     Ok(Array1::from(vals))
 }
 
-pub fn measure_floor_depth(
+pub fn measure_floor_elevation(
     region: &LocalSurfaceView<'_>,
     crater: &Crater,
 ) -> Result<f64, &'static str> {
@@ -76,7 +76,7 @@ pub fn measure_floor_depth(
     Ok(elev_sum / (n_floor as f64))
 }
 
-pub fn measure_rim_height(
+pub fn measure_rim_elevation(
     region: &LocalSurfaceView<'_>,
     crater: &Crater,
 ) -> Result<f64, &'static str> {

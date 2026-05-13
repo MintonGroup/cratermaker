@@ -22,9 +22,9 @@ pub fn crater_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
-    floor_depth: f64,
+    floor_elevation: f64,
     floor_diameter: f64,
-    rim_height: f64,
+    rim_elevation: f64,
     ejrim: f64,
     fassett_yang_fraction: f64,
     morphology_subtype: &str,
@@ -33,9 +33,9 @@ pub fn crater_profile(
         radial_distances,
         reference_elevations,
         crater_diameter,
-        floor_depth,
+        floor_elevation,
         floor_diameter,
-        rim_height,
+        rim_elevation,
         ejrim,
     )?;
     if fassett_yang_fraction < 1.0 {
@@ -43,9 +43,9 @@ pub fn crater_profile(
             radial_distances,
             reference_elevations,
             crater_diameter,
-            floor_depth,
+            floor_elevation,
             floor_diameter,
-            rim_height,
+            rim_elevation,
             ejrim,
             morphology_subtype,
         )?;
@@ -68,9 +68,9 @@ pub fn crater_profile(
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `crater_diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters, relative to datum).
+/// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters, relative to datum).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters, relative to datum).
+/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters, relative to datum).
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
 ///
 /// # Returns
@@ -94,9 +94,9 @@ pub fn fassett2020_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
-    floor_depth: f64,
+    floor_elevation: f64,
     floor_diameter: f64,
-    rim_height: f64,
+    rim_elevation: f64,
     ejrim: f64,
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
@@ -108,9 +108,9 @@ pub fn fassett2020_profile(
     let crater_radius = crater_diameter / 2.0;
 
     // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions
-    let c1 = (floor_depth - rim_height)
+    let c1 = (floor_elevation - rim_elevation)
         / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
-    let c0 = rim_height - c1 * (1.0 + A + B);
+    let c0 = rim_elevation - c1 * (1.0 + A + B);
     let c2 = A * c1;
     let c3 = B * c1;
 
@@ -134,7 +134,7 @@ pub fn fassett2020_profile(
             .sum::<f64>()
             / ninc as f64
     };
-    let min_elevation = meanref + floor_depth;
+    let min_elevation = meanref + floor_elevation;
 
     Ok(Array1::from_iter(
         reference_elevations
@@ -143,7 +143,16 @@ pub fn fassett2020_profile(
             .map(|(&elevation, &radial_distances)| {
                 let r = radial_distances / crater_radius;
                 (
-                    fassett2020_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
+                    fassett2020_profile_function(
+                        r,
+                        elevation,
+                        c0,
+                        c1,
+                        c2,
+                        c3,
+                        rim_elevation,
+                        ejrim,
+                    ),
                     radial_distances,
                 )
             })
@@ -175,7 +184,7 @@ pub fn fassett2020_profile(
 /// * `r` - Normalized radial distance (unitless, where 1.0 corresponds to the crater rim).
 /// * `elevation` - Baseline elevation before crater modification.
 /// * `c0`, `c1`, `c2`, `c3` - Polynomial coefficients for the crater profile interior.
-/// * `rim_height` - Height of the crater rim.
+/// * `rim_elevation` - Height of the crater rim.
 /// * `ejrim` - Rim dropoff parameter.
 ///
 /// # Returns
@@ -189,11 +198,11 @@ fn fassett2020_profile_function(
     c1: f64,
     c2: f64,
     c3: f64,
-    rim_height: f64,
+    rim_elevation: f64,
     ejrim: f64,
 ) -> f64 {
     if r >= 1.0 {
-        elevation + (rim_height - ejrim) * r.powf(RIMDROP)
+        elevation + (rim_elevation - ejrim) * r.powf(RIMDROP)
     } else {
         elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
     }
@@ -212,9 +221,9 @@ fn fassett2020_profile_function(
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `crater_diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters, relative to datum).
+/// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters, relative to datum).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters, relative to datum).
+/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters, relative to datum).
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
 ///
 /// # Returns
@@ -233,15 +242,15 @@ pub fn yang2021_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
-    floor_depth: f64,
+    floor_elevation: f64,
     floor_diameter: f64,
-    rim_height: f64,
+    rim_elevation: f64,
     ejrim: f64,
     morphology_subtype: &str,
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
-    let hr = rim_height / crater_diameter;
-    let d0 = -floor_depth / crater_diameter + hr;
+    let hr = rim_elevation / crater_diameter;
+    let d0 = -floor_elevation / crater_diameter + hr;
     let alpha = -3.1906;
     let crater_radius = crater_diameter * 0.5;
     let rb = floor_diameter / crater_diameter;

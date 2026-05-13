@@ -15,9 +15,9 @@ pub struct Crater {
 /// Includes floor geometry, rim height, and whether to apply ray modulation.
 #[derive(FromPyObject)]
 pub struct BasicMoonMorphology {
-    pub floor_depth: f64,
+    pub floor_elevation: f64,
     pub floor_diameter: f64,
-    pub rim_height: f64,
+    pub rim_elevation: f64,
     pub ejrim: f64,
     pub crater: Crater,
 }
@@ -34,9 +34,9 @@ pub struct BasicMoonMorphology {
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters).
+/// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters).
+/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
 ///
 /// # Returns
@@ -52,9 +52,9 @@ pub fn crater_profile<'py>(
     radial_distances: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
-    floor_depth: f64,
+    floor_elevation: f64,
     floor_diameter: f64,
-    rim_height: f64,
+    rim_elevation: f64,
     ejrim: f64,
     fassett_yang_fraction: f64,
     morphology_subtype: &str,
@@ -65,9 +65,9 @@ pub fn crater_profile<'py>(
         radial_distances_v,
         reference_elevations_v,
         crater_diameter,
-        floor_depth,
+        floor_elevation,
         floor_diameter,
-        rim_height,
+        rim_elevation,
         ejrim,
         fassett_yang_fraction,
         morphology_subtype,

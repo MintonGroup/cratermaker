@@ -318,33 +318,33 @@ class MorphologyCrater(Crater):
         return self._var._emplaceable
 
     @property
-    def measured_rim_height(self) -> float | None:
+    def measured_rim_elevation(self) -> float | None:
         """The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
-        return self._var._measured_rim_height
+            self._var._measured_rim_elevation = counting_bindings.measure_rim_elevation(self.crater_region, self)
+        return self._var._measured_rim_elevation
 
     @property
-    def measured_floor_depth(self) -> float | None:
+    def measured_floor_elevation(self) -> float | None:
         """The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
-        return self._var._measured_floor_depth
+            self._var._measured_floor_elevation = counting_bindings.measure_floor_elevation(self.crater_region, self)
+        return self._var._measured_floor_elevation
 
     @property
     def measured_depth_to_diameter(self) -> float | None:
         """
         The measured depth to diameter ratio of the crater.
 
-        This is computed from `measured_rim_height`-`measured_floor_depth`
+        This is computed from `measured_rim_elevation`-`measured_floor_elevation`
         """
         if self.crater_region is not None:
             self.crater_region._desloped_face_elevation = None
-            floor_depth = self.measured_floor_depth
-            rim_height = self.measured_rim_height
-            return (rim_height - floor_depth) / self.measured_diameter
+            floor_elevation = self.measured_floor_elevation
+            rim_elevation = self.measured_rim_elevation
+            return (rim_elevation - floor_elevation) / self.measured_diameter
         else:
             return None
 

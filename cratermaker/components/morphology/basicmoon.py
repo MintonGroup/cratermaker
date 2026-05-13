@@ -24,11 +24,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class BasicMoonCraterFixed(CraterFixed):
-    rim_height: float | None = None
+    rim_elevation: float | None = None
     """Original rim height of the crater in meters relative to the reference surface."""
     rim_width: float | None = None
     """Original rim width of the crater in meters."""
-    floor_depth: float | None = None
+    floor_elevation: float | None = None
     """Original floor depth of the crater in meters relative to the reference surface."""
     floor_diameter: float | None = None
     """Original floor diameter of the crater in meters."""
@@ -46,12 +46,12 @@ class BasicMoonCraterFixed(CraterFixed):
         """
         The depth to diameter ratio of the crater.
 
-        This is computed from `rim_height`-`floor_depth`.
+        This is computed from `rim_elevation`-`floor_elevation`.
         """
-        floor_depth = self.floor_depth
-        rim_height = self.rim_height
-        if floor_depth is not None and rim_height is not None:
-            return (rim_height - floor_depth) / self.diameter
+        floor_elevation = self.floor_elevation
+        rim_elevation = self.rim_elevation
+        if floor_elevation is not None and rim_elevation is not None:
+            return (rim_elevation - floor_elevation) / self.diameter
         else:
             return None
 
@@ -67,8 +67,8 @@ class BasicMoonCrater(MorphologyCrater):
     def __str__(self) -> str:
         str_repr = super().__str__()
         str_repr += (
-            f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
-            f"Floor depth: {format_large_units(self.floor_depth, quantity='length')}\n"
+            f"Rim height: {format_large_units(self.rim_elevation, quantity='length')}\n"
+            f"Floor depth: {format_large_units(self.floor_elevation, quantity='length')}\n"
             f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
@@ -82,9 +82,9 @@ class BasicMoonCrater(MorphologyCrater):
         cls,
         crater: Crater | None = None,
         morphology: Morphology | None = None,
-        rim_height: float | None = None,
+        rim_elevation: float | None = None,
         rim_width: float | None = None,
-        floor_depth: float | None = None,
+        floor_elevation: float | None = None,
         floor_diameter: float | None = None,
         ejrim: float | None = None,
         peak_height: float | None = None,
@@ -103,11 +103,11 @@ class BasicMoonCrater(MorphologyCrater):
             The crater object to be converted into a BasicMoonCrater. If None, then a new crater is created using the provided parameters.
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
-        rim_height : float, optional
+        rim_elevation : float, optional
             Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
         rim_width : float, optional
             Original rim width of the crater in meters. If None, it will be computed.
-        floor_depth : float, optional
+        floor_elevation : float, optional
             Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_diameter : float, optional
             Original floor diameter of the crater in meters. If None, it will be computed.
@@ -176,17 +176,17 @@ class BasicMoonCrater(MorphologyCrater):
             args["morphology_subtype"] = morphology_subtype
 
             args["fassett_yang_fraction"] = fassett_yang_fraction
-            if rim_height is None:
+            if rim_elevation is None:
                 rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062)[0] * 1e3
                 rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
-                rim_height = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
-            args["rim_height"] = rim_height
+                rim_elevation = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
+            args["rim_elevation"] = rim_elevation
 
-            if floor_depth is None:
+            if floor_elevation is None:
                 depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.224, errhi=0.038, errlo=-0.027)[0] * 1e3 + rh_pike
                 depth_yang = -0.08 * diameter_m
-                floor_depth = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
-            args["floor_depth"] = floor_depth
+                floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
+            args["floor_elevation"] = floor_elevation
 
             if floor_diameter is None:
                 floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
@@ -195,15 +195,15 @@ class BasicMoonCrater(MorphologyCrater):
             args["floor_diameter"] = floor_diameter
             args["peak_height"] = None
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-            args["rim_height"] = (
+            args["rim_elevation"] = (
                 sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031)[0] * 1e3
-                if rim_height is None
-                else rim_height
+                if rim_elevation is None
+                else rim_elevation
             )
-            args["floor_depth"] = (
-                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063)[0] * 1e3 + args["rim_height"]
-                if floor_depth is None
-                else floor_depth
+            args["floor_elevation"] = (
+                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063)[0] * 1e3 + args["rim_elevation"]
+                if floor_elevation is None
+                else floor_elevation
             )
             args["floor_diameter"] = (
                 min(sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011)[0] * 1e3, 0.9 * diameter_m)
@@ -443,9 +443,9 @@ class BasicMoonMorphology(Morphology):
             rflat,
             r_ref_flat,
             crater.diameter,
-            crater.floor_depth,
+            crater.floor_elevation,
             crater.floor_diameter,
-            crater.rim_height,
+            crater.rim_elevation,
             crater.ejrim,
             crater.fassett_yang_fraction,
             crater.morphology_subtype if crater.morphology_subtype is not None else "",
