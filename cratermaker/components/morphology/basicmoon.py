@@ -125,9 +125,9 @@ class BasicMoonCrater(MorphologyCrater):
         References
         ----------
         .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
-        .. [#] Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. [doi:10.1002/2014JE004698](https://doi.org/10.1002/2014JE004698)
-        .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. [doi:10.1029/2021GL095537](https://doi.org/10.1029/2021GL095537)
-        .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. [doi:10.3847/PSJ/ad18d4](https://doi.org/10.3847/PSJ/ad18d4)
+        .. [#] Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. `doi:10.1002/2014JE004698 <https://doi.org/10.1002/2014JE004698>`_
+        .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. `doi:10.1029/2021GL095537 <https://doi.org/10.1029/2021GL095537>`_
+        .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
         """
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit
