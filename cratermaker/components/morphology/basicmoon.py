@@ -189,7 +189,13 @@ class BasicMoonCrater(MorphologyCrater):
 
             if floor_diameter is None:
                 floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
-                floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+                floor_diam_yang = 0.0
+                if morphology_subtype == "central mound":
+                    floor_diam_yang = 0.793 * diameter_m ** (-0.242) * diameter_m
+                elif morphology_subtype == "flat-bottomed":
+                    floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+                elif morphology_subtype == "concentric":
+                    floor_diam_yang = 0.383 * diameter_m ** (0.053) * diameter_m
                 floor_diameter = floor_diam_fassett * fassett_yang_fraction + floor_diam_yang * (1.0 - fassett_yang_fraction)
             args["floor_diameter"] = floor_diameter
             args["peak_height"] = None

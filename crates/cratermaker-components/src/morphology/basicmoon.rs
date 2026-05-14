@@ -1,5 +1,5 @@
 use crate::ArrayResult;
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use libm::{erf, exp};
 use numpy::ndarray::prelude::*;
 use rand::prelude::*;
@@ -29,12 +29,12 @@ pub fn crater_profile(
     fassett_yang_fraction: f64,
     morphology_subtype: &str,
 ) -> ArrayResult {
+    let crater_radius = crater_diameter / 2.0;
     let mut p1 = Array1::zeros(radial_distances.len());
     let mut p2 = Array1::zeros(radial_distances.len());
     if fassett_yang_fraction > 0.0 {
         p1 = fassett2020_profile(
             radial_distances,
-            reference_elevations,
             crater_diameter,
             floor_elevation,
             floor_diameter,
@@ -45,7 +45,6 @@ pub fn crater_profile(
     if fassett_yang_fraction < 1.0 {
         p2 = yang2021_profile(
             radial_distances,
-            reference_elevations,
             crater_diameter,
             floor_elevation,
             floor_diameter,
@@ -54,7 +53,48 @@ pub fn crater_profile(
             morphology_subtype,
         )?;
     };
-    Ok(p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction))
+
+    // Compute the weighted elevation profile relative to the reference plane
+    let h = p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction);
+
+    // The floor should be flat relative to the physical surface rather than the reference plane, so we need to adjust any points
+    // that fall below the true floor elevation
+    let ninc = radial_distances
+        .iter()
+        .filter(|&&x| x <= crater_radius)
+        .count();
+    let meanref = if ninc == 0 {
+        *radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .unwrap()
+            .1
+    } else {
+        radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .filter(|(&r, _)| r <= crater_radius)
+            .map(|(_, &e)| e)
+            .sum::<f64>()
+            / ninc as f64
+    };
+    let min_elevation = meanref + floor_elevation;
+
+    Ok(Array1::from_iter(
+        izip!(
+            radial_distances.iter(),
+            reference_elevations.iter(),
+            h.iter()
+        )
+        .map(|(&rval, &href, &hval)| {
+            if rval <= crater_radius {
+                (href + hval).max(min_elevation)
+            } else {
+                href + hval
+            }
+        }),
+    ))
 }
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations using modification of the model
@@ -68,7 +108,6 @@ pub fn crater_profile(
 /// # Arguments
 ///
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
-/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
 /// * `crater_diameter` - Total diameter of the crater (in meters).
 /// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters, relative to datum).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
@@ -94,14 +133,12 @@ pub fn crater_profile(
 
 pub fn fassett2020_profile(
     radial_distances: ArrayView1<'_, f64>,
-    reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
     floor_elevation: f64,
     floor_diameter: f64,
     rim_elevation: f64,
     ejrim: f64,
 ) -> ArrayResult {
-    assert_eq!(radial_distances.len(), reference_elevations.len());
     const A: f64 = 4.0 / 11.0;
     const B: f64 = -32.0 / 187.0;
 
@@ -116,56 +153,10 @@ pub fn fassett2020_profile(
     let c2 = A * c1;
     let c3 = B * c1;
 
-    let ninc = radial_distances
-        .iter()
-        .filter(|&&x| x <= crater_radius)
-        .count();
-    let meanref = if ninc == 0 {
-        *radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
-            .unwrap()
-            .1
-    } else {
-        radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .filter(|(&r, _)| r <= crater_radius)
-            .map(|(_, &e)| e)
-            .sum::<f64>()
-            / ninc as f64
-    };
-    let min_elevation = meanref + floor_elevation;
-
-    Ok(Array1::from_iter(
-        reference_elevations
-            .iter()
-            .zip(radial_distances)
-            .map(|(&elevation, &radial_distances)| {
-                let r = radial_distances / crater_radius;
-                (
-                    fassett2020_profile_function(
-                        r,
-                        elevation,
-                        c0,
-                        c1,
-                        c2,
-                        c3,
-                        rim_elevation,
-                        ejrim,
-                    ),
-                    radial_distances,
-                )
-            })
-            .map(|(elevation, radial_distances)| {
-                if radial_distances <= crater_radius {
-                    elevation.max(min_elevation)
-                } else {
-                    elevation
-                }
-            }),
-    ))
+    Ok(Array1::from_iter(radial_distances.iter().map(|&rval| {
+        let r = rval / crater_radius;
+        fassett2020_profile_function(r, c0, c1, c2, c3, rim_elevation, ejrim)
+    })))
 }
 
 /// Calculates the elevation of a crater as a function of distance from the center.
@@ -184,7 +175,6 @@ pub fn fassett2020_profile(
 /// # Arguments
 ///
 /// * `r` - Normalized radial distance (unitless, where 1.0 corresponds to the crater rim).
-/// * `elevation` - Baseline elevation before crater modification.
 /// * `c0`, `c1`, `c2`, `c3` - Polynomial coefficients for the crater profile interior.
 /// * `rim_elevation` - Height of the crater rim.
 /// * `ejrim` - Rim dropoff parameter.
@@ -195,7 +185,6 @@ pub fn fassett2020_profile(
 #[inline]
 fn fassett2020_profile_function(
     r: f64,
-    elevation: f64,
     c0: f64,
     c1: f64,
     c2: f64,
@@ -204,9 +193,9 @@ fn fassett2020_profile_function(
     ejrim: f64,
 ) -> f64 {
     if r >= 1.0 {
-        elevation + (rim_elevation - ejrim) * r.powf(RIMDROP)
+        (rim_elevation - ejrim) * r.powf(RIMDROP)
     } else {
-        elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
+        c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
     }
 }
 
@@ -242,7 +231,6 @@ fn fassett2020_profile_function(
 ///     Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. https://doi.org/10.1029/2021GL095537
 pub fn yang2021_profile(
     radial_distances: ArrayView1<'_, f64>,
-    reference_elevations: ArrayView1<'_, f64>,
     crater_diameter: f64,
     floor_elevation: f64,
     floor_diameter: f64,
@@ -250,7 +238,6 @@ pub fn yang2021_profile(
     ejrim: f64,
     morphology_subtype: &str,
 ) -> ArrayResult {
-    assert_eq!(radial_distances.len(), reference_elevations.len());
     let hr = rim_elevation / crater_diameter;
     let d0 = -floor_elevation / crater_diameter + hr;
     let alpha = -3.1906;
@@ -258,34 +245,25 @@ pub fn yang2021_profile(
     let rb = floor_diameter / crater_diameter;
     let he = ejrim / crater_diameter;
 
-    Ok(Array1::from_iter(
-        reference_elevations
-            .iter()
-            .zip(radial_distances)
-            .map(|(&elevation, &radial_distances)| {
-                let r = radial_distances / crater_radius;
-                let h = elevation / crater_diameter;
-                if morphology_subtype == "normal" {
-                    (yang2021_normal_profile(r, alpha, d0, hr, he) + hr) * crater_diameter
-                } else if morphology_subtype == "central mound" {
-                    let rm = 0.293 * crater_diameter.powf(-0.086);
-                    let hm = 0.23e-3 * crater_diameter.powf(0.64);
-                    (yang2021_centralmound_profile(r, alpha, d0, hr, he, rb, rm, hm) + hr + h)
-                        * crater_diameter
-                } else if morphology_subtype == "flat-bottomed" {
-                    (yang2021_flatbottom_profile(r, alpha, d0, hr, he, rb) + hr + h)
-                        * crater_diameter
-                } else if morphology_subtype == "concentric" {
-                    let c3 = 0.0155 * crater_diameter.powf(0.343);
-                    let ri = 0.383 * crater_diameter.powf(0.053);
-                    let ro = 0.421 * crater_diameter.powf(0.102);
-                    (yang2021_concentric_profile(r, alpha, d0, hr, he, ri, ro, c3) + hr + h)
-                        * crater_diameter
-                } else {
-                    panic!("Unknown morphology_subtype: {}", morphology_subtype);
-                }
-            }),
-    ))
+    Ok(Array1::from_iter(radial_distances.iter().map(|&rval| {
+        let r = rval / crater_radius;
+        if morphology_subtype == "normal" {
+            (yang2021_normal_profile(r, alpha, d0, hr, he) + hr) * crater_diameter
+        } else if morphology_subtype == "central mound" {
+            let rm = 0.293 * crater_diameter.powf(-0.086);
+            let hm = 0.23e-3 * crater_diameter.powf(0.64);
+            (yang2021_centralmound_profile(r, alpha, d0, hr, he, rb, rm, hm) + hr) * crater_diameter
+        } else if morphology_subtype == "flat-bottomed" {
+            (yang2021_flatbottom_profile(r, alpha, d0, hr, he, rb) + hr) * crater_diameter
+        } else if morphology_subtype == "concentric" {
+            let c3 = 0.0155 * crater_diameter.powf(0.343);
+            let ri = 0.383 * crater_diameter.powf(0.053);
+            let ro = 0.421 * crater_diameter.powf(0.102);
+            (yang2021_concentric_profile(r, alpha, d0, hr, he, ri, ro, c3) + hr) * crater_diameter
+        } else {
+            panic!("Unknown morphology_subtype: {}", morphology_subtype);
+        }
+    })))
 }
 
 fn yang2021_normal_profile(r: f64, alpha: f64, d0: f64, hr: f64, he: f64) -> f64 {
