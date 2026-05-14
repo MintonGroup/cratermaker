@@ -12,7 +12,7 @@ Sources
 - The model for the rim floor elevations as a function of crater diameter for large craters (diameters larger than ~5km), including their scatter, is taken from Pike (1977) [#]_
 - For small craters (diameters smaller than ~5km), the depth-to-diameter model is taken as a weighted average between two models: 1) A modified version of the profile function given in Fassett and Thomson (2014) [#]_, which takes depth as a variable quantity. 2) The suite of profile functions given in Yang et al. (2021) [#]_. The weighting factor is set such that for craters larger than 5 km, all craters use the Fassett and Thomson profile, and all craters smaller than 50 m use one of the Yang et al. profiles (chosen at random for diameters less than 180 m, otherwise the "normal" version is used). In between, the weighting of the FT14 to Y21 profile models (and their depth) is chosen from a weighted gaussian function that biases the profiles to the shallower Y21 model for small craters and to the deeper FT14 model for large craters within the range.
 - Measurements of depth-to-diameter values for fresh craters are drawn from Pike (1974) [#]_, Stopar et al. (2017) [#]_ (only the Class A craters), and Hoover et al. (2024) [#]_.
--
+
 
 References
 ----------
@@ -23,6 +23,17 @@ References
 .. [#] Pike, R.J., 1974. Depth/diameter relations of fresh lunar craters: Revision from spacecraft data. Geophysical Research Letters 1, 291-294. `doi:10.1029/GL001i007p00291 <https://doi.org/10.1029/GL001i007p00291>`_
 .. [#] Stopar, J.D., Robinson, M.S., Barnouin, O.S., McEwen, A.S., Speyerer, E.J., Henriksen, M.R., Sutton, S.S., 2017. Relative depths of simple craters and the nature of the lunar regolith. Icarus. `doi:10.1016/j.icarus.2017.05.022 <https://doi.org/10.1016/j.icarus.2017.05.022>`_
 .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
+
+
+
+Depth vs diameter measurement files
+-----------------------------------
+
+  :download:`Hoover2024Table2.csv </_static/Hoover2024Table2.csv>`
+  :download:`Pike1974-Mare.csv </_static/Pike1974-Mare.csv>`
+  :download:`Pike1974-Highlands.csv </_static/Pike1974-Highlands.csv>`
+  :download:`S2-Stopar et al. Simple Craters.csv </_static/S2-Stopar_et_al._Simple_Craters.csv>`
+
 
 """
 
@@ -155,5 +166,6 @@ ax.scatter(
     s=5,
     zorder=1000,
 )
+
 ax.legend(loc="lower right")
 plt.show()

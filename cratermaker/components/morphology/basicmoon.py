@@ -183,7 +183,7 @@ class BasicMoonCrater(MorphologyCrater):
 
             if floor_elevation is None:
                 depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.196, errhi=0.038, errlo=-0.027, n=171)[0] * 1e3 + rh_pike
-                depth_yang = -0.08 * diameter_m
+                depth_yang = -0.114 * diameter_m ** (-0.002) * diameter_m + rh_yang
                 floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
             args["floor_elevation"] = floor_elevation
 

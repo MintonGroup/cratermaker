@@ -29,17 +29,21 @@ pub fn crater_profile(
     fassett_yang_fraction: f64,
     morphology_subtype: &str,
 ) -> ArrayResult {
-    let p1 = fassett2020_profile(
-        radial_distances,
-        reference_elevations,
-        crater_diameter,
-        floor_elevation,
-        floor_diameter,
-        rim_elevation,
-        ejrim,
-    )?;
+    let mut p1 = Array1::zeros(radial_distances.len());
+    let mut p2 = Array1::zeros(radial_distances.len());
+    if fassett_yang_fraction > 0.0 {
+        p1 = fassett2020_profile(
+            radial_distances,
+            reference_elevations,
+            crater_diameter,
+            floor_elevation,
+            floor_diameter,
+            rim_elevation,
+            ejrim,
+        )?;
+    };
     if fassett_yang_fraction < 1.0 {
-        let p2 = yang2021_profile(
+        p2 = yang2021_profile(
             radial_distances,
             reference_elevations,
             crater_diameter,
@@ -49,10 +53,8 @@ pub fn crater_profile(
             ejrim,
             morphology_subtype,
         )?;
-        Ok(p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction))
-    } else {
-        Ok(p1)
-    }
+    };
+    Ok(p1 * fassett_yang_fraction + p2 * (1.0 - fassett_yang_fraction))
 }
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations using modification of the model

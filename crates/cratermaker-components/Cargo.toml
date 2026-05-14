@@ -1,6 +1,6 @@
 [package]
 name = "cratermaker-components"
-version = "2026.5.0-a12+g3088a1172"
+version = "2026.5.0-a14+gd6d69b0bf"
 edition = "2021"
 
 

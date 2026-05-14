@@ -1267,9 +1267,12 @@ class Surface(ComponentBase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True, **kwargs) as temp_dir:
             data_file = self.output_dir / filename
             if data_file.exists():
-                with xr.open_mfdataset(data_file) as ds_old:
-                    ds_old = ds_old.load()
-                ds_file = ds.merge(ds_old, compat="override")
+                try:
+                    with xr.open_mfdataset(data_file) as ds_old:
+                        ds_old = ds_old.load()
+                    ds_file = ds.merge(ds_old, compat="override")
+                except Exception:
+                    ds_file = ds
             else:
                 ds_file = ds
 
@@ -1437,7 +1440,7 @@ class Surface(ComponentBase):
         The hash id of the grid. This is used for determining if the grid needs to be regridded.
         """
         combined = ":".join(str(v) for v in self._hashvars)
-        combined += "v2026.2.0"  # Add version number because of API changes
+        combined += ":v2026.2.0"  # Add version number because of API changes
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
 
