@@ -13,6 +13,7 @@ from geopandas import GeoSeries
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike
 from shapely.ops import transform
+from shapely.validation import make_valid
 from tqdm import tqdm
 from vtk import vtkPolyData
 
@@ -1443,6 +1444,8 @@ class Counting(ComponentBase):
                 crater_poly = crater.to_geoseries(
                     surface=self.surface, split_antimeridian=False, use_measured_properties=True
                 ).to_crs(self.surface.crs)
+                if not crater_poly.is_valid[0]:
+                    crater_poly = crater_poly.make_valid()
                 overlap_area = crater_poly.intersection(region_poly).to_crs(self.surface.local.crs).area.item()
                 return overlap_area / crater_poly.to_crs(self.surface.local.crs).area.item()
             else:

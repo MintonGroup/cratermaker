@@ -475,7 +475,7 @@ def bounded_norm(
     return truncated_normal.rvs(size, random_state=rng)
 
 
-def sample_logfit(
+def sample_pikefit(
     x: float,
     a: float,
     b: float,
@@ -535,3 +535,59 @@ def sample_logfit(
     y = np.exp(log_y + var)
 
     return y
+
+
+def sample_logfit_heteroskedastic(
+    x: float,
+    a: float,
+    b: float,
+    c: float,
+    alpha: float,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with variance that depends on x.
+
+    This is based on a reanalysis of fits from Pike (1977) [#]_.
+
+    Fitting log(res^2) = c + alpha * log(f) → sigma(x) = exp(c/2) * f(x)^{alpha/2}
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    a : float
+        The slope of the log-log fit.
+    b : float
+        The intercept of the log-log fit.
+    c : float
+        The intercept of the sigma vs x fit.
+    alpha : float
+        The slope of the sigma vs x fit.
+    n : int
+        The number of data points used to compute the fit.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+
+    log_y = np.log(b) + a * np.log(x)
+    y = np.exp(log_y)
+
+    sigma = np.exp(c / 2) * y ** (alpha / 2)
+    var = rng.normal(0, sigma, size=np.size(x))
+
+    return y + var

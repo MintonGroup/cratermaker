@@ -130,7 +130,7 @@ class BasicMoonCrater(MorphologyCrater):
         .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
         """
         from cratermaker.components.morphology import Morphology
-        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit
+        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_pikefit
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
@@ -176,13 +176,13 @@ class BasicMoonCrater(MorphologyCrater):
 
             args["fassett_yang_fraction"] = fassett_yang_fraction
             if rim_elevation is None:
-                rh_pike = sample_logfit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
+                rh_pike = sample_pikefit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
                 rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
                 rim_elevation = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
             args["rim_elevation"] = rim_elevation
 
             if floor_elevation is None:
-                depth_pike = -sample_logfit(diameter_km, a=1.010, b=0.196, errhi=0.038, errlo=-0.027, n=171)[0] * 1e3 + rh_pike
+                depth_pike = -sample_pikefit(diameter_km, a=1.010, b=0.196, errhi=0.038, errlo=-0.027, n=171)[0] * 1e3 + rh_pike
                 depth_yang = -0.114 * diameter_m ** (-0.002) * diameter_m + rh_yang
                 floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
             args["floor_elevation"] = floor_elevation
@@ -201,22 +201,22 @@ class BasicMoonCrater(MorphologyCrater):
             args["peak_height"] = None
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
             args["rim_elevation"] = (
-                sample_logfit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031, n=38)[0] * 1e3
+                sample_pikefit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031, n=38)[0] * 1e3
                 if rim_elevation is None
                 else rim_elevation
             )
             args["floor_elevation"] = (
-                -sample_logfit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063, n=33)[0] * 1e3 + args["rim_elevation"]
+                -sample_pikefit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063, n=33)[0] * 1e3 + args["rim_elevation"]
                 if floor_elevation is None
                 else floor_elevation
             )
             args["floor_diameter"] = (
-                min(sample_logfit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011, n=53)[0] * 1e3, 0.9 * diameter_m)
+                min(sample_pikefit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011, n=53)[0] * 1e3, 0.9 * diameter_m)
                 if floor_diameter is None
                 else floor_diameter
             )
             args["peak_height"] = (
-                sample_logfit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
+                sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
                 if peak_height is None
                 else peak_height
             )
