@@ -19,11 +19,8 @@ from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
-from rasterio import DatasetReader, MemoryFile, windows
-from rasterio.enums import Resampling
-from rasterio.merge import merge
+from rasterio import DatasetReader, windows
 from rasterio.transform import rowcol
-from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
 from tqdm import tqdm
@@ -1894,53 +1891,53 @@ class Surface(ComponentBase):
         """
         if location is None:
             wkt = (
-                f'GEOGCS["GCS_{name}_global",'
-                f'    DATUM["D_{name}",'
-                f'        ELLIPSOID["{name}",{radius:.6f},0,'
-                f'            LENGTHUNIT["metre",1]]],'
-                f'    PRIMEM["Reference_Meridian",0,'
-                f'        ANGLEUNIT["degree",0.0174532925199433]]],'
-                f"    CS[ellipsoidal,2],"
-                f'        AXIS["geodetic latitude (Lat)",north,'
-                f"            ORDER[1],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
-                f'        AXIS["geodetic longitude (Lon)",east,'
-                f"            ORDER[2],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
+                f'GEOGCS["GCS_{name}_global",\n'
+                f'    DATUM["D_{name}",\n'
+                f'        ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'            LENGTHUNIT["metre",1]]],\n'
+                f'    PRIMEM["Reference_Meridian",0,\n'
+                f'        ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f"    CS[ellipsoidal,2],\n"
+                f'        AXIS["geodetic latitude (Lat)",north,\n'
+                f"            ORDER[1],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
+                f'        AXIS["geodetic longitude (Lon)",east,\n'
+                f"            ORDER[2],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
                 f'REMARK["Created by Cratermaker"]]'
             )
         else:
             lon0, lat0 = location
             wkt = (
-                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Lambert_Azimuthal_Equal_Area",'
-                f'    BASEGEOGCRS["GCS_{name}_global",'
-                f'        DATUM["D_{name}",'
-                f'            ELLIPSOID["{name}",{radius:.6f},0,'
-                f'                LENGTHUNIT["metre",1]]],'
-                f'        PRIMEM["Reference_Meridian",0,'
-                f'            ANGLEUNIT["degree",0.0174532925199433]]],'
-                f'        CONVERSION["Lambert Azimuthal Equal Area",'
-                f'            METHOD["Lambert Azimuthal Equal Area (Spherical)",'
-                f'                ID["EPSG",1027]],'
-                f'            PARAMETER["Latitude of natural origin",{lat0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8801]],'
-                f'            PARAMETER["Longitude of natural origin",{lon0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8802]],'
-                f'            PARAMETER["False easting",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8806]],'
-                f'            PARAMETER["False northing",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8807]]],'
-                f"        CS[Cartesian,2],"
-                f'            AXIS["(E)",east,'
-                f"                ORDER[1],"
-                f'                LENGTHUNIT["metre",1]],'
-                f'            AXIS["(N)",north,'
-                f"                ORDER[2],"
-                f'                LENGTHUNIT["metre",1]]],'
+                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Azimuthal_Equidistant",\n'
+                f'    BASEGEOGCRS["GCS_{name}_global",\n'
+                f'        DATUM["D_{name}",\n'
+                f'            ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'                LENGTHUNIT["metre",1]]],\n'
+                f'        PRIMEM["Reference_Meridian",0,\n'
+                f'            ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f'        CONVERSION["Sphere_Azimuthal_Equidistant",\n'
+                f'            METHOD["Azimuthal Equidistant",\n'
+                f'                ID["EPSG",1125]],\n'
+                f'            PARAMETER["Latitude of natural origin",{lat0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8801]],\n'
+                f'            PARAMETER["Longitude of natural origin",{lon0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8802]],\n'
+                f'            PARAMETER["False easting",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8806]],\n'
+                f'            PARAMETER["False northing",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8807]]],\n'
+                f"        CS[Cartesian,2],\n"
+                f'            AXIS["(E)",east,\n'
+                f"                ORDER[1],\n"
+                f'                LENGTHUNIT["metre",1]],\n'
+                f'            AXIS["(N)",north,\n'
+                f"                ORDER[2],\n"
+                f'                LENGTHUNIT["metre",1]]],\n'
                 f'REMARK["Created by Cratermaker"]'
             )
 

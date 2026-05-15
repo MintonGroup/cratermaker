@@ -101,6 +101,10 @@ class DataSurface(HiResLocalSurface):
         object.__setattr__(self, "_superdomain_dem_file", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
+        if local_radius > 1.49 * target.radius:
+            raise ValueError(
+                "The value of local_radius is too large. Consider using DataComposer on a global surface type, such as Icosphere."
+            )
         if dem_file_list is None and self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
         if superdomain_dem_file is None and self.target.name != "Moon":
@@ -552,7 +556,9 @@ class DataSurface(HiResLocalSurface):
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
             lon_min, lon_max, lat_min, lat_max = self.get_location_extents(self.local_location, self.local_radius)
-            value, self._pix = DataComposer.get_lola_dem_file_list(pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))
+            value, self._pix = DataComposer.get_lola_dem_file_list(
+                pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max)
+            )
         elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
@@ -589,7 +595,9 @@ class DataSurface(HiResLocalSurface):
             sdpix = self.superdomain_scale_factor * self.pix / 10.0
             if sdpix < min_global_pix:
                 sdpix = min_global_pix
-            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[0][0]
+            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[
+                0
+            ][0]
             return
         if not isinstance(value, (str, Path)):
             raise TypeError("'superdomain_dem_file' must be a strings or Path objects, or None.")
