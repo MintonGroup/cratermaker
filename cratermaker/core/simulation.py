@@ -555,25 +555,7 @@ class Simulation(CratermakerBase):
             raise RuntimeError(
                 "Starting time cannot be later than the current time. Choose a starting time value equal to or larger than the current time, or reset this simulation."
             )
-        if is_time_interval:
-            initial_interval = int((time_start - self.time) / time_interval)
-        else:
-            delta_n1_start = self.production.function(
-                diameter=_DSTD,
-                time_start=time_start,
-                time_end=self.time,
-                validate_inputs=validate_inputs,
-            ).item()
-            n1_interval = (
-                self.production.function(
-                    diameter=_DSTD,
-                    time_start=time_start,
-                    time_end=time_end,
-                    validate_inputs=validate_inputs,
-                ).item()
-                / ninterval
-            )
-            initial_interval = int(delta_n1_start / n1_interval)
+        initial_interval = self.interval
 
         if self.is_new:
             self.save(**kwargs)
@@ -588,8 +570,8 @@ class Simulation(CratermakerBase):
             for i in range(initial_interval, ninterval):
                 self.counting._emplaced = []
                 if is_time_interval:
-                    time = time_start - i * time_interval
-                    current_time_end = time_start - (i + 1) * time_interval
+                    time = max(time_start - i * time_interval, 0.0)
+                    current_time_end = max(time_start - (i + 1) * time_interval, 0.0)
                     if current_time_end < time_end:
                         current_time_end = time_end
                     time_str = format_large_units(time, quantity="time")
@@ -599,11 +581,11 @@ class Simulation(CratermakerBase):
                 else:
                     current_diameter_number = (
                         diameter_number[0],
-                        diameter_number[1] - i * diameter_number_interval[1],
+                        max(diameter_number[1] - i * diameter_number_interval[1], 0.0),
                     )
                     current_diameter_number_end = (
                         diameter_number[0],
-                        diameter_number[1] - (i + 1) * diameter_number_interval[1],
+                        max(diameter_number[1] - (i + 1) * diameter_number_interval[1], 0.0),
                     )
                     self.populate(
                         diameter_number=current_diameter_number,
