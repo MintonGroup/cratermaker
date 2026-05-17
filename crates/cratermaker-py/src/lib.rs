@@ -37,7 +37,8 @@ mod cratermaker {
         use crate::surface_bindings::{
             apply_diffusion, compute_bearings, compute_distances, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
-            interpolate_node_elevation_from_faces, slope_collapse, turbulence_noise,
+            interpolate_node_elevation_from_faces, reset_radial_distances, slope_collapse,
+            turbulence_noise,
         };
     }
 }

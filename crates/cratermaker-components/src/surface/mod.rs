@@ -1,4 +1,5 @@
 use crate::{ArrayResult, ArrayResult2D};
+use itertools::izip;
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -702,8 +703,6 @@ fn compute_dt_max(face_kappa: ArrayView1<'_, f64>, region: &LocalSurfaceView<'_>
         .fold(f64::INFINITY, f64::min)
 }
 
-use numpy::ndarray::ArrayView1; // you already have prelude, so this is just for clarity
-
 /// Safely extract a pair of face indices (f1, f2) from an edge-face row.
 ///
 /// Returns `Some((f1, f2))` if:
@@ -750,4 +749,49 @@ fn extract_edge_faces(
     }
 
     Some((f1, f2))
+}
+
+// This function takes arrays of x, y, z coordinates and a target radius, and returns new arrays where each point is projected radially to the specified radius from the origin.
+//
+// # Arguments
+// * `x`, `y`, `z` - 1D arrays of the same length giving 3D positions.
+// * `radius` - The target radius to project points onto.
+//
+// # Returns
+// A tuple of three 1D NumPy arrays (x_out, y_out, z_out) where each point has been scaled to lie on the sphere of the given radius.
+pub fn reset_radial_distances(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    z: ArrayView1<'_, f64>,
+    r: ArrayView1<'_, f64>,
+) -> Result<
+    (
+        numpy::ndarray::Array1<f64>,
+        numpy::ndarray::Array1<f64>,
+        numpy::ndarray::Array1<f64>,
+    ),
+    String,
+> {
+    let n = x.len();
+    if y.len() != n || z.len() != n || r.len() != n {
+        return Err("Input arrays must have the same length".to_string());
+    }
+
+    let mut x_out = Array1::<f64>::zeros(n);
+    let mut y_out = Array1::<f64>::zeros(n);
+    let mut z_out = Array1::<f64>::zeros(n);
+    for (i, (xh, yh, zh, rh)) in izip!(&x, &y, &z, &r).enumerate() {
+        let mag = (xh * xh + yh * yh + zh * zh).sqrt();
+        if mag > 0.0 {
+            x_out[i] = rh * xh / mag;
+            y_out[i] = rh * yh / mag;
+            z_out[i] = rh * zh / mag;
+        } else {
+            x_out[i] = 0.0;
+            y_out[i] = 0.0;
+            z_out[i] = 0.0;
+        }
+    }
+
+    Ok((x_out, y_out, z_out))
 }

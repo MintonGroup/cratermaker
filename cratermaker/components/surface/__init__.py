@@ -1166,6 +1166,7 @@ class Surface(ComponentBase):
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
+
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid=uxgrid)
 
