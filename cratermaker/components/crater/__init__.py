@@ -1359,22 +1359,26 @@ class Crater(ComponentBase):
             elif interval in dataset:
                 dataset = dataset[interval]
             else:
-                return craters
+                return []
         if "interval" in dataset.coords:
             if interval is None:
                 dataset = dataset.isel(interval=-1)
             elif interval in dataset.interval:
                 dataset = dataset.sel(interval=interval)
             else:
-                return craters
+                return []
         dataset.load()
         if len(dataset) == 0:
-            return craters
-        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
-            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
+            return []
+        dims = dataset.dims
+        if len(dims) > 1:
+            raise ValueError(f"Dataset has more than one dimension: {dims}. Cannot convert to Crater objects.")
+        dimname = list(dims)[0]
+        for i in tqdm(
+            range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
+        ):
+            crater_data = dataset.isel(indexers={dimname: i}).to_dict()["data_vars"]
             crater_data = {k: v["data"] for k, v in crater_data.items()}
-            if not isinstance(crater_data["semimajor_axis"], (float, int)):
-                continue
             crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
