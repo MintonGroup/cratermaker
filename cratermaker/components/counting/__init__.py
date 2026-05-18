@@ -281,6 +281,9 @@ class Counting(ComponentBase):
             fit_ellipse,
         )
 
+        if bp > ap:
+            ap, bp = bp, ap
+            orientation += np.pi / 2
         crater.measured_semimajor_axis = ap
         crater.measured_semiminor_axis = bp
         crater.measured_orientation = np.degrees(orientation)
@@ -1360,7 +1363,7 @@ class Counting(ComponentBase):
         ----------
         crater_type : Literal["observed", "emplaced"], optional
             The type of the crater dataset to export, either "observed" or "emplaced
-        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+        craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|

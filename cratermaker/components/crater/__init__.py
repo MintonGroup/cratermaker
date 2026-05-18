@@ -255,11 +255,7 @@ class CraterVariable:
             return
         if value <= 0:
             raise ValueError("measured_semimajor_axis must be positive.")
-        if self._measured_semiminor_axis is not None and value < self._measured_semiminor_axis:
-            self._measured_semimajor_axis = self._measured_semiminor_axis
-            self._measured_semiminor_axis = float(value)
-        else:
-            self._measured_semimajor_axis = float(value)
+        self._measured_semimajor_axis = float(value)
         return
 
     @property
@@ -283,11 +279,7 @@ class CraterVariable:
             return
         if value <= 0:
             raise ValueError("measured_semiminor_axis must be positive.")
-        if self._measured_semimajor_axis is not None and value > self._measured_semimajor_axis:
-            self._measured_semiminor_axis = self._measured_semimajor_axis
-            self._measured_semimajor_axis = float(value)
-        else:
-            self._measured_semiminor_axis = float(value)
+        self._measured_semiminor_axis = float(value)
         return
 
     @property
