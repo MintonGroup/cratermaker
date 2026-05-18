@@ -101,7 +101,7 @@ class DataSurface(HiResLocalSurface):
         object.__setattr__(self, "_superdomain_dem_file", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
-        if local_radius > 1.49 * target.radius:
+        if local_radius > 1.49 * self.target.radius:
             raise ValueError(
                 "The value of local_radius is too large. Consider using DataComposer on a global surface type, such as Icosphere."
             )
