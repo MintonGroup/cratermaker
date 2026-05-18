@@ -26,8 +26,6 @@ if TYPE_CHECKING:
 class BasicMoonCraterFixed(CraterFixed):
     rim_elevation: float | None = None
     """Original rim height of the crater in meters relative to the reference surface."""
-    rim_width: float | None = None
-    """Original rim width of the crater in meters."""
     floor_elevation: float | None = None
     """Original floor depth of the crater in meters relative to the reference surface."""
     floor_diameter: float | None = None
@@ -83,7 +81,6 @@ class BasicMoonCrater(MorphologyCrater):
         crater: Crater | None = None,
         morphology: Morphology | None = None,
         rim_elevation: float | None = None,
-        rim_width: float | None = None,
         floor_elevation: float | None = None,
         floor_diameter: float | None = None,
         ejrim: float | None = None,
@@ -105,8 +102,6 @@ class BasicMoonCrater(MorphologyCrater):
             The morphology model to use for generating morphology parameters.
         rim_elevation : float, optional
             Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
-        rim_width : float, optional
-            Original rim width of the crater in meters. If None, it will be computed.
         floor_elevation : float, optional
             Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_diameter : float, optional
@@ -132,12 +127,6 @@ class BasicMoonCrater(MorphologyCrater):
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import bounded_norm, sample_pikefit
 
-        morphology = Morphology.maker(morphology, **kwargs)
-        crater = super().maker(crater=crater, morphology=morphology, **kwargs)
-        args = {}
-        diameter_m = crater.diameter
-        diameter_km = diameter_m * 1e-3
-
         def modelMixer(diameter):
             dlo = 50.0
             dhi = 5000.0
@@ -155,6 +144,23 @@ class BasicMoonCrater(MorphologyCrater):
             val = bounded_norm(loc=loc, scale=scale, lower_bound=0.0, upper_bound=1.0)
 
             return val.item()
+
+        # This is a copy operation, to use old values for any un-specified arguments
+        if crater is not None and isinstance(crater, BasicMoonCrater):
+            fassett_yang_fraction = crater.fassett_yang_fraction if fassett_yang_fraction is None else fassett_yang_fraction
+            rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
+            floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
+            floor_diameter = crater.floor_diameter if floor_diameter is None else floor_diameter
+            ejrim = crater.ejrim if ejrim is None else ejrim
+            peak_height = crater.peak_height if peak_height is None else peak_height
+            morphology_subtype = crater.morphology_subtype if morphology_subtype is None else morphology_subtype
+
+        morphology = Morphology.maker(morphology, **kwargs)
+        crater = super().maker(crater=crater, morphology=morphology, **kwargs)
+
+        args = {}
+        diameter_m = crater.diameter
+        diameter_km = diameter_m * 1e-3
 
         if crater.morphology_type in ["simple", "transitional"]:
             fassett_yang_fraction = modelMixer(diameter_m) if fassett_yang_fraction is None else fassett_yang_fraction
