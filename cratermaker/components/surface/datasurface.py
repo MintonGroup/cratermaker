@@ -236,15 +236,14 @@ class DataSurface(HiResLocalSurface):
                 width=dst_width,
                 height=dst_height,
                 resampling=Resampling.bilinear,
+                nodata=nodata_val,
+                src_nodata=src.nodata,
+                init_dest_nodata=True,
             )
             for src in src_list
         ]
         # Ensure nodata is respected; if missing, use NaN and float32
-        mosaic, transform = merge(
-            vrt_list,
-            nodata=nodata_val,
-            dtype="float32" if np.isnan(nodata_val) else None,
-        )
+        mosaic, transform = merge(vrt_list, nodata=nodata_val, dtype="float32" if np.isnan(nodata_val) else None, masked=True)
 
         out_meta = src_list[0].meta.copy()
         out_meta.update(
