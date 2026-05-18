@@ -9,7 +9,6 @@ from cratermaker.core.base import (
     CommonArgs,
     CratermakerBase,
     _rng_init,
-    _simdir_init,
     _to_config,
 )
 
@@ -71,31 +70,32 @@ class TestBase(unittest.TestCase):
 
     def test_init_simdir(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            base = CratermakerBase()
             # Test with None
-            newsimdir = _simdir_init(simdir)
-            self.assertTrue(newsimdir.is_dir())
+            self.assertTrue(base.simdir.is_dir())
+            self.assertTrue(base.simdir.resolve() == Path.cwd())
 
             # Test with a string path
             target_path = Path(simdir).resolve()
-            newsimdir = _simdir_init(simdir=simdir)
-            self.assertTrue(newsimdir.is_dir())
-            self.assertEqual(newsimdir, target_path)
+            base.simdir = target_path
+            self.assertTrue(base.simdir.is_dir())
+            self.assertEqual(base.simdir, target_path)
 
             # Test with a Path object
-            simdir_path = _simdir_init(simdir=Path(simdir))
-            self.assertTrue(simdir_path.is_dir())
-            self.assertEqual(simdir_path, target_path)
+            base.simdir = Path(simdir)
+            self.assertTrue(base.simdir.is_dir())
+            self.assertEqual(base.simdir, target_path)
 
             # Test with a relative path
             relative_path = "relative_simdir"
-            newsimdir = _simdir_init(simdir=relative_path)
-            self.assertTrue(newsimdir.is_dir())
-            self.assertEqual(str(newsimdir), relative_path)
-            newsimdir.rmdir()
+            base.simdir = relative_path
+            self.assertTrue(base.simdir.is_dir())
+            self.assertEqual(str(base.simdir), relative_path)
+            base.simdir.rmdir()
 
             # Test with an invalid path
             with self.assertRaises(TypeError):
-                _simdir_init(123)
+                base.simdir = 123  # Not a string or Path
 
     def test_to_config(self, **kwargs):
         class Dummy:
@@ -179,9 +179,7 @@ class TestBase(unittest.TestCase):
             self.assertEqual(args.rng_state, rng_state)
 
             # Test CratermakerBase initialization
-            base = CratermakerBase(
-                simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state
-            )
+            base = CratermakerBase(simdir=simdir, rng=rng, rng_seed=123, rng_state=rng_state)
 
             # Attributes
             self.assertEqual(base.simdir, simdir)
