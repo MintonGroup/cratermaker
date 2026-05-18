@@ -1294,6 +1294,7 @@ class Counting(ComponentBase):
         use_measured_properties: bool = True,
         crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
         crater_size_scale_factor: FloatLike = 1.0,
+        output_file: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -1315,6 +1316,8 @@ class Counting(ComponentBase):
             Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles, which places the center point of the actor above the surface by its radius. Default is 1.0.
+        output_file : str | None, optional
+            The file path to save the VTK file to. If None, the file will be
         **kwargs : Any
             |kwargs|
         """
@@ -1322,8 +1325,11 @@ class Counting(ComponentBase):
 
         craters = self._validate_export_args(crater_type=crater_type, interval=interval, craters=craters)
 
-        filename_base = self.output_filename(interval).replace(self.output_file_extension, "vtp")
-        output_file = self.export_dir / f"{crater_type}_{filename_base}"
+        if output_file is None:
+            filename_base = self.output_filename(interval).replace(self.output_file_extension, "vtp")
+            output_file = self.export_dir / f"{crater_type}_{filename_base}"
+        else:
+            output_file = Path(output_file)
         if not self._overwrite_check(output_file):
             return
         print(f"Saving crater data to VTK file: '{output_file}'...")
@@ -1344,6 +1350,7 @@ class Counting(ComponentBase):
         crater_type: Literal["observed", "emplaced"] = "observed",
         craters: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
+        output_file: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -1357,6 +1364,8 @@ class Counting(ComponentBase):
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
+        output_file : str | None, optional
+            The file path to save the CSV file to. If None, the file will be saved to the default export directory with a filename based on the crater_type and interval. Default is None.
         **kwargs : Any
             |kwargs|
         """
@@ -1366,8 +1375,11 @@ class Counting(ComponentBase):
 
         craters = self._validate_export_args(crater_type=crater_type, interval=interval, craters=craters)
 
-        filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")
-        output_file = self.export_dir / f"{crater_type}_{filename_base}"
+        if output_file is None:
+            filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")
+            output_file = self.export_dir / f"{crater_type}_{filename_base}"
+        else:
+            output_file = Path(output_file)
         if not self._overwrite_check(output_file):
             return
         print(f"Saving crater data to CSV file: '{output_file}'...")
@@ -1416,6 +1428,7 @@ class Counting(ComponentBase):
         crater_type: Literal["observed", "emplaced"] = "observed",
         craters: xr.Dataset | list[Crater] | dict[int, Crater] | None = None,
         interval: int | None = None,
+        output_file: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -1429,6 +1442,8 @@ class Counting(ComponentBase):
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
+        output_file : str | None, optional
+            The file path to save the SCC file to. If None, the file will be saved
         **kwargs : Any
             |kwargs|
         """
@@ -1453,7 +1468,10 @@ class Counting(ComponentBase):
 
         region_poly = None
 
-        output_file = self.export_dir / f"{crater_type}{interval:06d}.scc"
+        if output_file is None:
+            output_file = self.export_dir / f"{crater_type}{interval:06d}.scc"
+        else:
+            output_file = Path(output_file)
         if not self._overwrite_check(output_file):
             return
         print(f"Saving crater data to {output_file}")
