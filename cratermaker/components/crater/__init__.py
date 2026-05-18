@@ -875,6 +875,8 @@ class Crater(ComponentBase):
             args["production_ND"] = production_ND
         if production_sequence is not None:
             args["production_sequence"] = production_sequence
+        if name is not None:
+            args["name"] = name
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -1125,7 +1127,8 @@ class Crater(ComponentBase):
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
         args["name"] = str(name) if name is not None else None
-        return cls(**args, **kwargs)
+        args = {**args, **kwargs}  # Add any remaining kwargs to the arguments passed to the constructor
+        return cls(**args)
 
     def to_geoseries(
         self,
@@ -1287,12 +1290,11 @@ class Crater(ComponentBase):
                             crater_data[key] = vnew
                         else:
                             crater_data[key] = None
-
                     else:
                         try:
                             crater_data[key] = float(value)
                         except ValueError:
-                            crater_data[key] = value
+                            continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
                 crater = cls.maker(**crater_data, check_redundant_inputs=False)
                 craters.append(crater)
