@@ -584,7 +584,7 @@ def sample_logfit_heteroskedastic(
     """
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    log_y = np.log(b) + a * np.log(x)
+    log_y = a * np.log(x) + b
     y = np.exp(log_y)
 
     sigma = np.exp(c / 2) * y ** (alpha / 2)

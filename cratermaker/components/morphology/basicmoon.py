@@ -125,7 +125,7 @@ class BasicMoonCrater(MorphologyCrater):
         .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
         """
         from cratermaker.components.morphology import Morphology
-        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_pikefit
+        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit_heteroskedastic, sample_pikefit
 
         def modelMixer(diameter):
             dlo = 50.0
@@ -158,6 +158,19 @@ class BasicMoonCrater(MorphologyCrater):
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
+        depth_params_simple = {
+            "a": 1.0075167202320225,
+            "b": -1.6529410167402285,
+            "c": -5.272458765976553,
+            "alpha": 1.6784618333786745,
+        }
+        depth_params_complex = {
+            "a": 0.2534409657056844,
+            "b": 0.26132793372107177,
+            "c": 0.7147233075199514,
+            "alpha": -3.3085098852534176,
+        }
+
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
@@ -188,7 +201,7 @@ class BasicMoonCrater(MorphologyCrater):
             args["rim_elevation"] = rim_elevation
 
             if floor_elevation is None:
-                depth_pike = -sample_pikefit(diameter_km, a=1.010, b=0.196, errhi=0.038, errlo=-0.027, n=171)[0] * 1e3 + rh_pike
+                depth_pike = -sample_logfit_heteroskedastic(diameter_km, **depth_params_simple)[0] * 1e3 + rh_pike
                 depth_yang = -0.114 * diameter_m ** (-0.002) * diameter_m + rh_yang
                 floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
             args["floor_elevation"] = floor_elevation
@@ -212,7 +225,7 @@ class BasicMoonCrater(MorphologyCrater):
                 else rim_elevation
             )
             args["floor_elevation"] = (
-                -sample_pikefit(diameter_km, a=0.301, b=1.044, errhi=0.067, errlo=-0.063, n=33)[0] * 1e3 + args["rim_elevation"]
+                -sample_logfit_heteroskedastic(diameter_km, **depth_params_complex)[0] * 1e3 + args["rim_elevation"]
                 if floor_elevation is None
                 else floor_elevation
             )

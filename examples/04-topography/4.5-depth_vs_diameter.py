@@ -116,7 +116,6 @@ ax.scatter(
     zorder=1,
 )
 ax.legend(loc="upper right")
-plt.savefig("4.5-dD_vs_diameter.png")
 plt.show()
 
 
@@ -169,5 +168,4 @@ ax.scatter(
 )
 
 ax.legend(loc="lower right")
-plt.savefig("4.5-d_vs_diameter.png")
 plt.show()
