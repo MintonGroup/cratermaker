@@ -4526,16 +4526,17 @@ class LocalSurface(CratermakerBase):
         """The projected y coordinates of the nodes relative to the LocalSurface center in meters."""
         return self._node_proj_y
 
-    @property
-    def desloped_face_elevation(self) -> NDArray:
-        """The face elevations with the mean slope of the region removed in meters."""
-        return self._desloped_face_elevation
-
     def compute_desloped_face_elevation(self):
         """Compute the face elevations with the mean slope of the region removed."""
         if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
-            self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
+            self.add_data(
+                "desloped_face_elevation",
+                long_name="face elevation (desloped)",
+                units="m",
+                data=self.face_elevation.data - reference_elevation,
+                positive_only=False,
+            )
         return
 
     @property
