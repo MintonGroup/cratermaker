@@ -221,9 +221,7 @@ class DataSurface(HiResLocalSurface):
                 src_list.append(rasterio.open(f))
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
-        nodata_val = src_list[0].nodata
-        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
-            nodata_val = _NODATA
+        nodata_val = _NODATA
         target_res = min(s.res[0] for s in src_list)
         dst_width = int(np.ceil(2 * half_box_size / target_res))
         dst_height = dst_width
