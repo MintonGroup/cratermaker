@@ -21,6 +21,9 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
+_RIMDROP = -6.0
+_EJPROFILE = -3.0
+
 
 @dataclass(frozen=True, slots=True)
 class BasicMoonCraterFixed(CraterFixed):
@@ -470,7 +473,9 @@ class BasicMoonMorphology(Morphology):
             crater.floor_elevation,
             crater.floor_diameter,
             crater.rim_elevation,
+            _RIMDROP,
             crater.ejrim,
+            _EJPROFILE,
             crater.fassett_yang_fraction,
             crater.morphology_subtype if crater.morphology_subtype is not None else "",
         )
@@ -543,7 +548,7 @@ class BasicMoonMorphology(Morphology):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = morphology_bindings.ejecta_profile(rflat, crater.diameter, crater.ejrim)
+        elevation = morphology_bindings.ejecta_profile(rflat, crater.diameter, crater.ejrim, _EJPROFILE)
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)

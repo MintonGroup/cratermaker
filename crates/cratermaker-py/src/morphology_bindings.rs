@@ -37,7 +37,11 @@ pub struct BasicMoonMorphology {
 /// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters).
 /// * `floor_diameter` - Diameter of the crater floor (in meters).
 /// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
+/// * `rimdrop` - Exponent for the rim dropoff function (typically -6.0)
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
+/// * `ejprofile` - Exponent for the power-law decay of the ejecta profile (typically -3.0)
+/// * `fassett_yang_fraction` - Weighting factor (0.0 to 1.0) for blending between the Fassett (2020) and Yang (2021) profiles.
+/// * `morphology_subtype` - Subtype of crater morphology to use for the Yang (2021) profile ("normal", "central mound", "flat-bottomed", or "concentric").
 ///
 /// # Returns
 ///
@@ -55,7 +59,9 @@ pub fn crater_profile<'py>(
     floor_elevation: f64,
     floor_diameter: f64,
     rim_elevation: f64,
+    rimdrop: f64,
     ejrim: f64,
+    ejprofile: f64,
     fassett_yang_fraction: f64,
     morphology_subtype: &str,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -68,7 +74,9 @@ pub fn crater_profile<'py>(
         floor_elevation,
         floor_diameter,
         rim_elevation,
+        rimdrop,
         ejrim,
+        ejprofile,
         fassett_yang_fraction,
         morphology_subtype,
     )
@@ -86,6 +94,7 @@ pub fn crater_profile<'py>(
 /// * `radial_distances` - 1D array of radial distances from crater center.
 /// * `crater_diameter` - Diameter of the crater (meters).
 /// * `ejrim` - Profile scaling factor.
+/// * `ejprofile` - Exponent for the power-law decay of the ejecta profile (typically -3.0).
 ///
 /// # Returns
 ///
@@ -96,12 +105,14 @@ pub fn ejecta_profile<'py>(
     radial_distances: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
     ejrim: f64,
+    ejprofile: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let result = cratermaker_components::morphology::basicmoon::ejecta_profile(
         radial_distances_v,
         crater_diameter,
         ejrim,
+        ejprofile,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
