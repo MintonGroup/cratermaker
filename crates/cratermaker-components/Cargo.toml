@@ -20,6 +20,7 @@ ndarray-linalg = { version = "0.18", features = ["intel-mkl"] }
 intel-mkl-src = "0.8.1"
 
 [target.'cfg(unix)'.dependencies]
+openblas-src = { version = "0.10", features = ["system"] }
 ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
 native-tls = "=0.2.15"
 openssl-sys = "=0.9.111"
