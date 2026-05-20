@@ -2988,6 +2988,8 @@ class LocalSurface(CratermakerBase):
         grid.DeepCopy(vtk_data)
 
         for v in uxds.variables:
+            if uxds[v].dtype == np.dtype("bool"):
+                continue
             array = numpy_to_vtk(uxds[v].values, deep=True)
             array.SetName(v)
             if "n_face" in uxds[v].dims:
@@ -3714,6 +3716,8 @@ class LocalSurface(CratermakerBase):
         face_variables = []
         component_variables = []
         for v in uxds.data_vars:
+            if uxds[v].dtype is np.dtype("bool"):
+                continue
             if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
                 mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)

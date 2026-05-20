@@ -237,7 +237,7 @@ class DataSurface(HiResLocalSurface):
                 height=dst_height,
                 resampling=Resampling.bilinear,
                 nodata=nodata_val,
-                src_nodata=src.nodata,
+                src_nodata=src.nodata if src.nodata is not None else nodata_val,
                 init_dest_nodata=True,
             )
             for src in src_list
@@ -283,7 +283,7 @@ class DataSurface(HiResLocalSurface):
             elevation = elevation.flatten()
 
             # Handle nodata values
-            mask_nodata = (elevation != src.nodata) & ~np.isnan(elevation)
+            mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
             mean_elevation = np.mean(elevation[mask_nodata])
             elevation[~mask_nodata] = mean_elevation
             elevation = elevation.astype(np.float32)
