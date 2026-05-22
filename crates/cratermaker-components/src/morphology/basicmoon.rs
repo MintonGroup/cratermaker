@@ -165,8 +165,9 @@ fn crater_profile_function(
     ro: f64,
 ) -> f64 {
     let rw_half = rw / 2.0;
+    let fc = hc * (-((r - ro) / rc).powi(2)).exp(); // Central peak contribution. Compute this separately to avoid sharp discontinuities
     if r <= rf {
-        hc * (-((r - ro) / rc).powi(2)).exp() + hf
+        fc + hf
     } else {
         let hej = he * (r / crater_radius).powf(pej);
         let fe = hr * (r / crater_radius).powf(prd);
@@ -179,9 +180,9 @@ fn crater_profile_function(
             let phi = 6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3);
             let fw = c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp()) + hr;
             if r <= crater_radius - rw_half {
-                fw
+                fw + fc
             } else {
-                (1.0 - phi) * fw + phi * fe
+                (1.0 - phi) * fw + phi * fe + fc
             }
         };
         if r >= crater_radius {
