@@ -16,7 +16,7 @@ pub struct Crater {
 #[derive(FromPyObject)]
 pub struct BasicMoonMorphology {
     pub floor_elevation: f64,
-    pub floor_diameter: f64,
+    pub floor_radius: f64,
     pub rim_elevation: f64,
     pub ejrim: f64,
     pub crater: Crater,
@@ -33,15 +33,17 @@ pub struct BasicMoonMorphology {
 /// * `py` - Python GIL token.
 /// * `r_array` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `diameter` - Total diameter of the crater (in meters).
+/// * `crater_radius` - Total radius of the crater (in meters).
 /// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters).
-/// * `floor_diameter` - Diameter of the crater floor (in meters).
+/// * `floor_radius` - Radius of the crater floor (in meters).
+/// * `wall_curvature` - Parameter controlling the curvature of the crater wall (>1 for more curvature)
+/// * `rim_width` - Width of the crater rim (in meters).
 /// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
-/// * `rimdrop` - Exponent for the rim dropoff function (typically -6.0)
+/// * `rimdrop` - Exponent for the rim dropoff function (typically -4.0 to -6.0)
 /// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
-/// * `ejprofile` - Exponent for the power-law decay of the ejecta profile (typically -3.0)
-/// * `fassett_yang_fraction` - Weighting factor (0.0 to 1.0) for blending between the Fassett (2020) and Yang (2021) profiles.
-/// * `morphology_subtype` - Subtype of crater morphology to use for the Yang (2021) profile ("normal", "central mound", "flat-bottomed", or "concentric").
+/// * `peak_height` - Height of the central peak above the crater floor (in meters).
+/// * `peak_width` - Width of the central peak (in meters).
+/// * `peak_offset` - Radial offset of the central peak from the crater center (in meters).
 ///
 /// # Returns
 ///
@@ -55,30 +57,36 @@ pub fn crater_profile<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
-    crater_diameter: f64,
+    crater_radius: f64,
     floor_elevation: f64,
-    floor_diameter: f64,
+    floor_radius: f64,
+    wall_curvature: f64,
+    rim_width: f64,
     rim_elevation: f64,
     rimdrop: f64,
     ejrim: f64,
     ejprofile: f64,
-    fassett_yang_fraction: f64,
-    morphology_subtype: &str,
+    peak_height: f64,
+    peak_width: f64,
+    peak_offset: f64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let reference_elevations_v = reference_elevations.as_array();
     let result = cratermaker_components::morphology::basicmoon::crater_profile(
         radial_distances_v,
         reference_elevations_v,
-        crater_diameter,
+        crater_radius,
         floor_elevation,
-        floor_diameter,
+        floor_radius,
+        wall_curvature,
+        rim_width,
         rim_elevation,
         rimdrop,
         ejrim,
         ejprofile,
-        fassett_yang_fraction,
-        morphology_subtype,
+        peak_height,
+        peak_width,
+        peak_offset,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

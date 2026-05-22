@@ -825,7 +825,7 @@ class Counting(ComponentBase):
                 add_mesh_kwargs["style"] = "points_gaussian"
                 add_mesh_kwargs["emissive"] = True
                 add_mesh_kwargs["pbr"] = True
-                size_scale = np.array([crater_size_scale_factor * c.floor_diameter for c in craters])
+                size_scale = np.array([crater_size_scale_factor * c.floor_radius for c in craters])
                 point_size = 1
             elif crater_style == "spheres":
                 add_mesh_kwargs["render_points_as_spheres"] = True
@@ -1235,7 +1235,7 @@ class Counting(ComponentBase):
                 elif crater_style == "spheres":
                     z += crater_size_scale_factor * crater.projectile_radius
                 elif crater_style == "impacts":
-                    z += np.sqrt(crater_size_scale_factor) * crater.floor_diameter / 2
+                    z += np.sqrt(crater_size_scale_factor) * crater.floor_radius / 2
                 geoms.append(Point(crater.location[0], crater.location[1], z))
             gs = GeoSeries(geoms, crs=surface.crs)
 

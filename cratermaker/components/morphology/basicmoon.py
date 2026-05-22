@@ -31,10 +31,18 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original rim height of the crater in meters relative to the reference surface."""
     floor_elevation: float | None = None
     """Original floor depth of the crater in meters relative to the reference surface."""
-    floor_diameter: float | None = None
+    floor_radius: float | None = None
     """Original floor diameter of the crater in meters."""
+    wall_curvature: float | None = None
+    """The curvature of the crater walls."""
+    rim_width: float | None = None
+    """The width of the crater rim in meters."""
     peak_height: float | None = None
-    """Original central peak height of the crater in meters relative to the reference surface. None for simple craters."""
+    """Original central peak height of the crater in meters relative to the reference surface. 0 for simple craters."""
+    peak_width: float | None = None
+    """Original central peak width of the crater in meters. 0 for simple craters."""
+    peak_offset: float | None = None
+    """Original central peak offset of the crater in meters. 0 for simple craters."""
     ejrim: float | None = None
     """Original ejecta rim thickness of the crater in meters."""
     fassett_yang_fraction: float | None = None
@@ -70,7 +78,7 @@ class BasicMoonCrater(MorphologyCrater):
         str_repr += (
             f"Rim height: {format_large_units(self.rim_elevation, quantity='length')}\n"
             f"Floor depth: {format_large_units(self.floor_elevation, quantity='length')}\n"
-            f"Floor diameter: {format_large_units(self.floor_diameter, quantity='length')}\n"
+            f"Floor diameter: {format_large_units(self.floor_radius, quantity='length')}\n"
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
         )
@@ -83,19 +91,21 @@ class BasicMoonCrater(MorphologyCrater):
         cls,
         crater: Crater | None = None,
         morphology: Morphology | None = None,
-        rim_elevation: float | None = None,
         floor_elevation: float | None = None,
-        floor_diameter: float | None = None,
+        floor_radius: float | None = None,
+        wall_curvature: float | None = None,
+        rim_width: float | None = None,
+        rim_elevation: float | None = None,
         ejrim: float | None = None,
         peak_height: float | None = None,
-        fassett_yang_fraction: float | None = None,
-        morphology_subtype: str | None = None,
+        peak_width: float | None = None,
+        peak_offset: float | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
         Initialize a BasicMoonCrater object either from an existing Crater object or from parameters.
 
-        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977) [#]_ for D>5 km craters with a higher value of d/D and floor_diameter from Fassett and Thomson (2014) [#]_, Yang et al. (2021) [#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024) [#]_.
+        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977) [#]_ for D>5 km craters with a higher value of d/D and floor_radius from Fassett and Thomson (2014) [#]_, Yang et al. (2021) [#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024) [#]_.
 
         Parameters
         ----------
@@ -107,16 +117,18 @@ class BasicMoonCrater(MorphologyCrater):
             Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_elevation : float, optional
             Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
-        floor_diameter : float, optional
-            Original floor diameter of the crater in meters. If None, it will be computed.
+        floor_radius : float, optional
+            Original floor radius of the crater in meters. If None, it will be computed.
+        wall_curvature : float, optional
+            The curvature of the crater walls. If None, it will be computed based on the morphology type and diameter.
         ejrim : float, optional
             Original ejecta rim thickness of the crater in meters. If None, it will be computed.
         peak_height : float, optional
-            Original central peak height of the crater in meters relative to the reference surface. None for simple craters. If None, it will be computed for complex craters and set to None for simple craters.
-        fassett_yang_fraction : float, optional
-            The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters. If None, it will be computed based on the crater diameter using the modelMixer function in the code which is based on the d/D vs D trend seen in Hoover at al. (2024). For complex craters, this will be set to 1.0 since the Pike (1977) model is more appropriate for complex craters.
-        morphology_subtype : str, optional
-            The subtype of the morphology to use for generating morphology parameters. For craters with "simple" morphology_type, the Yang et al. (2021) profile model includes "normal", "flat-bottomed", "central mound", and "concentric" subtypes. The Fassett et al. (2021) model will ignore this.
+            Original central peak height of the crater in meters relative to the reference surface. If None, it will be computed for complex craters and set to 0 for simple craters.
+        peak_width : float, optional
+            Original central peak width of the crater in meters. If None, it will be computed for complex craters and set to 0 for simple craters.
+        peak_offset : float, optional
+            Original central peak offset of the crater in meters. If None, it will be computed for complex craters and set to 0for simple craters.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -130,33 +142,15 @@ class BasicMoonCrater(MorphologyCrater):
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit_heteroskedastic, sample_pikefit
 
-        def modelMixer(diameter):
-            dlo = 50.0
-            dhi = 5000.0
-            flo = 0.4
-            fhi = 1.0
-            slo = 0.2
-            shi = 0.01
-            mf = (fhi - flo) / (np.log(dhi) - np.log(dlo))
-            bf = (fhi + flo - mf * (np.log(dhi) + np.log(dlo))) / 2
-            ms = (shi - slo) / (np.log(dhi) - np.log(dlo))
-            bs = (shi + slo - ms * (np.log(dhi) + np.log(dlo))) / 2
-
-            loc = np.where(diameter < dlo, flo, np.where(diameter > dhi, fhi, mf * np.log(diameter) + bf))
-            scale = np.where(diameter < dlo, slo, np.where(diameter > dhi, shi, ms * np.log(diameter) + bs))
-            val = bounded_norm(loc=loc, scale=scale, lower_bound=0.0, upper_bound=1.0)
-
-            return val.item()
-
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, BasicMoonCrater):
-            fassett_yang_fraction = crater.fassett_yang_fraction if fassett_yang_fraction is None else fassett_yang_fraction
             rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
-            floor_diameter = crater.floor_diameter if floor_diameter is None else floor_diameter
+            floor_radius = crater.floor_radius if floor_radius is None else floor_radius
             ejrim = crater.ejrim if ejrim is None else ejrim
             peak_height = crater.peak_height if peak_height is None else peak_height
-            morphology_subtype = crater.morphology_subtype if morphology_subtype is None else morphology_subtype
+            peak_width = crater.peak_width if peak_width is None else peak_width
+            peak_offset = crater.peak_offset if peak_offset is None else peak_offset
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
@@ -179,48 +173,19 @@ class BasicMoonCrater(MorphologyCrater):
         diameter_km = diameter_m * 1e-3
 
         if crater.morphology_type in ["simple", "transitional"]:
-            fassett_yang_fraction = modelMixer(diameter_m) if fassett_yang_fraction is None else fassett_yang_fraction
-
-            if fassett_yang_fraction < 1.0:
-                subtype_options = ["normal", "central mound", "flat-bottomed", "concentric"]
-                if crater.diameter > 180.0:
-                    morphology_subtype = "normal"
-                elif morphology_subtype is None:
-                    # randomly choose one form subtype_options
-                    morphology_subtype = morphology.rng.choice(subtype_options).item()
-                elif morphology_subtype.lower() not in subtype_options:
-                    raise ValueError(
-                        f"{morphology_subtype} is not a valid morphology_subtype for this morphology_type. Must  be one of {subtype_options}"
-                    )
-            else:
-                morphology_subtype = None
-            args["morphology_subtype"] = morphology_subtype
-
-            args["fassett_yang_fraction"] = fassett_yang_fraction
             if rim_elevation is None:
-                rh_pike = sample_pikefit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
-                rh_yang = 0.02513 * diameter_m ** (-0.0757) * diameter_m
-                rim_elevation = rh_pike * fassett_yang_fraction + rh_yang * (1.0 - fassett_yang_fraction)
+                rim_elevation = sample_pikefit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
             args["rim_elevation"] = rim_elevation
 
             if floor_elevation is None:
-                depth_pike = -sample_logfit_heteroskedastic(diameter_km, **depth_params_simple)[0] * 1e3 + rh_pike
-                depth_yang = -0.114 * diameter_m ** (-0.002) * diameter_m + rh_yang
-                floor_elevation = depth_pike * fassett_yang_fraction + depth_yang * (1.0 - fassett_yang_fraction)
+                floor_elevation = -sample_logfit_heteroskedastic(diameter_km, **depth_params_simple)[0] * 1e3 + rim_elevation
             args["floor_elevation"] = floor_elevation
 
-            if floor_diameter is None:
-                floor_diam_fassett = 0.200 * diameter_km**1.143 * 1e3
-                floor_diam_yang = 0.0
-                if morphology_subtype == "central mound":
-                    floor_diam_yang = 0.793 * diameter_m ** (-0.242) * diameter_m
-                elif morphology_subtype == "flat-bottomed":
-                    floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
-                elif morphology_subtype == "concentric":
-                    floor_diam_yang = 0.383 * diameter_m ** (0.053) * diameter_m
-                floor_diameter = floor_diam_fassett * fassett_yang_fraction + floor_diam_yang * (1.0 - fassett_yang_fraction)
-            args["floor_diameter"] = floor_diameter
-            args["peak_height"] = None
+            if floor_radius is None:
+                floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
+                floor_radius = floor_diam_yang / 2
+            args["floor_radius"] = floor_radius
+            args["peak_height"] = 0.0 if peak_height is None else peak_height
         elif crater.morphology_type in ["complex", "peakring", "multiring"]:
             args["rim_elevation"] = (
                 sample_pikefit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031, n=38)[0] * 1e3
@@ -232,19 +197,20 @@ class BasicMoonCrater(MorphologyCrater):
                 if floor_elevation is None
                 else floor_elevation
             )
-            args["floor_diameter"] = (
+            args["floor_radius"] = (
                 min(sample_pikefit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011, n=53)[0] * 1e3, 0.9 * diameter_m)
-                if floor_diameter is None
-                else floor_diameter
+                if floor_radius is None
+                else floor_radius
             )
             args["peak_height"] = (
                 sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
                 if peak_height is None
                 else peak_height
             )
-            args["fassett_yang_fraction"] = 1.0
         else:
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
+        args["peak_width"] = 0.0 if peak_width is None else peak_width
+        args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
         kwargs = {**args, **kwargs}
@@ -471,13 +437,15 @@ class BasicMoonMorphology(Morphology):
             r_ref_flat,
             crater.diameter,
             crater.floor_elevation,
-            crater.floor_diameter,
+            crater.floor_radius,
+            crater.wall_curvature,
+            crater.rim_width,
             crater.rim_elevation,
             _RIMDROP,
             crater.ejrim,
-            _EJPROFILE,
-            crater.fassett_yang_fraction,
-            crater.morphology_subtype if crater.morphology_subtype is not None else "",
+            crater.peak_height,
+            crater.peak_width,
+            crater.peak_offset,
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
