@@ -211,6 +211,7 @@ class BasicMoonCrater(MorphologyCrater):
             raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
         args["peak_width"] = 0.0 if peak_width is None else peak_width
         args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
+        args["rim_width"] = 0.01 * diameter_m if rim_width is None else rim_width
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
         kwargs = {**args, **kwargs}
