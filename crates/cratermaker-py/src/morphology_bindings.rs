@@ -1,26 +1,7 @@
+use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-
-/// Defines crater dimensions for surface modification computations.
-///
-/// Used to parameterize the final crater size in meters.
-#[derive(FromPyObject)]
-pub struct Crater {
-    pub diameter: f64,
-}
-
-/// Morphological parameters for generating and modifying lunar surface craters.
-///
-/// Includes floor geometry, rim height, and whether to apply ray modulation.
-#[derive(FromPyObject)]
-pub struct BasicMoonMorphology {
-    pub floor_elevation: f64,
-    pub floor_radius: f64,
-    pub rim_elevation: f64,
-    pub ejrim: f64,
-    pub crater: Crater,
-}
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations.
 ///
@@ -53,74 +34,22 @@ pub struct BasicMoonMorphology {
 ///
 /// Returns a `PyValueError` if the input arrays have mismatched lengths.
 #[pyfunction]
-pub fn crater_profile<'py>(
+pub fn basicmoon_profile<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
-    crater_radius: f64,
-    floor_elevation: f64,
-    floor_radius: f64,
-    wall_curvature: f64,
-    rim_width: f64,
-    rim_elevation: f64,
-    rimdrop: f64,
-    ejrim: f64,
-    ejprofile: f64,
-    peak_height: f64,
-    peak_width: f64,
-    peak_offset: f64,
+    crater: BasicMoonCrater,
+    include_crater: bool,
+    include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let reference_elevations_v = reference_elevations.as_array();
-    let result = cratermaker_components::morphology::basicmoon::crater_profile(
+    let result = cratermaker_components::morphology::basicmoon::basicmoon_profile(
         radial_distances_v,
         reference_elevations_v,
-        crater_radius,
-        floor_elevation,
-        floor_radius,
-        wall_curvature,
-        rim_width,
-        rim_elevation,
-        rimdrop,
-        ejrim,
-        ejprofile,
-        peak_height,
-        peak_width,
-        peak_offset,
-    )
-    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))
-}
-
-/// Computes only the radial ejecta profile without ray modulation.
-///
-/// This is a simple power-law decay of ejecta intensity with radial distance.
-///
-/// # Arguments
-///
-/// * `py` - Python GIL token.
-/// * `radial_distances` - 1D array of radial distances from crater center.
-/// * `crater_diameter` - Diameter of the crater (meters).
-/// * `ejrim` - Profile scaling factor.
-/// * `ejprofile` - Exponent for the power-law decay of the ejecta profile (typically -3.0).
-///
-/// # Returns
-///
-/// * A NumPy array of ejecta profile values.
-#[pyfunction]
-pub fn ejecta_profile<'py>(
-    py: Python<'py>,
-    radial_distances: PyReadonlyArray1<'py, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-    ejprofile: f64,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let radial_distances_v = radial_distances.as_array();
-    let result = cratermaker_components::morphology::basicmoon::ejecta_profile(
-        radial_distances_v,
-        crater_diameter,
-        ejrim,
-        ejprofile,
+        &crater,
+        include_crater,
+        include_ejecta,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

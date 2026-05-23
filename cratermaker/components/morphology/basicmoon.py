@@ -37,14 +37,18 @@ class BasicMoonCraterFixed(CraterFixed):
     """The curvature of the crater walls."""
     rim_width: float | None = None
     """The width of the crater rim in meters."""
+    rimdrop: float | None = None
+    """The power law exponent for the structural uplift underneath the ejecta"""
+    ejrim: float | None = None
+    """Original ejecta rim thickness of the crater in meters."""
+    ejprofile: float | None = None
+    """Power law exponent for the ejecta thickness profile of the crater."""
     peak_height: float | None = None
     """Original central peak height of the crater in meters relative to the reference surface. 0 for simple craters."""
     peak_width: float | None = None
     """Original central peak width of the crater in meters. 0 for simple craters."""
     peak_offset: float | None = None
     """Original central peak offset of the crater in meters. 0 for simple craters."""
-    ejrim: float | None = None
-    """Original ejecta rim thickness of the crater in meters."""
     fassett_yang_fraction: float | None = None
     """The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters."""
     morphology_subtype: str | None = None
@@ -96,7 +100,9 @@ class BasicMoonCrater(MorphologyCrater):
         wall_curvature: float | None = None,
         rim_width: float | None = None,
         rim_elevation: float | None = None,
+        rimdrop: float | None = None,
         ejrim: float | None = None,
+        ejprofile: float | None = None,
         peak_height: float | None = None,
         peak_width: float | None = None,
         peak_offset: float | None = None,
@@ -147,7 +153,9 @@ class BasicMoonCrater(MorphologyCrater):
             rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
+            rimdrop = crater.rimdrop if rimdrop is None else rimdrop
             ejrim = crater.ejrim if ejrim is None else ejrim
+            ejprofile = crater.ejprofile if ejprofile is None else ejprofile
             peak_height = crater.peak_height if peak_height is None else peak_height
             peak_width = crater.peak_width if peak_width is None else peak_width
             peak_offset = crater.peak_offset if peak_offset is None else peak_offset
@@ -214,6 +222,10 @@ class BasicMoonCrater(MorphologyCrater):
         args["rim_width"] = 0.10 * diameter_m if rim_width is None else rim_width
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
+        args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
+        args["rimdrop"] = _RIMDROP if rimdrop is None else rimdrop
+        args["wall_curvature"] = 1.0 if wall_curvature is None else wall_curvature
+
         kwargs = {**args, **kwargs}
 
         return cls(
@@ -433,20 +445,8 @@ class BasicMoonMorphology(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = morphology_bindings.crater_profile(
-            rflat,
-            r_ref_flat,
-            crater.diameter,
-            crater.floor_elevation,
-            crater.floor_radius,
-            crater.wall_curvature,
-            crater.rim_width,
-            crater.rim_elevation,
-            _RIMDROP,
-            crater.ejrim,
-            crater.peak_height,
-            crater.peak_width,
-            crater.peak_offset,
+        elevation = morphology_bindings.basicmoon_profile(
+            radial_distances=rflat, reference_elevations=r_ref_flat, crater=crater, include_crater=True, include_ejecta=False
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
@@ -517,7 +517,13 @@ class BasicMoonMorphology(Morphology):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = morphology_bindings.ejecta_profile(rflat, crater.diameter, crater.ejrim, _EJPROFILE)
+        elevation = morphology_bindings.basicmoon_profile(
+            radial_distances=rflat,
+            reference_elevation=np.zeros_like(rflat),
+            crater=crater,
+            include_crater=False,
+            include_ejecta=True,
+        )
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
