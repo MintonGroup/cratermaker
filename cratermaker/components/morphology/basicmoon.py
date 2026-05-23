@@ -519,7 +519,7 @@ class BasicMoonMorphology(Morphology):
         rflat = np.ravel(r)
         elevation = morphology_bindings.basicmoon_profile(
             radial_distances=rflat,
-            reference_elevation=np.zeros_like(rflat),
+            reference_elevations=np.zeros_like(rflat),
             crater=crater,
             include_crater=False,
             include_ejecta=True,
