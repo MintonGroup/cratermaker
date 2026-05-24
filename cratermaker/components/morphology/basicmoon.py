@@ -163,17 +163,25 @@ class BasicMoonCrater(MorphologyCrater):
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
-        depth_params_simple = {
-            "a": 1.0075167202320225,
-            "b": -1.6529410167402285,
-            "c": -5.272458765976553,
-            "alpha": 1.6784618333786745,
-        }
-        depth_params_complex = {
-            "a": 0.2534409657056844,
-            "b": 0.26132793372107177,
-            "c": 0.7147233075199514,
-            "alpha": -3.3085098852534176,
+        depth_params = {
+            "simple": {
+                "a": 1.1086685616357714,
+                "b": -2.4826720219455067,
+                "c": -3.7786810754312707,
+                "alpha": 1.8100687551192884,
+            },
+            "transitional": {
+                "a": 0.33577925342905285,
+                "b": 4.443438586263023,
+                "c": 44.42149342809062,
+                "alpha": -4.287376846628266,
+            },
+            "complex": {
+                "a": 0.3063004868927188,
+                "b": 4.8004537840029915,
+                "c": -18.100439845502283,
+                "alpha": 3.5177234160753783,
+            },
         }
 
         args = {}
@@ -186,7 +194,9 @@ class BasicMoonCrater(MorphologyCrater):
             args["rim_elevation"] = rim_elevation
 
             if floor_elevation is None:
-                floor_elevation = -sample_logfit_heteroskedastic(diameter_km, **depth_params_simple)[0] * 1e3 + rim_elevation
+                floor_elevation = (
+                    -sample_logfit_heteroskedastic(diameter_m, **depth_params[crater.morphology_type])[0] + rim_elevation
+                )
             args["floor_elevation"] = floor_elevation
 
             if floor_radius is None:
@@ -201,7 +211,7 @@ class BasicMoonCrater(MorphologyCrater):
                 else rim_elevation
             )
             args["floor_elevation"] = (
-                -sample_logfit_heteroskedastic(diameter_km, **depth_params_complex)[0] * 1e3 + args["rim_elevation"]
+                -sample_logfit_heteroskedastic(diameter_m, **depth_params["complex"])[0] + args["rim_elevation"]
                 if floor_elevation is None
                 else floor_elevation
             )
