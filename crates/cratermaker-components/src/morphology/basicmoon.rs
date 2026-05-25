@@ -124,7 +124,7 @@ pub fn basicmoon_profile(
             .map(|(href, r)| {
                 let mut hcrat = crater_profile_function(r, crater);
                 let mut hej = ejecta_profile_function(r, crater);
-                if r < crater.radius {
+                if r < crater.radius && r > crater.floor_radius {
                     hej += (hcrat - (crater.rim_elevation - crater.ejrim)).max(0.0);
                 }
 

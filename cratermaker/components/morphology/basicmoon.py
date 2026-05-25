@@ -21,8 +21,8 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
-_RIMDROP = -4.0
-_EJPROFILE = -2.8
+_RIMDROP = -6.0
+_EJPROFILE = -3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,8 +185,7 @@ class BasicMoonCrater(MorphologyCrater):
                 "alpha": 4.694621309150626,
             },
         }
-
-        rim_height_params = {
+        rim_elevation_params = {
             "simple": {
                 "coefficients": [-6.987570103892113, 2.01550319738446, -0.06828643409713717],
                 "c": -3.739955774873155,
@@ -203,7 +202,6 @@ class BasicMoonCrater(MorphologyCrater):
                 "alpha": 0.7314641635358539,
             },
         }
-
         floor_radius_params = {
             "simple": {
                 "coefficients": [-19.235109460529202, 4.840583566677377, -0.21450124590854683],
@@ -216,12 +214,11 @@ class BasicMoonCrater(MorphologyCrater):
                 "alpha": 0.41963094367654863,
             },
             "complex": {
-                "coefficients": [-32.12119702964886, 6.415035820157615, -0.23789218738397716],
-                "c": -10.979619518458334,
-                "alpha": 2.515193438152356,
+                "coefficients": [4.571914820366517, -0.21608677058312598, 0.061233414548021586],
+                "c": 0.7771019915975753,
+                "alpha": 1.295875187989571,
             },
         }
-
         rim_width_params = {
             "simple": {
                 "coefficients": [-24.82061509600679, 6.470961147998662, -0.32200704888815185],
@@ -239,7 +236,6 @@ class BasicMoonCrater(MorphologyCrater):
                 "alpha": 2.348577422207449,
             },
         }
-
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
@@ -249,7 +245,7 @@ class BasicMoonCrater(MorphologyCrater):
             morphology_type = crater.morphology_type
 
         if rim_elevation is None:
-            rim_elevation = max(sample_logfit_heteroskedastic(diameter_m, **rim_height_params[morphology_type])[0], 0.0)
+            rim_elevation = max(sample_logfit_heteroskedastic(diameter_m, **rim_elevation_params[morphology_type])[0], 0.0)
         args["rim_elevation"] = rim_elevation
 
         if floor_elevation is None:
@@ -282,9 +278,20 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_width"] = args["peak_height"] * 2 if peak_width is None else peak_width
         args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
 
-        args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
+        # Try to approximately conserve volume when setting the ejecta thickness at the rim value
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
         args["rimdrop"] = _RIMDROP if rimdrop is None else rimdrop
+        if ejrim is None:
+            ejrim = 0.14 * (diameter_m / 2) ** 0.74
+            if diameter_km > 300:
+                hf = -args["floor_elevation"]
+                hr = args["rim_elevation"]
+                fr = args["floor_radius"] / (0.5 * diameter_m)
+                prd = args["rimdrop"]
+                pej = args["ejprofile"]
+                ejrim = max(ejrim, (hf * fr**2 - 2 * hr / (2 - prd)) / (2 * (1.0 / (2 - pej) - 1.0 / (2 - prd))))
+                ejrim = min(ejrim, args["rim_elevation"])
+        args["ejrim"] = ejrim
 
         kwargs = {**args, **kwargs}
 
