@@ -129,7 +129,9 @@ pub fn basicmoon_profile(
                 }
 
                 if include_crater {
-                    hcrat -= hej;
+                    if r > crater.radius || hcrat > 0.0 {
+                        hcrat = (hcrat - hej).max(0.0);
+                    } 
                 } else {
                     hcrat = 0.0;
                 }

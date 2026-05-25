@@ -539,8 +539,7 @@ def sample_pikefit(
 
 def sample_logfit_heteroskedastic(
     x: float,
-    a: float,
-    b: float,
+    coefficients: list[float],
     c: float,
     alpha: float,
     rng: Generator | None = None,
@@ -551,7 +550,7 @@ def sample_logfit_heteroskedastic(
     """
     Sample y values with variance that depends on x.
 
-    This is based on a reanalysis of fits from Pike (1977) [#]_.
+    This is primarily used on morphometric fits.
 
     Fitting log(res^2) = c + alpha * log(f) → sigma(x) = exp(c/2) * f(x)^{alpha/2}
 
@@ -559,10 +558,8 @@ def sample_logfit_heteroskedastic(
     ----------
     x : float
         The x value to compute the y value for.
-    a : float
-        The slope of the log-log fit.
-    b : float
-        The intercept of the log-log fit.
+    coefficients : list[float]
+        The coefficients of the log-log fit.
     c : float
         The intercept of the sigma vs x fit.
     alpha : float
@@ -584,7 +581,13 @@ def sample_logfit_heteroskedastic(
     """
     rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-    log_y = a * np.log(x) + b
+    def polyfunc(x, *cn):
+        ans = 0.0
+        for i, c in enumerate(cn):
+            ans += c * x**i
+        return ans
+
+    log_y = polyfunc(np.log(x), *coefficients)
     y = np.exp(log_y)
 
     sigma = np.exp(c / 2) * y ** (alpha / 2)

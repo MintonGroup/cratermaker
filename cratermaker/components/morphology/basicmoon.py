@@ -21,8 +21,8 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
-_RIMDROP = -6.0
-_EJPROFILE = -3.0
+_RIMDROP = -4.0
+_EJPROFILE = -2.8
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,77 +164,127 @@ class BasicMoonCrater(MorphologyCrater):
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
         depth_params = {
+            "simple_sub500m": {
+                "coefficients": [-1.910001619942053, 0.7831875571105978, 0.042836046225245894],
+                "c": -2.975325517042965,
+                "alpha": 1.4136290732609256,
+            },
             "simple": {
-                "a": 1.1086685616357714,
-                "b": -2.4826720219455067,
-                "c": -3.7786810754312707,
-                "alpha": 1.8100687551192884,
+                "coefficients": [-4.521021365770051, 1.7347527856394551, -0.04489022602475602],
+                "c": -5.26570819908019,
+                "alpha": 1.8641293440183668,
             },
             "transitional": {
-                "a": 0.33577925342905285,
-                "b": 4.443438586263023,
-                "c": 44.42149342809062,
-                "alpha": -4.287376846628266,
+                "coefficients": [22.18782422399827, -3.203597438379582, 0.17631543814150283],
+                "c": 63.24942043364388,
+                "alpha": -6.715217581955981,
             },
             "complex": {
-                "a": 0.3063004868927188,
-                "b": 4.8004537840029915,
-                "c": -18.100439845502283,
-                "alpha": 3.5177234160753783,
+                "coefficients": [-1.6315393638746256, 1.5032727501015142, -0.055610926613342146],
+                "c": -27.654075266623785,
+                "alpha": 4.694621309150626,
+            },
+        }
+
+        rim_height_params = {
+            "simple": {
+                "coefficients": [-6.987570103892113, 2.01550319738446, -0.06828643409713717],
+                "c": -3.739955774873155,
+                "alpha": 1.9044777677183773,
+            },
+            "transitional": {
+                "coefficients": [-45.53998186484989, 10.561204028447008, -0.5364848149469674],
+                "c": -2.082760903353434,
+                "alpha": 1.5038368264131883,
+            },
+            "complex": {
+                "coefficients": [1.5518602074285612, 0.4569768964674734, 0.0036798921554248272],
+                "c": 4.049383728923862,
+                "alpha": 0.7314641635358539,
+            },
+        }
+
+        floor_radius_params = {
+            "simple": {
+                "coefficients": [-19.235109460529202, 4.840583566677377, -0.21450124590854683],
+                "c": -8.422750876479917,
+                "alpha": 2.569365299227605,
+            },
+            "transitional": {
+                "coefficients": [-47.25759607077153, 10.01636202766342, -0.4444138708218017],
+                "c": 8.073586072170954,
+                "alpha": 0.41963094367654863,
+            },
+            "complex": {
+                "coefficients": [-32.12119702964886, 6.415035820157615, -0.23789218738397716],
+                "c": -10.979619518458334,
+                "alpha": 2.515193438152356,
+            },
+        }
+
+        rim_width_params = {
+            "simple": {
+                "coefficients": [-24.82061509600679, 6.470961147998662, -0.32200704888815185],
+                "c": 0.9641271074363086,
+                "alpha": 1.619163211456247,
+            },
+            "transitional": {
+                "coefficients": [-129.98317617103737, 27.374040577016952, -1.3529946148839573],
+                "c": 13.424721979662507,
+                "alpha": 0.01699281614062642,
+            },
+            "complex": {
+                "coefficients": [-6.156942924353989, 1.9832268288802843, -0.055861398599379546],
+                "c": -4.278121587075394,
+                "alpha": 2.348577422207449,
             },
         }
 
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
-
-        if crater.morphology_type in ["simple", "transitional"]:
-            if rim_elevation is None:
-                rim_elevation = sample_pikefit(diameter_km, a=1.014, b=0.036, errhi=0.0075, errlo=-0.0062, n=124)[0] * 1e3
-            args["rim_elevation"] = rim_elevation
-
-            if floor_elevation is None:
-                floor_elevation = (
-                    -sample_logfit_heteroskedastic(diameter_m, **depth_params[crater.morphology_type])[0] + rim_elevation
-                )
-            args["floor_elevation"] = floor_elevation
-
-            if floor_radius is None:
-                floor_diam_yang = 0.091 * diameter_m ** (0.208) * diameter_m
-                floor_radius = floor_diam_yang / 2
-            args["floor_radius"] = floor_radius
-            args["peak_height"] = 0.0 if peak_height is None else peak_height
-        elif crater.morphology_type in ["complex", "peakring", "multiring"]:
-            args["rim_elevation"] = (
-                sample_pikefit(diameter_km, a=0.399, b=0.236, errhi=0.036, errlo=-0.031, n=38)[0] * 1e3
-                if rim_elevation is None
-                else rim_elevation
-            )
-            args["floor_elevation"] = (
-                -sample_logfit_heteroskedastic(diameter_m, **depth_params["complex"])[0] + args["rim_elevation"]
-                if floor_elevation is None
-                else floor_elevation
-            )
-            args["floor_radius"] = (
-                min(sample_pikefit(diameter_km, a=1.249, b=0.187, errhi=0.012, errlo=-0.011, n=53)[0] * 1e3, 0.9 * diameter_m)
-                if floor_radius is None
-                else floor_radius
-            )
-            args["peak_height"] = (
-                sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
-                if peak_height is None
-                else peak_height
-            )
+        if crater.morphology_type in ["basin", "multiring", "peakring"]:
+            morphology_type = "complex"
         else:
-            raise ValueError(f"Unknown morphology type: {crater.morphology_type}")
+            morphology_type = crater.morphology_type
+
+        if rim_elevation is None:
+            rim_elevation = max(sample_logfit_heteroskedastic(diameter_m, **rim_height_params[morphology_type])[0], 0.0)
+        args["rim_elevation"] = rim_elevation
+
+        if floor_elevation is None:
+            if crater.diameter < 500.0:
+                floor_elevation = -sample_logfit_heteroskedastic(diameter_m, **depth_params["simple_sub500m"])[0] + rim_elevation
+            else:
+                floor_elevation = -sample_logfit_heteroskedastic(diameter_m, **depth_params[morphology_type])[0] + rim_elevation
+            floor_elevation = min(floor_elevation, 0.0)
+        args["floor_elevation"] = floor_elevation
+
+        if floor_radius is None:
+            floor_radius = max(sample_logfit_heteroskedastic(diameter_m, **floor_radius_params[morphology_type])[0], 0.0)
+        args["floor_radius"] = floor_radius
+
+        if peak_height is None:
+            if morphology_type != "complex":
+                peak_height = 0.0
+            else:
+                peak_height = sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
+        args["peak_height"] = peak_height
+
+        if wall_curvature is None:
+            wall_curvature = morphology.rng.uniform(low=0, high=6, size=1)[0]
+        args["wall_curvature"] = wall_curvature
+
+        if rim_width is None:
+            rim_width = max(sample_logfit_heteroskedastic(diameter_m, **rim_width_params[morphology_type])[0], 0.0)
+        args["rim_width"] = rim_width
+
         args["peak_width"] = args["peak_height"] * 2 if peak_width is None else peak_width
         args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
-        args["rim_width"] = 0.10 * diameter_m if rim_width is None else rim_width
 
         args["ejrim"] = 0.14 * (diameter_m * 0.5) ** 0.74 if ejrim is None else ejrim
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
         args["rimdrop"] = _RIMDROP if rimdrop is None else rimdrop
-        args["wall_curvature"] = 1.0 if wall_curvature is None else wall_curvature
 
         kwargs = {**args, **kwargs}
 
