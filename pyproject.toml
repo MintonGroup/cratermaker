@@ -90,6 +90,8 @@ include = [
     "README.md",
     "COPYING",
     "LICENSE",
+    "cratermaker/components/morphology/psd1d_coeffs.nc",
+    "cratermaker/components/morphology/psd2d_coeffs.nc",
 ]
 features = ["pyo3/extension-module"]
 manifest-path = "crates/cratermaker-py/Cargo.toml"
