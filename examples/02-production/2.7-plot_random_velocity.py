@@ -26,7 +26,7 @@ factors = np.array([0.75, 2.0])
 vmean_values = factors * vescape
 titles = [f"vmean = {float(factor):0.2f} $\\times$ vescape" for factor in factors]
 
-fig, axs = plt.subplots(2, 2, figsize=(12, 6), sharex="col", sharey="row")
+fig, axs = plt.subplots(2, 2, figsize=(12, 6), sharex="col", sharey="row", layout="constrained")
 for col, vmean in enumerate(vmean_values):
     v_no_escape = get_random_velocity(vmean=vmean, size=size)
     v_with_escape = get_random_velocity(vmean=vmean, size=size, vescape=vescape)
@@ -71,5 +71,4 @@ for col, vmean in enumerate(vmean_values):
         if row == 0:
             ax.set_title(titles[col])
 
-plt.tight_layout()
 plt.show()

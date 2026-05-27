@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 const _FITTING_RADIUS_RATIO: f64 = 2.0;
 
 #[pyfunction]
-pub fn measure_rim_height<'py>(
+pub fn measure_rim_elevation<'py>(
     _py: Python<'py>,
     region: &Bound<'py, PyAny>,
     crater: Crater,
@@ -14,17 +14,17 @@ pub fn measure_rim_height<'py>(
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
-    let rim_height = match cratermaker_components::counting::measure_rim_height(&region_v, &crater)
-    {
-        Ok(v) => v,
-        Err(_) => return Ok(-f64::MAX),
-    };
+    let rim_elevation =
+        match cratermaker_components::counting::measure_rim_elevation(&region_v, &crater) {
+            Ok(v) => v,
+            Err(_) => return Ok(-f64::MAX),
+        };
 
-    Ok(rim_height)
+    Ok(rim_elevation)
 }
 
 #[pyfunction]
-pub fn measure_floor_depth<'py>(
+pub fn measure_floor_elevation<'py>(
     _py: Python<'py>,
     region: &Bound<'py, PyAny>,
     crater: Crater,
@@ -32,13 +32,13 @@ pub fn measure_floor_depth<'py>(
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
-    let floor_depth =
-        match cratermaker_components::counting::measure_floor_depth(&region_v, &crater) {
+    let floor_elevation =
+        match cratermaker_components::counting::measure_floor_elevation(&region_v, &crater) {
             Ok(v) => v,
             Err(_) => return Ok(f64::MAX),
         };
 
-    Ok(floor_depth)
+    Ok(floor_elevation)
 }
 
 /// Fit a single ellipse to the provided x, y coordinates and weights.

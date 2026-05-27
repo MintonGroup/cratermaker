@@ -43,7 +43,7 @@ bar_width_lon = np.diff(bins_lon_deg)
 bar_width_lat = np.diff(bins_lat_deg)
 
 # Plotting
-fig, axs = plt.subplots(2, 1, figsize=(8, 6))
+fig, axs = plt.subplots(2, 1, figsize=(8, 6), layout="constrained")
 
 # Longitude plot
 axs[0].bar(
@@ -79,5 +79,4 @@ axs[1].set_ylabel("Number")
 axs[1].legend()
 axs[1].set_title("Number vs Latitude")
 
-plt.tight_layout()
 plt.show()

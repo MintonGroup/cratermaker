@@ -32,6 +32,7 @@ from cratermaker.utils.general_utils import parameter
 if TYPE_CHECKING:
     from cratermaker.components.counting import Counting
     from cratermaker.components.production import Production
+    from cratermaker.components.scaling import Scaling
     from cratermaker.components.surface import LocalSurface, Surface
 
 
@@ -180,7 +181,9 @@ class MorphologyCrater(Crater):
                 raise TypeError("relative_location must be a dict with keys 'distance' and 'bearing'.")
             location = morphology.surface.compute_location_from_distance_bearing(**relative_location)
 
-        crater = super().maker(crater=crater, location=location, check_redundant_inputs=check_redundant_inputs, **kwargs)
+        crater = super().maker(
+            crater=crater, scaling=morphology.scaling, location=location, check_redundant_inputs=check_redundant_inputs, **kwargs
+        )
         args = {}
 
         return cls(
@@ -315,33 +318,33 @@ class MorphologyCrater(Crater):
         return self._var._emplaceable
 
     @property
-    def measured_rim_height(self) -> float | None:
+    def measured_rim_elevation(self) -> float | None:
         """The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
-        return self._var._measured_rim_height
+            self._var._measured_rim_elevation = counting_bindings.measure_rim_elevation(self.crater_region, self)
+        return self._var._measured_rim_elevation
 
     @property
-    def measured_floor_depth(self) -> float | None:
+    def measured_floor_elevation(self) -> float | None:
         """The measured floor depth of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_floor_depth = counting_bindings.measure_floor_depth(self.crater_region, self)
-        return self._var._measured_floor_depth
+            self._var._measured_floor_elevation = counting_bindings.measure_floor_elevation(self.crater_region, self)
+        return self._var._measured_floor_elevation
 
     @property
     def measured_depth_to_diameter(self) -> float | None:
         """
         The measured depth to diameter ratio of the crater.
 
-        This is computed from `measured_rim_height`-`measured_floor_depth`
+        This is computed from `measured_rim_elevation`-`measured_floor_elevation`
         """
         if self.crater_region is not None:
             self.crater_region._desloped_face_elevation = None
-            floor_depth = self.measured_floor_depth
-            rim_height = self.measured_rim_height
-            return (rim_height - floor_depth) / self.measured_diameter
+            floor_elevation = self.measured_floor_elevation
+            rim_elevation = self.measured_rim_elevation
+            return (rim_elevation - floor_elevation) / self.measured_diameter
         else:
             return None
 
@@ -357,6 +360,7 @@ class Morphology(ComponentBase):
         surface: Surface | str | None = None,
         production: Production | str | None = None,
         counting: Counting | str | None = None,
+        scaling: Scaling | str | None = None,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
         do_counting: bool | None = None,
@@ -373,6 +377,8 @@ class Morphology(ComponentBase):
             The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored if do_subpixel_degradation is False.
         counting : str, Counting or None, optional
             The name of a Counting object, or an instance of Counting, to be associated with the morphology model. This is used to record crater counts during emplacement. If None, no counting will be performed.
+        scaling : str, Scaling or None, optional
+            The projectile->crater size scaling model to use from the components library. The default is "montecarlo".
         do_subpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
@@ -385,11 +391,13 @@ class Morphology(ComponentBase):
         """
         from cratermaker.components.counting import Counting
         from cratermaker.components.production import Production
+        from cratermaker.components.scaling import Scaling
         from cratermaker.components.surface import Surface
 
         super().__init__(**kwargs)
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
+        object.__setattr__(self, "_scaling", None)
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
@@ -407,6 +415,8 @@ class Morphology(ComponentBase):
             self.counting.morphology = self  # Associated counting and morphology with each other
         else:
             self.counting = Counting.maker(counting, surface=self.surface, morphology=self, **kwargs)
+
+        self.scaling = Scaling.maker(scaling, **kwargs)
 
         if do_counting is not None:
             if do_counting and self.counting is None:
@@ -440,6 +450,7 @@ class Morphology(ComponentBase):
         surface: Surface | str | None = None,
         production: Production | str | None = None,
         counting: Counting | str | None = None,
+        scaling: Scaling | str | None = None,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
         **kwargs: Any,
@@ -457,6 +468,8 @@ class Morphology(ComponentBase):
             The name of a Production object, or an instance of Production, to be associated with the morphology model. This is used for subpixel degradation in the emplace method. It is otherwise ignored.
         counting : str or Counting, optional
             The name of a Counting object, or an instance of Counting, to be associated with the morphology model. This is used to record crater counts during emplacement. If None, no counting will be performed.
+        scaling : str or Scaling or None, optional
+            The projectile->crater size scaling model to use from the components library. The default is "montecarlo".
         do_subpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
@@ -484,6 +497,7 @@ class Morphology(ComponentBase):
             surface=surface,
             production=production,
             counting=counting,
+            scaling=scaling,
             do_subpixel_degradation=do_subpixel_degradation,
             do_slope_collapse=do_slope_collapse,
             **kwargs,
@@ -862,6 +876,21 @@ class Morphology(ComponentBase):
         if not isinstance(value, bool):
             raise TypeError("do_counting must be a boolean value")
         self._do_counting = value
+
+    @property
+    def scaling(self):
+        """
+        The Scaling object that defines the crater scaling relationships model. Set during initialization.
+        """
+        return self._scaling
+
+    @scaling.setter
+    def scaling(self, value):
+        from cratermaker.components.scaling import Scaling
+
+        if not isinstance(value, Scaling):
+            raise TypeError("scaling must be of Scaling")
+        self._scaling = value
 
     @property
     def _CraterType(self) -> type[MorphologyCrater]:

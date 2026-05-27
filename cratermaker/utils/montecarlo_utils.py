@@ -473,3 +473,124 @@ def bounded_norm(
     )
 
     return truncated_normal.rvs(size, random_state=rng)
+
+
+def sample_pikefit(
+    x: float,
+    a: float,
+    b: float,
+    errhi: float,
+    errlo: float,
+    n: int,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with residual uncertainty in log-space.
+
+    This is used for reproducing the models in Pike (1977) [#]_.
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    a : float
+        The slope of the log-log fit.
+    b : float
+        The intercept of the log-log fit.
+    errhi : float
+        The standard error of the fit in log-space in the positive direction.
+    errlo : float
+        The standard error of the fit in log-space in the negative direction.
+    n : int
+        The number of data points used to compute the fit.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+
+    log_y = np.log(b) + a * np.log(x)
+
+    sighi = np.sqrt(n) * errhi
+    siglo = -np.sqrt(n) * errlo
+
+    # Average the logspace upper/lower error values
+    var = rng.normal(0, 0.5, size=np.size(x))
+    if var > 0.0:
+        var *= sighi
+    else:
+        var *= siglo
+    y = np.exp(log_y + var)
+
+    return y
+
+
+def sample_logfit_heteroskedastic(
+    x: float,
+    coefficients: list[float],
+    c: float,
+    alpha: float,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with variance that depends on x.
+
+    This is primarily used on morphometric fits.
+
+    Fitting log(res^2) = c + alpha * log(f) → sigma(x) = exp(c/2) * f(x)^{alpha/2}
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    coefficients : list[float]
+        The coefficients of the log-log fit.
+    c : float
+        The intercept of the sigma vs x fit.
+    alpha : float
+        The slope of the sigma vs x fit.
+    n : int
+        The number of data points used to compute the fit.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+
+    def polyfunc(x, *cn):
+        ans = 0.0
+        for i, c in enumerate(cn):
+            ans += c * x**i
+        return ans
+
+    log_y = polyfunc(np.log(x), *coefficients)
+    y = np.exp(log_y)
+
+    sigma = np.exp(c / 2) * y ** (alpha / 2)
+    var = rng.normal(0, sigma, size=np.size(x))
+
+    return y + var

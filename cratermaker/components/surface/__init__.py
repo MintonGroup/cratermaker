@@ -19,11 +19,8 @@ from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
-from rasterio import DatasetReader, MemoryFile, windows
-from rasterio.enums import Resampling
-from rasterio.merge import merge
+from rasterio import DatasetReader, windows
 from rasterio.transform import rowcol
-from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
 from tqdm import tqdm
@@ -1169,6 +1166,7 @@ class Surface(ComponentBase):
 
         threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
+
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid=uxgrid)
 
@@ -1267,9 +1265,12 @@ class Surface(ComponentBase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True, **kwargs) as temp_dir:
             data_file = self.output_dir / filename
             if data_file.exists():
-                with xr.open_mfdataset(data_file) as ds_old:
-                    ds_old = ds_old.load()
-                ds_file = ds.merge(ds_old, compat="override")
+                try:
+                    with xr.open_mfdataset(data_file) as ds_old:
+                        ds_old = ds_old.load()
+                    ds_file = ds.merge(ds_old, compat="override")
+                except Exception:
+                    ds_file = ds
             else:
                 ds_file = ds
 
@@ -1437,7 +1438,7 @@ class Surface(ComponentBase):
         The hash id of the grid. This is used for determining if the grid needs to be regridded.
         """
         combined = ":".join(str(v) for v in self._hashvars)
-        combined += "v2026.2.0"  # Add version number because of API changes
+        combined += ":v2026.2.0"  # Add version number because of API changes
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
 
@@ -1891,53 +1892,53 @@ class Surface(ComponentBase):
         """
         if location is None:
             wkt = (
-                f'GEOGCS["GCS_{name}_global",'
-                f'    DATUM["D_{name}",'
-                f'        ELLIPSOID["{name}",{radius:.6f},0,'
-                f'            LENGTHUNIT["metre",1]]],'
-                f'    PRIMEM["Reference_Meridian",0,'
-                f'        ANGLEUNIT["degree",0.0174532925199433]]],'
-                f"    CS[ellipsoidal,2],"
-                f'        AXIS["geodetic latitude (Lat)",north,'
-                f"            ORDER[1],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
-                f'        AXIS["geodetic longitude (Lon)",east,'
-                f"            ORDER[2],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
+                f'GEOGCS["GCS_{name}_global",\n'
+                f'    DATUM["D_{name}",\n'
+                f'        ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'            LENGTHUNIT["metre",1]]],\n'
+                f'    PRIMEM["Reference_Meridian",0,\n'
+                f'        ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f"    CS[ellipsoidal,2],\n"
+                f'        AXIS["geodetic latitude (Lat)",north,\n'
+                f"            ORDER[1],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
+                f'        AXIS["geodetic longitude (Lon)",east,\n'
+                f"            ORDER[2],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
                 f'REMARK["Created by Cratermaker"]]'
             )
         else:
             lon0, lat0 = location
             wkt = (
-                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Lambert_Azimuthal_Equal_Area",'
-                f'    BASEGEOGCRS["GCS_{name}_global",'
-                f'        DATUM["D_{name}",'
-                f'            ELLIPSOID["{name}",{radius:.6f},0,'
-                f'                LENGTHUNIT["metre",1]]],'
-                f'        PRIMEM["Reference_Meridian",0,'
-                f'            ANGLEUNIT["degree",0.0174532925199433]]],'
-                f'        CONVERSION["Lambert Azimuthal Equal Area",'
-                f'            METHOD["Lambert Azimuthal Equal Area (Spherical)",'
-                f'                ID["EPSG",1027]],'
-                f'            PARAMETER["Latitude of natural origin",{lat0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8801]],'
-                f'            PARAMETER["Longitude of natural origin",{lon0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8802]],'
-                f'            PARAMETER["False easting",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8806]],'
-                f'            PARAMETER["False northing",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8807]]],'
-                f"        CS[Cartesian,2],"
-                f'            AXIS["(E)",east,'
-                f"                ORDER[1],"
-                f'                LENGTHUNIT["metre",1]],'
-                f'            AXIS["(N)",north,'
-                f"                ORDER[2],"
-                f'                LENGTHUNIT["metre",1]]],'
+                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Azimuthal_Equidistant",\n'
+                f'    BASEGEOGCRS["GCS_{name}_global",\n'
+                f'        DATUM["D_{name}",\n'
+                f'            ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'                LENGTHUNIT["metre",1]]],\n'
+                f'        PRIMEM["Reference_Meridian",0,\n'
+                f'            ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f'        CONVERSION["Sphere_Azimuthal_Equidistant",\n'
+                f'            METHOD["Azimuthal Equidistant",\n'
+                f'                ID["EPSG",1125]],\n'
+                f'            PARAMETER["Latitude of natural origin",{lat0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8801]],\n'
+                f'            PARAMETER["Longitude of natural origin",{lon0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8802]],\n'
+                f'            PARAMETER["False easting",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8806]],\n'
+                f'            PARAMETER["False northing",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8807]]],\n'
+                f"        CS[Cartesian,2],\n"
+                f'            AXIS["(E)",east,\n'
+                f"                ORDER[1],\n"
+                f'                LENGTHUNIT["metre",1]],\n'
+                f'            AXIS["(N)",north,\n'
+                f"                ORDER[2],\n"
+                f'                LENGTHUNIT["metre",1]]],\n'
                 f'REMARK["Created by Cratermaker"]'
             )
 
@@ -2987,6 +2988,8 @@ class LocalSurface(CratermakerBase):
         grid.DeepCopy(vtk_data)
 
         for v in uxds.variables:
+            if uxds[v].dtype == np.dtype("bool"):
+                continue
             array = numpy_to_vtk(uxds[v].values, deep=True)
             array.SetName(v)
             if "n_face" in uxds[v].dims:
@@ -3713,6 +3716,8 @@ class LocalSurface(CratermakerBase):
         face_variables = []
         component_variables = []
         for v in uxds.data_vars:
+            if uxds[v].dtype is np.dtype("bool"):
+                continue
             if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
                 mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)
@@ -4525,16 +4530,17 @@ class LocalSurface(CratermakerBase):
         """The projected y coordinates of the nodes relative to the LocalSurface center in meters."""
         return self._node_proj_y
 
-    @property
-    def desloped_face_elevation(self) -> NDArray:
-        """The face elevations with the mean slope of the region removed in meters."""
-        return self._desloped_face_elevation
-
     def compute_desloped_face_elevation(self):
         """Compute the face elevations with the mean slope of the region removed."""
         if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
-            self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
+            self.add_data(
+                "desloped_face_elevation",
+                long_name="face elevation (desloped)",
+                units="m",
+                data=self.face_elevation.data - reference_elevation,
+                positive_only=False,
+            )
         return
 
     @property
@@ -4924,7 +4930,7 @@ class DataComposer(AbstractContextManager):
         """
         target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix  # The moon's radius
         if target_pds_resolution > 10 and (
-            lat_range[0] > 60 or lat_range[1] < -60
+            np.abs(lat_range[0]) > 60 or np.abs(lat_range[1]) > 60
         ):  # Use polar files high latitude, high resolution regions.
             return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
         else:  # Use cylindrical for all other cases

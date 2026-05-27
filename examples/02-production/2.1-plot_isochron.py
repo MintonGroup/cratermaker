@@ -26,7 +26,7 @@ from matplotlib import ticker
 
 from cratermaker import Production
 
-fig, axs = plt.subplots(1, 2, figsize=(8, 7))
+fig, axs = plt.subplots(1, 2, figsize=(8, 7), layout="constrained")
 axes = dict(zip(["Moon", "Mars"], axs, strict=True))
 tvals = [0.01, 1.0, 4.0]
 x_min = 1e-3
@@ -75,5 +75,4 @@ for version, ax in axes.items():
             rotation=-72,
         )
 
-plt.tight_layout()
 plt.show()

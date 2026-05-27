@@ -214,7 +214,9 @@ class MonteCarloScaling(Scaling):
         Returns
         -------
         float
-            Returns the crater transient diameter in meters
+            The crater transient diameter in meters
+        str
+            The morphology type of the crater
         """
         if not isinstance(final_diameter, FloatLike) or final_diameter <= 0 or not np.isfinite(final_diameter):
             raise ValueError("final_diameter must be a positive finite number")

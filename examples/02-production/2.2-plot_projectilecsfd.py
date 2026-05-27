@@ -22,7 +22,7 @@ production = Production.maker("neukum", version="Projectile")
 Dvals = np.logspace(-2, 7, num=1000)
 Nvals = production.function(diameter=Dvals, age=1000.0)
 
-fig, ax = plt.subplots(figsize=(4, 7))
+fig, ax = plt.subplots(figsize=(4, 7), layout="constrained")
 Dvals *= 1e-3  # Convert from m to km
 Nvals *= 1e6  # Convert from m² to km²
 x_min = Dvals[0]
@@ -47,5 +47,4 @@ ax.plot(Dvals[inrange], Nvals[inrange], "-", color="black", linewidth=1.0, zorde
 ax.plot(Dvals[lo], Nvals[lo], "-.", color="orange", linewidth=2.0, zorder=50)
 ax.plot(Dvals[hi], Nvals[hi], "-.", color="orange", linewidth=2.0, zorder=50)
 
-plt.tight_layout()
 plt.show()

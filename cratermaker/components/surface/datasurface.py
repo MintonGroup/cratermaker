@@ -101,6 +101,10 @@ class DataSurface(HiResLocalSurface):
         object.__setattr__(self, "_superdomain_dem_file", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
+        if local_radius > 1.49 * self.target.radius:
+            raise ValueError(
+                "The value of local_radius is too large. Consider using DataComposer on a global surface type, such as Icosphere."
+            )
         if dem_file_list is None and self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
         if superdomain_dem_file is None and self.target.name != "Moon":
@@ -209,6 +213,7 @@ class DataSurface(HiResLocalSurface):
             name=self.target.name,
             location=self.local_location,
         )
+
         src_list = []
         print("Reading DEM files:")
         try:
@@ -217,9 +222,8 @@ class DataSurface(HiResLocalSurface):
                 src_list.append(rasterio.open(f))
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
-        nodata_val = src_list[0].nodata
-        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
-            nodata_val = _NODATA
+
+        nodata_val = _NODATA
         target_res = min(s.res[0] for s in src_list)
         dst_width = int(np.ceil(2 * half_box_size / target_res))
         dst_height = dst_width
@@ -232,15 +236,14 @@ class DataSurface(HiResLocalSurface):
                 width=dst_width,
                 height=dst_height,
                 resampling=Resampling.bilinear,
+                nodata=nodata_val,
+                src_nodata=src.nodata if src.nodata is not None else nodata_val,
+                init_dest_nodata=True,
             )
             for src in src_list
         ]
         # Ensure nodata is respected; if missing, use NaN and float32
-        mosaic, transform = merge(
-            vrt_list,
-            nodata=nodata_val,
-            dtype="float32" if np.isnan(nodata_val) else None,
-        )
+        mosaic, transform = merge(vrt_list, nodata=nodata_val, dtype="float32" if np.isnan(nodata_val) else None, masked=True)
 
         out_meta = src_list[0].meta.copy()
         out_meta.update(
@@ -280,7 +283,7 @@ class DataSurface(HiResLocalSurface):
             elevation = elevation.flatten()
 
             # Handle nodata values
-            mask_nodata = (elevation != src.nodata) & ~np.isnan(elevation)
+            mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
             mean_elevation = np.mean(elevation[mask_nodata])
             elevation[~mask_nodata] = mean_elevation
             elevation = elevation.astype(np.float32)
@@ -552,7 +555,9 @@ class DataSurface(HiResLocalSurface):
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
             lon_min, lon_max, lat_min, lat_max = self.get_location_extents(self.local_location, self.local_radius)
-            value, self._pix = DataComposer.get_lola_dem_file_list(pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))
+            value, self._pix = DataComposer.get_lola_dem_file_list(
+                pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max)
+            )
         elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
@@ -589,7 +594,9 @@ class DataSurface(HiResLocalSurface):
             sdpix = self.superdomain_scale_factor * self.pix / 10.0
             if sdpix < min_global_pix:
                 sdpix = min_global_pix
-            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[0][0]
+            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[
+                0
+            ][0]
             return
         if not isinstance(value, (str, Path)):
             raise TypeError("'superdomain_dem_file' must be a strings or Path objects, or None.")

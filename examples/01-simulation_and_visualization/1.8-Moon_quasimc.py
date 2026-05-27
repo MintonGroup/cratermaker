@@ -22,8 +22,6 @@ Sources
 - The age of Tycho of 109±4 My is based on cosmic ray exposure dating of the South Massif landslide deposit in Taurus Littrow Valley from Apollo 17 by Drozd et al. (1977) [#]_.
 - Serenetatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
 
-
-
 References
 ----------
 
@@ -38,10 +36,6 @@ References
 .. [#] Bogard, D.D., Garrison, D.H., Shih, C.Y., Nyquist, L.E., 1994. 39Ar-40Ar dating of two lunar granites: The age of Copernicus. Geochimica et Cosmochimica Acta 58, 3093–3100. `doi:10.1016/0016-7037(94)90181-3 <https://doi.org/10.1016/0016-7037(94)90181-3>`_
 .. [#] Drozd, R.J., Hohenberg, C.M., Morgan, C.J., Podosek, F.A., Wroge, M.L., 1977. Cosmic-ray exposure history at Taurus-Littrow, in: Proceedings of the Lunar Science Conference. pp. 3027–3043. `abstract <https://ui.adsabs.harvard.edu/abs/1977LPSC....8.3027D/abstract>`_
 .. [#] Bjonnes, E., Johnson, B.C., Broquet, A., Garrick‐Bethell, I., Andrews‐Hanna, J.C., Wakita, S., Kiefer, W.S., 2025. Evidence for an Early Formation of Serenitatis Basin at 4.25 Ga Shifts Lunar Chronology. Geophysical Research Letters 52, e2025GL116654. `doi:10.1029/2025GL116654 <https://doi.org/10.1029/2025GL116654>`_
-
-
-
-
 """
 
 import cratermaker as cm
