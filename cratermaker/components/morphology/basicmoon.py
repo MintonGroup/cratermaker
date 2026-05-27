@@ -49,10 +49,6 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original central peak width of the crater in meters. 0 for simple craters."""
     peak_offset: float | None = None
     """Original central peak offset of the crater in meters. 0 for simple craters."""
-    fassett_yang_fraction: float | None = None
-    """The weighting fraction between the Fassett et al. (2020) and Yang et al. (2021) models for the crater morphology parameters. A value of 1.0 means purely the Fassett model, and 0.0 means purely the Yang model. This is only relevant for simple craters."""
-    morphology_subtype: str | None = None
-    """The subtype of the morphology to use for generating morphology parameters (e.g. "simple" morphology_type could have "flat-bottomed", "central mound", "concentric", and "normal" when using the Yang et al. 2021 profile function). """
 
     @property
     def depth_to_diameter(self) -> float | None:

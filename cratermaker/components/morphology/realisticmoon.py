@@ -1,5 +1,6 @@
 import json
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +9,14 @@ from numpy.typing import NDArray
 from scipy import fft
 
 from cratermaker.components.morphology import Morphology
-from cratermaker.components.morphology.basicmoon import BasicMoonMorphology
+from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
+
+_PSD1D_COEFF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
+_PSD2D_COEFF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
+
+
+# @dataclass(frozen=True, slots=True)
+# class RealisticMoonCraterFixed(BasicMoonCraterFixed):
 
 
 @Morphology.register("realisticmoon")
@@ -18,18 +26,11 @@ class RealisticMoonMorphology(BasicMoonMorphology):
 
     This uses the morphology model of Du et al. 2025a,b.
 
-    Notes
-    -----
-    This is a placeholder until the revisions to Du et al. 2025b are finished.
-
     Parameters
     ----------
     **kwargs : Any
         |kwargs|
 
-    Notes
-    -----
-    This is a placeholder until the revisions to Du et al. 2025b are finished.
     """
 
     def __init__(self, **kwargs: Any):
@@ -58,10 +59,6 @@ class RealisticMoonMorphology(BasicMoonMorphology):
         .. [#] Du, J., Minton, D.A., Blevins, A.M., Fassett, C.I., Huang, Y.-H., 2025. Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets 130, e2024JE008890. `doi: 10.1029/2024JE008890 <https://doi.org/10.1029/2024JE008890>`_
 
         """
-        # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
-        psd_file = Path(__file__).parent / "psd_coef.json"
-        with Path.open(psd_file) as f:
-            psd_coef = json.load(f)
         # ------------------------------------------------------------------------------------------------------------------
         num_psd_component = 5000
         # ------------------------------------------------------------------------------------------------------------------
