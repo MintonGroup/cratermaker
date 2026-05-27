@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import xarray as xr
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from scipy import fft
 
+from cratermaker.bindings import morphology_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
+from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEFF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
@@ -217,6 +219,130 @@ class RealisticMoonMorphology(BasicMoonMorphology):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
+    def crater_profile(
+        self,
+        crater: BasicMoonCrater,
+        r: ArrayLike,
+        bearing: ArrayLike,
+        r_ref: ArrayLike | None = None,
+    ) -> NDArray[np.float64]:
+        """
+        Compute the crater profile elevation at a given radial distance.
+
+        Parameters
+        ----------
+        crater : BasicMoonCrater
+            The crater object containing the parameters for the crater profile.
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+        bearing : ArrayLike
+            Bearings (in degrees) corresponding to the radial distances. This is used to compute the azimuthal variation in the crater profile based on the 2D PSD models.
+        r_ref : ArrayLike, optional
+            Reference elevation values to be modified by the crater profile.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        elevation : NDArray[np.float64]
+            The computed crater elevation profile at each radial point.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
+
+        @dataclass(frozen=True, slots=True)
+        class DummyCrater:
+            """
+            A simple dataclass to hold crater morphology parameters for use in the profile function. This is necessary because the morphology_bindings.basicmoon_profile function expects a crater object with attributes corresponding to the crater morphology parameters, and we want to be able to construct this crater object from the optimized parameter vector returned by curve_fit without having to create a full cratermaker.Crater object with all of its associated methods and properties.
+            """
+
+            crater: RealisticMoonCrater
+            id: np.uint32 = field(default=None, init=False)
+            diameter: float | None = field(default=None, init=False)
+            radius: float | None = field(default=None, init=False)
+            semimajor_axis: float | None = field(default=None, init=False)
+            semiminor_axis: float | None = field(default=None, init=False)
+            orientation: float | None = field(default=None, init=False)
+            transient_diameter: float | None = field(default=None, init=False)
+            projectile_diameter: float | None = field(default=None, init=False)
+            projectile_velocity: float | None = field(default=None, init=False)
+            projectile_angle: float | None = field(default=None, init=False)
+            projectile_density: float | None = field(default=None, init=False)
+            location: tuple[float, float] | None = field(default=None, init=False)
+            morphology_type: str | None = field(default=None, init=False)
+            measured_semimajor_axis: float | None = field(default=None, init=False)
+            measured_semiminor_axis: float | None = field(default=None, init=False)
+            measured_orientation: float | None = field(default=None, init=False)
+            measured_diameter: float | None = field(default=None, init=False)
+            measured_radius: float | None = field(default=None, init=False)
+            measured_location: tuple[float, float] | None = field(default=None, init=False)
+            time: float | None = field(default=None, init=False)
+            rim_elevation: float | None = field(default=None, init=False)
+            floor_elevation: float | None = field(default=None, init=False)
+            floor_radius: float | None = field(default=None, init=False)
+            wall_curvature: float | None = field(default=None, init=False)
+            rim_width: float | None = field(default=None, init=False)
+            rimdrop: float | None = field(default=None, init=False)
+            ejrim: float | None = field(default=None, init=False)
+            ejprofile: float | None = field(default=None, init=False)
+            peak_height: float | None = field(default=None, init=False)
+            peak_width: float | None = field(default=None, init=False)
+            peak_offset: float | None = field(default=None, init=False)
+
+            def __post_init__(self):
+                for f in self.__dataclass_fields__.values():
+                    if getattr(self, f.name) is None:
+                        object.__setattr__(self, f.name, getattr(self.crater, f.name))
+
+        if not isinstance(crater, RealisticMoonCrater):
+            crater = RealisticMoonCrater.maker(crater, morphology=self)
+        if r_ref is None:
+            r_ref = np.zeros_like(r)
+
+        if np.isscalar(r):
+            r = np.array([r], dtype=np.float64)
+        elif isinstance(r, (list | tuple)):
+            r = np.array(r, dtype=np.float64)
+
+        # flatten r to 1D array
+        rflat = np.ravel(r)
+        r_ref_flat = np.ravel(r_ref)
+        bflat = np.ravel(bearing)
+
+        rim_radius_profile = self.profile_from_psd(
+            crater_radius=crater.radius, ymean=crater.radius, psd=crater.rim_radius_psd, bearings=bflat
+        )
+        rim_elevation_profile = self.profile_from_psd(
+            crater_radius=crater.radius, ymean=crater.rim_elevation, psd=crater.rim_elevation_psd, bearings=bflat
+        )
+        floor_radius_profile = self.profile_from_psd(
+            crater_radius=crater.floor_radius, ymean=crater.floor_radius, psd=crater.floor_radius_psd, bearings=bflat
+        )
+
+        elevation = np.empty_like(rflat, dtype=np.float64)
+        # I need to implement a Rust binding function that can pass the profiles in as arrays
+        for i in range(len(rflat)):
+            tmp_crater = DummyCrater(
+                crater=crater,
+                diameter=2 * rim_radius_profile[i],
+                radius=rim_radius_profile[i],
+                floor_radius=floor_radius_profile[i],
+                rim_elevation=rim_elevation_profile[i],
+            )
+            elevation[i] = morphology_bindings.basicmoon_profile(
+                radial_distances=rflat[i],
+                reference_elevations=r_ref_flat[i],
+                crater=tmp_crater,
+                include_crater=True,
+                include_ejecta=False,
+            )
+        # reshape elevation to match the shape of r
+        elevation = np.reshape(elevation, r.shape)
+
+        return elevation
+
     @parameter
     def add_noise(self) -> bool:
         """
@@ -318,6 +444,37 @@ class RealisticMoonMorphology(BasicMoonMorphology):
             power_target_log_noise = np.random.normal(0, noise_stddev, power_target_log.shape) + power_target_log
             psd[:, 1] = 10**power_target_log_noise
         return psd
+
+    def profile_from_psd(self, crater_radius: float, ymean: float, psd: np.ndarray, bearings: np.ndarray, phases: None = None):
+        """
+        Generate a profile based on a given PSD. This is done by summing sinusoidal components with frequencies and amplitudes determined by the PSD.
+
+        Parameters
+        ----------
+        crater_radius : float
+            The radius of the crater for which to generate the profile in meters. This is used to determine the scale of the profile.
+        ymean : float
+            The mean value of the profile. The generated profile will be centered around this mean value.
+        psd : np.ndarray
+            A 2D array containing the frequencies and corresponding power values of the PSD. The first
+            column should contain the frequencies (or wavelengths) and the second column should contain the power values of the PSD at those frequencies.
+        bearings : np.ndarray
+            A 1D array containing the bearings (in degrees) at which to compute the profile values. The profile will be computed at these bearings and returned as an array of the same length.
+        phases : np.ndarray or None
+            An optional 1D array containing the phase values (in degrees) for each frequency component in the PSD. If None, then the phases will be randomly generated from a uniform distribution between 0 and 360 degrees. The length of this array should match the number of frequency components in the PSD (i.e., the number of rows in the psd array).
+        """
+        period_total = psd[-1, 0]
+        npoints = psd.size
+        nfreq = psd.shape[0]
+        thetavals = np.radians(bearings)
+        if phases is None:
+            phases = self.rng.uniform(size=nfreq) * period_total
+        delta_y = np.zeros(npoints)
+        amplitude = np.sqrt(psd[:, 1] * period_total / (npoints**2))
+        y_ind = amplitude[:, np.newaxis] * np.sin(2 * np.pi * (1 / psd[:, 0][:, np.newaxis]) * (thetavals + phases[:, np.newaxis]))
+        delta_y = np.sum(y_ind, axis=0)
+
+        return delta_y * crater_radius + ymean
 
     @property
     def _CraterType(self) -> type[RealisticMoonCrater]:

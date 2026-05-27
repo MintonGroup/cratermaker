@@ -479,16 +479,19 @@ class BasicMoonMorphology(Morphology):
         reference_elevation = region.get_reference_surface(reference_radius=crater.radius)
 
         # Combine distances and references for nodes and faces
-        distance = np.concatenate([region.face_distance, region.node_distance])
+        r = np.concatenate([region.face_distance, region.node_distance])
+        bearing = np.concatenate([region.face_bearing, region.node_bearing])
 
         original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
 
-        new_elevation = self.crater_profile(crater, distance, reference_elevation)
+        new_elevation = self.crater_profile(crater=crater, r=r, bearing=bearing, r_ref=reference_elevation)
         elevation_change = new_elevation - original_elevation
 
         return elevation_change
 
-    def crater_profile(self, crater: BasicMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None) -> NDArray[np.float64]:
+    def crater_profile(
+        self, crater: BasicMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None, **kwargs: Any
+    ) -> NDArray[np.float64]:
         """
         Compute the crater profile elevation at a given radial distance.
 
@@ -500,6 +503,8 @@ class BasicMoonMorphology(Morphology):
             Radial distances from the crater center (in meters).
         r_ref : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
