@@ -955,4 +955,7 @@ class BasicMoonMorphology(Morphology):
 
     @property
     def _CraterType(self) -> type[BasicMoonCrater]:
+        """
+        The class definition of the associated Crater type.
+        """
         return BasicMoonCrater

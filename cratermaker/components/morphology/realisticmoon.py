@@ -17,7 +17,7 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEFF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEFF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
-_BREAKPOINT_DIAMETER_IN_FIT = 20e3  # Diameter where the PSD breakpoints occur
+_PSD1D_NUM_POINTS = 5000  # Number of points used in the construction of the 1D PSD
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,8 +29,6 @@ class RealisticMoonCraterFixed(BasicMoonCraterFixed):
     rim_elevation_control: dict[str, float] | None = None
     """Control points for the rim elevation PSD model"""
     floor_radius_control: dict[str, float] | None = None
-    """Control points for the floor radius PSD model"""
-    floor_elevation_control: dict[str, float] | None = None
     """Control points for the floor radius PSD model"""
     wall_texture_control: dict[str, float] | None = None
     """Control points for the wall texture PSD model"""
@@ -45,6 +43,7 @@ class RealisticMoonCrater(BasicMoonCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=RealisticMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
+
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -62,12 +61,10 @@ class RealisticMoonCrater(BasicMoonCrater):
         rim_elevation_control: np.ndarray | None = None,
         rim_flank_radius_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
-        floor_elevation_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
         psd1d_coef_file: str | Path = _PSD1D_COEFF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEFF_FILE,
-        flag_bp_sigma: bool = True,
         **kwargs: Any,
     ) -> RealisticMoonCrater:
         """
@@ -82,17 +79,17 @@ class RealisticMoonCrater(BasicMoonCrater):
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
         rim_radius_control : np.ndarray, optional
-            Control points for the rim crest distance profile. If None, then it is generated using the morphology model.
+            Control points for the rim crest radius PSD. If None, then it will be computed
+        rim_elevation_control : np.ndarray, optional
+            Conntrol points for the rim elevation PSD. If None then it will be computed.
         rim_flank_radius_control : np.ndarray, optional
-            Control points for the rim flank radius profile. If None, then it is generated using the morphology model.
+            Control points for the rim flank radius PDS. If None then it will be computed.
         floor_radius_control : np.ndarray, optional
-            Control points for the floor radius profile. If None, then it is generated using the morphology model.
-        floor_elevation_control : np.ndarray, optional
-            Control points for the floor elevation profile. If None, then it is generated using the morphology model.
+            Control points for the floor radius profile. If None then it will be computed.
         wall_texture_control : np.ndarray, optional
-            Control points for the wall texture. If None, then it is generated using the morphology model.
+            Control points for the wall texture. If None then it will be computed.
         ejecta_texture_control : np.ndarray, optional
-            Control points for the ejecta texture. If None, then it is generated using the morphology model.
+            Control points for the ejecta texture. If None then it will be computed.
         psd1d_coef_file : str or Path, optional
             The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
         psd2d_coef_file : str or Path, optional
@@ -132,7 +129,6 @@ class RealisticMoonCrater(BasicMoonCrater):
             )
             floor_radius_control = crater.floor_radius_control if floor_radius_control is None else floor_radius_control
             rim_elevation_control = crater.rim_elevation_control if rim_elevation_control is None else rim_elevation_control
-            floor_elevation_control = crater.floor_elevation_control if floor_elevation_control is None else floor_elevation_control
             wall_texture_control = crater.wall_texture_control if wall_texture_control is None else wall_texture_control
             ejecta_texture_control = crater.ejecta_texture_control if ejecta_texture_control is None else ejecta_texture_control
 
@@ -145,7 +141,7 @@ class RealisticMoonCrater(BasicMoonCrater):
             argname = f"{var}_control"
             if argname in input_args and input_args[argname] is None:
                 args[argname] = morphology.get_control_points(
-                    diameter=crater.diameter, coef_sigma=psd1d_coeff[var], flag_bp_sigma=flag_bp_sigma
+                    crater=crater, coef_sigma=psd1d_coeff[var], add_noise=morphology.add_noise
                 )
 
         kwargs = {**args, **kwargs}
@@ -155,6 +151,34 @@ class RealisticMoonCrater(BasicMoonCrater):
             morphology=morphology,
             **kwargs,
         )
+
+    @property
+    def rim_radius_psd(self) -> np.ndarray:
+        """
+        The power spectral density distribution of the rim radius outline.
+        """
+        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_radius_control)
+
+    @property
+    def rim_flank_radius_psd(self) -> np.ndarray:
+        """
+        The power spectral density distribution of the rim flank radius outline.
+        """
+        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_flank_radius_control)
+
+    @property
+    def floor_radius_psd(self) -> np.ndarray:
+        """
+        The power spectral density distribution of the floor radius outline.
+        """
+        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.floor_radius_control)
+
+    @property
+    def rim_elevation_psd(self) -> np.ndarray:
+        """
+        The power spectral density distribution of the rim elevation profile.
+        """
+        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_elevation_control)
 
 
 @Morphology.register("realisticmoon")
@@ -166,297 +190,65 @@ class RealisticMoonMorphology(BasicMoonMorphology):
 
     Parameters
     ----------
+    crater : Crater, optional
+        The crater object to be converted into a RealisticMoonCrater. If None, then a new crater is created using the provided parameters.
+    fixed_cls : type[RealisticMoonCraterFixed], optional
+        The class definition for the fixed parameters of the RealisticMoonCrater. Default is RealisticMoonCraterFixed.
+    variable_cls : type[MorphologyCraterVariable], optional
+        The class definition for the variable parameters of the RealisticMoonCrater. Default is MorphologyCraterVariable.
+    add_noise : bool, optional
+        Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits (both in the control points
+        and in the PSD itself). Default is True.
     **kwargs : Any
         |kwargs|
 
     """
 
     def __init__(
-        self, crater: Crater | None = None, fixed_cls=RealisticMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
+        self,
+        crater: Crater | None = None,
+        fixed_cls=RealisticMoonCraterFixed,
+        variable_cls=MorphologyCraterVariable,
+        add_noise: bool = True,
+        **kwargs,
     ):
+        object.__setattr__(self, "_add_noise", None)
+        self.add_noise = add_noise
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
-    def _get_1D_power_spectral_density(self, feature, psd_coef, num_psd_component_effec=100) -> NDArray:
+    @parameter
+    def add_noise(self) -> bool:
         """
-        Construct a 1D power spectral density.
+        Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits, both in the control points and in the PSD itself.
+        """
+        return self._add_noise
 
-        Coeffcients are from Du et al. (2024) [#]_ and  Du et al. (2025) [#]_.
+    @add_noise.setter
+    def add_noise(self, value: bool):
+        if not isinstance(value, bool):
+            raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
+        self._add_noise = value
+
+    def get_control_points(self, crater: Crater, coef_sigma: xr.DataArray, add_noise: bool = True):
+        """
+        Get the control points for the PSD model based on the crater diameter and the provided coefficient and sigma values.
 
         Parameters
         ----------
-        feature : string
-            For a 1D feature, choose from ejecta, rim, and floor
-        psd_coef : dict (.json)
-            Coeffcients used to constract a 1D power spectral density
-        num_psd_component_effec : int
-            Only reconstrut the sine waves with wavelengths smaller than 2pi/num_psd_component_effec to improve computational efficiency
-        **kwargs : Any
-            |kwargs|
-
-        References
-        ----------
-        .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. `doi: 10.1029/2024JE008357 <https://doi.org/10.1029/2024JE008357>`_
-        .. [#] Du, J., Minton, D.A., Blevins, A.M., Fassett, C.I., Huang, Y.-H., 2025. Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets 130, e2024JE008890. `doi: 10.1029/2024JE008890 <https://doi.org/10.1029/2024JE008890>`_
-
+        crater : Crater
+            The crater for which to compute the control points.
+        coef_sigma : xr.DataArray
+            A DataArray containing the coefficients and sigma values for the control points. The expected dimensions are "index" and "term", where "index" corresponds to the different coefficients (e.g., mean and sigma for the control points) and "term" corresponds to the different control points (e.g., "Slope_12", "Breakpoint_2_x", "Breakpoint_2_y", "Breakpoint_3_y", "Breakpoint_4_y").
+        add_noise : bool
+            Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
         """
-        # ------------------------------------------------------------------------------------------------------------------
-        num_psd_component = 5000
-        # ------------------------------------------------------------------------------------------------------------------
-        if self.crater.diameter < psd_coef["1D"][feature]["slope_12"]["D_tie"]:
-            slope_12 = psd_coef["1D"][feature]["slope_12"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["slope_12"]["b1"]
-            slope_12_sigma = psd_coef["1D"][feature]["slope_12"]["sigma_1"]
-        else:
-            slope_12 = psd_coef["1D"][feature]["slope_12"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["slope_12"]["b2"]
-            slope_12_sigma = psd_coef["1D"][feature]["slope_12"]["sigma_2"]
-        if self.crater.diameter < psd_coef["1D"][feature]["bp2_x"]["D_tie"]:
-            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_x"]["b1"]
-            bp2_x_sigma = psd_coef["1D"][feature]["bp2_x"]["sigma_1"]
-        else:
-            bp2_x = psd_coef["1D"][feature]["bp2_x"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_x"]["b2"]
-            bp2_x_sigma = psd_coef["1D"][feature]["bp2_x"]["sigma_2"]
-        if self.crater.diameter < psd_coef["1D"][feature]["bp2_y"]["D_tie"]:
-            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_y"]["b1"]
-            bp2_y_sigma = psd_coef["1D"][feature]["bp2_y"]["sigma_1"]
-        else:
-            bp2_y = psd_coef["1D"][feature]["bp2_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp2_y"]["b2"]
-            bp2_y_sigma = psd_coef["1D"][feature]["bp2_y"]["sigma_2"]
-        if self.crater.diameter < psd_coef["1D"][feature]["bp3_y"]["D_tie"]:
-            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp3_y"]["b1"]
-            bp3_y_sigma = psd_coef["1D"][feature]["bp3_y"]["sigma_1"]
-        else:
-            bp3_y = psd_coef["1D"][feature]["bp3_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp3_y"]["b2"]
-            bp3_y_sigma = psd_coef["1D"][feature]["bp3_y"]["sigma_2"]
-        if self.crater.diameter < psd_coef["1D"][feature]["bp4_y"]["D_tie"]:
-            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k1"] * self.crater.diameter + psd_coef["1D"][feature]["bp4_y"]["b1"]
-            bp4_y_sigma = psd_coef["1D"][feature]["bp4_y"]["sigma_1"]
-        else:
-            bp4_y = psd_coef["1D"][feature]["bp4_y"]["k2"] * self.crater.diameter + psd_coef["1D"][feature]["bp4_y"]["b2"]
-            bp4_y_sigma = psd_coef["1D"][feature]["bp4_y"]["sigma_2"]
-        slope_12 = self.rng.normal(slope_12, slope_12_sigma)
-        bp2_x = self.rng.normal(bp2_x, bp2_x_sigma)
-        bp2_y = self.rng.normal(bp2_y, bp2_y_sigma)
-        bp3_y = self.rng.normal(bp3_y, bp3_y_sigma)
-        bp4_y = self.rng.normal(bp4_y, bp4_y_sigma)
-        psd_sigma = psd_coef["1D"][feature]["psd_sigma"]
-        # ------------------------------------------------------------------------------------------------------------------
-        bp4_x = math.log10(2 * math.pi)
-        bp3_x = math.log10(10**bp4_x / 2)
-        interval = 2 * math.pi / num_psd_component
-        freq = fft.fftfreq(num_psd_component, interval)
-        wavelength = 1 / freq[1 : num_psd_component // 2]
-        psd = np.zeros((num_psd_component // 2 - 1, 2))
-        psd[:, 0] = wavelength
-        # ----------------------------------------------------------------------------------------------------------------------
-        bp2_x_index = int(10**bp4_x / 10**bp2_x - 1)
-        k_23 = (bp3_y - bp2_y) / (bp3_x - bp2_x)
-        b_23 = bp3_y - k_23 * bp3_x
-        k_12 = slope_12
-        b_12 = bp2_y - k_12 * bp2_x
-        # -----------------------------------------------------------------------------------------------------------------------
-        psd[0, 1] = 10**bp4_x
-        psd[1, 1] = 10**bp3_y
-        psd[2 : bp2_x_index + 1, 1] = 10 ** (k_23 * np.log10(psd[2 : bp2_x_index + 1, 0]) + b_23)
-        psd[bp2_x_index + 1 :, 1] = 10 ** (k_12 * np.log10(psd[bp2_x_index + 1 :, 0]) + b_12)
-        # ----------------------------------------------------------------------------------------------------------------------
-        psd = psd[:num_psd_component_effec]
-        psd_log = np.log10(psd[:, 1])
-        psd_log += self.rng.normal(0, psd_sigma, psd_log.shape)
-        psd[:, 1] = 10**psd_log
-        psd = np.flipud(psd)
-        return psd
-
-    def _get_2D_power_spectral_density(
-        self, feature, psd_coef, ejecta_radius_norm, floor_radius_norm, max_effec_freq
-    ) -> tuple[NDArray, NDArray, NDArray, NDArray, NDArray, NDArray]:
-        """
-        Constructs a 2D power spectral density.
-
-        Coeffcients are from [#]_.
-
-        Parameters
-        ----------
-        feature : string
-            For a 2D feature, choose from ejecta, wall, and floor
-        psd_coef : dict (.json)
-            Coeffcients used to constract a 2D power spectral density
-        ejecta_radius_norm : float
-            The radius of the continuous ejecta normalized by the crater radius
-        floor_radius_norm : float
-            The radius of the floor normalized by the crater radius
-        max_effec_freq : int
-            Only reconstrut the sine waves with frequencies smaller than a maxmium effective frequency to improve computational efficiency
-
-        References
-        ----------
-        .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2025). Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets
-
-        """
-        # read the psd_coef outside this function. this is temporary until we find a better way to read the psd_coef
-        psd_file = Path(__file__).parent / "psd_coef.json"
-        with open(psd_file) as f:
-            psd_coef = json.load(f)  # read in from _init_?
-        # ------------------------------------------------------------------------------------------------------------------
-        if feature == "ejecta":
-            max_effec_freq = 40
-        if feature == "wall":
-            max_effec_freq = 40
-        if feature == "floor":
-            max_effec_freq = 100
-        # ------------------------------------------------------------------------------------------------------------------
-        if feature == "ejecta":
-            theta_min = 0
-            theta_max = 2 * math.pi
-            r_min = 1
-            r_max = ejecta_radius_norm
-            area = (r_max - r_min) * (theta_max - theta_min)
-            theta_number = 2000
-            r_number = 400
-        if feature == "wall":
-            theta_min = 0
-            theta_max = 2 * math.pi
-            r_min = floor_radius_norm
-            r_max = 1
-            area = (r_max - r_min) * (theta_max - theta_min)
-            theta_number = 1000
-            r_number = 200
-        if feature == "floor":
-            r_min = -floor_radius_norm / math.sqrt(2)
-            r_max = floor_radius_norm / math.sqrt(2)
-            theta_min = r_min
-            theta_max = r_max
-            area = (r_max - r_min) ** 2
-            theta_number = 512
-            r_number = 512
-        # ------------------------------------------------------------------------------------------------------------------
-        side_r = np.linspace(0, r_max - r_min, num=r_number, endpoint=False)
-        side_theta = np.linspace(0, theta_max - theta_min, num=theta_number, endpoint=False)
-        grid_theta, grid_r = np.meshgrid(side_theta, side_r)
-        side_freq_theta = np.fft.fftfreq(theta_number, side_theta[1] - side_theta[0])
-        side_freq_r = np.fft.fftfreq(r_number, side_r[1] - side_r[0])
-        freq_theta, freq_r = np.meshgrid(np.fft.fftshift(side_freq_theta), np.fft.fftshift(side_freq_r))
-        freq_theta_quadrant = freq_theta[r_number // 2 :, theta_number // 2 :]
-        freq_r_quadrant = freq_r[r_number // 2 :, theta_number // 2 :]
-        # ------------------------------------------------------------------------------------------------------------------
-        if self.crater.diameter < psd_coef["2D"][feature]["p_max"]["D_tie"]:
-            p_max = psd_coef["2D"][feature]["p_max"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["p_max"]["b1"]
-            p_max_sigma = psd_coef["2D"][feature]["p_max"]["sigma_1"]
-        else:
-            p_max = psd_coef["2D"][feature]["p_max"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["p_max"]["b2"]
-            p_max_sigma = psd_coef["2D"][feature]["p_max"]["sigma_2"]
-        if self.crater.diameter < psd_coef["2D"][feature]["p_diff"]["D_tie"]:
-            p_diff = psd_coef["2D"][feature]["p_diff"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["p_diff"]["b1"]
-            p_diff_sigma = psd_coef["2D"][feature]["p_diff"]["sigma_1"]
-        else:
-            p_diff = psd_coef["2D"][feature]["p_diff"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["p_diff"]["b2"]
-            p_diff_sigma = psd_coef["2D"][feature]["p_diff"]["sigma_2"]
-        if self.crater.diameter < psd_coef["2D"][feature]["nu_fall"]["D_tie"]:
-            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["nu_fall"]["b1"]
-            nu_fall_sigma = psd_coef["2D"][feature]["nu_fall"]["sigma_1"]
-        else:
-            nu_fall = psd_coef["2D"][feature]["nu_fall"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["nu_fall"]["b2"]
-            nu_fall_sigma = psd_coef["2D"][feature]["nu_fall"]["sigma_2"]
-        if self.crater.diameter < psd_coef["2D"][feature]["psd_sigma"]["D_tie"]:
-            psd_sigma = (
-                psd_coef["2D"][feature]["psd_sigma"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["psd_sigma"]["b1"]
-            )
-            psd_sigma_sigma = psd_coef["2D"][feature]["psd_sigma"]["sigma_1"]
-        else:
-            psd_sigma = (
-                psd_coef["2D"][feature]["psd_sigma"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["psd_sigma"]["b2"]
-            )
-            psd_sigma_sigma = psd_coef["2D"][feature]["psd_sigma"]["sigma_2"]
-        p_max = self.rng.normal(p_max, p_max_sigma)
-        p_diff = self.rng.normal(p_diff, p_diff_sigma)
-        nu_fall = self.rng.normal(nu_fall, nu_fall_sigma)
-        psd_sigma = self.rng.normal(psd_sigma, psd_sigma_sigma)
-        # ------------------------------------------------------------------------------------------------------------------
-        freq_r_matrix = np.sqrt(freq_theta_quadrant**2 + freq_r_quadrant**2)
-        freq_theta_matrix = np.arctan2(freq_r_quadrant, freq_theta_quadrant)
-        if feature == "ejecta":
-            if self.crater.diameter < psd_coef["2D"][feature]["E_rad"]["D_tie"]:
-                E_rad = psd_coef["2D"][feature]["E_rad"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["E_rad"]["b1"]
-                E_rad_sigma = psd_coef["2D"][feature]["E_rad"]["sigma_1"]
-            else:
-                E_rad = psd_coef["2D"][feature]["E_rad"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["E_rad"]["b2"]
-                E_rad_sigma = psd_coef["2D"][feature]["E_rad"]["sigma_2"]
-            E_rad = self.rng.normal(E_rad, E_rad_sigma)
-            psd_log_quadrant = (
-                p_diff / np.sqrt(1 - (E_rad * np.sin(freq_theta_matrix)) ** 2) * (np.exp(-np.sqrt(freq_r_matrix / nu_fall)) - 1)
-                + p_max
-            )
-        if feature == "wall":
-            if self.crater.diameter < psd_coef["2D"][feature]["E_circ"]["D_tie"]:
-                E_circ = psd_coef["2D"][feature]["E_circ"]["k1"] * self.crater.diameter + psd_coef["2D"][feature]["E_circ"]["b1"]
-                E_circ_sigma = psd_coef["2D"][feature]["E_circ"]["sigma_1"]
-            else:
-                E_circ = psd_coef["2D"][feature]["E_circ"]["k2"] * self.crater.diameter + psd_coef["2D"][feature]["E_circ"]["b2"]
-                E_circ_sigma = psd_coef["2D"][feature]["E_circ"]["sigma_2"]
-            E_circ = self.rng.normal(E_circ, E_circ_sigma)
-            psd_log_quadrant = (
-                p_diff / np.sqrt(1 - (E_circ * np.cos(freq_theta_matrix)) ** 2) * (np.exp(-np.sqrt(freq_r_matrix / nu_fall)) - 1)
-                + p_max
-            )
-        if feature == "floor":
-            psd_log_quadrant = p_diff * (np.exp(-np.sqrt(freq_r_matrix / nu_fall)) - 1) + p_max
-        psd_log_quadrant_1st = self.rng.normal(psd_log_quadrant, psd_sigma)
-        psd_log_quadrant_2nd = self.rng.normal(psd_log_quadrant, psd_sigma)
-        # ------------------------------------------------------------------------------------------------------------------
-        psd_log = np.zeros((r_number, theta_number))
-        psd_log[r_number // 2 :, theta_number // 2 :] = psd_log_quadrant_1st
-        psd_log[r_number // 2 + 1 :, 1 : theta_number // 2] = np.fliplr(psd_log_quadrant_2nd[1:, 1:])
-        psd_log[1 : r_number // 2, theta_number // 2 + 1 :] = np.flipud(psd_log_quadrant_2nd[1:, 1:])
-        psd_log[1 : r_number // 2, 1 : theta_number // 2] = np.fliplr(np.flipud(psd_log_quadrant_1st[1:, 1:]))
-        # ---------------------------------------------------------------------------------------------------------------
-        psd_log[1 : r_number // 2, theta_number // 2] = np.flip(psd_log[r_number // 2 + 1 :, theta_number // 2])
-        psd_log[r_number // 2, 1 : theta_number // 2] = np.flip(psd_log[r_number // 2, theta_number // 2 + 1 :])
-        # ---------------------------------------------------------------------------------------------------------------
-        psd_log[0, theta_number // 2 + 1 :] = psd_log[1, theta_number // 2 + 1 :]
-        psd_log[r_number // 2 + 1 :, 0] = psd_log[r_number // 2 + 1 :, 1]
-        # ---------------------------------------------------------------------------------------------------------------
-        psd_log[0, 1 : theta_number // 2] = np.flip(psd_log[0, theta_number // 2 + 1 :])
-        psd_log[1 : r_number // 2 :, 0] = np.flip(psd_log[r_number // 2 + 1 :, 0])
-        # --------------------------------------------------------------------------------------------------------------
-        psd_log[0, 0] = psd_log[1, 1]
-        psd_log[0, theta_number // 2] = psd_log[1, theta_number // 2]
-        psd_log[r_number // 2, 0] = psd_log[r_number // 2, 1]
-        # ------------------------------------------------------------------------------------------------------------------
-        psd = 10**psd_log
-        phase = self.rng.uniform(-math.pi, math.pi, size=(r_number, theta_number))
-        if feature == "ejecta" or feature == "wall":
-            psd[:, theta_number // 2] = np.zeros(r_number)
-        # ------------------------------------------------------------------------------------------------------------------
-        freq_theta_delta = (freq_theta.max() - freq_theta.min()) / theta_number
-        freq_r_delta = (freq_r.max() - freq_r.min()) / r_number
-        freq_theta_num = int(max_effec_freq / freq_theta_delta)
-        freq_r_num = int(max_effec_freq / freq_r_delta)
-        freq_theta = freq_theta[
-            r_number // 2 - freq_r_num : r_number // 2 + freq_r_num,
-            theta_number // 2 - freq_theta_num : theta_number // 2 + freq_theta_num,
-        ]
-        freq_r = freq_r[
-            r_number // 2 - freq_r_num : r_number // 2 + freq_r_num,
-            theta_number // 2 - freq_theta_num : theta_number // 2 + freq_theta_num,
-        ]
-        psd = psd[
-            r_number // 2 - freq_r_num : r_number // 2 + freq_r_num,
-            theta_number // 2 - freq_theta_num : theta_number // 2 + freq_theta_num,
-        ]
-        phase = phase[
-            r_number // 2 - freq_r_num : r_number // 2 + freq_r_num,
-            theta_number // 2 - freq_theta_num : theta_number // 2 + freq_theta_num,
-        ]
-        # ------------------------------------------------------------------------------------------------------------------
-        psd = np.sqrt(psd * area)
-        return psd, phase, freq_theta, freq_r, grid_theta, grid_r
-
-    def get_control_points(self, diameter: float, coef_sigma: xr.DataArray, flag_bp_sigma: bool = True):
         # Do pre-processing
-        if diameter < _BREAKPOINT_DIAMETER_IN_FIT:
+        if crater.morphology_type == "simple":
             index = 0
         else:
             index = 3
-        diameter_km = diameter * 1e-3
+        diameter_km = crater.diameter * 1e-3
 
         control_points = {}
         sigma = {}
@@ -466,7 +258,7 @@ class RealisticMoonMorphology(BasicMoonMorphology):
             )
 
         # ------------------------------------------------------------------------------------------------------------------
-        if flag_bp_sigma:
+        if add_noise:
             for term in coef_sigma.term:
                 sigma = coef_sigma.sel(index=index + 2, term=term)
                 cmid = control_points[str(term.data)]
@@ -474,18 +266,30 @@ class RealisticMoonMorphology(BasicMoonMorphology):
 
         return control_points
 
-    def calculate_target_PSD_from_breakpoint_slope(diameter_temp, control_points, num_vertices):
-        slope_12 = control_points[0]
-        bp2_x = control_points[1]
-        bp2_y = control_points[2]
-        bp3_y = control_points[3]
-        bp4_y = control_points[4]
+    def calculate_target_1D_PSD_from_breakpoint_slope(
+        self, control_points: dict[str, float], npoints: int = _PSD1D_NUM_POINTS
+    ) -> np.ndarray:
+        """
+        Given a set of control points, this will compute the power spectral density distribution of a linear feature.
+
+        Parameters
+        ----------
+        control_points : dict[str, float]
+            A dictionary containing the control points for the PSD model. The expected keys are "Slope_12", "Breakpoint_2_x", "Breakpoint_2_y", "Breakpoint_3_y", "Breakpoint_4_y". The breakpoint x values are in log10(wavelength) space and the breakpoint y values are in log10(PSD) space. The slope is in log-log space.
+        npoints : int
+            The number of points to use in the construction of the PSD. This determines the frequency resolution of the PSD and should be sufficiently high to capture the features of the PSD. The default value is 5000, which provides a good balance between resolution and computational efficiency for typical crater sizes.
+        """
+        slope_12 = control_points["Slope_12"]
+        bp2_x = control_points["Breakpoint_2_x"]
+        bp2_y = control_points["Breakpoint_2_y"]
+        bp3_y = control_points["Breakpoint_3_y"]
+        bp4_y = control_points["Breakpoint_4_y"]
         bp4_x = math.log10(2 * math.pi)
         bp3_x = math.log10(10**bp4_x / 2)
-        interval = 10**bp4_x / num_vertices
-        dfft = fft.rfft(np.ones(num_vertices))
+        interval = 10**bp4_x / npoints
+        dfft = fft.rfft(np.ones(npoints))
         iend = dfft.size - 1
-        freq = fft.fftfreq(num_vertices, interval)
+        freq = fft.fftfreq(npoints, interval)
         wavelength = 1 / freq[1:iend]
         psd = [[0 for i in range(2)] for i in range(iend - 1)]
         psd = np.array(psd)
@@ -502,27 +306,22 @@ class RealisticMoonMorphology(BasicMoonMorphology):
         k_12 = slope_12
         b_12 = bp2_y - k_12 * bp2_x
         # -----------------------------------------------------------------------------------------------------------------------
-        for idx in range(len(psd)):
-            if idx == 0:
-                psd[idx, 1] = 10**bp4_y
-            if idx == 1:
-                psd[idx, 1] = 10**bp3_y
-            if idx > 1 and idx <= bp2_x_index:
-                psd[idx, 1] = 10 ** (k_23 * math.log10(psd[idx, 0]) + b_23)
-            if idx > bp2_x_index:
-                psd[idx, 1] = 10 ** (k_12 * math.log10(psd[idx, 0]) + b_12)
+        psd[0, 1] = 10**bp4_y
+        psd[1, 1] = 10**bp3_y
+        psd[2 : bp2_x_index + 1, 1] = 10 ** (k_23 * np.log10(psd[2 : bp2_x_index + 1, 0]) + b_23)
+        psd[bp2_x_index + 1 :, 1] = 10 ** (k_12 * np.log10(psd[bp2_x_index + 1 :, 0]) + b_12)
         # ---------------------------------------------------------------------------------------------------------------------------------
         psd = np.flipud(psd)
+        if self.add_noise:
+            noise_stddev = 0.55
+            power_target_log = np.log10(psd[:, 1])
+            power_target_log_noise = np.random.normal(0, noise_stddev, power_target_log.shape) + power_target_log
+            psd[:, 1] = 10**power_target_log_noise
         return psd
-
-    def add_noise_to_array(psd_target, noise):
-        psd_target_noise = psd_target
-        power_target_log = np.log10(psd_target[:, 1])
-        power_target_log_noise = np.random.normal(0, noise, power_target_log.shape) + power_target_log
-        power_target_noise = 10**power_target_log_noise
-        psd_target_noise[:, 1] = power_target_noise
-        return psd_target_noise
 
     @property
     def _CraterType(self) -> type[RealisticMoonCrater]:
+        """
+        The class definition of the associated Crater type.
+        """
         return RealisticMoonCrater
