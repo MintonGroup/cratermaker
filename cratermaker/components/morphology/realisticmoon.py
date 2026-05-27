@@ -259,9 +259,11 @@ class RealisticMoonMorphology(BasicMoonMorphology):
             """
 
             crater: RealisticMoonCrater
+            diameter: float
+            radius: float
+            rim_elevation: float
+            floor_radius: float
             id: np.uint32 = field(default=None, init=False)
-            diameter: float | None = field(default=None, init=False)
-            radius: float | None = field(default=None, init=False)
             semimajor_axis: float | None = field(default=None, init=False)
             semiminor_axis: float | None = field(default=None, init=False)
             orientation: float | None = field(default=None, init=False)
@@ -279,9 +281,7 @@ class RealisticMoonMorphology(BasicMoonMorphology):
             measured_radius: float | None = field(default=None, init=False)
             measured_location: tuple[float, float] | None = field(default=None, init=False)
             time: float | None = field(default=None, init=False)
-            rim_elevation: float | None = field(default=None, init=False)
             floor_elevation: float | None = field(default=None, init=False)
-            floor_radius: float | None = field(default=None, init=False)
             wall_curvature: float | None = field(default=None, init=False)
             rim_width: float | None = field(default=None, init=False)
             rimdrop: float | None = field(default=None, init=False)
