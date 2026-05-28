@@ -1,4 +1,9 @@
-use crate::ArrayResult;
+use crate::{ArrayResult,ArrayResult2D};
+use std::collections::HashMap;
+use rand::prelude::*;
+use rand::SeedableRng;
+use rand_distr::Normal;
+use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
 use pyo3::FromPyObject;
 use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
@@ -40,10 +45,15 @@ pub struct RealMoonCrater {
     pub peak_height: f64,
     pub peak_width: f64,
     pub peak_offset: f64,
+    pub rim_radius_control: HashMap<String, f64>,
+    pub rim_flank_radius_control: HashMap<String, f64>,
+    pub rim_elevation_control: HashMap<String, f64>,
+    pub floor_elevation_control: HashMap<String, f64>,
+    pub wall_texture_control: HashMap<String, f64>,
+    pub ejecta_texture_control: HashMap<String, f64>,
+    pub floor_texture_control: HashMap<String, f64>,
 }
 
-// Computes a either a crater and/or ejecta 1D profile array from input radial distances and reference elevations using the model of
-// Minton et al. (2026)
 //
 //
 /// # Arguments
@@ -137,3 +147,93 @@ pub fn realmoon_profile(
     ))
 }
 
+
+pub fn calculate_target_1d_psd_from_breakpoint_slope(
+    control_points: &HashMap<String, f64>,
+    npoints: usize,
+    add_noise: bool,
+    seed: u64,
+) -> ArrayResult2D {
+    let slope_12 = control_points["Slope_12"];
+    let bp2_x = control_points["Breakpoint_2_x"];
+    let bp2_y = control_points["Breakpoint_2_y"];
+    let bp3_y = control_points["Breakpoint_3_y"];
+    let bp4_y = control_points["Breakpoint_4_y"];
+
+    let bp4_x = (2.0 * std::f64::consts::PI).log10();
+    let bp3_x = (10_f64.powf(bp4_x) / 2.0).log10();
+
+    // Same spacing logic as Python: interval = 10**bp4_x / npoints
+    let interval = 10_f64.powf(bp4_x) / npoints as f64;
+
+    // Equivalent to rfft sizing in Python:
+    // dfft.size = npoints/2 + 1, iend = dfft.size - 1
+    let iend = npoints / 2;
+    let nrows = iend.saturating_sub(1); // wavelength from bins 1..iend-1
+
+    let mut psd = Array2::<f64>::zeros((nrows, 2));
+
+    // wavelength[k-1] = 1 / freq[k], freq[k] = k / (npoints * interval)
+    // => wavelength = (npoints * interval) / k
+    let base = npoints as f64 * interval;
+    for k in 1..iend {
+        let row = k - 1;
+        psd[[row, 0]] = base / k as f64;
+    }
+
+    // Find bp2_x_index (matching Python loop behavior)
+    let threshold = 10_f64.powf(bp2_x);
+    let mut bp2_x_index = nrows.saturating_sub(1);
+    for i in 0..nrows {
+        if psd[[i, 0]] < threshold {
+            bp2_x_index = i.saturating_sub(1);
+            break;
+        }
+    }
+
+    // Piecewise lines in log10-log10 space
+    let k_23 = (bp3_y - bp2_y) / (bp3_x - bp2_x);
+    let b_23 = bp3_y - k_23 * bp3_x;
+    let k_12 = slope_12;
+    let b_12 = bp2_y - k_12 * bp2_x;
+
+    if nrows > 0 {
+        psd[[0, 1]] = 10_f64.powf(bp4_y);
+    }
+    if nrows > 1 {
+        psd[[1, 1]] = 10_f64.powf(bp3_y);
+    }
+
+    // psd[2 : bp2_x_index + 1, 1]
+    if bp2_x_index >= 2 {
+        for i in 2..=bp2_x_index {
+            let log_w = psd[[i, 0]].log10();
+            psd[[i, 1]] = 10_f64.powf(k_23 * log_w + b_23);
+        }
+    }
+
+    // psd[bp2_x_index + 1 :, 1]
+    for i in (bp2_x_index + 1)..nrows {
+        let log_w = psd[[i, 0]].log10();
+        psd[[i, 1]] = 10_f64.powf(k_12 * log_w + b_12);
+    }
+
+    // flipud
+    let mut flipped = Array2::<f64>::zeros((nrows, 2));
+    for i in 0..nrows {
+        flipped.row_mut(i).assign(&psd.row(nrows - 1 - i));
+    }
+
+    // Optional Gaussian noise in log10 power
+    if add_noise {
+        let mut rng = ChaCha12Rng::seed_from_u64(seed);
+        let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
+        for i in 0..nrows {
+            let log_power = flipped[[i, 1]].log10();
+            let noisy_log_power = log_power + normal.sample(&mut rng);
+            flipped[[i, 1]] = 10_f64.powf(noisy_log_power);
+        }
+    }
+
+    Ok(flipped)
+}
