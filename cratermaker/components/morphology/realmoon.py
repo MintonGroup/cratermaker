@@ -23,7 +23,7 @@ _PSD1D_NUM_POINTS = 5000  # Number of points used in the construction of the 1D 
 
 
 @dataclass(frozen=True, slots=True)
-class RealisticMoonCraterFixed(BasicMoonCraterFixed):
+class RealmoonCraterFixed(BasicMoonCraterFixed):
     rim_radius_control: dict[str, float] | None = None
     """Control points for the rim crest distance PSD model"""
     rim_flank_radius_control: dict[str, float] | None = None
@@ -40,10 +40,10 @@ class RealisticMoonCraterFixed(BasicMoonCraterFixed):
     """Control points for the floor texture PSD model"""
 
 
-@Crater.register("realisticmooncrater")
-class RealisticMoonCrater(BasicMoonCrater):
+@Crater.register("realmooncrater")
+class RealmoonCrater(BasicMoonCrater):
     def __init__(
-        self, crater: Crater | None = None, fixed_cls=RealisticMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
+        self, crater: Crater | None = None, fixed_cls=RealmoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
 
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
@@ -68,9 +68,9 @@ class RealisticMoonCrater(BasicMoonCrater):
         psd1d_coef_file: str | Path = _PSD1D_COEFF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEFF_FILE,
         **kwargs: Any,
-    ) -> RealisticMoonCrater:
+    ) -> RealmoonCrater:
         """
-        Initialize a RealisticMoonCrater object either from an existing Crater object or from parameters.
+        Initialize a RealmoonCrater object either from an existing Crater object or from parameters.
 
         This generates a specialized Crater object with parameters used to generate realistic craters as defined in Du et al. (2024)a. [#]_ and Du et al. (2024)b [#]_
 
@@ -124,7 +124,7 @@ class RealisticMoonCrater(BasicMoonCrater):
         psd2d_coeff = xr.open_dataset(psd2d_coef_file)
 
         # This is a copy operation, to use old values for any un-specified arguments
-        if crater is not None and isinstance(crater, RealisticMoonCrater):
+        if crater is not None and isinstance(crater, RealmoonCrater):
             rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
             rim_flank_radius_control = (
                 crater.rim_flank_radius_control if rim_flank_radius_control is None else rim_flank_radius_control
@@ -183,8 +183,8 @@ class RealisticMoonCrater(BasicMoonCrater):
         return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_elevation_control)
 
 
-@Morphology.register("realisticmoon")
-class RealisticMoonMorphology(BasicMoonMorphology):
+@Morphology.register("realmoon")
+class RealmoonMorphology(BasicMoonMorphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
 
@@ -193,11 +193,11 @@ class RealisticMoonMorphology(BasicMoonMorphology):
     Parameters
     ----------
     crater : Crater, optional
-        The crater object to be converted into a RealisticMoonCrater. If None, then a new crater is created using the provided parameters.
-    fixed_cls : type[RealisticMoonCraterFixed], optional
-        The class definition for the fixed parameters of the RealisticMoonCrater. Default is RealisticMoonCraterFixed.
+        The crater object to be converted into a RealmoonCrater. If None, then a new crater is created using the provided parameters.
+    fixed_cls : type[RealmoonCraterFixed], optional
+        The class definition for the fixed parameters of the RealmoonCrater. Default is RealmoonCraterFixed.
     variable_cls : type[MorphologyCraterVariable], optional
-        The class definition for the variable parameters of the RealisticMoonCrater. Default is MorphologyCraterVariable.
+        The class definition for the variable parameters of the RealmoonCrater. Default is MorphologyCraterVariable.
     add_noise : bool, optional
         Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits (both in the control points
         and in the PSD itself). Default is True.
@@ -209,7 +209,7 @@ class RealisticMoonMorphology(BasicMoonMorphology):
     def __init__(
         self,
         crater: Crater | None = None,
-        fixed_cls=RealisticMoonCraterFixed,
+        fixed_cls=RealmoonCraterFixed,
         variable_cls=MorphologyCraterVariable,
         add_noise: bool = True,
         **kwargs,
@@ -258,7 +258,7 @@ class RealisticMoonMorphology(BasicMoonMorphology):
             A simple dataclass to hold crater morphology parameters for use in the profile function. This is necessary because the morphology_bindings.basicmoon_profile function expects a crater object with attributes corresponding to the crater morphology parameters, and we want to be able to construct this crater object from the optimized parameter vector returned by curve_fit without having to create a full cratermaker.Crater object with all of its associated methods and properties.
             """
 
-            crater: RealisticMoonCrater
+            crater: RealmoonCrater
             diameter: float
             radius: float
             rim_elevation: float
@@ -296,8 +296,8 @@ class RealisticMoonMorphology(BasicMoonMorphology):
                     if getattr(self, f.name) is None:
                         object.__setattr__(self, f.name, getattr(self.crater, f.name))
 
-        if not isinstance(crater, RealisticMoonCrater):
-            crater = RealisticMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, RealmoonCrater):
+            crater = RealmoonCrater.maker(crater, morphology=self)
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
@@ -477,8 +477,8 @@ class RealisticMoonMorphology(BasicMoonMorphology):
         return delta_y * crater_radius + ymean
 
     @property
-    def _CraterType(self) -> type[RealisticMoonCrater]:
+    def _CraterType(self) -> type[RealmoonCrater]:
         """
         The class definition of the associated Crater type.
         """
-        return RealisticMoonCrater
+        return RealmoonCrater
