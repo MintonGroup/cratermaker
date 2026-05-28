@@ -251,51 +251,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-
-        @dataclass(frozen=True, slots=True)
-        class DummyCrater:
-            """
-            A simple dataclass to hold crater morphology parameters for use in the profile function. This is necessary because the morphology_bindings.basicmoon_profile function expects a crater object with attributes corresponding to the crater morphology parameters, and we want to be able to construct this crater object from the optimized parameter vector returned by curve_fit without having to create a full cratermaker.Crater object with all of its associated methods and properties.
-            """
-
-            crater: RealmoonCrater
-            diameter: float
-            radius: float
-            rim_elevation: float
-            floor_radius: float
-            id: np.uint32 = field(default=None, init=False)
-            semimajor_axis: float | None = field(default=None, init=False)
-            semiminor_axis: float | None = field(default=None, init=False)
-            orientation: float | None = field(default=None, init=False)
-            transient_diameter: float | None = field(default=None, init=False)
-            projectile_diameter: float | None = field(default=None, init=False)
-            projectile_velocity: float | None = field(default=None, init=False)
-            projectile_angle: float | None = field(default=None, init=False)
-            projectile_density: float | None = field(default=None, init=False)
-            location: tuple[float, float] | None = field(default=None, init=False)
-            morphology_type: str | None = field(default=None, init=False)
-            measured_semimajor_axis: float | None = field(default=None, init=False)
-            measured_semiminor_axis: float | None = field(default=None, init=False)
-            measured_orientation: float | None = field(default=None, init=False)
-            measured_diameter: float | None = field(default=None, init=False)
-            measured_radius: float | None = field(default=None, init=False)
-            measured_location: tuple[float, float] | None = field(default=None, init=False)
-            time: float | None = field(default=None, init=False)
-            floor_elevation: float | None = field(default=None, init=False)
-            wall_curvature: float | None = field(default=None, init=False)
-            rim_width: float | None = field(default=None, init=False)
-            rimdrop: float | None = field(default=None, init=False)
-            ejrim: float | None = field(default=None, init=False)
-            ejprofile: float | None = field(default=None, init=False)
-            peak_height: float | None = field(default=None, init=False)
-            peak_width: float | None = field(default=None, init=False)
-            peak_offset: float | None = field(default=None, init=False)
-
-            def __post_init__(self):
-                for f in self.__dataclass_fields__.values():
-                    if getattr(self, f.name) is None:
-                        object.__setattr__(self, f.name, getattr(self.crater, f.name))
-
         if not isinstance(crater, RealmoonCrater):
             crater = RealmoonCrater.maker(crater, morphology=self)
         if r_ref is None:
@@ -323,22 +278,23 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         elevation = np.empty_like(rflat, dtype=np.float64)
         # I need to implement a Rust binding function that can pass the profiles in as arrays
-        for i in range(len(rflat)):
-            tmp_crater = DummyCrater(
-                crater=crater,
-                diameter=2 * rim_radius_profile[i],
-                radius=rim_radius_profile[i],
-                floor_radius=floor_radius_profile[i],
-                rim_elevation=rim_elevation_profile[i],
-            )
-            elevation[i] = morphology_bindings.basicmoon_profile(
-                radial_distances=rflat[i : i + 1],
-                reference_elevations=r_ref_flat[i : i + 1],
-                crater=tmp_crater,
-                include_crater=True,
-                include_ejecta=False,
-            )[0]
+        # for i in range(len(rflat)):
+        #     tmp_crater = DummyCrater(
+        #         crater=crater,
+        #         diameter=2 * rim_radius_profile[i],
+        #         radius=rim_radius_profile[i],
+        #         floor_radius=floor_radius_profile[i],
+        #         rim_elevation=rim_elevation_profile[i],
+        #     )
+        #     elevation[i] = morphology_bindings.basicmoon_profile(
+        #         radial_distances=rflat[i : i + 1],
+        #         reference_elevations=r_ref_flat[i : i + 1],
+        #         crater=tmp_crater,
+        #         include_crater=True,
+        #         include_ejecta=False,
+        #     )[0]
         # reshape elevation to match the shape of r
+
         elevation = np.reshape(elevation, r.shape)
 
         return elevation

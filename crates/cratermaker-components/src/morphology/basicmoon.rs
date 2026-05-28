@@ -48,6 +48,7 @@ pub struct BasicMoonCrater {
     pub rim_width: f64,
     pub rim_elevation: f64,
     pub rimdrop: f64,
+    pub rim_flank_radius: f64,
     pub ejrim: f64,
     pub ejprofile: f64,
     pub peak_height: f64,
@@ -122,8 +123,8 @@ pub fn basicmoon_profile(
             .iter()
             .zip(radial_distances.iter().copied())
             .map(|(href, r)| {
-                let mut hcrat = crater_profile_function(r, crater);
-                let mut hej = ejecta_profile_function(r, crater);
+                let mut hcrat = crater_profile_function(r, crater.radius, crater.floor_elevation, crater.floor_radius, crater.wall_curvature, crater.rim_width, crater.rim_elevation, crater.rimdrop, crater.peak_height, crater.peak_width, crater.peak_offset);
+                let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
                 if r < crater.radius && r > crater.floor_radius {
                     hej += (hcrat - (crater.rim_elevation - crater.ejrim)).max(0.0);
                 }
@@ -166,13 +167,13 @@ pub fn basicmoon_profile(
 /// # Arguments
 ///
 /// * `r` - Radial distance from crater center
+/// * `radius` - Radius of the crater rim (in meters).
 /// * `hf` - Elevation of the crater floor relative to the reference plane.
 /// * `rf` - Radius of the crater floor.
 /// * `beta` - Wall curvature parameter (1.0 means straight, > 1.0 means curved)
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
 /// * `prd` - Exponent for the rim dropoff function.
-/// * `he` - Thickness of ejecta at the rim.
 /// * `hc` - Height of the central peak above the floor.
 /// * `rc` - Radius of the central peak.
 /// * `ro` - Radial offset of the central peak from the crater center .
@@ -181,31 +182,22 @@ pub fn basicmoon_profile(
 ///
 /// * Elevation values at distance `r`.
 #[inline]
-fn crater_profile_function(r: f64, crater: &BasicMoonCrater) -> f64 {
-    let hf = crater.floor_elevation;
-    let rf = crater.floor_radius;
-    let beta = crater.wall_curvature;
-    let rw = crater.rim_width;
+pub fn crater_profile_function(r: f64, radius: f64, hf: f64, rf: f64, beta: f64, rw: f64, hr: f64, prd: f64, hc: f64, rc: f64, ro: f64) -> f64 {
     let rw_half = rw / 2.0;
-    let hr = crater.rim_elevation;
-    let prd = crater.rimdrop;
-    let hc = crater.peak_height;
-    let rc = crater.peak_width;
-    let ro = crater.peak_offset;
     let fc = hc * (-((r - ro) / rc).powi(2)).exp(); // Central peak contribution. Compute this separately to avoid sharp discontinuities
     if r <= rf {
         fc + hf
     } else {
-        let fe = hr * (r / crater.radius).powf(prd);
-        if r >= crater.radius + rw_half {
+        let fe = hr * (r / radius).powf(prd);
+        if r >= radius + rw_half {
             fe
         } else {
-            let r0 = (r - rf) / (crater.radius - rf);
+            let r0 = (r - rf) / (radius - rf);
             let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-            let t = (r - (crater.radius - rw_half)) / rw;
+            let t = (r - (radius - rw_half)) / rw;
             let phi = 6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3);
             let fw = c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp()) + hr;
-            if r <= crater.radius - rw_half {
+            if r <= radius - rw_half {
                 fw + fc
             } else {
                 (1.0 - phi) * fw + phi * fe + fc
@@ -222,18 +214,18 @@ fn crater_profile_function(r: f64, crater: &BasicMoonCrater) -> f64 {
 /// # Arguments
 ///
 /// * `r` - Radial distance from the crater center (in meters).
-/// * `crater_radius` - Radius of the crater (in meters).
+/// * `radius` - Radius of the crater (in meters).
 /// * `ejrim` - Rim elevation parameter used to scale the profile.
-/// * ejprofile - Exponent for the power-law decay of the ejecta profile.
+/// *  `ejprofile` - Exponent for the power-law decay of the ejecta profile.
 ///
 /// # Returns
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r: f64, crater: &BasicMoonCrater) -> f64 {
-    if r >= crater.radius {
-        let rej = r / crater.radius;
-        crater.ejrim * rej.powf(crater.ejprofile)
+pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64) -> f64 {
+    if r >= radius {
+        let rej = r / radius;
+        ejrim * rej.powf(ejprofile)
     } else {
         0.0
     }
