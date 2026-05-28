@@ -332,12 +332,12 @@ class RealisticMoonMorphology(BasicMoonMorphology):
                 rim_elevation=rim_elevation_profile[i],
             )
             elevation[i] = morphology_bindings.basicmoon_profile(
-                radial_distances=rflat[i],
-                reference_elevations=r_ref_flat[i],
+                radial_distances=rflat[i : i + 1],
+                reference_elevations=r_ref_flat[i : i + 1],
                 crater=tmp_crater,
                 include_crater=True,
                 include_ejecta=False,
-            )
+            )[0]
         # reshape elevation to match the shape of r
         elevation = np.reshape(elevation, r.shape)
 
