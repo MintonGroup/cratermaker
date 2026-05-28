@@ -122,6 +122,85 @@ pub fn fit_one_ellipse_fixed_center<'py>(
     Ok((ap, bp, orientation, wrms))
 }
 
+
+/// Fit a single crater to the provided x, y coordinates and weights.
+///
+/// # Arguments
+///
+/// * `py` - The Python GIL token.
+/// * `x` - A 1D array of x coordinates.
+/// * `y` - A 1D array of y coordinates.
+/// * `weights` - A 1D array of weights corresponding to each (x, y) point.
+///
+/// # Returns
+///
+/// * On success, returns a tuple `(x0, y0, r, wrms)` where:
+///  - `x0`, `y0`: Center of the fitted ellipse.
+/// - `r`: radius of the fitted circle
+/// - `wrms`: Weighted root mean square error of the fit.
+///
+/// # Errors
+///
+/// * Returns `Err(PyValueError)` if the fitting process fails.
+///
+#[pyfunction]
+pub fn fit_one_circle<'py>(
+    _py: Python<'py>,
+    x: PyReadonlyArray1<'_, f64>,
+    y: PyReadonlyArray1<'_, f64>,
+    weights: PyReadonlyArray1<'_, f64>,
+) -> PyResult<(f64, f64, f64, f64)> {
+    let x_v = x.as_array();
+    let y_v = y.as_array();
+    let weights_v = weights.as_array();
+    let (x0, y0, r, wrms) =
+        cratermaker_components::counting::fit_one_circle(x_v, y_v, weights_v)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    Ok((x0, y0, r, wrms))
+}
+
+
+/// Fit a single crater with a fixed center to the provided x, y coordinates and weights and the center coordinates.
+///
+/// # Arguments
+///
+/// * `py` - The Python GIL token.
+/// * `x` - A 1D array of x coordinates.
+/// * `y` - A 1D array of y coordinates.
+/// * `weights` - A 1D array of weights corresponding to each (x, y) point.
+/// * `x0` - Fixed x coordinate of the circle center.
+/// * `y0` - Fixed y coordinate of the circle center.
+///
+/// # Returns
+///
+/// * On success, returns a tuple `(x0, y0, r, wrms)` where:
+/// - `r`: radius of the fitted circle
+/// - `wrms`: Weighted root mean square error of the fit.
+///
+/// # Errors
+///
+/// * Returns `Err(PyValueError)` if the fitting process fails.
+///
+#[pyfunction]
+pub fn fit_one_circle_fixed_center<'py>(
+    _py: Python<'py>,
+    x: PyReadonlyArray1<'_, f64>,
+    y: PyReadonlyArray1<'_, f64>,
+    weights: PyReadonlyArray1<'_, f64>,
+    x0: f64,
+    y0: f64,
+) -> PyResult<(f64, f64)> {
+    let x_v = x.as_array();
+    let y_v = y.as_array();
+    let weights_v = weights.as_array();
+    let (r, wrms) =
+        cratermaker_components::counting::fit_one_circle_fixed_center(x_v, y_v, weights_v, x0, y0)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    Ok((r, wrms))
+}
+
 /// Score the rim of a crater on the provided surface.
 ///
 /// # Arguments
