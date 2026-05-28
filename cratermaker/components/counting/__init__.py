@@ -731,8 +731,7 @@ class Counting(ComponentBase):
             edgecolor = emplaced_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
-            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
-
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle, zorder=100)
         if observed_original_color is not None and observed is not None and len(observed) > 0:
             gs = self.to_geoseries(
                 craters=observed, use_measured_properties=False, split_antimeridian=split_antimeridian, autolim=False
@@ -741,7 +740,7 @@ class Counting(ComponentBase):
             edgecolor = observed_original_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", ":")
-            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle, zorder=200)
 
         if observed_color is not None and observed is not None and len(observed) > 0:
             gs = self.to_geoseries(
@@ -751,7 +750,7 @@ class Counting(ComponentBase):
             edgecolor = observed_color
             linewidth = kwargs.pop("linewidth", 0.1)
             linestyle = kwargs.pop("linestyle", "solid")
-            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle)
+            ax = gs.plot(ax=ax, facecolor=facecolor, edgecolor=edgecolor, linewidth=linewidth, linestyle=linestyle, zorder=300)
 
         if save:
             plt.savefig(filename, dpi=ax.figure.get_dpi())
