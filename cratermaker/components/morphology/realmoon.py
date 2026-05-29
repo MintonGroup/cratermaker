@@ -287,7 +287,7 @@ class RealMoonCrater(BasicMoonCrater):
     def rim_radius_control(self) -> np.ndarray | None:
         if self._var._rim_radius_control is None:
             self._var._rim_radius_control = self.morphology.get_control_points(
-                crater=self, coef_sigma=self.morphology.psd1d_coef["rim_radius"], add_noise=self.morphology.add_noise
+                crater=self, coef_sigma=self.morphology.psd1d_coef["rim_radius"]
             )
         return self._var._rim_radius_control
 
@@ -297,7 +297,6 @@ class RealMoonCrater(BasicMoonCrater):
             self._var._rim_flank_radius_control = self.morphology.get_control_points(
                 crater=self,
                 coef_sigma=self.morphology.psd1d_coef["rim_flank_radius"],
-                add_noise=self.morphology.add_noise,
             )
         return self._var._rim_flank_radius_control
 
@@ -307,7 +306,6 @@ class RealMoonCrater(BasicMoonCrater):
             self._var._floor_radius_control = self.morphology.get_control_points(
                 crater=self,
                 coef_sigma=self.morphology.psd1d_coef["floor_radius"],
-                add_noise=self.morphology.add_noise,
             )
         return self._var._floor_radius_control
 
@@ -317,7 +315,6 @@ class RealMoonCrater(BasicMoonCrater):
             self._var._rim_elevation_control = self.morphology.get_control_points(
                 crater=self,
                 coef_sigma=self.morphology.psd1d_coef["rim_elevation"],
-                add_noise=self.morphology.add_noise,
             )
         return self._var._rim_elevation_control
 
@@ -337,9 +334,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         The class definition for the fixed parameters of the RealMoonCrater. Default is RealMoonCraterFixed.
     variable_cls : type[MorphologyCraterVariable], optional
         The class definition for the variable parameters of the RealMoonCrater. Default is MorphologyCraterVariable.
-    add_noise : bool, optional
-        Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits (both in the control points
-        and in the PSD itself). Default is True.
     psd1d_coef_file : str or Path, optional
         The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
     psd2d_coef_file : str or Path, optional
@@ -354,7 +348,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         crater: Crater | None = None,
         fixed_cls=RealMoonCraterFixed,
         variable_cls=MorphologyCraterVariable,
-        add_noise: bool = True,
         psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,
         **kwargs,
@@ -362,7 +355,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         object.__setattr__(self, "_add_noise", None)
         object.__setattr__(self, "_psd1d_coef", None)
         object.__setattr__(self, "_psd2d_coef", None)
-        self.add_noise = add_noise
+        self.add_noise = kwargs.pop("add_noise", False)  # The extra noise is too powerful, so I've disabled it for now by default
 
         psd1d_coef_file = Path(psd1d_coef_file)
         if not psd1d_coef_file.exists():
@@ -473,7 +466,7 @@ class RealmoonMorphology(BasicMoonMorphology):
             raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
         self._add_noise = value
 
-    def get_control_points(self, crater: Crater, coef_sigma: xr.DataArray, add_noise: bool = True):
+    def get_control_points(self, crater: Crater, coef_sigma: xr.DataArray):
         """
         Get the control points for the PSD model based on the crater diameter and the provided coefficient and sigma values.
 
@@ -501,7 +494,7 @@ class RealmoonMorphology(BasicMoonMorphology):
             )
 
         # ------------------------------------------------------------------------------------------------------------------
-        if add_noise:
+        if self.add_noise:
             for term in coef_sigma.term:
                 sigma = coef_sigma.sel(index=index + 2, term=term)
                 cmid = control_points[str(term.data)]

@@ -4,9 +4,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
-
-
-
 /// Computes a crater profile elevation array from input radial distances and reference elevations using the realistic moon model of Du et al. (2024a,b).
 ///
 /// This function applies `profile_function` to each radial distance in the input array.
