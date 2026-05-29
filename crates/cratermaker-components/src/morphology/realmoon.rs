@@ -277,7 +277,7 @@ pub fn profile_from_psd(
     rng_seed: u64,
 ) -> ArrayResult {
     let nfreq: usize = psd.nrows();
-    let npoints: usize = bearings.len();
+    let npoints: usize = psd.nrows() * 2; 
     let period_total = psd[[nfreq - 1, 0]];
 
     // Generate or use provided phases
@@ -285,7 +285,7 @@ pub fn profile_from_psd(
         p.to_owned()
     } else {
         let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-        let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
+        let uniform = Uniform::new(0.0, period_total).expect("valid uniform distribution");
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 

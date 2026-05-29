@@ -17,27 +17,13 @@ from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMo
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.utils.general_utils import format_large_units, parameter
 
-_PSD1D_COEFF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
-_PSD2D_COEFF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
+_PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
+_PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
 _PSD1D_NUM_POINTS = 5000  # Number of points used in the construction of the 1D PSD
 
 
 @dataclass(frozen=True, slots=True)
 class RealmoonCraterFixed(BasicMoonCraterFixed):
-    rim_radius_control: dict[str, float] | None = None
-    """Control points for the rim crest distance PSD model"""
-    rim_flank_radius_control: dict[str, float] | None = None
-    """Control points for the rim flank radius PSD model"""
-    rim_elevation_control: dict[str, float] | None = None
-    """Control points for the rim elevation PSD model"""
-    floor_radius_control: dict[str, float] | None = None
-    """Control points for the floor radius PSD model"""
-    wall_texture_control: dict[str, float] | None = None
-    """Control points for the wall texture PSD model"""
-    ejecta_texture_control: dict[str, float] | None = None
-    """Control points for the ejecta texture PSD model"""
-    floor_texture_control: dict[str, float] | None = None
-    """Control points for the floor texture PSD model"""
     rim_radius_psd_seed: int | None = None
     """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
     rim_flank_radius_psd_seed: int | None = None
@@ -54,11 +40,90 @@ class RealmoonCraterFixed(BasicMoonCraterFixed):
     """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
+class RealmoonCraterVariable(MorphologyCraterVariable):
+    def __init__(
+        self,
+        rim_radius_control: np.ndarray | None = None,
+        rim_elevation_control: np.ndarray | None = None,
+        rim_flank_radius_control: np.ndarray | None = None,
+        floor_radius_control: np.ndarray | None = None,
+        wall_texture_control: np.ndarray | None = None,
+        ejecta_texture_control: np.ndarray | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        object.__setattr__(self, "_rim_radius_control", None)
+        object.__setattr__(self, "_rim_elevation_control", None)
+        object.__setattr__(self, "_rim_flank_radius_control", None)
+        object.__setattr__(self, "_floor_radius_control", None)
+        object.__setattr__(self, "_wall_texture_control", None)
+        object.__setattr__(self, "_ejecta_texture_control", None)
+        return
+
+    def as_dict(self) -> dict:
+        """
+        Return a dictionary representation of the crater variable properties.
+        """
+        dict_repr = super().as_dict()
+        keys = (
+            "rim_radius_control",
+            "rim_elevation_control",
+            "rim_flank_radius_control",
+            "floor_radius_control",
+            "wall_texture_control",
+            "ejecta_texture_control",
+        )
+        for key in keys:
+            dict_repr[key] = getattr(self, key)
+
+        return dict_repr
+
+    @property
+    def rim_radius_control(self) -> np.ndarray | None:
+        """
+        The control points for the rim radius PSD.
+        """
+        return self._rim_radius_control
+
+    @property
+    def rim_elevation_control(self) -> np.ndarray | None:
+        """
+        The control points for the rim elevation PSD.
+        """
+        return self._rim_elevation_control
+
+    @property
+    def rim_flank_radius_control(self) -> np.ndarray | None:
+        """
+        The control points for the rim flank radius PSD.
+        """
+        return self._rim_flank_radius_control
+
+    @property
+    def floor_radius_control(self) -> np.ndarray | None:
+        """
+        The control points for the floor radius PSD.
+        """
+        return self._floor_radius_control
+
+    @property
+    def wall_texture_control(self) -> np.ndarray | None:
+        """
+        The control points for the wall texture PSD.
+        """
+        return self._wall_texture_control
+
+    @property
+    def ejecta_texture_control(self) -> np.ndarray | None:
+        """
+        The control points for the ejecta texture PSD.
+        """
+        return self._ejecta_texture_control
+
+
 @Crater.register("realmooncrater")
 class RealmoonCrater(BasicMoonCrater):
-    def __init__(
-        self, crater: Crater | None = None, fixed_cls=RealmoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
-    ):
+    def __init__(self, crater: Crater | None = None, fixed_cls=RealmoonCraterFixed, variable_cls=RealmoonCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -78,8 +143,6 @@ class RealmoonCrater(BasicMoonCrater):
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
-        psd1d_coef_file: str | Path = _PSD1D_COEFF_FILE,
-        psd2d_coef_file: str | Path = _PSD2D_COEFF_FILE,
         **kwargs: Any,
     ) -> RealmoonCrater:
         """
@@ -105,10 +168,6 @@ class RealmoonCrater(BasicMoonCrater):
             Control points for the wall texture. If None then it will be computed.
         ejecta_texture_control : np.ndarray, optional
             Control points for the ejecta texture. If None then it will be computed.
-        psd1d_coef_file : str or Path, optional
-            The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
-        psd2d_coef_file : str or Path, optional
-            The file path for the 2D power spectral density coefficients. If None, then it defaults to the default internal file.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -121,20 +180,6 @@ class RealmoonCrater(BasicMoonCrater):
         from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit_heteroskedastic, sample_pikefit
 
         input_args = locals()
-
-        psd1d_coef_file = Path(psd1d_coef_file)
-        if not psd1d_coef_file.exists():
-            raise FileNotFoundError(
-                f"1D power spectral density coefficient file not found at {psd1d_coef_file}. Please provide a valid file path."
-            )
-        psd2d_coef_file = Path(psd2d_coef_file)
-        if not psd2d_coef_file.exists():
-            raise FileNotFoundError(
-                f"2D power spectral density coefficient file not found at {psd2d_coef_file}. Please provide a valid file path."
-            )
-
-        psd1d_coeff = xr.open_dataset(psd1d_coef_file)
-        psd2d_coeff = xr.open_dataset(psd2d_coef_file)
 
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, RealmoonCrater):
@@ -152,12 +197,7 @@ class RealmoonCrater(BasicMoonCrater):
 
         args = {}
 
-        for var in psd1d_coeff.data_vars:
-            argname = f"{var}_control"
-            if argname in input_args and input_args[argname] is None:
-                args[argname] = morphology.get_control_points(
-                    crater=crater, coef_sigma=psd1d_coeff[var], add_noise=morphology.add_noise
-                )
+        for var in morphology.psd1d_coef.data_vars:
             argname = f"{var}_psd_seed"
             args[argname] = morphology.rng.integers(0, 2**32 - 1)
 
@@ -217,6 +257,44 @@ class RealmoonCrater(BasicMoonCrater):
             rng_seed=self.rim_elevation_psd_seed,
         )
 
+    @property
+    def rim_radius_control(self) -> np.ndarray | None:
+        if self._var._rim_radius_control is None:
+            self._var._rim_radius_control = self.morphology.get_control_points(
+                crater=self, coef_sigma=self.morphology.psd1d_coef["rim_radius"], add_noise=self.morphology.add_noise
+            )
+        return self._var._rim_radius_control
+
+    @property
+    def rim_flank_radius_control(self) -> np.ndarray | None:
+        if self._var._rim_flank_radius_control is None:
+            self._var._rim_flank_radius_control = self.morphology.get_control_points(
+                crater=self,
+                coef_sigma=self.morphology.psd1d_coef["rim_flank_radius"],
+                add_noise=self.morphology.add_noise,
+            )
+        return self._var._rim_flank_radius_control
+
+    @property
+    def floor_radius_control(self) -> np.ndarray | None:
+        if self._var._floor_radius_control is None:
+            self._var._floor_radius_control = self.morphology.get_control_points(
+                crater=self,
+                coef_sigma=self.morphology.psd1d_coef["floor_radius"],
+                add_noise=self.morphology.add_noise,
+            )
+        return self._var._floor_radius_control
+
+    @property
+    def rim_elevation_control(self) -> np.ndarray | None:
+        if self._var._rim_elevation_control is None:
+            self._var._rim_elevation_control = self.morphology.get_control_points(
+                crater=self,
+                coef_sigma=self.morphology.psd1d_coef["rim_elevation"],
+                add_noise=self.morphology.add_noise,
+            )
+        return self._var._rim_elevation_control
+
 
 @Morphology.register("realmoon")
 class RealmoonMorphology(BasicMoonMorphology):
@@ -236,6 +314,10 @@ class RealmoonMorphology(BasicMoonMorphology):
     add_noise : bool, optional
         Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits (both in the control points
         and in the PSD itself). Default is True.
+    psd1d_coef_file : str or Path, optional
+        The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
+    psd2d_coef_file : str or Path, optional
+        The file path for the 2D power spectral density coefficients. If None, then it defaults to the default internal file.
     **kwargs : Any
         |kwargs|
 
@@ -247,10 +329,28 @@ class RealmoonMorphology(BasicMoonMorphology):
         fixed_cls=RealmoonCraterFixed,
         variable_cls=MorphologyCraterVariable,
         add_noise: bool = True,
+        psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
+        psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,
         **kwargs,
     ):
         object.__setattr__(self, "_add_noise", None)
+        object.__setattr__(self, "_psd1d_coef", None)
+        object.__setattr__(self, "_psd2d_coef", None)
         self.add_noise = add_noise
+
+        psd1d_coef_file = Path(psd1d_coef_file)
+        if not psd1d_coef_file.exists():
+            raise FileNotFoundError(
+                f"1D power spectral density coefficient file not found at {psd1d_coef_file}. Please provide a valid file path."
+            )
+        psd2d_coef_file = Path(psd2d_coef_file)
+        if not psd2d_coef_file.exists():
+            raise FileNotFoundError(
+                f"2D power spectral density coefficient file not found at {psd2d_coef_file}. Please provide a valid file path."
+            )
+
+        self._psd1d_coef = xr.open_dataset(psd1d_coef_file)
+        self._psd2d_coef = xr.open_dataset(psd2d_coef_file)
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -413,6 +513,20 @@ class RealmoonMorphology(BasicMoonMorphology):
         delta_y = np.sum(y_ind, axis=0)
 
         return delta_y * crater_radius + ymean
+
+    @property
+    def psd1d_coef(self) -> xr.Dataset:
+        """
+        The coefficients for the 1D PSD models used in the RealmoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
+        """
+        return self._psd1d_coef
+
+    @property
+    def psd2d_coef(self) -> xr.Dataset:
+        """
+        The coefficients for the 2D PSD models used in the RealmoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
+        """
+        return self._psd2d_coef
 
     @property
     def _CraterType(self) -> type[RealmoonCrater]:
