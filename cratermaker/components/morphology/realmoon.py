@@ -23,7 +23,7 @@ _PSD1D_NUM_POINTS = 5000  # Number of points used in the construction of the 1D 
 
 
 @dataclass(frozen=True, slots=True)
-class RealmoonCraterFixed(BasicMoonCraterFixed):
+class RealMoonCraterFixed(BasicMoonCraterFixed):
     rim_radius_psd_seed: int | None = None
     """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
     rim_flank_radius_psd_seed: int | None = None
@@ -40,7 +40,7 @@ class RealmoonCraterFixed(BasicMoonCraterFixed):
     """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
-class RealmoonCraterVariable(MorphologyCraterVariable):
+class RealMoonCraterVariable(MorphologyCraterVariable):
     def __init__(
         self,
         rim_radius_control: np.ndarray | None = None,
@@ -122,8 +122,8 @@ class RealmoonCraterVariable(MorphologyCraterVariable):
 
 
 @Crater.register("realmooncrater")
-class RealmoonCrater(BasicMoonCrater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=RealmoonCraterFixed, variable_cls=RealmoonCraterVariable, **kwargs):
+class RealMoonCrater(BasicMoonCrater):
+    def __init__(self, crater: Crater | None = None, fixed_cls=RealMoonCraterFixed, variable_cls=RealMoonCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -144,9 +144,9 @@ class RealmoonCrater(BasicMoonCrater):
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
         **kwargs: Any,
-    ) -> RealmoonCrater:
+    ) -> RealMoonCrater:
         """
-        Initialize a RealmoonCrater object either from an existing Crater object or from parameters.
+        Initialize a RealMoonCrater object either from an existing Crater object or from parameters.
 
         This generates a specialized Crater object with parameters used to generate realistic craters as defined in Du et al. (2024)a. [#]_ and Du et al. (2024)b [#]_
 
@@ -182,7 +182,7 @@ class RealmoonCrater(BasicMoonCrater):
         input_args = locals()
 
         # This is a copy operation, to use old values for any un-specified arguments
-        if crater is not None and isinstance(crater, RealmoonCrater):
+        if crater is not None and isinstance(crater, RealMoonCrater):
             rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
             rim_flank_radius_control = (
                 crater.rim_flank_radius_control if rim_flank_radius_control is None else rim_flank_radius_control
@@ -306,11 +306,11 @@ class RealmoonMorphology(BasicMoonMorphology):
     Parameters
     ----------
     crater : Crater, optional
-        The crater object to be converted into a RealmoonCrater. If None, then a new crater is created using the provided parameters.
-    fixed_cls : type[RealmoonCraterFixed], optional
-        The class definition for the fixed parameters of the RealmoonCrater. Default is RealmoonCraterFixed.
+        The crater object to be converted into a RealMoonCrater. If None, then a new crater is created using the provided parameters.
+    fixed_cls : type[RealMoonCraterFixed], optional
+        The class definition for the fixed parameters of the RealMoonCrater. Default is RealMoonCraterFixed.
     variable_cls : type[MorphologyCraterVariable], optional
-        The class definition for the variable parameters of the RealmoonCrater. Default is MorphologyCraterVariable.
+        The class definition for the variable parameters of the RealMoonCrater. Default is MorphologyCraterVariable.
     add_noise : bool, optional
         Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits (both in the control points
         and in the PSD itself). Default is True.
@@ -326,7 +326,7 @@ class RealmoonMorphology(BasicMoonMorphology):
     def __init__(
         self,
         crater: Crater | None = None,
-        fixed_cls=RealmoonCraterFixed,
+        fixed_cls=RealMoonCraterFixed,
         variable_cls=MorphologyCraterVariable,
         add_noise: bool = True,
         psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
@@ -386,8 +386,8 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, RealmoonCrater):
-            crater = RealmoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, RealMoonCrater):
+            crater = RealMoonCrater.maker(crater, morphology=self)
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
@@ -483,37 +483,6 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         return control_points
 
-    def profile_from_psd(self, crater_radius: float, ymean: float, psd: np.ndarray, bearings: np.ndarray, phases: None = None):
-        """
-        Generate a profile based on a given PSD. This is done by summing sinusoidal components with frequencies and amplitudes determined by the PSD.
-
-        Parameters
-        ----------
-        crater_radius : float
-            The radius of the crater for which to generate the profile in meters. This is used to determine the scale of the profile.
-        ymean : float
-            The mean value of the profile. The generated profile will be centered around this mean value.
-        psd : np.ndarray
-            A 2D array containing the frequencies and corresponding power values of the PSD. The first
-            column should contain the frequencies (or wavelengths) and the second column should contain the power values of the PSD at those frequencies.
-        bearings : np.ndarray
-            A 1D array containing the bearings (in degrees) at which to compute the profile values. The profile will be computed at these bearings and returned as an array of the same length.
-        phases : np.ndarray or None
-            An optional 1D array containing the phase values (in degrees) for each frequency component in the PSD. If None, then the phases will be randomly generated from a uniform distribution between 0 and 360 degrees. The length of this array should match the number of frequency components in the PSD (i.e., the number of rows in the psd array).
-        """
-        period_total = psd[-1, 0]
-        npoints = psd.size
-        nfreq = psd.shape[0]
-        thetavals = np.radians(bearings)
-        if phases is None:
-            phases = self.rng.uniform(size=nfreq) * period_total
-        delta_y = np.zeros(npoints)
-        amplitude = np.sqrt(psd[:, 1] * period_total / (npoints**2))
-        y_ind = amplitude[:, np.newaxis] * np.sin(2 * np.pi * (1 / psd[:, 0][:, np.newaxis]) * (thetavals + phases[:, np.newaxis]))
-        delta_y = np.sum(y_ind, axis=0)
-
-        return delta_y * crater_radius + ymean
-
     @property
     def psd1d_coef(self) -> xr.Dataset:
         """
@@ -529,8 +498,8 @@ class RealmoonMorphology(BasicMoonMorphology):
         return self._psd2d_coef
 
     @property
-    def _CraterType(self) -> type[RealmoonCrater]:
+    def _CraterType(self) -> type[RealMoonCrater]:
         """
         The class definition of the associated Crater type.
         """
-        return RealmoonCrater
+        return RealMoonCrater

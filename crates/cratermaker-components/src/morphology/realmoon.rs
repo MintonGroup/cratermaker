@@ -278,6 +278,7 @@ pub fn profile_from_psd(
 ) -> ArrayResult {
     let nfreq: usize = psd.nrows();
     let npoints: usize = psd.nrows() * 2; 
+    let nbearings: usize = bearings.len();
     let period_total = psd[[nfreq - 1, 0]];
 
     // Generate or use provided phases
@@ -289,13 +290,11 @@ pub fn profile_from_psd(
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 
-    // Compute amplitudes: sqrt(psd[:, 1] * period_total / (nfreq^2))
     let amplitude: Array1<f64> = psd
         .column(1)
         .mapv(|p| (p * period_total / (npoints as f64 * npoints as f64)).sqrt());
 
-    // Compute y_ind: amplitude[i] * sin(2π * (1/psd[i,0]) * (theta + phase[i]))
-    let mut delta_y = Array1::<f64>::zeros(npoints);
+    let mut delta_y = Array1::<f64>::zeros(nbearings);
 
     for i in 0..nfreq {
         let wavelength = psd[[i, 0]];
@@ -303,7 +302,7 @@ pub fn profile_from_psd(
         let phase = phase_values[i];
         let amp = amplitude[i];
 
-        for j in 0..npoints {
+        for j in 0..nbearings {
             let theta = bearings[j];
             let y = amp * (TAU * freq * (theta + phase)).sin();
             delta_y[j] += y;
