@@ -85,8 +85,7 @@ pub fn get_1d_psd_from_control_points<'py>(
 /// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
 /// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
 /// * `psd` - A 2D array where the first column contains wavelengths and the second column contains power values, defining the roughness characteristics of the surface.
-/// * `bearings
-///    - A 1D array of angular bearings (in radians) at which to compute the profile, typically ranging from 0 tto 2π.
+/// * `theta` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
 /// * `phases` - An optional 1D array of phase values (in radians) corresponding to each frequency in the PSD. If not provided, random phases will be generated.
 /// * `rng_seed` - The random seed for reproducibility when generating random phases if `phases` is not provided.
 /// # Returns
@@ -98,19 +97,19 @@ pub fn profile_from_psd<'py>(
     crater_radius: f64,
     ymean: f64,
     psd: PyReadonlyArray2<'py, f64>,
-    bearings: PyReadonlyArray1<'py, f64>,
+    theta: PyReadonlyArray1<'py, f64>,
     phases: Option<PyReadonlyArray1<'py, f64>>,
     rng_seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let psd_v = psd.as_array();
-    let bearings_v = bearings.as_array();
+    let theta_v = theta.as_array();
     let phases_v = phases.as_ref().map(|p| p.as_array());
 
     let result = cratermaker_components::morphology::realmoon::profile_from_psd(
         crater_radius,
         ymean,
         psd_v,
-        bearings_v,
+        theta_v,
         phases_v,
         rng_seed,
     )

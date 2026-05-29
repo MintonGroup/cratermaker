@@ -209,6 +209,32 @@ class RealMoonCrater(BasicMoonCrater):
             **kwargs,
         )
 
+    def rim_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+        """
+        Compute the rim radius profile of the crater based on the rim radius PSD.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The crater for which to compute the rim radius profile.
+        bearings : ArrayLike
+            The bearings (in degrees) at which to compute the rim radius profile. This is used to compute the azimuthal variation in the rim radius based on the 2D PSD model.
+
+        Returns
+        -------
+        rim_radius_profile : NDArray[np.float64]
+            The computed rim radius profile at each bearing.
+        """
+        theta = np.radians(bearings)
+        return realmoon_bindings.profile_from_psd(
+            crater_radius=self.radius,
+            ymean=self.radius,
+            psd=self.rim_radius_psd,
+            theta=theta,
+            phases=None,
+            rng_seed=self.rim_radius_psd_seed,
+        )
+
     @property
     def rim_radius_psd(self) -> np.ndarray:
         """

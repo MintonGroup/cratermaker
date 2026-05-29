@@ -261,24 +261,24 @@ pub fn get_1d_psd_from_control_points(
 /// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
 /// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
 /// * `psd` - A 2D array where the first column contains wavelengths and the second column contains power values, defining the roughness characteristics of the surface.
-/// * `bearings
-///    - A 1D array of angular bearings (in radians) at which to compute the profile, typically ranging from 0 tto 2π.
+/// * `theta` - A 1D array of angular positions (in radians) at which to compute the profile, typically ranging from 0 to 2π.
+///    - A 1D array of polar angle (in radians) at which to compute the profile, typically ranging from 0 to 2π.
 /// * `phases` - An optional 1D array of phase values (in radians) corresponding to each frequency in the PSD. If not provided, random phases will be generated.
 /// * `rng_seed` - The random seed for reproducibility when generating random phases if `phases` is not provided.
 /// # Returns
-/// * A 1D array of values corresponding to the input bearings, representing the linear profile generated from the PSD and phase information.
+/// * A 1D array of values corresponding to the input angles, representing the linear profile generated from the PSD and phase information.
 ///
 pub fn profile_from_psd(
     crater_radius: f64,
     ymean: f64,
     psd: ArrayView2<'_, f64>,
-    bearings: ArrayView1<'_, f64>,
+    theta: ArrayView1<'_, f64>,
     phases: Option<ArrayView1<'_, f64>>,
     rng_seed: u64,
 ) -> ArrayResult {
     let nfreq: usize = psd.nrows();
     let npoints: usize = psd.nrows() * 2; 
-    let nbearings: usize = bearings.len();
+    let ntheta: usize = theta.len();
     let period_total = psd[[nfreq - 1, 0]];
 
     // Generate or use provided phases
@@ -294,7 +294,7 @@ pub fn profile_from_psd(
         .column(1)
         .mapv(|p| (p * period_total / (npoints as f64 * npoints as f64)).sqrt());
 
-    let mut delta_y = Array1::<f64>::zeros(nbearings);
+    let mut delta_y = Array1::<f64>::zeros(ntheta);
 
     for i in 0..nfreq {
         let wavelength = psd[[i, 0]];
@@ -302,9 +302,8 @@ pub fn profile_from_psd(
         let phase = phase_values[i];
         let amp = amplitude[i];
 
-        for j in 0..nbearings {
-            let theta = bearings[j];
-            let y = amp * (TAU * freq * (theta + phase)).sin();
+        for j in 0..ntheta {
+            let y = amp * (TAU * freq * (theta[j] + phase)).sin();
             delta_y[j] += y;
         }
     }
