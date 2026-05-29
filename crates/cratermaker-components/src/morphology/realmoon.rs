@@ -2,7 +2,7 @@ use crate::{ArrayResult,ArrayResult2D};
 use std::collections::HashMap;
 use rand::prelude::*;
 use rand::SeedableRng;
-use rand_distr::Normal;
+use rand_distr::{Normal,Uniform};
 use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
 use pyo3::FromPyObject;
@@ -54,7 +54,7 @@ pub struct RealMoonCrater {
     pub floor_texture_control: HashMap<String, f64>,
 }
 
-//
+// Creates a profile of the crater
 //
 /// # Arguments
 ///
@@ -146,13 +146,28 @@ pub fn realmoon_profile(
             }),
     ))
 }
-
-
-pub fn calculate_target_1D_PSD_from_breakpoint_slope(
+///
+///
+/// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Gaussian noise added to the log power values.
+///
+/// # Arguments
+/// * `control_points` - A dictionary containing the control points for the piecewise linear function. The expected keys are:
+/// - "Slope_12": The slope of the first segment (largest wavelengths).
+/// - "Breakpoint_2_x": The x-coordinate of the breakpoint between the first and second segments (in log10(wavelength)).
+/// - "Breakpoint_2_y": The y-coordinate of the breakpoint between the first and second
+///   segments (in log10(power)).
+/// - "Breakpoint_3_y": The y-coordinate of the breakpoint between the second and third
+///   segments (in log10(power)).
+/// - "Breakpoint_4_y": The y-coordinate of the breakpoint for the smallest wavelengths (in log10(power)).
+///  * `npoints` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
+///  * `add_noise` - Whether to add Gaussian noise to the log10(power) values to simulate natural variability in the PSD.
+///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
+///
+pub fn get_1d_psd_from_control_points(
     control_points: &HashMap<String, f64>,
     npoints: usize,
     add_noise: bool,
-    seed: u64,
+    rng_seed: u64,
 ) -> ArrayResult2D {
     let slope_12 = control_points["Slope_12"];
     let bp2_x = control_points["Breakpoint_2_x"];
@@ -226,7 +241,7 @@ pub fn calculate_target_1D_PSD_from_breakpoint_slope(
 
     // Optional Gaussian noise in log10 power
     if add_noise {
-        let mut rng = ChaCha12Rng::seed_from_u64(seed);
+        let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
         let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
         for i in 0..nrows {
             let log_power = flipped[[i, 1]].log10();
@@ -236,4 +251,64 @@ pub fn calculate_target_1D_PSD_from_breakpoint_slope(
     }
 
     Ok(flipped)
+}
+
+///
+/// Generates a surface profile based on a 1D power spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
+///
+/// # Arguments
+/// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
+/// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
+/// * `psd` - A 2D array where the first column contains wavelengths and the second column contains power values, defining the roughness characteristics of the surface.
+/// * `bearings
+///    - A 1D array of angular bearings (in radians) at which to compute the profile, typically ranging from 0 tto 2π.
+/// * `phases` - An optional 1D array of phase values (in radians) corresponding to each frequency in the PSD. If not provided, random phases will be generated.
+/// * `rng_seed` - The random seed for reproducibility when generating random phases if `phases` is not provided.
+/// # Returns
+/// * A 1D array of values corresponding to the input bearings, representing the linear profile generated from the PSD and phase information.
+///
+pub fn profile_from_psd(
+    crater_radius: f64,
+    ymean: f64,
+    psd: ArrayView2<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
+    phases: Option<ArrayView1<'_, f64>>,
+    rng_seed: u64,
+) -> ArrayResult {
+    let period_total: f64 = psd[[psd.nrows() - 1, 0]];
+    let nfreq: usize = psd.nrows();
+    let nbearings: usize = bearings.len();
+
+    // Generate or use provided phases
+    let phase_values: Array1<f64> = if let Some(p) = phases {
+        p.to_owned()
+    } else {
+        let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
+        let uniform = Uniform::new(1.0, period_total).expect("valid uniform distribution");
+        Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
+    };
+
+    // Compute amplitudes: sqrt(psd[:, 1] * period_total / (nfreq^2))
+    let amplitude: Array1<f64> = psd
+        .column(1)
+        .mapv(|p| (p * period_total / (nbearings as f64 * nbearings as f64)).sqrt());
+
+    // Compute y_ind: amplitude[i] * sin(2π * (1/psd[i,0]) * (theta + phase[i]))
+    let mut delta_y = Array1::<f64>::zeros(nbearings);
+
+    for i in 0..nfreq {
+        let wavelength = psd[[i, 0]];
+        let freq = 1.0 / wavelength;
+        let phase = phase_values[i];
+        let amp = amplitude[i];
+
+        for j in 0..nbearings {
+            let theta = bearings[j];
+            let y = amp * (2.0 * std::f64::consts::PI * freq * (theta + phase)).sin();
+            delta_y[j] += y;
+        }
+    }
+
+    // Scale by crater_radius and add mean
+    Ok(Array1::from_iter(delta_y.iter().map(|dy| dy * crater_radius + ymean)))
 }

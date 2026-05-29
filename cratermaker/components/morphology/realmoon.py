@@ -174,7 +174,7 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+        return morphology_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
@@ -186,7 +186,7 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim flank radius outline.
         """
-        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+        return morphology_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_flank_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
@@ -198,7 +198,7 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the floor radius outline.
         """
-        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+        return morphology_bindings.get_1d_psd_from_control_points(
             control_points=self.floor_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
@@ -210,7 +210,7 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim elevation profile.
         """
-        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+        return morphology_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_elevation_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
