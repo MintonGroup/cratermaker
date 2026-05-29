@@ -28,7 +28,7 @@ mod cratermaker {
     #[pymodule]
     mod morphology_bindings {
         #[pymodule_export]
-        use crate::morphology_bindings::{basicmoon_profile, ray_intensity};
+        use crate::morphology_bindings::{basicmoon_profile, ray_intensity, realmoon_profile, calculate_target_1D_PSD_from_breakpoint_slope};
     }
 
     #[pymodule]

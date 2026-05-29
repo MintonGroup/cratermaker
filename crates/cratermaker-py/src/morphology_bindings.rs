@@ -1,8 +1,9 @@
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::realmoon::RealMoonCrater;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use std::collections::HashMap;
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations.
 ///
@@ -139,4 +140,23 @@ pub fn realmoon_profile<'py>(
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
+}
+
+
+#[pyfunction]
+pub fn calculate_target_1D_PSD_from_breakpoint_slope<'py>(
+    py: Python<'py>,
+    control_points: HashMap<String, f64>,
+    npoints: usize,
+    add_noise: bool,
+    seed: u64,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let result = cratermaker_components::morphology::realmoon::calculate_target_1D_PSD_from_breakpoint_slope(
+        &control_points,
+        npoints,
+        add_noise,
+        seed,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray2::from_owned_array(py, result))
 }

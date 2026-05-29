@@ -38,6 +38,20 @@ class RealmoonCraterFixed(BasicMoonCraterFixed):
     """Control points for the ejecta texture PSD model"""
     floor_texture_control: dict[str, float] | None = None
     """Control points for the floor texture PSD model"""
+    rim_radius_psd_seed: int | None = None
+    """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    rim_flank_radius_psd_seed: int | None = None
+    """The random seed used to generate the rim flank radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    rim_elevation_psd_seed: int | None = None
+    """The random seed used to generate the rim elevation PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    floor_radius_psd_seed: int | None = None
+    """The random seed used to generate the floor radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    wall_texture_psd_seed: int | None = None
+    """The random seed used to generate the wall texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    ejecta_texture_psd_seed: int | None = None
+    """The random seed used to generate the ejecta texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
+    floor_texture_psd_seed: int | None = None
+    """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
 @Crater.register("realmooncrater")
@@ -45,7 +59,6 @@ class RealmoonCrater(BasicMoonCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=RealmoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
-
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -145,6 +158,8 @@ class RealmoonCrater(BasicMoonCrater):
                 args[argname] = morphology.get_control_points(
                     crater=crater, coef_sigma=psd1d_coeff[var], add_noise=morphology.add_noise
                 )
+            argname = f"{var}_psd_seed"
+            args[argname] = morphology.rng.integers(0, 2**32 - 1)
 
         kwargs = {**args, **kwargs}
 
@@ -159,28 +174,48 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_radius_control)
+        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+            control_points=self.rim_radius_control,
+            npoints=_PSD1D_NUM_POINTS,
+            add_noise=self.morphology.add_noise,
+            seed=self.rim_radius_psd_seed,
+        )
 
     @property
     def rim_flank_radius_psd(self) -> np.ndarray:
         """
         The power spectral density distribution of the rim flank radius outline.
         """
-        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_flank_radius_control)
+        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+            control_points=self.rim_flank_radius_control,
+            npoints=_PSD1D_NUM_POINTS,
+            add_noise=self.morphology.add_noise,
+            seed=self.rim_flank_radius_psd_seed,
+        )
 
     @property
     def floor_radius_psd(self) -> np.ndarray:
         """
         The power spectral density distribution of the floor radius outline.
         """
-        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.floor_radius_control)
+        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+            control_points=self.floor_radius_control,
+            npoints=_PSD1D_NUM_POINTS,
+            add_noise=self.morphology.add_noise,
+            seed=self.floor_radius_psd_seed,
+        )
 
     @property
     def rim_elevation_psd(self) -> np.ndarray:
         """
         The power spectral density distribution of the rim elevation profile.
         """
-        return self.morphology.calculate_target_1D_PSD_from_breakpoint_slope(self.rim_elevation_control)
+        return morphology_bindings.calculate_target_1D_PSD_from_breakpoint_slope(
+            control_points=self.rim_elevation_control,
+            npoints=_PSD1D_NUM_POINTS,
+            add_noise=self.morphology.add_noise,
+            seed=self.rim_elevation_psd_seed,
+        )
 
 
 @Morphology.register("realmoon")
@@ -347,59 +382,6 @@ class RealmoonMorphology(BasicMoonMorphology):
                 control_points[str(term.data)] = self.rng.normal(cmid, sigma)
 
         return control_points
-
-    def calculate_target_1D_PSD_from_breakpoint_slope(
-        self, control_points: dict[str, float], npoints: int = _PSD1D_NUM_POINTS
-    ) -> np.ndarray:
-        """
-        Given a set of control points, this will compute the power spectral density distribution of a linear feature.
-
-        Parameters
-        ----------
-        control_points : dict[str, float]
-            A dictionary containing the control points for the PSD model. The expected keys are "Slope_12", "Breakpoint_2_x", "Breakpoint_2_y", "Breakpoint_3_y", "Breakpoint_4_y". The breakpoint x values are in log10(wavelength) space and the breakpoint y values are in log10(PSD) space. The slope is in log-log space.
-        npoints : int
-            The number of points to use in the construction of the PSD. This determines the frequency resolution of the PSD and should be sufficiently high to capture the features of the PSD. The default value is 5000, which provides a good balance between resolution and computational efficiency for typical crater sizes.
-        """
-        slope_12 = control_points["Slope_12"]
-        bp2_x = control_points["Breakpoint_2_x"]
-        bp2_y = control_points["Breakpoint_2_y"]
-        bp3_y = control_points["Breakpoint_3_y"]
-        bp4_y = control_points["Breakpoint_4_y"]
-        bp4_x = math.log10(2 * math.pi)
-        bp3_x = math.log10(10**bp4_x / 2)
-        interval = 10**bp4_x / npoints
-        dfft = fft.rfft(np.ones(npoints))
-        iend = dfft.size - 1
-        freq = fft.fftfreq(npoints, interval)
-        wavelength = 1 / freq[1:iend]
-        psd = [[0 for i in range(2)] for i in range(iend - 1)]
-        psd = np.array(psd)
-        psd = np.float64(psd)
-        psd[:, 0] = wavelength
-        psd[:, 1] = np.abs(dfft[1:iend])
-        # ----------------------------------------------------------------------------------------------------------------------
-        for i in range(len(psd)):
-            if psd[i, 0] < 10**bp2_x:
-                bp2_x_index = i - 1
-                break
-        k_23 = (bp3_y - bp2_y) / (bp3_x - bp2_x)
-        b_23 = bp3_y - k_23 * bp3_x
-        k_12 = slope_12
-        b_12 = bp2_y - k_12 * bp2_x
-        # -----------------------------------------------------------------------------------------------------------------------
-        psd[0, 1] = 10**bp4_y
-        psd[1, 1] = 10**bp3_y
-        psd[2 : bp2_x_index + 1, 1] = 10 ** (k_23 * np.log10(psd[2 : bp2_x_index + 1, 0]) + b_23)
-        psd[bp2_x_index + 1 :, 1] = 10 ** (k_12 * np.log10(psd[bp2_x_index + 1 :, 0]) + b_12)
-        # ---------------------------------------------------------------------------------------------------------------------------------
-        psd = np.flipud(psd)
-        if self.add_noise:
-            noise_stddev = 0.55
-            power_target_log = np.log10(psd[:, 1])
-            power_target_log_noise = np.random.normal(0, noise_stddev, power_target_log.shape) + power_target_log
-            psd[:, 1] = 10**power_target_log_noise
-        return psd
 
     def profile_from_psd(self, crater_radius: float, ymean: float, psd: np.ndarray, bearings: np.ndarray, phases: None = None):
         """

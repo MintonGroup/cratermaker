@@ -148,7 +148,7 @@ pub fn realmoon_profile(
 }
 
 
-pub fn calculate_target_1d_psd_from_breakpoint_slope(
+pub fn calculate_target_1D_PSD_from_breakpoint_slope(
     control_points: &HashMap<String, f64>,
     npoints: usize,
     add_noise: bool,
