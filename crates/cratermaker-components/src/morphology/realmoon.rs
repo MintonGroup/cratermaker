@@ -6,14 +6,12 @@ use rand::SeedableRng;
 use rand_distr::{Normal,Uniform};
 use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
-use pyo3::FromPyObject;
 use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
 
 /// Defines crater dimensions for surface modification computations.
 ///
 /// Used to parameterize the final crater size in meters.
-#[derive(FromPyObject, Clone, Debug)]
-pub struct RealMoonCrater {
+pub struct RealMoonCrater<'a> {
     pub id: u32,
     pub diameter: f64,
     pub radius: f64,
@@ -46,13 +44,16 @@ pub struct RealMoonCrater {
     pub peak_height: f64,
     pub peak_width: f64,
     pub peak_offset: f64,
-    pub rim_radius_control: HashMap<String, f64>,
-    pub rim_flank_radius_control: HashMap<String, f64>,
-    pub rim_elevation_control: HashMap<String, f64>,
-    pub floor_elevation_control: HashMap<String, f64>,
-    pub wall_texture_control: HashMap<String, f64>,
-    pub ejecta_texture_control: HashMap<String, f64>,
-    pub floor_texture_control: HashMap<String, f64>,
+    pub rim_radius_rng_seed: u64,
+    pub rim_flank_radius_rng_seed: u64,
+    pub rim_elevation_rng_seed: u64,
+    pub floor_elevation_rng_seed: u64,
+    pub wall_texture_rng_seed: u64,
+    pub ejecta_texture_rng_seed: u64,
+    pub floor_texture_rng_seed: u64,
+    pub rim_radius_psd: ArrayView1<'a, f64>,
+    pub rim_elevation_psd: ArrayView1<'a, f64>,
+    pub rim_flank_radius_psd: ArrayView1<'a, f64>,
 }
 
 // Creates a profile of the crater
@@ -85,12 +86,14 @@ pub struct RealMoonCrater {
 /// Returns a `PyValueError` if the input arrays have mismatched lengths.
 pub fn realmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater: &RealMoonCrater,
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
-    assert_eq!(radial_distances.len(), reference_elevations.len());
+    assert_eq!(radial_distances.len(), reference_elevations.len(), "Input arrays must have the same length");
+    assert_eq!(radial_distances.len(), bearings.len(), "Input arrays must have the same length");
 
     // Compute the weighted elevation profile relative to the reference plane
     let ninc = radial_distances
@@ -114,6 +117,7 @@ pub fn realmoon_profile(
             / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
+    //let rim_radius_profile = profile_from_psd();
 
     Ok(Array1::from_iter(
         reference_elevations

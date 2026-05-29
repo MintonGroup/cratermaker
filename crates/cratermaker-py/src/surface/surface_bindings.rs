@@ -3,7 +3,7 @@ use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
-// Mirrors the PyReadonlyLocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
+// Mirrors the LocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyLocalSurface<'py> {
     pub n_face: usize,
     pub pix: f64,

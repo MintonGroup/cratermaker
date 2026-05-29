@@ -24,19 +24,19 @@ _PSD1D_NUM_POINTS = 5000  # Number of points used in the construction of the 1D 
 
 @dataclass(frozen=True, slots=True)
 class RealMoonCraterFixed(BasicMoonCraterFixed):
-    rim_radius_psd_seed: int | None = None
+    rim_radius_rng_seed: int | None = None
     """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    rim_flank_radius_psd_seed: int | None = None
+    rim_flank_radius_rng_seed: int | None = None
     """The random seed used to generate the rim flank radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    rim_elevation_psd_seed: int | None = None
+    rim_elevation_rng_seed: int | None = None
     """The random seed used to generate the rim elevation PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    floor_radius_psd_seed: int | None = None
+    floor_radius_rng_seed: int | None = None
     """The random seed used to generate the floor radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    wall_texture_psd_seed: int | None = None
+    wall_texture_rng_seed: int | None = None
     """The random seed used to generate the wall texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    ejecta_texture_psd_seed: int | None = None
+    ejecta_texture_rng_seed: int | None = None
     """The random seed used to generate the ejecta texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    floor_texture_psd_seed: int | None = None
+    floor_texture_rng_seed: int | None = None
     """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
@@ -198,7 +198,7 @@ class RealMoonCrater(BasicMoonCrater):
         args = {}
 
         for var in morphology.psd1d_coef.data_vars:
-            argname = f"{var}_psd_seed"
+            argname = f"{var}_rng_seed"
             args[argname] = morphology.rng.integers(0, 2**32 - 1)
 
         kwargs = {**args, **kwargs}
@@ -209,7 +209,7 @@ class RealMoonCrater(BasicMoonCrater):
             **kwargs,
         )
 
-    def rim_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+    def rim_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the rim radius profile of the crater based on the rim radius PSD.
 
@@ -232,7 +232,85 @@ class RealMoonCrater(BasicMoonCrater):
             psd=self.rim_radius_psd,
             theta=theta,
             phases=None,
-            rng_seed=self.rim_radius_psd_seed,
+            rng_seed=self.rim_radius_rng_seed,
+        )
+
+    def rim_flank_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+        """
+        Compute the rim flank radius profile of the crater based on the rim flank radius PSD.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The crater for which to compute the rim flank radius profile.
+        bearings : ArrayLike
+            The bearings (in degrees) at which to compute the rim flank radius profile. This is used to compute the azimuthal variation in the rim flank radius based on the 2D PSD model.
+
+        Returns
+        -------
+        rim_flank_radius_profile : NDArray[np.float64]
+            The computed rim flank radius profile at each bearing.
+        """
+        theta = np.radians(bearings)
+        return realmoon_bindings.profile_from_psd(
+            crater_radius=self.radius,
+            ymean=self.rim_flank_radius,
+            psd=self.rim_flank_radius_psd,
+            theta=theta,
+            phases=None,
+            rng_seed=self.rim_flank_radius_rng_seed,
+        )
+
+    def floor_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+        """
+        Compute the floor radius profile of the crater based on the floor radius PSD.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The crater for which to compute the floor radius profile.
+        bearings : ArrayLike
+            The bearings (in degrees) at which to compute the floor radius profile. This is used to compute the azimuthal variation in the floor radius based on the 2D PSD model.
+
+        Returns
+        -------
+        floor_radius_profile : NDArray[np.float64]
+            The computed floor radius profile at each bearing.
+        """
+        theta = np.radians(bearings)
+        return realmoon_bindings.profile_from_psd(
+            crater_radius=self.floor_radius,
+            ymean=self.floor_radius,
+            psd=self.floor_radius_psd,
+            theta=theta,
+            phases=None,
+            rng_seed=self.floor_radius_rng_seed,
+        )
+
+    def rim_elevation_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+        """
+        Compute the rim elevation profile of the crater based on the rim elevation PSD.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The crater for which to compute the rim elevation profile.
+        bearings : ArrayLike
+            The bearings (in degrees) at which to compute the rim elevation profile. This is used to compute the azimuthal variation in the rim elevation based on the 2D PSD model.
+
+        Returns
+        -------
+        rim_elevation_profile : NDArray[np.float64]
+            The computed rim elevation profile at each bearing.
+        """
+        theta = np.radians(bearings)
+        return realmoon_bindings.profile_from_psd(
+            crater_radius=self.radius,
+            ymean=self.rim_elevation,
+            psd=self.rim_elevation_psd,
+            theta=theta,
+            phases=None,
+            rng_seed=self.rim_elevation_rng_seed,
         )
 
     @property
@@ -244,7 +322,7 @@ class RealMoonCrater(BasicMoonCrater):
             control_points=self.rim_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_radius_psd_seed,
+            rng_seed=self.rim_radius_rng_seed,
         )
 
     @property
@@ -256,7 +334,7 @@ class RealMoonCrater(BasicMoonCrater):
             control_points=self.rim_flank_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_flank_radius_psd_seed,
+            rng_seed=self.rim_flank_radius_rng_seed,
         )
 
     @property
@@ -268,7 +346,7 @@ class RealMoonCrater(BasicMoonCrater):
             control_points=self.floor_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            rng_seed=self.floor_radius_psd_seed,
+            rng_seed=self.floor_radius_rng_seed,
         )
 
     @property
@@ -280,7 +358,7 @@ class RealMoonCrater(BasicMoonCrater):
             control_points=self.rim_elevation_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_elevation_psd_seed,
+            rng_seed=self.rim_elevation_rng_seed,
         )
 
     @property
