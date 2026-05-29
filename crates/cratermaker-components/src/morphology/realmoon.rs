@@ -63,19 +63,9 @@ pub struct RealMoonCrater<'a> {
 /// # Arguments
 ///
 /// * `radial_distances` - 1D array of radial distances from crater center (in meters).
-/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `crater_radius` - Radius of the crater's rim (in meters).
-/// * `floor_elevation` - Elevation of the crater floor relative to the reference surface (in meters and should be negative).
-/// * `floor_radius` - Radius of the flat portion of the crater floor (in meters).
-/// * `wall_curvature` - Parameter controlling the curvature of the crater wall (>1 for more curvature)
-/// * `rim_width` - Width of the crater rim (in meters).
-/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
-/// * `rimdrop` - Exponent for the rim dropoff function (typically -4 to -6)
-/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
-/// * `eprofile` - Exponent for the ejecta dropoff function (typically -3)
-/// * `peak_height` - Height of the central peak above the crater floor (in meters).
-/// * `peak_width` - Width of the central peak (in meters).
-/// * `peak_offset` - Radial offset of the central peak from the crater center (in meters). "concentric").
+/// * `bearings` - 1D array of bearings corresponding to each radius.
+/// * `reference_elevations` - 1D array of reference elevations at each radius (in meters).
+/// * `crater` - A `RealMoonCrater` struct containing the crater parameters and PSDs.
 /// * `include_crater` - Whether to include the crater profile in the output (true/false).
 /// * `include_ejecta` - Whether to include the ejecta profile in the output (true/false).
 ///
