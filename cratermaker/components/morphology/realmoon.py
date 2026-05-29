@@ -198,7 +198,15 @@ class RealMoonCrater(BasicMoonCrater):
 
         args = {}
 
-        for var in morphology.psd1d_coef.data_vars:
+        for var in [
+            "rim_radius",
+            "rim_flank_radius",
+            "floor_radius",
+            "rim_elevation",
+            "wall_texture",
+            "ejecta_texture",
+            "floor_texture",
+        ]:
             argname = f"{var}_rng_seed"
             args[argname] = morphology.rng.integers(0, 2**32 - 1)
 
