@@ -1,4 +1,5 @@
 use crate::{ArrayResult,ArrayResult2D};
+use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
 use rand::prelude::*;
@@ -6,8 +7,7 @@ use rand::SeedableRng;
 use rand_distr::{Normal,Uniform};
 use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
-use numpy::ndarray::Zip;
-use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 /// Defines crater dimensions for surface modification computations.
 ///
@@ -96,7 +96,7 @@ pub fn realmoon_profile(
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len(), "Input arrays must have the same length");
     assert_eq!(radial_distances.len(), bearings.len(), "Input arrays must have the same length");
-
+    let n_points = radial_distances.len();
     // Compute the weighted elevation profile relative to the reference plane
     let ninc = radial_distances
         .iter()
@@ -150,12 +150,14 @@ pub fn realmoon_profile(
         Array1::<f64>::from_elem(bearings.len(), crater.floor_radius)
     };
 
-    let out = Zip::from(reference_elevations)
-        .and(radial_distances)
-        .and(rim_radius_profile.view())
-        .and(rim_elevation_profile.view())
-        .and(floor_radius_profile.view())
-        .map_collect(|&href, &r, &rim_r, &rim_elev, &floor_r| {
+    let out: Vec<f64> = (0..n_points)
+        .into_par_iter() 
+        .map(|i| {
+            let r = radial_distances[i];
+            let href = reference_elevations[i];
+            let rim_r = rim_radius_profile[i];
+            let rim_elev = rim_elevation_profile[i];
+            let floor_r = floor_radius_profile[i];
             let mut hcrat = crater_profile_function(
                 r,
                 rim_r,                 // per-angle rim radius
@@ -190,9 +192,9 @@ pub fn realmoon_profile(
 
             let h = href + hcrat + hej;
             if r <= rim_r { h.max(min_elevation) } else { h }
-        });
+        }).collect();
 
-    Ok(out)
+    Ok(Array1::from_vec(out))
 }
 ///
 ///
