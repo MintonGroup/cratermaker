@@ -109,36 +109,53 @@ pub fn realmoon_profile(
             / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
-    let rim_radius_profile = profile_from_psd(
-        crater.radius,
-        crater.radius,
-        crater.rim_radius_psd,
-        bearings,
-        None,
-        crater.rim_radius_rng_seed,
-    )?;
 
-    let rim_elevation_profile = profile_from_psd(
-        crater.radius,
-        crater.rim_elevation,
-        crater.rim_elevation_psd,
-        bearings,
-        None,
-        crater.rim_elevation_rng_seed,
-    )?;
+    let (rim_radius_profile, rim_elevation_profile, floor_radius_profile) =
+        crossbeam::thread::scope(|s| {
+            let h1 = s.spawn(|_| {
+                profile_from_psd(
+                    crater.radius,
+                    crater.radius,
+                    crater.rim_radius_psd,
+                    bearings,
+                    None,
+                    crater.rim_radius_rng_seed,
+                )
+            });
 
-    let floor_radius_profile = if include_crater {
-        profile_from_psd(
-            crater.radius,
-            crater.floor_radius,
-            crater.floor_radius_psd,
-            bearings,
-            None,
-            crater.floor_radius_rng_seed,
-        )?
-    } else {
-        Array1::<f64>::from_elem(bearings.len(), crater.floor_radius)
-    };
+            let h2 = s.spawn(|_| {
+                profile_from_psd(
+                    crater.radius,
+                    crater.rim_elevation,
+                    crater.rim_elevation_psd,
+                    bearings,
+                    None,
+                    crater.rim_elevation_rng_seed,
+                )
+            });
+
+            let h3 = s.spawn(|_| {
+                if include_crater {
+                    profile_from_psd(
+                        crater.radius,
+                        crater.floor_radius,
+                        crater.floor_radius_psd,
+                        bearings,
+                        None,
+                        crater.floor_radius_rng_seed,
+                    )
+                } else {
+                    Ok(Array1::<f64>::from_elem(bearings.len(), crater.floor_radius))
+                }
+            });
+
+            (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap())
+        })
+        .map_err(|_| "crossbeam scope panicked".to_string())?;
+
+    let rim_radius_profile = rim_radius_profile?;
+    let rim_elevation_profile = rim_elevation_profile?;
+    let floor_radius_profile = floor_radius_profile?;
 
     let out: Vec<f64> = (0..n_points)
         .into_par_iter() 
@@ -315,12 +332,11 @@ pub fn profile_from_psd(
     phases: Option<ArrayView1<'_, f64>>,
     rng_seed: u64,
 ) -> ArrayResult {
-    let nfreq: usize = psd.nrows();
-    let npoints: usize = psd.nrows() * 2; 
-    let ntheta: usize = theta.len();
+    let nfreq = psd.nrows();
+    let npoints = psd.nrows() * 2;
+    let ntheta = theta.len();
     let period_total = psd[[nfreq - 1, 0]];
 
-    // Generate or use provided phases
     let phase_values: Array1<f64> = if let Some(p) = phases {
         p.to_owned()
     } else {
@@ -333,20 +349,18 @@ pub fn profile_from_psd(
         .column(1)
         .mapv(|p| (p * period_total / (npoints as f64 * npoints as f64)).sqrt());
 
-    let mut delta_y = Array1::<f64>::zeros(ntheta);
+    let out: Vec<f64> = (0..ntheta)
+        .into_par_iter()
+        .map(|j| {
+            let t = theta[j];
+            let mut dy = 0.0;
+            for i in 0..nfreq {
+                let freq = 1.0 / psd[[i, 0]];
+                dy += amplitude[i] * (TAU * freq * (t + phase_values[i])).sin();
+            }
+            dy * crater_radius + ymean
+        })
+        .collect();
 
-    for i in 0..nfreq {
-        let wavelength = psd[[i, 0]];
-        let freq = 1.0 / wavelength;
-        let phase = phase_values[i];
-        let amp = amplitude[i];
-
-        for j in 0..ntheta {
-            let y = amp * (TAU * freq * (theta[j] + phase)).sin();
-            delta_y[j] += y;
-        }
-    }
-
-    // Scale by crater_radius and add mean
-    Ok(Array1::from_iter(delta_y.iter().map(|dy| dy * crater_radius + ymean)))
+    Ok(Array1::from_vec(out))
 }
