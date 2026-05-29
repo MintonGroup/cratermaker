@@ -10,7 +10,7 @@ import xarray as xr
 from numpy.typing import ArrayLike, NDArray
 from scipy import fft
 
-from cratermaker.bindings import morphology_bindings
+from cratermaker.bindings import basicmoon_bindings, realmoon_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
@@ -174,11 +174,11 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        return morphology_bindings.get_1d_psd_from_control_points(
+        return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            seed=self.rim_radius_psd_seed,
+            rng_seed=self.rim_radius_psd_seed,
         )
 
     @property
@@ -186,11 +186,11 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim flank radius outline.
         """
-        return morphology_bindings.get_1d_psd_from_control_points(
+        return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_flank_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            seed=self.rim_flank_radius_psd_seed,
+            rng_seed=self.rim_flank_radius_psd_seed,
         )
 
     @property
@@ -198,11 +198,11 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the floor radius outline.
         """
-        return morphology_bindings.get_1d_psd_from_control_points(
+        return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.floor_radius_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            seed=self.floor_radius_psd_seed,
+            rng_seed=self.floor_radius_psd_seed,
         )
 
     @property
@@ -210,11 +210,11 @@ class RealmoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim elevation profile.
         """
-        return morphology_bindings.get_1d_psd_from_control_points(
+        return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_elevation_control,
             npoints=_PSD1D_NUM_POINTS,
             add_noise=self.morphology.add_noise,
-            seed=self.rim_elevation_psd_seed,
+            rng_seed=self.rim_elevation_psd_seed,
         )
 
 
@@ -321,7 +321,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         #         floor_radius=floor_radius_profile[i],
         #         rim_elevation=rim_elevation_profile[i],
         #     )
-        #     elevation[i] = morphology_bindings.basicmoon_profile(
+        #     elevation[i] = basicmoon_bindings.basicmoon_profile(
         #         radial_distances=rflat[i : i + 1],
         #         reference_elevations=r_ref_flat[i : i + 1],
         #         crater=tmp_crater,

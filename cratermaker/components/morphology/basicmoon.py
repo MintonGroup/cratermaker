@@ -11,7 +11,7 @@ from scipy.integrate import quad
 from scipy.optimize import root_scalar
 from tqdm import tqdm
 
-from cratermaker.bindings import morphology_bindings
+from cratermaker.bindings import basicmoon_bindings
 from cratermaker.components.crater import Crater, CraterFixed
 from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
 from cratermaker.components.surface import LocalSurface, Surface
@@ -528,7 +528,7 @@ class BasicMoonMorphology(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = morphology_bindings.basicmoon_profile(
+        elevation = basicmoon_bindings.basicmoon_profile(
             radial_distances=rflat, reference_elevations=r_ref_flat, crater=crater, include_crater=True, include_ejecta=False
         )
         # reshape elevation to match the shape of r
@@ -600,7 +600,7 @@ class BasicMoonMorphology(Morphology):
             r = np.array(r, dtype=np.float64)
         # flatten r to 1D array
         rflat = np.ravel(r)
-        elevation = morphology_bindings.basicmoon_profile(
+        elevation = basicmoon_bindings.basicmoon_profile(
             radial_distances=rflat,
             reference_elevations=np.zeros_like(rflat),
             crater=crater,
@@ -642,7 +642,7 @@ class BasicMoonMorphology(Morphology):
         thickness = self.ejecta_profile(crater, r)
         rflat = np.ravel(r)
         theta_flat = np.ravel(theta)
-        intensity = morphology_bindings.ray_intensity(
+        intensity = basicmoon_bindings.ray_intensity(
             radial_distances=rflat,
             initial_bearing=np.radians(theta_flat),
             crater_diameter=crater.diameter,
@@ -681,7 +681,7 @@ class BasicMoonMorphology(Morphology):
         # flatten r and theta to 1D arrays
         rflat = np.ravel(r)
         theta_flat = np.radians(np.ravel(theta))
-        intensity = morphology_bindings.ray_intensity(
+        intensity = basicmoon_bindings.ray_intensity(
             rflat,
             theta_flat,
             crater.diameter,
