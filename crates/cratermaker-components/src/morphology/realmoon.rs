@@ -55,6 +55,7 @@ pub struct RealMoonCrater<'a> {
     pub rim_radius_psd: ArrayView2<'a, f64>,
     pub rim_elevation_psd: ArrayView2<'a, f64>,
     pub rim_flank_radius_psd: ArrayView2<'a, f64>,
+    pub floor_radius_psd: ArrayView2<'a, f64>,
 }
 
 // Creates a profile of the crater
@@ -140,10 +141,10 @@ pub fn realmoon_profile(
         profile_from_psd(
             crater.radius,
             crater.floor_radius,
-            crater.rim_flank_radius_psd,
+            crater.floor_radius_psd,
             bearings,
             None,
-            crater.rim_flank_radius_rng_seed,
+            crater.floor_radius_rng_seed,
         )?
     } else {
         Array1::<f64>::from_elem(bearings.len(), crater.floor_radius)

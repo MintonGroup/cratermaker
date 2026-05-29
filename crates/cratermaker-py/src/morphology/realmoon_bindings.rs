@@ -49,6 +49,7 @@ pub struct PyReadonlyRealMoonCrater<'py> {
     pub rim_radius_psd: PyReadonlyArray2<'py, f64>,
     pub rim_elevation_psd: PyReadonlyArray2<'py, f64>,
     pub rim_flank_radius_psd: PyReadonlyArray2<'py, f64>,
+    pub floor_radius_psd: PyReadonlyArray2<'py, f64>,
 }
 
 fn getattr_optional<'py, T>(obj: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<T>>
@@ -122,6 +123,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             rim_radius_psd: obj.getattr("rim_radius_psd")?.extract()?,
             rim_elevation_psd: obj.getattr("rim_elevation_psd")?.extract()?,
             rim_flank_radius_psd: obj.getattr("rim_flank_radius_psd")?.extract()?,
+            floor_radius_psd: obj.getattr("floor_radius_psd")?.extract()?,
         })
     }
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
@@ -169,6 +171,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             rim_radius_psd: self.rim_radius_psd.as_array(),
             rim_elevation_psd: self.rim_elevation_psd.as_array(),
             rim_flank_radius_psd: self.rim_flank_radius_psd.as_array(),
+            floor_radius_psd: self.floor_radius_psd.as_array(),
         }
     }
 }
