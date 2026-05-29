@@ -1,5 +1,6 @@
 use crate::{ArrayResult,ArrayResult2D};
 use std::collections::HashMap;
+use std::f64::consts::TAU;
 use rand::prelude::*;
 use rand::SeedableRng;
 use rand_distr::{Normal,Uniform};
@@ -175,7 +176,7 @@ pub fn get_1d_psd_from_control_points(
     let bp3_y = control_points["Breakpoint_3_y"];
     let bp4_y = control_points["Breakpoint_4_y"];
 
-    let bp4_x = (2.0 * std::f64::consts::PI).log10();
+    let bp4_x = TAU.log10();
     let bp3_x = (10_f64.powf(bp4_x) / 2.0).log10();
 
     // Same spacing logic as Python: interval = 10**bp4_x / npoints
@@ -275,26 +276,26 @@ pub fn profile_from_psd(
     phases: Option<ArrayView1<'_, f64>>,
     rng_seed: u64,
 ) -> ArrayResult {
-    let period_total: f64 = psd[[psd.nrows() - 1, 0]];
     let nfreq: usize = psd.nrows();
-    let nbearings: usize = bearings.len();
+    let npoints: usize = bearings.len();
+    let period_total = psd[[nfreq - 1, 0]];
 
     // Generate or use provided phases
     let phase_values: Array1<f64> = if let Some(p) = phases {
         p.to_owned()
     } else {
         let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-        let uniform = Uniform::new(1.0, period_total).expect("valid uniform distribution");
+        let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 
     // Compute amplitudes: sqrt(psd[:, 1] * period_total / (nfreq^2))
     let amplitude: Array1<f64> = psd
         .column(1)
-        .mapv(|p| (p * period_total / (nbearings as f64 * nbearings as f64)).sqrt());
+        .mapv(|p| (p * period_total / (npoints as f64 * npoints as f64)).sqrt());
 
     // Compute y_ind: amplitude[i] * sin(2π * (1/psd[i,0]) * (theta + phase[i]))
-    let mut delta_y = Array1::<f64>::zeros(nbearings);
+    let mut delta_y = Array1::<f64>::zeros(npoints);
 
     for i in 0..nfreq {
         let wavelength = psd[[i, 0]];
@@ -302,9 +303,9 @@ pub fn profile_from_psd(
         let phase = phase_values[i];
         let amp = amplitude[i];
 
-        for j in 0..nbearings {
+        for j in 0..npoints {
             let theta = bearings[j];
-            let y = amp * (2.0 * std::f64::consts::PI * freq * (theta + phase)).sin();
+            let y = amp * (TAU * freq * (theta + phase)).sin();
             delta_y[j] += y;
         }
     }
