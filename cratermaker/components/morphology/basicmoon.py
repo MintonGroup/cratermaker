@@ -563,8 +563,8 @@ class BasicMoonMorphology(Morphology):
             crater = BasicMoonCrater.maker(crater, morphology=self)
 
         distance = np.concatenate([region.face_distance, region.node_distance])
+        bearing = np.concatenate([region.face_bearing, region.node_bearing])
         if self.dorays:
-            bearing = np.concatenate([region.face_bearing, region.node_bearing])
             thickness, intensity = self.ejecta_distribution(crater, distance, bearing)
         else:
             thickness = self.ejecta_profile(crater, distance, bearing=bearing)

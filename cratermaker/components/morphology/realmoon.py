@@ -61,24 +61,6 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
         object.__setattr__(self, "_ejecta_texture_control", None)
         return
 
-    def as_dict(self) -> dict:
-        """
-        Return a dictionary representation of the crater variable properties.
-        """
-        dict_repr = super().as_dict()
-        keys = (
-            "rim_radius_control",
-            "rim_elevation_control",
-            "rim_flank_radius_control",
-            "floor_radius_control",
-            "wall_texture_control",
-            "ejecta_texture_control",
-        )
-        for key in keys:
-            dict_repr[key] = getattr(self, key)
-
-        return dict_repr
-
     @property
     def rim_radius_control(self) -> np.ndarray | None:
         """
