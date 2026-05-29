@@ -15,6 +15,7 @@ from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
 from cratermaker.components.surface import LocalSurface, Surface
+from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
@@ -453,7 +454,7 @@ class RealmoonMorphology(BasicMoonMorphology):
 
     def crater_profile(
         self,
-        crater: BasicMoonCrater,
+        crater: RealMoonCrater,
         r: ArrayLike,
         bearing: ArrayLike,
         r_ref: ArrayLike | None = None,
@@ -463,12 +464,12 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         Parameters
         ----------
-        crater : BasicMoonCrater
+        crater : RealMoonCrater
             The crater object containing the parameters for the crater profile.
         r : ArrayLike
             Radial distances from the crater center (in meters).
         bearing : ArrayLike
-            Bearings (in degrees) corresponding to the radial distances. This is used to compute the azimuthal variation in the crater profile based on the 2D PSD models.
+            Bearings (in degrees) corresponding to the radial distances.
         r_ref : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
         **kwargs : Any
@@ -496,40 +497,73 @@ class RealmoonMorphology(BasicMoonMorphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        bflat = np.ravel(bearing)
+        bflat = np.ravel(np.radians(bearing))
 
-        rim_radius_profile = self.profile_from_psd(
-            crater_radius=crater.radius, ymean=crater.radius, psd=crater.rim_radius_psd, bearings=bflat
+        elevation = realmoon_bindings.realmoon_profile(
+            radial_distances=rflat,
+            bearings=bflat,
+            reference_elevations=r_ref_flat,
+            crater=crater,
+            include_crater=True,
+            include_ejecta=False,
         )
-        rim_elevation_profile = self.profile_from_psd(
-            crater_radius=crater.radius, ymean=crater.rim_elevation, psd=crater.rim_elevation_psd, bearings=bflat
-        )
-        floor_radius_profile = self.profile_from_psd(
-            crater_radius=crater.floor_radius, ymean=crater.floor_radius, psd=crater.floor_radius_psd, bearings=bflat
-        )
-
-        elevation = np.empty_like(rflat, dtype=np.float64)
-        # I need to implement a Rust binding function that can pass the profiles in as arrays
-        # for i in range(len(rflat)):
-        #     tmp_crater = DummyCrater(
-        #         crater=crater,
-        #         diameter=2 * rim_radius_profile[i],
-        #         radius=rim_radius_profile[i],
-        #         floor_radius=floor_radius_profile[i],
-        #         rim_elevation=rim_elevation_profile[i],
-        #     )
-        #     elevation[i] = basicmoon_bindings.basicmoon_profile(
-        #         radial_distances=rflat[i : i + 1],
-        #         reference_elevations=r_ref_flat[i : i + 1],
-        #         crater=tmp_crater,
-        #         include_crater=True,
-        #         include_ejecta=False,
-        #     )[0]
-        # reshape elevation to match the shape of r
 
         elevation = np.reshape(elevation, r.shape)
 
         return elevation
+
+    def ejecta_profile(self, crater: RealMoonCrater, r: ArrayLike, bearing: ArrayLike) -> NDArray[np.float64]:
+        """
+        Compute the ejecta elevation profile at a given radial distance.
+
+        Parameters
+        ----------
+        crater : BasicMoonCrater
+            The crater object containing the parameters for the ejecta profile.
+        r : ArrayLike
+            Radial distances from the crater center (in meters).
+        bearing : ArrayLike
+            Bearings (in degrees) corresponding to the radial distances.
+
+        Returns
+        -------
+        elevation : NDArray[np.float64]
+            The computed ejecta profile at each radial point.
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function.
+        """
+        if not isinstance(crater, BasicMoonCrater):
+            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if np.isscalar(r):
+            r = np.array([r], dtype=np.float64)
+        elif isinstance(r, (list | tuple)):
+            r = np.array(r, dtype=np.float64)
+        # flatten r to 1D array
+        rflat = np.ravel(r)
+        bflat = np.ravel(np.radians(bearing))
+        elevation = realmoon_bindings.realmoon_profile(
+            radial_distances=rflat,
+            bearings=bflat,
+            reference_elevations=np.zeros_like(rflat),
+            crater=crater,
+            include_crater=False,
+            include_ejecta=True,
+        )
+        elevation = np.array(elevation, dtype=np.float64)
+        # reshape elevation to match the shape of r
+        elevation = np.reshape(elevation, r.shape)
+        return elevation
+
+    # These will use the BasicMoon profiles for inversions
+    def _profile_invert_ejecta(self, r, crater, minimum_thickness):
+        ans = super().ejecta_profile(crater, r) - minimum_thickness
+        return ans[0]
+
+    def _profile_invert_crater(self, r, crater, minimum_thickness):
+        ans = super().crater_profile(crater, r, np.zeros(1)) - minimum_thickness
+        return ans[0]
 
     @parameter
     def add_noise(self) -> bool:

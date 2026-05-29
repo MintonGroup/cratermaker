@@ -6,6 +6,7 @@ use rand::SeedableRng;
 use rand_distr::{Normal,Uniform};
 use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
+use numpy::ndarray::Zip;
 use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
 
 /// Defines crater dimensions for surface modification computations.
@@ -47,13 +48,13 @@ pub struct RealMoonCrater<'a> {
     pub rim_radius_rng_seed: u64,
     pub rim_flank_radius_rng_seed: u64,
     pub rim_elevation_rng_seed: u64,
-    pub floor_elevation_rng_seed: u64,
+    pub floor_radius_rng_seed: u64,
     pub wall_texture_rng_seed: u64,
     pub ejecta_texture_rng_seed: u64,
     pub floor_texture_rng_seed: u64,
-    pub rim_radius_psd: ArrayView1<'a, f64>,
-    pub rim_elevation_psd: ArrayView1<'a, f64>,
-    pub rim_flank_radius_psd: ArrayView1<'a, f64>,
+    pub rim_radius_psd: ArrayView2<'a, f64>,
+    pub rim_elevation_psd: ArrayView2<'a, f64>,
+    pub rim_flank_radius_psd: ArrayView2<'a, f64>,
 }
 
 // Creates a profile of the crater
@@ -117,39 +118,80 @@ pub fn realmoon_profile(
             / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
-    //let rim_radius_profile = profile_from_psd();
+    let rim_radius_profile = profile_from_psd(
+        crater.radius,
+        crater.radius,
+        crater.rim_radius_psd,
+        bearings,
+        None,
+        crater.rim_radius_rng_seed,
+    )?;
 
-    Ok(Array1::from_iter(
-        reference_elevations
-            .iter()
-            .zip(radial_distances.iter().copied())
-            .map(|(href, r)| {
-                let mut hcrat = crater_profile_function(r, crater.radius, crater.floor_elevation, crater.floor_radius, crater.wall_curvature, crater.rim_width, crater.rim_elevation, crater.rimdrop, crater.peak_height, crater.peak_width, crater.peak_offset);
-                let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
-                if r < crater.radius && r > crater.floor_radius {
-                    hej += (hcrat - (crater.rim_elevation - crater.ejrim)).max(0.0);
-                }
+    let rim_elevation_profile = profile_from_psd(
+        crater.radius,
+        crater.rim_elevation,
+        crater.rim_elevation_psd,
+        bearings,
+        None,
+        crater.rim_elevation_rng_seed,
+    )?;
 
-                if include_crater {
-                    if r > crater.radius || hcrat > 0.0 {
-                        hcrat = (hcrat - hej).max(0.0);
-                    } 
-                } else {
-                    hcrat = 0.0;
-                }
-                if !include_ejecta {
-                    hej = 0.0;
-                }
+    let floor_radius_profile = if include_crater {
+        profile_from_psd(
+            crater.radius,
+            crater.floor_radius,
+            crater.rim_flank_radius_psd,
+            bearings,
+            None,
+            crater.rim_flank_radius_rng_seed,
+        )?
+    } else {
+        Array1::<f64>::from_elem(bearings.len(), crater.floor_radius)
+    };
 
-                let h = href + hcrat + hej;
+    let out = Zip::from(reference_elevations)
+        .and(radial_distances)
+        .and(rim_radius_profile.view())
+        .and(rim_elevation_profile.view())
+        .and(floor_radius_profile.view())
+        .map_collect(|&href, &r, &rim_r, &rim_elev, &floor_r| {
+            let mut hcrat = crater_profile_function(
+                r,
+                rim_r,                 // per-angle rim radius
+                crater.floor_elevation,
+                floor_r,               // per-angle floor radius
+                crater.wall_curvature,
+                crater.rim_width,
+                rim_elev,              // per-angle rim elevation
+                crater.rimdrop,
+                crater.peak_height,
+                crater.peak_width,
+                crater.peak_offset,
+            );
 
-                if r <= crater.radius {
-                    h.max(min_elevation)
-                } else {
-                    h
+            let mut hej = ejecta_profile_function(r, rim_r, crater.ejrim, crater.ejprofile);
+
+            if r < rim_r && r > floor_r {
+                hej += (hcrat - (rim_elev - crater.ejrim)).max(0.0);
+            }
+
+            if include_crater {
+                if r > rim_r || hcrat > 0.0 {
+                    hcrat = (hcrat - hej).max(0.0);
                 }
-            }),
-    ))
+            } else {
+                hcrat = 0.0;
+            }
+
+            if !include_ejecta {
+                hej = 0.0;
+            }
+
+            let h = href + hcrat + hej;
+            if r <= rim_r { h.max(min_elevation) } else { h }
+        });
+
+    Ok(out)
 }
 ///
 ///

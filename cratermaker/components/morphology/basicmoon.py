@@ -567,12 +567,12 @@ class BasicMoonMorphology(Morphology):
             bearing = np.concatenate([region.face_bearing, region.node_bearing])
             thickness, intensity = self.ejecta_distribution(crater, distance, bearing)
         else:
-            thickness = self.ejecta_profile(crater, distance)
+            thickness = self.ejecta_profile(crater, distance, bearing=bearing)
             intensity = np.ones_like(thickness)
 
         return thickness, intensity
 
-    def ejecta_profile(self, crater: BasicMoonCrater, r: ArrayLike) -> NDArray[np.float64]:
+    def ejecta_profile(self, crater: BasicMoonCrater, r: ArrayLike, **kwargs: Any) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -587,6 +587,8 @@ class BasicMoonMorphology(Morphology):
         -------
         elevation : NDArray[np.float64]
             The computed ejecta profile at each radial point.
+        **kwargs : Any
+            |kwargs|
 
         Notes
         -----
@@ -612,7 +614,7 @@ class BasicMoonMorphology(Morphology):
         elevation = np.reshape(elevation, r.shape)
         return elevation
 
-    def ejecta_distribution(self, crater, r: ArrayLike, theta: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def ejecta_distribution(self, crater, r: ArrayLike, bearing: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta thickness distribution modulated by ray patterns.
 
@@ -622,7 +624,7 @@ class BasicMoonMorphology(Morphology):
             The crater object containing the parameters for the ejecta distribution.
         r : ArrayLike
             Radial distances from the crater center (in meters).
-        theta : ArrayLike
+        bearing : ArrayLike
             Angular bearings from the crater center (in degrees).
 
         Returns
@@ -639,12 +641,12 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
         # flatten r and theta to 1D arrays
-        thickness = self.ejecta_profile(crater, r)
+        thickness = self.ejecta_profile(crater, r, bearing=bearing)
         rflat = np.ravel(r)
-        theta_flat = np.ravel(theta)
+        bflat = np.ravel(bearing)
         intensity = basicmoon_bindings.ray_intensity(
             radial_distances=rflat,
-            initial_bearing=np.radians(theta_flat),
+            initial_bearing=np.radians(bflat),
             crater_diameter=crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
@@ -785,6 +787,14 @@ class BasicMoonMorphology(Morphology):
         self._Kdiff = np.zeros_like(self.surface.face_elevation)
         return
 
+    def _profile_invert_ejecta(self, r, crater, minimum_thickness):
+        ans = self.ejecta_profile(crater, r) - minimum_thickness
+        return ans[0]
+
+    def _profile_invert_crater(self, r, crater, minimum_thickness):
+        ans = self.crater_profile(crater, r, np.zeros(1)) - minimum_thickness
+        return ans[0]
+
     def rmax(
         self,
         crater: Crater,
@@ -812,18 +822,16 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
 
-        def _profile_invert_ejecta(r):
-            ans = self.ejecta_profile(crater, r) - minimum_thickness
-            return ans[0]
+        def _invert_ejecta(r):
+            return self._profile_invert_ejecta(r, crater, minimum_thickness)
 
-        def _profile_invert_crater(r):
-            ans = self.crater_profile(crater, r, np.zeros(1)) - minimum_thickness
-            return ans[0]
+        def _invert_crater(r):
+            return self._profile_invert_crater(r, crater, minimum_thickness)
 
         if feature == "ejecta":
-            _profile_invert = _profile_invert_ejecta
+            _profile_invert = _invert_ejecta
         elif feature == "crater":
-            _profile_invert = _profile_invert_crater
+            _profile_invert = _invert_crater
         else:
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 
