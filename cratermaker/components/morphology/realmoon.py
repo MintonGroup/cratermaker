@@ -20,6 +20,7 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
+_PSD1D_MIN_POINTS = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -308,7 +309,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), 8)
+        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_radius_control,
             npoints=npoints,
@@ -334,7 +335,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the floor radius outline.
         """
-        npoints = max(int(2 * math.pi * self.floor_radius / self.morphology.surface.pix), 8)
+        npoints = max(int(2 * math.pi * self.floor_radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.floor_radius_control,
             npoints=npoints,
@@ -347,7 +348,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim elevation profile.
         """
-        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), 8)
+        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_elevation_control,
             npoints=npoints,
