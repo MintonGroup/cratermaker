@@ -110,7 +110,7 @@ pub fn realmoon_profile(
     };
     let min_elevation = meanref + crater.floor_elevation;
 
-    let (rim_radius_profile, rim_elevation_profile, floor_radius_profile) =
+    let (rim_radius_profile, floor_radius_profile) =
         crossbeam::thread::scope(|s| {
             let h1 = s.spawn(|_| {
                 profile_from_psd(
@@ -124,17 +124,6 @@ pub fn realmoon_profile(
             });
 
             let h2 = s.spawn(|_| {
-                profile_from_psd(
-                    crater.radius,
-                    crater.rim_elevation,
-                    crater.rim_elevation_psd,
-                    bearings,
-                    None,
-                    crater.rim_elevation_rng_seed,
-                )
-            });
-
-            let h3 = s.spawn(|_| {
                 if include_crater {
                     profile_from_psd(
                         crater.radius,
@@ -149,12 +138,11 @@ pub fn realmoon_profile(
                 }
             });
 
-            (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap())
+            (h1.join().unwrap(), h2.join().unwrap())
         })
         .map_err(|_| "crossbeam scope panicked".to_string())?;
 
     let rim_radius_profile = rim_radius_profile?;
-    let rim_elevation_profile = rim_elevation_profile?;
     let floor_radius_profile = floor_radius_profile?;
 
     let out: Vec<f64> = (0..n_points)
@@ -163,8 +151,8 @@ pub fn realmoon_profile(
             let r = radial_distances[i];
             let href = reference_elevations[i];
             let rim_r = rim_radius_profile[i];
-            let rim_elev = rim_elevation_profile[i];
             let floor_r = floor_radius_profile[i];
+            let rim_elev = crater.rim_elevation * ((rim_r - floor_r) / (crater.radius - crater.floor_radius));
             let mut hcrat = crater_profile_function(
                 r,
                 rim_r,                 // per-angle rim radius
@@ -333,9 +321,10 @@ pub fn profile_from_psd(
     rng_seed: u64,
 ) -> ArrayResult {
     let nfreq = psd.nrows();
-    let npoints = psd.nrows() * 2;
     let ntheta = theta.len();
-    let period_total = psd[[nfreq - 1, 0]];
+    let n = ntheta as f64;
+    let period_total = psd[[nfreq - 1, 0]]; 
+    let pix = period_total / n;
 
     let phase_values: Array1<f64> = if let Some(p) = phases {
         p.to_owned()
@@ -345,9 +334,7 @@ pub fn profile_from_psd(
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 
-    let amplitude: Array1<f64> = psd
-        .column(1)
-        .mapv(|p| (p * period_total / (npoints as f64 * npoints as f64)).sqrt());
+    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * pix / n).sqrt()) / 2.0;
 
     let out: Vec<f64> = (0..ntheta)
         .into_par_iter()
@@ -358,7 +345,7 @@ pub fn profile_from_psd(
                 let freq = 1.0 / psd[[i, 0]];
                 dy += amplitude[i] * (TAU * freq * (t + phase_values[i])).sin();
             }
-            dy * crater_radius + ymean
+            dy * crater_radius + ymean 
         })
         .collect();
 
