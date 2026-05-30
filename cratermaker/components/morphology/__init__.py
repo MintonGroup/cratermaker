@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 # The factor by which the crater tagging region is extended beyond the final rim.
 _RIM_BUFFER_FACTOR = 1.5
 
-
 from abc import abstractmethod
 from collections.abc import Callable
 from math import pi
