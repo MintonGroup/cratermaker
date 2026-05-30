@@ -428,7 +428,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         object.__setattr__(self, "_add_noise", None)
         object.__setattr__(self, "_psd1d_coef", None)
         object.__setattr__(self, "_psd2d_coef", None)
-        self.add_noise = kwargs.pop("add_noise", False)  # The extra noise is too powerful, so I've disabled it for now by default
+        self.add_noise = kwargs.pop("add_noise", True)  # Can be disabled for testing
 
         psd1d_coef_file = Path(psd1d_coef_file)
         if not psd1d_coef_file.exists():
@@ -585,7 +585,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         add_noise : bool
             Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
         """
-        # Do pre-processing
         if crater.morphology_type == "simple":
             index = 0
         else:
