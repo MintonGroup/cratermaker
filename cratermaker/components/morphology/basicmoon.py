@@ -449,6 +449,8 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
         ejecta_thickness, ejecta_intensity = super().form_ejecta(crater, **kwargs)
+        if ejecta_thickness is None or ejecta_intensity is None:
+            return None, None
         k_ej = self.ejecta_burial_degradation(ejecta_thickness[: crater.ejecta_region.n_face], ejecta_soften_factor=1.50)
         crater.ejecta_region.apply_diffusion(k_ej)
 
