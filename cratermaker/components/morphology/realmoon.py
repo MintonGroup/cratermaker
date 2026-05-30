@@ -308,7 +308,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        npoints = int(2 * math.pi * self.radius / self.morphology.surface.pix)
+        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), 8)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_radius_control,
             npoints=npoints,
@@ -334,7 +334,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the floor radius outline.
         """
-        npoints = int(2 * math.pi * self.floor_radius / self.morphology.surface.pix)
+        npoints = max(int(2 * math.pi * self.floor_radius / self.morphology.surface.pix), 8)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.floor_radius_control,
             npoints=npoints,
@@ -347,7 +347,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim elevation profile.
         """
-        npoints = int(2 * math.pi * self.radius / self.morphology.surface.pix)
+        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), 8)
         return realmoon_bindings.get_1d_psd_from_control_points(
             control_points=self.rim_elevation_control,
             npoints=npoints,
