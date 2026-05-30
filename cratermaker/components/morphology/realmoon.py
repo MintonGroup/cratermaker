@@ -53,12 +53,12 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        object.__setattr__(self, "_rim_radius_control", None)
-        object.__setattr__(self, "_rim_elevation_control", None)
-        object.__setattr__(self, "_rim_flank_radius_control", None)
-        object.__setattr__(self, "_floor_radius_control", None)
-        object.__setattr__(self, "_wall_texture_control", None)
-        object.__setattr__(self, "_ejecta_texture_control", None)
+        object.__setattr__(self, "_rim_radius_control", rim_radius_control)
+        object.__setattr__(self, "_rim_elevation_control", rim_elevation_control)
+        object.__setattr__(self, "_rim_flank_radius_control", rim_flank_radius_control)
+        object.__setattr__(self, "_floor_radius_control", floor_radius_control)
+        object.__setattr__(self, "_wall_texture_control", wall_texture_control)
+        object.__setattr__(self, "_ejecta_texture_control", ejecta_texture_control)
         return
 
     @property
@@ -191,6 +191,8 @@ class RealMoonCrater(BasicMoonCrater):
         ]:
             argname = f"{var}_rng_seed"
             args[argname] = morphology.rng.integers(0, 2**32 - 1)
+            argname = f"{var}_control"
+            args[argname] = input_args.get(argname)
 
         kwargs = {**args, **kwargs}
 
