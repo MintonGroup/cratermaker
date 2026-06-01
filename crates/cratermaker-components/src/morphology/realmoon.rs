@@ -343,7 +343,7 @@ pub fn profile_from_psd(
             let mut dy = 0.0;
             for i in 0..nfreq {
                 let freq = 1.0 / psd[[i, 0]];
-                dy += amplitude[i] * (TAU * freq * (t + phase_values[i])).sin();
+                dy += amplitude[i] * (TAU * freq * t + phase_values[i]).cos();
             }
             dy * crater_radius + ymean 
         })

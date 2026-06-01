@@ -573,8 +573,13 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         Returns
         -------
-        psd : NDArray[np.float64]
-            A 2D array where the first column contains the wavelengths corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
+        wavelength : NDArray[np.float64]
+            An array of wavelengths corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
+        power : NDArray[np.float64]
+            An array of power spectral density values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The PSD values are normalized by the interval and the number of points in the input signal, such that they represent the power per unit wavelength. The normalization is done by multiplying the squared magnitude of the Fourier coefficients by 2 and dividing by the product of the interval and the number of points in the input signal. The factor of 2 accounts for the fact that we are using a one-sided PSD (i.e., only considering positive frequencies).
+        phases : NDArray[np.float64]
+            An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
+
         """
         y = np.asarray(y, dtype=np.float64)
         ymean = np.mean(y)
@@ -582,16 +587,17 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         n = len(y)
         interval = 2 * math.pi / n
-        psd1D = (2 * np.abs(dfft)) ** 2 / (interval * n)
+        power = (2 * np.abs(dfft)) ** 2 / (interval * n)
 
         if n % 2 == 0:
             index_end = n // 2
         else:
             index_end = n // 2 + 1
         freq = fft.fftfreq(n, interval)
+        freq_pos = freq[1:index_end]
         wavelength = 1 / freq[1:index_end]
-        psd = np.flipud(np.column_stack((wavelength, psd1D[1:index_end])))
-        return psd
+        phases = np.angle(dfft[1:index_end])
+        return np.flipud(wavelength), np.flipud(power[1:index_end]), np.flipud(phases)
 
     @parameter
     def add_noise(self) -> bool:
