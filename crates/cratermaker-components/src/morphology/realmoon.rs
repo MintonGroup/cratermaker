@@ -334,7 +334,7 @@ pub fn profile_from_psd(
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 
-    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * pix / n).sqrt()) / 2.0;
+    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * pix / n).sqrt());
 
     let out: Vec<f64> = (0..ntheta)
         .into_par_iter()

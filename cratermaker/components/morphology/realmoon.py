@@ -561,6 +561,38 @@ class RealmoonMorphology(BasicMoonMorphology):
         ans = super().crater_profile(crater, r, np.zeros(1)) - minimum_thickness
         return ans[0]
 
+    @staticmethod
+    def compute_psd1d(y):
+        """
+        Compute the normalized 1D power spectral density (PSD) of a given signal `y`.
+
+        Parameters
+        ----------
+        y : ArrayLike
+            The input signal for which to compute the 1D PSD. This should be a 1D array of values representing the signal in the spatial domain.
+
+        Returns
+        -------
+        psd : NDArray[np.float64]
+            A 2D array where the first column contains the wavelengths corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
+        """
+        y = np.asarray(y, dtype=np.float64)
+        ymean = np.mean(y)
+        dfft = fft.rfft(y - ymean)
+
+        n = len(y)
+        interval = 2 * math.pi / n
+        psd1D = (2 * np.abs(dfft)) ** 2 / (interval * n)
+
+        if n % 2 == 0:
+            index_end = n // 2
+        else:
+            index_end = n // 2 + 1
+        freq = fft.fftfreq(n, interval)
+        wavelength = 1 / freq[1:index_end]
+        psd = np.flipud(np.column_stack((wavelength, psd1D[1:index_end])))
+        return psd
+
     @parameter
     def add_noise(self) -> bool:
         """
