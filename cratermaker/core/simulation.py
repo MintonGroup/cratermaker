@@ -1008,6 +1008,7 @@ class Simulation(CratermakerBase):
         self,
         interval: int | None = None,
         plot_style: str = "hillshade",
+        variable_name: str | None = None,
         label="default",
         show=False,
         save=True,
@@ -1034,6 +1035,8 @@ class Simulation(CratermakerBase):
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         observed_color : str | None, optional
@@ -1078,6 +1081,7 @@ class Simulation(CratermakerBase):
         plot_args = {
             "interval": interval,
             "plot_style": plot_style,
+            "variable_name": variable_name,
             "label": label,
             "show": show,
             "save": save,
