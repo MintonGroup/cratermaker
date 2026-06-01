@@ -835,6 +835,7 @@ class Surface(ComponentBase):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         interval: int | None = None,
@@ -854,6 +855,8 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -891,6 +894,7 @@ class Surface(ComponentBase):
         return self._full().plot(
             variable_name=variable_name,
             plot_style=plot_style,
+            filename=filename,
             cmap=cmap,
             interval=interval,
             label=label,
@@ -3548,12 +3552,14 @@ class LocalSurface(CratermakerBase):
                     file_prefix += f"_{variable_name}"
                 if interval is None:
                     uxds = self.uxds
-                    filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
+                    if filename is None:
+                        filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
                 else:
                     uxds = self.read_saved_output(interval=interval, reset=False)
                     interval = uxds.interval.values.item()
                     uxds = uxds.sel(interval=interval)
-                    filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
+                    if filename is None:
+                        filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
 
                 plt.savefig(filename, pad_inches=0, dpi=ax.figure.get_dpi())
             if show:

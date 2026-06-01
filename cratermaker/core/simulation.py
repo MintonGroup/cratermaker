@@ -1006,6 +1006,7 @@ class Simulation(CratermakerBase):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         interval: int | None = None,
         plot_style: str = "hillshade",
         variable_name: str | None = None,
@@ -1029,6 +1030,8 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         include_counting : bool, optional
             If True, the counting data will be included in the plot if counting is enabled. Default is False
         interval : int, optional
@@ -1082,6 +1085,7 @@ class Simulation(CratermakerBase):
             "interval": interval,
             "plot_style": plot_style,
             "variable_name": variable_name,
+            "filename": filename,
             "label": label,
             "show": show,
             "save": save,

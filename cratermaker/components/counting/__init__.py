@@ -596,6 +596,7 @@ class Counting(ComponentBase):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         interval: int | None = None,
         observed_color: str | None = "white",
         observed_original_color: str | None = None,
@@ -701,11 +702,13 @@ class Counting(ComponentBase):
                     emplaced_interval = emplaced.interval.values[-1]
                     if emplaced_interval == interval:
                         emplaced = self.Crater.from_xarray(emplaced_ds, interval=interval)
-            filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
+            if filename is None:
+                filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.surface.output_image_file_extension}"
         else:
             observed = list(self.observed.values())
             emplaced = self.emplaced
-            filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
+            if filename is None:
+                filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
 
         ax = self.surface.plot(
             plot_style=plot_style,

@@ -246,6 +246,7 @@ class HiResLocalSurface(Surface):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         interval: int | None = None,
@@ -266,6 +267,8 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -299,6 +302,7 @@ class HiResLocalSurface(Surface):
             if scalebar is None:
                 scalebar = False
             return self._full().plot(
+                filename=filename,
                 plot_style=plot_style,
                 variable_name=variable_name,
                 interval=interval,
@@ -317,6 +321,7 @@ class HiResLocalSurface(Surface):
             if scalebar is None:
                 scalebar = True
             return self.local.plot(
+                filename=filename,
                 plot_style=plot_style,
                 variable_name=variable_name,
                 interval=interval,
