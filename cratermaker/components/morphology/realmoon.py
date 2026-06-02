@@ -594,7 +594,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         else:
             index_end = n // 2 + 1
         freq = fft.fftfreq(n, interval)
-        freq_pos = freq[1:index_end]
         wavelength = 1 / freq[1:index_end]
         phases = np.angle(dfft[1:index_end])
         return np.flipud(wavelength), np.flipud(power[1:index_end]), np.flipud(phases)
