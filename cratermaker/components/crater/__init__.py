@@ -1072,6 +1072,8 @@ class Crater(ComponentBase):
             if prho < 0:
                 raise ValueError("Projectile density must be non-negative.")
 
+            name = args.pop("name", None) if name is None else name
+
         if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
         else:

@@ -151,10 +151,12 @@ class BasicMoonCrater(MorphologyCrater):
 
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, BasicMoonCrater):
-            rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
-            rim_flank_radius = crater.rim_flank_radius if rim_flank_radius is None else rim_flank_radius
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
+            wall_curvature = crater.wall_curvature if wall_curvature is None else wall_curvature
+            rim_width = crater.rim_width if rim_width is None else rim_width
+            rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
+            rim_flank_radius = crater.rim_flank_radius if rim_flank_radius is None else rim_flank_radius
             rimdrop = crater.rimdrop if rimdrop is None else rimdrop
             ejrim = crater.ejrim if ejrim is None else ejrim
             ejprofile = crater.ejprofile if ejprofile is None else ejprofile
