@@ -78,11 +78,15 @@ class BasicMoonCrater(MorphologyCrater):
     def __str__(self) -> str:
         str_repr = super().__str__()
         str_repr += (
-            f"Rim height: {format_large_units(self.rim_elevation, quantity='length')}\n"
-            f"Floor depth: {format_large_units(self.floor_elevation, quantity='length')}\n"
-            f"Floor diameter: {format_large_units(self.floor_radius, quantity='length')}\n"
-            f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
+            f"Rim elevation: {format_large_units(self.rim_elevation, quantity='length')}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
+            f"Floor elevation: {format_large_units(self.floor_elevation, quantity='length')}\n"
+            f"Floor radius: {format_large_units(self.floor_radius, quantity='length')}\n"
+            f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
+            f"Central peak width: {format_large_units(self.peak_width, quantity='length') if self.peak_width else 'None'}\n"
+            f"Central peak offset: {format_large_units(self.peak_offset, quantity='length') if self.peak_offset else 'None'}\n"
+            f"Wall curvature factor: {self.wall_curvature}\n"
+            f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
         )
         return str_repr
 
@@ -270,7 +274,9 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_height"] = peak_height
 
         if wall_curvature is None:
-            wall_curvature = morphology.rng.uniform(low=0, high=6, size=1)[0]
+            wall_curvature = morphology.rng.uniform(low=0.1, high=6, size=1)[0]
+        else:
+            wall_curvature = max(wall_curvature, 0.1)
         args["wall_curvature"] = wall_curvature
 
         if rim_width is None:
