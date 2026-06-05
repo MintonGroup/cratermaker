@@ -84,8 +84,6 @@ class BasicMoonCrater(MorphologyCrater):
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Ejecta rim thickness: {format_large_units(self.ejrim, quantity='length')}\n"
         )
-        if self.morphology_subtype is not None:
-            str_repr += f"Morphology subtype: {self.morphology_subtype}\n"
         return str_repr
 
     @classmethod
