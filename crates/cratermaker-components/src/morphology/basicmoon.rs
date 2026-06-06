@@ -185,7 +185,7 @@ pub fn crater_profile_function(r: f64, radius: f64, hf: f64, rf: f64, beta: f64,
             let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
             let t = (r - (radius - rw_half)) / rw;
             let phi = 6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3);
-            let fw = c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp()) + hr;
+            let fw = (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr;
             if r <= radius - rw_half {
                 fw + fc
             } else {
