@@ -579,44 +579,9 @@ class BasicMoonMorphology(Morphology):
 
         original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
 
-        ring = crater.ring
-        if ring is None:
-            new_elevation = self.crater_profile(
-                crater=crater, radial_distances=radial_distances, bearings=bearings, r_ref=reference_elevation
-            )
-        else:
-            new_elevation = np.zeros_like(radial_distances)
-            inner = radial_distances < crater.radius
-            outer = radial_distances > ring.radius
-            new_elevation[outer] = self.crater_profile(
-                crater=crater, radial_distances=radial_distances[outer], bearings=bearings[outer], r_ref=reference_elevation[outer]
-            )
-            outer_ring = crater
-            old_ring_ref = reference_elevation
-            while ring is not None:
-                outer = radial_distances > ring.radius
-                middle = (inner) & (outer)
-
-                ring_ref = reference_elevation + ring.ring_elevation
-
-                outerh = self.crater_profile(
-                    crater=outer_ring,
-                    radial_distances=radial_distances[middle],
-                    bearings=bearings[middle],
-                    r_ref=old_ring_ref[middle],
-                )
-                innerh = self.crater_profile(
-                    crater=ring, radial_distances=radial_distances[middle], bearings=bearings[middle], r_ref=ring_ref[middle]
-                )
-                new_elevation[middle] = np.where(outerh > innerh, outerh, innerh)
-                if ring.ring is None:
-                    new_elevation[inner] = self.crater_profile(
-                        crater=ring, radial_distances=radial_distances[inner], bearings=bearings[inner], r_ref=ring_ref[inner]
-                    )
-                inner = radial_distances < ring.radius
-                outer_ring = ring
-                ring = ring.ring
-                old_ring_ref = ring_ref
+        new_elevation = self.crater_profile(
+            crater=crater, radial_distances=radial_distances, bearings=bearings, reference_elevations=reference_elevation
+        )
 
         elevation_change = new_elevation - original_elevation
         return elevation_change
@@ -625,9 +590,11 @@ class BasicMoonMorphology(Morphology):
         self,
         crater: BasicMoonCrater,
         radial_distances: ArrayLike,
-        r_ref: ArrayLike | None = None,
+        reference_elevations: ArrayLike | None = None,
         crater_cls: type[Crater] = BasicMoonCrater,
         profile_func: Callable = basicmoon_bindings.basicmoon_profile,
+        include_crater: bool = True,
+        include_ejecta: bool = False,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
@@ -639,12 +606,16 @@ class BasicMoonMorphology(Morphology):
             The crater object containing the parameters for the crater profile.
         radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
-        r_ref : ArrayLike, optional
+        reference_elevations : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
         crater_cls : type[Crater], optional
             The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
         profile_func: Callable, optional
             The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
+        include_crater : bool, optional
+            Draws the crater profile without the ejecta. Default is True.
+        include_ejecta : bool, optional
+            Draws the ejecta profile without the crater. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -659,8 +630,8 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, crater_cls):
             crater = crater_cls.maker(crater, morphology=self)
-        if r_ref is None:
-            r_ref = np.zeros_like(radial_distances)
+        if reference_elevations is None:
+            reference_elevations = np.zeros_like(radial_distances)
 
         if np.isscalar(radial_distances):
             radial_distances = np.array([radial_distances], dtype=np.float64)
@@ -670,16 +641,69 @@ class BasicMoonMorphology(Morphology):
         # flatten r to 1D array
         orig_shape = radial_distances.shape
         radial_distances = np.ravel(radial_distances)
-        reference_elevations = np.ravel(r_ref)
+        reference_elevations = np.ravel(reference_elevations)
         bearings = kwargs.pop("bearings", np.empty_like(radial_distances))
-        elevation = profile_func(
-            radial_distances=radial_distances,
-            bearings=bearings,
-            reference_elevations=reference_elevations,
-            crater=crater,
-            include_crater=True,
-            include_ejecta=False,
-        )
+
+        ring = crater.ring
+        if ring is None:
+            elevation = profile_func(
+                radial_distances=radial_distances,
+                bearings=bearings,
+                reference_elevations=reference_elevations,
+                crater=crater,
+                include_crater=True,
+                include_ejecta=False,
+            )
+        else:
+            elevation = np.zeros_like(radial_distances)
+            inner = radial_distances < crater.radius
+            outer = radial_distances > ring.radius
+            elevation[outer] = profile_func(
+                radial_distances=radial_distances[outer],
+                bearings=bearings[outer],
+                reference_elevations=reference_elevations[outer],
+                crater=crater,
+                include_crater=True,
+                include_ejecta=False,
+            )
+            outer_ring = crater
+            old_ring_ref = reference_elevations
+            while ring is not None:
+                ring_ref = reference_elevations + ring.ring_elevation
+                outer = radial_distances > ring.radius
+                middle = (inner) & (outer)
+                if np.any(middle):
+                    outerh = profile_func(
+                        radial_distances=radial_distances[middle],
+                        bearings=bearings[middle],
+                        reference_elevations=old_ring_ref[middle],
+                        crater=outer_ring,
+                        include_crater=True,
+                        include_ejecta=False,
+                    )
+                    innerh = profile_func(
+                        radial_distances=radial_distances[middle],
+                        bearings=bearings[middle],
+                        reference_elevations=ring_ref[middle],
+                        crater=ring,
+                        include_crater=True,
+                        include_ejecta=False,
+                    )
+
+                    elevation[middle] = np.where(outerh > innerh, outerh, innerh)
+                if ring.ring is None and np.any(inner):
+                    elevation[inner] = profile_func(
+                        radial_distances=radial_distances[inner],
+                        bearings=bearings[inner],
+                        reference_elevations=ring_ref[inner],
+                        crater=ring,
+                        include_crater=True,
+                        include_ejecta=False,
+                    )
+                inner = radial_distances < ring.radius
+                outer_ring = ring
+                ring = ring.ring
+                old_ring_ref = ring_ref
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
         elevation = np.reshape(elevation, orig_shape)
@@ -759,29 +783,13 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, crater_cls):
-            crater = crater_cls.maker(crater, morphology=self)
-        if np.isscalar(radial_distances):
-            radial_distances = np.array([radial_distances], dtype=np.float64)
-        elif isinstance(radial_distances, (list | tuple)):
-            radial_distances = np.array(radial_distances, dtype=np.float64)
-        # flatten r to 1D array
-        orig_shape = radial_distances.shape
-        radial_distances = np.ravel(radial_distances)
-        reference_elevations = np.zeros_like(radial_distances)
-        bearings = kwargs.pop("bearings", np.empty_like(radial_distances))
-        elevation = profile_func(
-            radial_distances=radial_distances,
-            reference_elevations=reference_elevations,
-            bearings=bearings,
+        return self.crater_profile(
             crater=crater,
+            radial_distances=radial_distances,
             include_crater=False,
             include_ejecta=True,
+            **kwargs,
         )
-        elevation = np.array(elevation, dtype=np.float64)
-        # reshape elevation to match the shape of r
-        elevation = np.reshape(elevation, orig_shape)
-        return elevation
 
     def ejecta_distribution(
         self, crater, radial_distances: ArrayLike, bearings: ArrayLike

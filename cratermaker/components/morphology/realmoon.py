@@ -460,7 +460,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         crater: RealMoonCrater,
         radial_distances: ArrayLike,
         bearings: ArrayLike,
-        r_ref: ArrayLike | None = None,
+        reference_elevations: ArrayLike | None = None,
         crater_cls: type[Crater] = RealMoonCrater,
         profile_func: Callable = realmoon_bindings.realmoon_profile,
         **kwargs: Any,
@@ -476,7 +476,7 @@ class RealmoonMorphology(BasicMoonMorphology):
             Radial distances from the crater center (in meters).
         bearings : ArrayLike
             Bearings (in degrees) corresponding to the radial distances.
-        r_ref : ArrayLike, optional
+        reference_elevations : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
         crater_cls : type[Crater], optional
             The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
@@ -499,7 +499,7 @@ class RealmoonMorphology(BasicMoonMorphology):
             crater=crater,
             radial_distances=radial_distances,
             bearings=bearings,
-            r_ref=r_ref,
+            reference_elevations=reference_elevations,
             crater_cls=crater_cls,
             profile_func=profile_func,
             **kwargs,
