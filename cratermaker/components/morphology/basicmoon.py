@@ -656,8 +656,8 @@ class BasicMoonMorphology(Morphology):
             )
         else:
             elevation = np.zeros_like(radial_distances)
-            inner = radial_distances < crater.radius
-            outer = radial_distances > ring.radius
+            inner = radial_distances <= crater.radius
+            outer = radial_distances >= ring.radius
             elevation[outer] = profile_func(
                 radial_distances=radial_distances[outer],
                 bearings=bearings[outer],
@@ -667,10 +667,14 @@ class BasicMoonMorphology(Morphology):
                 include_ejecta=include_ejecta,
             )
             outer_ring = crater
-            old_ring_ref = reference_elevations
+            old_ring_ref = reference_elevations.copy()
             while ring is not None:
-                ring_ref = reference_elevations + ring.ring_elevation
-                outer = radial_distances > ring.radius
+                ring_ref = reference_elevations.copy()
+                if ring.ring_elevation is not None:
+                    ring_ref += ring.ring_elevation
+
+                inner = radial_distances <= outer_ring.radius
+                outer = radial_distances >= ring.radius
                 middle = (inner) & (outer)
                 if np.any(middle):
                     outerh = profile_func(
@@ -691,19 +695,20 @@ class BasicMoonMorphology(Morphology):
                     )
 
                     elevation[middle] = np.where(outerh > innerh, outerh, innerh)
-                if ring.ring is None and np.any(inner):
-                    elevation[inner] = profile_func(
-                        radial_distances=radial_distances[inner],
-                        bearings=bearings[inner],
-                        reference_elevations=ring_ref[inner],
-                        crater=ring,
-                        include_crater=include_crater,
-                        include_ejecta=include_ejecta,
-                    )
-                inner = radial_distances < ring.radius
+                if ring.ring is None:
+                    inner = radial_distances <= ring.radius
+                    if np.any(inner):
+                        elevation[inner] = profile_func(
+                            radial_distances=radial_distances[inner],
+                            bearings=bearings[inner],
+                            reference_elevations=ring_ref[inner],
+                            crater=ring,
+                            include_crater=include_crater,
+                            include_ejecta=include_ejecta,
+                        )
                 outer_ring = ring
                 ring = ring.ring
-                old_ring_ref = ring_ref
+                old_ring_ref = ring_ref.copy()
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
         elevation = np.reshape(elevation, orig_shape)
