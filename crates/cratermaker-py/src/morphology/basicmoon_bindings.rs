@@ -12,19 +12,12 @@ use pyo3::prelude::*;
 /// # Arguments
 ///
 /// * `py` - Python GIL token.
-/// * `r_array` - 1D array of radial distances from crater center (in meters).
-/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `crater_radius` - Total radius of the crater (in meters).
-/// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters).
-/// * `floor_radius` - Radius of the crater floor (in meters).
-/// * `wall_curvature` - Parameter controlling the curvature of the crater wall (>1 for more curvature)
-/// * `rim_width` - Width of the crater rim (in meters).
-/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
-/// * `rimdrop` - Exponent for the rim dropoff function (typically -4.0 to -6.0)
-/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
-/// * `peak_height` - Height of the central peak above the crater floor (in meters).
-/// * `peak_width` - Width of the central peak (in meters).
-/// * `peak_offset` - Radial offset of the central peak from the crater center (in meters).
+/// * `radial_distances` - 1D array of radial distances from crater center (in meters).
+/// * `bearings` - 1D array of bearing angles (radians, clockwise north). This is not used for this model, but is included for compatability
+/// * `reference_elevations` - 1D array of reference elevations corresponding to each radius.
+/// * `crater` - A BasicMoonCrater struct containing the crater's properties.
+/// * `include_crater` - Boolean indicating whether to include the crater profile.
+/// * `include_ejecta` - Boolean indicating whether to include the ejecta profile.
 ///
 /// # Returns
 ///
@@ -37,6 +30,7 @@ use pyo3::prelude::*;
 pub fn basicmoon_profile<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
+    bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: BasicMoonCrater,
     include_crater: bool,
@@ -44,6 +38,7 @@ pub fn basicmoon_profile<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
     let reference_elevations_v = reference_elevations.as_array();
+    let _bearings_v = bearings.as_array(); // Suppresses the unused argument warning.
     let result = cratermaker_components::morphology::basicmoon::basicmoon_profile(
         radial_distances_v,
         reference_elevations_v,
@@ -61,7 +56,7 @@ pub fn basicmoon_profile<'py>(
 ///
 /// * `py` - Python GIL token.
 /// * `radial_distances` - 1D array of radial distances from crater center.
-/// * `initial_bearing` - 1D array of bearing angles (radians).
+/// * `earings` - 1D array of bearing angles (radians, clockwise north).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
@@ -71,15 +66,15 @@ pub fn basicmoon_profile<'py>(
 pub fn ray_intensity<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
-    initial_bearing: PyReadonlyArray1<'py, f64>,
+    bearings: PyReadonlyArray1<'py, f64>,
     crater_diameter: f64,
     seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let radial_distances_v = radial_distances.as_array();
-    let initial_bearing_v = initial_bearing.as_array();
+    let bearings_v = bearings.as_array();
     let result = cratermaker_components::morphology::basicmoon::ray_intensity(
         radial_distances_v,
-        initial_bearing_v,
+        bearings_v,
         crater_diameter,
         seed,
     )

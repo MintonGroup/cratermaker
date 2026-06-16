@@ -12,10 +12,13 @@ from scipy import fft
 
 from cratermaker.bindings import basicmoon_bindings, realmoon_bindings
 from cratermaker.components.crater import Crater
-from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
-from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
-from cratermaker.components.surface import LocalSurface, Surface
-from cratermaker.constants import FloatLike
+from cratermaker.components.morphology import Morphology
+from cratermaker.components.morphology.basicmoon import (
+    BasicMoonCrater,
+    BasicMoonCraterFixed,
+    BasicMoonCraterVariable,
+    BasicMoonMorphology,
+)
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
@@ -41,7 +44,7 @@ class RealMoonCraterFixed(BasicMoonCraterFixed):
     """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
-class RealMoonCraterVariable(MorphologyCraterVariable):
+class RealMoonCraterVariable(BasicMoonCraterVariable):
     def __init__(
         self,
         rim_radius_control: np.ndarray | None = None,
@@ -193,6 +196,9 @@ class RealMoonCrater(BasicMoonCrater):
             args[argname] = morphology.rng.integers(0, 2**32 - 1)
             argname = f"{var}_control"
             args[argname] = input_args.get(argname)
+
+        if crater.ring is not None:
+            args["ring"] = cls(crater=crater.ring, morphology=morphology, **args)
 
         kwargs = {**args, **kwargs}
 
@@ -422,7 +428,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         self,
         crater: Crater | None = None,
         fixed_cls=RealMoonCraterFixed,
-        variable_cls=MorphologyCraterVariable,
+        variable_cls=RealMoonCraterVariable,
         psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,
         **kwargs,

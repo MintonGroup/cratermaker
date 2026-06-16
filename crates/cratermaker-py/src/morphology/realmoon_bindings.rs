@@ -187,19 +187,12 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
 /// # Arguments
 ///
 /// * `py` - Python GIL token.
-/// * `r_array` - 1D array of radial distances from crater center (in meters).
-/// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `crater_radius` - Total radius of the crater (in meters).
-/// * `floor_elevation` - Depth of the crater floor below mean surface level (in meters).
-/// * `floor_radius` - Radius of the crater floor (in meters).
-/// * `wall_curvature` - Parameter controlling the curvature of the crater wall (>1 for more curvature)
-/// * `rim_width` - Width of the crater rim (in meters).
-/// * `rim_elevation` - Height of the crater rim above mean surface level (in meters).
-/// * `rimdrop` - Exponent for the rim dropoff function (typically -4.0 to -6.0)
-/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
-/// * `peak_height` - Height of the central peak above the crater floor (in meters).
-/// * `peak_width` - Width of the central peak (in meters).
-/// * `peak_offset` - Radial offset of the central peak from the crater center (in meters).
+/// * `radial_distances` - 1D array of radial distances from crater center (in meters).
+/// * `bearings` - 1D array of bearing angles (radians, clockwise north). 
+/// * `reference_elevations` - 1D array of reference elevations corresponding to each radius.
+/// * `crater` - A BasicMoonCrater struct containing the crater's properties.
+/// * `include_crater` - Boolean indicating whether to include the crater profile.
+/// * `include_ejecta` - Boolean indicating whether to include the ejecta profile.
 ///
 /// # Returns
 ///

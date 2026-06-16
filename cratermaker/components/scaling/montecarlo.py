@@ -106,6 +106,7 @@ class MonteCarloScaling(Scaling):
         object.__setattr__(self, "_final_exp", None)
         object.__setattr__(self, "_material_catalogue", None)
         object.__setattr__(self, "_montecarlo_scaling", monte_carlo_scaling)
+        object.__setattr__(self, "_multiring_transition", None)
 
         if material is None:
             self.material = self.target.material
@@ -127,6 +128,8 @@ class MonteCarloScaling(Scaling):
             self.target.density = self.material_catalogue[self.material]["density"]
         if self.projectile.density is None:
             self.projectile.density = self.target.density
+        if self.target.name == "Moon":
+            self._multiring_transition = 500e3
 
         arg_check = sum(x is None for x in [self.target.density, self.K1, self.mu, self.Ybar])
         if arg_check > 0:
@@ -169,7 +172,9 @@ class MonteCarloScaling(Scaling):
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular
         transition_range = (0.5 * self.transition_nominal, 2 * self.transition_nominal)
 
-        if diameter < transition_range[0]:
+        if self._multiring_transition is not None and diameter > self._multiring_transition:
+            morphology_type = "multiring"
+        elif diameter < transition_range[0]:
             morphology_type = "simple"
         elif diameter > transition_range[1]:
             morphology_type = "complex"

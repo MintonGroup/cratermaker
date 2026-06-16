@@ -273,7 +273,7 @@ fn ray_intensity_point(
 /// # Arguments
 ///
 /// * `radial_distances` - 1D array of radial distances (meters).
-/// * `initial_bearing` - 1D array of initial bearing angles (degrees).
+/// * `bearings` - 1D array of initial bearing angles (radians, clockwise north).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
@@ -281,11 +281,11 @@ fn ray_intensity_point(
 /// * A vector of normalized ray-modulated intensity values.
 pub fn ray_intensity(
     radial_distances: ArrayView1<'_, f64>,
-    initial_bearings: ArrayView1<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
     crater_diameter: f64,
     seed: u64,
 ) -> ArrayResult {
-    if radial_distances.len() != initial_bearings.len() {
+    if radial_distances.len() != bearings.len() {
         return Err("radial_distances and reference_elevations must have same length".into());
     }
     let crater_radius = crater_diameter / 2.0;
@@ -307,7 +307,7 @@ pub fn ray_intensity(
         .map(|i| {
             ray_intensity_point(
                 radial_distances[i],
-                initial_bearings[i],
+                bearings[i],
                 crater_radius,
                 rmin,
                 rmax,

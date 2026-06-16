@@ -51,6 +51,8 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original central peak width of the crater in meters. 0 for simple craters."""
     peak_offset: float | None = None
     """Original central peak offset of the crater in meters. 0 for simple craters."""
+    ring_elevation: float | None = None
+    """Elevation of ring for multiring basin"""
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -67,10 +69,42 @@ class BasicMoonCraterFixed(CraterFixed):
             return None
 
 
+class BasicMoonCraterVariable(MorphologyCraterVariable):
+    def __init__(self, ring: BasicMoonCrater | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        object.__setattr__(self, "_ring", None)
+        if ring is not None:
+            self.ring = ring
+        return
+
+    def as_dict(self) -> dict:
+        """
+        Return a dictionary representation of the crater variable properties.
+        """
+        dict_repr = super().as_dict()
+        dict_repr["ring"] = self.ring
+
+        return dict_repr
+
+    @property
+    def ring(self) -> BasicMoonCrater:
+        return self._ring
+
+    @ring.setter
+    def ring(self, value: BasicMoonCrater | None):
+        if value is not None:
+            if not isinstance(value, Crater):
+                raise TypeError("ring must be a Crater type")
+            elif not isinstance(value, BasicMoonCrater):
+                value = BasicMoonCrater.maker(crater=value)
+        self._ring = value
+        return
+
+
 @Crater.register("basicmooncrater")
 class BasicMoonCrater(MorphologyCrater):
     def __init__(
-        self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
+        self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=BasicMoonCraterVariable, **kwargs
     ):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
@@ -107,6 +141,8 @@ class BasicMoonCrater(MorphologyCrater):
         peak_height: float | None = None,
         peak_width: float | None = None,
         peak_offset: float | None = None,
+        ring: BasicMoonCrater | None = None,
+        ring_elevation: float | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -138,6 +174,10 @@ class BasicMoonCrater(MorphologyCrater):
             Original central peak width of the crater in meters. If None, it will be computed for complex craters and set to 0 for simple craters.
         peak_offset : float, optional
             Original central peak offset of the crater in meters. If None, it will be computed for complex craters and set to 0for simple craters.
+        ring : BasicMoonCrater, optional
+            Represents the inner ring of a multi-ring basin as a nested BasicMoonCrater object.
+        ring_elevation : float, optional
+            Elevation of the inner ring of a multi-ring basin.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -165,6 +205,8 @@ class BasicMoonCrater(MorphologyCrater):
             peak_height = crater.peak_height if peak_height is None else peak_height
             peak_width = crater.peak_width if peak_width is None else peak_width
             peak_offset = crater.peak_offset if peak_offset is None else peak_offset
+            ring = crater.ring if ring is None else ring
+            ring_elevation = crater.ring_elevation if ring_elevation is None else ring_elevation
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
@@ -267,11 +309,13 @@ class BasicMoonCrater(MorphologyCrater):
         args["floor_radius"] = floor_radius
 
         if peak_height is None:
-            if morphology_type != "complex":
-                peak_height = 0.0
-            else:
+            if crater.morphology_type == "complex":
                 peak_height = sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
+            else:
+                peak_height = 0.0
         args["peak_height"] = peak_height
+        args["peak_width"] = args["peak_height"] * 2 if peak_width is None else peak_width
+        args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
 
         if wall_curvature is None:
             wall_curvature = morphology.rng.uniform(low=0.1, high=6, size=1)[0]
@@ -292,9 +336,6 @@ class BasicMoonCrater(MorphologyCrater):
             rim_flank_radius = morphology.rng.normal(mean, sigma, 1)[0] * diameter_km / 2 * 1e3
         args["rim_flank_radius"] = rim_flank_radius
 
-        args["peak_width"] = args["peak_height"] * 2 if peak_width is None else peak_width
-        args["peak_offset"] = 0.0 if peak_offset is None else peak_offset
-
         # Try to approximately conserve volume when setting the ejecta thickness at the rim value
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
         args["rimdrop"] = _RIMDROP if rimdrop is None else rimdrop
@@ -310,6 +351,35 @@ class BasicMoonCrater(MorphologyCrater):
                 ejrim = min(ejrim, args["rim_elevation"])
         args["ejrim"] = ejrim
 
+        args["ring_elevation"] = ring_elevation
+
+        if ring is None:
+            if crater.morphology_type == "multiring":
+                ring_diameter = crater.diameter / np.sqrt(2.0)
+                ring_floor_radius = args["floor_radius"]
+                if ring_elevation is None:
+                    ring_elevation = 0.5 * args["floor_elevation"]
+                ring_floor_elevation = args["floor_elevation"] - ring_elevation
+                ring_rim_elevation = args["rim_elevation"] - ring_elevation
+                ring = BasicMoonCrater.maker(
+                    **{
+                        **kwargs,
+                        **{
+                            "diameter": ring_diameter,
+                            "floor_elevation": ring_floor_elevation,
+                            "floor_radius": ring_floor_radius,
+                            "morphology_type": "complex",
+                            "morphology": morphology,
+                            "peak_height": peak_height,
+                            "peak_width": peak_width,
+                            "peak_offset": peak_offset,
+                            "rim_elevation": ring_rim_elevation,
+                            "ring_elevation": ring_elevation,
+                        },
+                    }
+                )
+        args["ring"] = ring
+
         kwargs = {**args, **kwargs}
 
         return cls(
@@ -317,6 +387,22 @@ class BasicMoonCrater(MorphologyCrater):
             morphology=morphology,
             **kwargs,
         )
+
+    def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
+        """
+        Return a dictionary representation of the crater properties, including morphology-specific variable properties.
+
+        Parameters
+        ----------
+        ignore_keys : list[str] or tuple[str], optional
+            A list or tuple of property names to ignore when creating the dictionary representation. Default is an empty tuple unless `skip_complex_data` is True, in which case it will be extended to include ("morphology", "affected_face_indices", "affected_node_indices", "ejecta_region", "ejecta_region", "crater_region").
+        skip_complex_data : bool, optional
+            If True, skip complex data types when creating the dictionary representation. This is useful when serializing the object for saving to a file, as it removes complex data types that may not be serializable. Default is False.
+        """
+        if skip_complex_data:
+            ignore_keys += ("ring",)
+        dict_repr = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
+        return dict_repr
 
 
 @Morphology.register("basicmoon")
@@ -492,9 +578,37 @@ class BasicMoonMorphology(Morphology):
 
         original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
 
-        new_elevation = self.crater_profile(crater=crater, r=r, bearing=bearing, r_ref=reference_elevation)
-        elevation_change = new_elevation - original_elevation
+        ring = crater.ring
+        if ring is None:
+            new_elevation = self.crater_profile(crater=crater, r=r, bearing=bearing, r_ref=reference_elevation)
+        else:
+            new_elevation = np.zeros_like(r)
+            inner = r < crater.radius
+            outer = r > ring.radius
+            new_elevation[outer] = self.crater_profile(
+                crater=crater, r=r[outer], bearing=bearing[outer], r_ref=reference_elevation[outer]
+            )
+            outer_ring = crater
+            old_ring_ref = reference_elevation
+            while ring is not None:
+                outer = r > ring.radius
+                middle = (inner) & (outer)
 
+                ring_ref = reference_elevation + ring.ring_elevation
+
+                outerh = self.crater_profile(crater=outer_ring, r=r[middle], bearing=bearing[middle], r_ref=old_ring_ref[middle])
+                innerh = self.crater_profile(crater=ring, r=r[middle], bearing=bearing[middle], r_ref=ring_ref[middle])
+                new_elevation[middle] = np.where(outerh > innerh, outerh, innerh)
+                if ring.ring is None:
+                    new_elevation[inner] = self.crater_profile(
+                        crater=ring, r=r[inner], bearing=bearing[inner], r_ref=ring_ref[inner]
+                    )
+                inner = r < ring.radius
+                outer_ring = ring
+                ring = ring.ring
+                old_ring_ref = ring_ref
+
+        elevation_change = new_elevation - original_elevation
         return elevation_change
 
     def crater_profile(
@@ -572,11 +686,16 @@ class BasicMoonMorphology(Morphology):
 
         distance = np.concatenate([region.face_distance, region.node_distance])
         bearing = np.concatenate([region.face_bearing, region.node_bearing])
-        if self.dorays:
-            thickness, intensity = self.ejecta_distribution(crater, distance, bearing)
-        else:
-            thickness = self.ejecta_profile(crater, distance, bearing=bearing)
-            intensity = np.ones_like(thickness)
+        thickness = np.zeros_like(distance)
+        intensity = np.ones_like(thickness)
+        while crater is not None:
+            if self.dorays:
+                delta_thickness, delta_intensity = self.ejecta_distribution(crater, distance, bearing)
+                intensity *= delta_intensity
+            else:
+                delta_thickness = self.ejecta_profile(crater, distance, bearing=bearing)
+            thickness += delta_thickness
+            crater = crater.ring
 
         return thickness, intensity
 
