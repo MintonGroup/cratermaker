@@ -322,8 +322,10 @@ pub fn profile_from_psd(
 ) -> ArrayResult {
     let nfreq = psd.nrows();
     let ntheta = theta.len();
-    let n = ntheta as f64;
-    let period_total = psd[[nfreq - 1, 0]]; 
+    //let n = ntheta as f64;
+    // Temporary until I can fix the noramlization issues with the model PSDs
+    let n:f64 = 1e4;
+    let period_total = TAU;
     let pix = period_total / n;
 
     let phase_values: Array1<f64> = if let Some(p) = phases {
@@ -345,6 +347,7 @@ pub fn profile_from_psd(
                 let freq = 1.0 / psd[[i, 0]];
                 dy += amplitude[i] * (TAU * freq * t + phase_values[i]).cos();
             }
+            //println!("{} bearing = {} dy = {}",j,t,dy);
             dy * crater_radius + ymean 
         })
         .collect();

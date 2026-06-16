@@ -458,7 +458,7 @@ class RealmoonMorphology(BasicMoonMorphology):
     def crater_profile(
         self,
         crater: RealMoonCrater,
-        r: ArrayLike,
+        radial_distances: ArrayLike,
         bearings: ArrayLike,
         r_ref: ArrayLike | None = None,
         crater_cls: type[Crater] = RealMoonCrater,
@@ -472,7 +472,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         ----------
         crater : RealMoonCrater
             The crater object containing the parameters for the crater profile.
-        r : ArrayLike
+        radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
         bearings : ArrayLike
             Bearings (in degrees) corresponding to the radial distances.
@@ -494,35 +494,26 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, RealMoonCrater):
-            crater = RealMoonCrater.maker(crater, morphology=self)
-        if r_ref is None:
-            r_ref = np.zeros_like(r)
-
-        if np.isscalar(r):
-            r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list | tuple)):
-            r = np.array(r, dtype=np.float64)
-
-        # flatten r to 1D array
-        radial_distances = np.ravel(r)
-        r_ref_flat = np.ravel(r_ref)
         bearings = np.ravel(np.radians(bearings))
-
-        elevation = realmoon_bindings.realmoon_profile(
+        return super().crater_profile(
+            crater=crater,
             radial_distances=radial_distances,
             bearings=bearings,
-            reference_elevations=r_ref_flat,
-            crater=crater,
-            include_crater=True,
-            include_ejecta=False,
+            r_ref=r_ref,
+            crater_cls=crater_cls,
+            profile_func=profile_func,
+            **kwargs,
         )
 
-        elevation = np.reshape(elevation, r.shape)
-
-        return elevation
-
-    def ejecta_profile(self, crater: RealMoonCrater, radial_distances: ArrayLike, bearings: ArrayLike) -> NDArray[np.float64]:
+    def ejecta_profile(
+        self,
+        crater: RealMoonCrater,
+        radial_distances: ArrayLike,
+        bearings: ArrayLike,
+        crater_cls: type[Crater] = RealMoonCrater,
+        profile_func: Callable = realmoon_bindings.realmoon_profile,
+        **kwargs: Any,
+    ) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -534,6 +525,10 @@ class RealmoonMorphology(BasicMoonMorphology):
             Radial distances from the crater center (in meters).
         bearings : ArrayLike
             Bearings (in degrees) corresponding to the radial distances.
+        crater_cls : type[Crater], optional
+            The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
+        profile_func: Callable, optional
+            The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
 
         Returns
         -------
@@ -544,27 +539,15 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
-        if np.isscalar(radial_distances):
-            radial_distances = np.array([radial_distances], dtype=np.float64)
-        elif isinstance(radial_distances, (list | tuple)):
-            radial_distances = np.array(radial_distances, dtype=np.float64)
-        # flatten r to 1D array
-        radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
-        elevations = realmoon_bindings.realmoon_profile(
+        return super().ejecta_profile(
+            crater=crater,
             radial_distances=radial_distances,
             bearings=bearings,
-            reference_elevations=np.zeros_like(radial_distances),
-            crater=crater,
-            include_crater=False,
-            include_ejecta=True,
+            crater_cls=crater_cls,
+            profile_func=profile_func,
+            **kwargs,
         )
-        elevations = np.array(elevations, dtype=np.float64)
-        # reshape elevation to match the shape of r
-        elevation = np.reshape(elevations, radial_distances.shape)
-        return elevation
 
     # These will use the BasicMoon profiles for inversions
     def _profile_invert_ejecta(self, r, crater, minimum_thickness):
