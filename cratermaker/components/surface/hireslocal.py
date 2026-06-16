@@ -681,8 +681,8 @@ class HiResLocalSurface(Surface):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
@@ -691,9 +691,9 @@ class HiResLocalSurface(Surface):
         Parameters
         ----------
         bearings : FloatLike or ArrayLike
-            Initial bearing from the reference point to the target point or points in degrees.
+            Initial bearings from the reference point to the target point or points in degrees.
         distances : FloatLike or ArrayLike
-            Great circle distance from the reference point to the target point or points in meters.
+            Great circle distances from the reference point to the target point or points in meters.
         reference_location : PairOfFloats, optional
             Longitude and latitude of the reference point in degrees. Default is the value of `local_location`
 
@@ -705,7 +705,7 @@ class HiResLocalSurface(Surface):
         if reference_location is None:
             reference_location = self.local_location
         return super().compute_location_from_distance_bearing(
-            distance=distance, bearing=bearing, reference_location=reference_location
+            distances=distances, bearings=bearings, reference_location=reference_location
         )
 
     @property

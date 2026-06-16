@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -574,19 +575,19 @@ class BasicMoonMorphology(Morphology):
 
         # Combine distances and references for nodes and faces
         r = np.concatenate([region.face_distance, region.node_distance])
-        bearing = np.concatenate([region.face_bearing, region.node_bearing])
+        bearings = np.concatenate([region.face_bearing, region.node_bearing])
 
         original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
 
         ring = crater.ring
         if ring is None:
-            new_elevation = self.crater_profile(crater=crater, r=r, bearing=bearing, r_ref=reference_elevation)
+            new_elevation = self.crater_profile(crater=crater, r=r, bearings=bearings, r_ref=reference_elevation)
         else:
             new_elevation = np.zeros_like(r)
             inner = r < crater.radius
             outer = r > ring.radius
             new_elevation[outer] = self.crater_profile(
-                crater=crater, r=r[outer], bearing=bearing[outer], r_ref=reference_elevation[outer]
+                crater=crater, r=r[outer], bearings=bearings[outer], r_ref=reference_elevation[outer]
             )
             outer_ring = crater
             old_ring_ref = reference_elevation
@@ -596,12 +597,12 @@ class BasicMoonMorphology(Morphology):
 
                 ring_ref = reference_elevation + ring.ring_elevation
 
-                outerh = self.crater_profile(crater=outer_ring, r=r[middle], bearing=bearing[middle], r_ref=old_ring_ref[middle])
-                innerh = self.crater_profile(crater=ring, r=r[middle], bearing=bearing[middle], r_ref=ring_ref[middle])
+                outerh = self.crater_profile(crater=outer_ring, r=r[middle], bearings=bearings[middle], r_ref=old_ring_ref[middle])
+                innerh = self.crater_profile(crater=ring, r=r[middle], bearings=bearings[middle], r_ref=ring_ref[middle])
                 new_elevation[middle] = np.where(outerh > innerh, outerh, innerh)
                 if ring.ring is None:
                     new_elevation[inner] = self.crater_profile(
-                        crater=ring, r=r[inner], bearing=bearing[inner], r_ref=ring_ref[inner]
+                        crater=ring, r=r[inner], bearings=bearings[inner], r_ref=ring_ref[inner]
                     )
                 inner = r < ring.radius
                 outer_ring = ring
@@ -612,7 +613,13 @@ class BasicMoonMorphology(Morphology):
         return elevation_change
 
     def crater_profile(
-        self, crater: BasicMoonCrater, r: ArrayLike, r_ref: ArrayLike | None = None, **kwargs: Any
+        self,
+        crater: BasicMoonCrater,
+        r: ArrayLike,
+        r_ref: ArrayLike | None = None,
+        crater_cls: type[Crater] = BasicMoonCrater,
+        profile_func: Callable = basicmoon_bindings.basicmoon_profile,
+        **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
         Compute the crater profile elevation at a given radial distance.
@@ -625,6 +632,10 @@ class BasicMoonMorphology(Morphology):
             Radial distances from the crater center (in meters).
         r_ref : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
+        crater_cls : type[Crater], optional
+            The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
+        profile_func: Callable, optional
+            The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
         **kwargs : Any
             |kwargs|
 
@@ -637,8 +648,8 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, crater_cls):
+            crater = crater_cls.maker(crater, morphology=self)
         if r_ref is None:
             r_ref = np.zeros_like(r)
 
@@ -650,8 +661,14 @@ class BasicMoonMorphology(Morphology):
         # flatten r to 1D array
         rflat = np.ravel(r)
         r_ref_flat = np.ravel(r_ref)
-        elevation = basicmoon_bindings.basicmoon_profile(
-            radial_distances=rflat, reference_elevations=r_ref_flat, crater=crater, include_crater=True, include_ejecta=False
+        bflat = np.empty_like(rflat)
+        elevation = profile_func(
+            radial_distances=rflat,
+            bearings=bflat,
+            reference_elevations=r_ref_flat,
+            crater=crater,
+            include_crater=True,
+            include_ejecta=False,
         )
         # reshape elevation to match the shape of r
         elevation = np.array(elevation, dtype=np.float64)
@@ -684,22 +701,22 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
 
-        distance = np.concatenate([region.face_distance, region.node_distance])
-        bearing = np.concatenate([region.face_bearing, region.node_bearing])
-        thickness = np.zeros_like(distance)
+        radial_distances = np.concatenate([region.face_distance, region.node_distance])
+        bearings = np.concatenate([region.face_bearing, region.node_bearing])
+        thickness = np.zeros_like(radial_distances)
         intensity = np.ones_like(thickness)
         while crater is not None:
             if self.dorays:
-                delta_thickness, delta_intensity = self.ejecta_distribution(crater, distance, bearing)
+                delta_thickness, delta_intensity = self.ejecta_distribution(crater, radial_distances, bearings)
                 intensity *= delta_intensity
             else:
-                delta_thickness = self.ejecta_profile(crater, distance, bearing=bearing)
+                delta_thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
             thickness += delta_thickness
             crater = crater.ring
 
         return thickness, intensity
 
-    def ejecta_profile(self, crater: BasicMoonCrater, r: ArrayLike, **kwargs: Any) -> NDArray[np.float64]:
+    def ejecta_profile(self, crater: BasicMoonCrater, radial_distances: ArrayLike, **kwargs: Any) -> NDArray[np.float64]:
         """
         Compute the ejecta elevation profile at a given radial distance.
 
@@ -707,7 +724,7 @@ class BasicMoonMorphology(Morphology):
         ----------
         crater : BasicMoonCrater
             The crater object containing the parameters for the ejecta profile.
-        r : ArrayLike
+        radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
 
         Returns
@@ -723,25 +740,30 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
-        if np.isscalar(r):
-            r = np.array([r], dtype=np.float64)
-        elif isinstance(r, (list | tuple)):
-            r = np.array(r, dtype=np.float64)
+        if np.isscalar(radial_distances):
+            radial_distances = np.array([radial_distances], dtype=np.float64)
+        elif isinstance(radial_distances, (list | tuple)):
+            radial_distances = np.array(radial_distances, dtype=np.float64)
         # flatten r to 1D array
-        rflat = np.ravel(r)
+        radial_distances = np.ravel(radial_distances)
+        reference_elevations = np.zeros_like(radial_distances)
+        bearings = np.empty_like(radial_distances)
         elevation = basicmoon_bindings.basicmoon_profile(
-            radial_distances=rflat,
-            reference_elevations=np.zeros_like(rflat),
+            radial_distances=radial_distances,
+            reference_elevations=reference_elevations,
+            bearings=bearings,
             crater=crater,
             include_crater=False,
             include_ejecta=True,
         )
         elevation = np.array(elevation, dtype=np.float64)
         # reshape elevation to match the shape of r
-        elevation = np.reshape(elevation, r.shape)
+        elevation = np.reshape(elevation, radial_distances.shape)
         return elevation
 
-    def ejecta_distribution(self, crater, r: ArrayLike, bearing: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def ejecta_distribution(
+        self, crater, radial_distances: ArrayLike, bearings: ArrayLike
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Compute the ejecta thickness distribution modulated by ray patterns.
 
@@ -749,10 +771,10 @@ class BasicMoonMorphology(Morphology):
         ----------
         crater : BasicMoonCrater
             The crater object containing the parameters for the ejecta distribution.
-        r : ArrayLike
+        radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
-        bearing : ArrayLike
-            Angular bearings from the crater center (in degrees).
+        bearings : ArrayLike
+            Angular bearingss from the crater center (in degrees).
 
         Returns
         -------
@@ -768,12 +790,12 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
         # flatten r and theta to 1D arrays
-        thickness = self.ejecta_profile(crater, r, bearing=bearing)
-        rflat = np.ravel(r)
-        bflat = np.ravel(bearing)
+        thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
+        radial_distances = np.ravel(radial_distances)
+        bearings = np.ravel(np.radians(bearings))
         intensity = basicmoon_bindings.ray_intensity(
-            radial_distances=rflat,
-            initial_bearing=np.radians(bflat),
+            radial_distances=radial_distances,
+            bearings=bearings,
             crater_diameter=crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
@@ -781,9 +803,9 @@ class BasicMoonMorphology(Morphology):
         intensity = np.array(intensity, dtype=np.float64)
         thickness *= intensity
         # reshape thickness to match the shape of r and theta
-        return np.reshape(thickness, r.shape), np.reshape(intensity, r.shape)
+        return np.reshape(thickness, radial_distances.shape), np.reshape(intensity, radial_distances.shape)
 
-    def ray_intensity(self, crater: BasicMoonCrater, r: ArrayLike, theta: ArrayLike) -> NDArray[np.float64]:
+    def ray_intensity(self, crater: BasicMoonCrater, radial_distances: ArrayLike, bearings: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the ray pattern intensity modulation at each (r, theta) pair.
 
@@ -791,9 +813,9 @@ class BasicMoonMorphology(Morphology):
         ----------
         crater : BasicMoonCrater
             The crater object containing the parameters for the ray intensity.
-        r : ArrayLike
+        radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
-        theta : ArrayLike
+        bearings: ArrayLike
             Angular bearings from the crater center (in degrees).
 
         Returns
@@ -808,17 +830,17 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
         # flatten r and theta to 1D arrays
-        rflat = np.ravel(r)
-        theta_flat = np.radians(np.ravel(theta))
+        radial_distances = np.ravel(radial_distances)
+        bearings = np.ravel(np.radians(bearings))
         intensity = basicmoon_bindings.ray_intensity(
-            rflat,
-            theta_flat,
+            radial_distances,
+            bearings,
             crater.diameter,
             seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
         # reshape intensity to match the shape of r and theta
-        intensity = np.reshape(intensity, r.shape)
+        intensity = np.reshape(intensity, radial_distances.shape)
         return intensity
 
     def ejecta_burial_degradation(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:

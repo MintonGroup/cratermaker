@@ -680,7 +680,7 @@ pub fn score_rim(
     }
     // Bin into bearing sectors:
     let mut rimscore_sector_index = Array1::<usize>::from_elem(n, n_sectors);
-    let bearing = region
+    let bearings = region
         .face_bearing
         .as_ref()
         .ok_or("face_bearing required")?;
@@ -693,7 +693,7 @@ pub fn score_rim(
             continue;
         }
 
-        let b = bearing[i];
+        let b = bearings[i];
         // bearings should already be in [0, 360), but we clamp just in case
         let mut idx = (b / sector_width).floor() as isize;
         if idx < 0 {

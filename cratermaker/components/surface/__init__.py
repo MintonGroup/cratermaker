@@ -1007,7 +1007,7 @@ class Surface(ComponentBase):
     def compute_location_from_distance_bearing(
         self,
         distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
@@ -1029,7 +1029,7 @@ class Surface(ComponentBase):
         """
         return self._full().compute_location_from_distance_bearing(
             distance=distance,
-            bearing=bearing,
+            bearings=bearings,
             reference_location=reference_location,
         )
 
@@ -3905,8 +3905,8 @@ class LocalSurface(CratermakerBase):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
@@ -3932,14 +3932,14 @@ class LocalSurface(CratermakerBase):
             else:
                 raise ValueError("reference_location must be provided for global surfaces")
         lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
-        bearing = np.atleast_1d(np.radians(bearing))
-        distance = np.atleast_1d(distance).astype(np.float64)
-        if bearing.shape != distance.shape:
+        bearings = np.atleast_1d(np.radians(bearings))
+        distances = np.atleast_1d(distances).astype(np.float64)
+        if bearings.shape != distances.shape:
             raise ValueError("bearing and distance must have the same shape")
-        if bearing.ndim > 1:
+        if bearings.ndim > 1:
             raise ValueError("bearing and distance must have the same number of elements")
         lonlat2 = surface_bindings.compute_location_from_distance_bearing(
-            lon1=lon1, lat1=lat1, distances=distance, bearings=bearing, radius=self.surface.radius
+            lon1=lon1, lat1=lat1, distances=distances, bearings=bearings, radius=self.surface.radius
         )
         return validate_and_normalize_location(np.degrees(lonlat2))
 

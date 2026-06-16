@@ -140,16 +140,16 @@ pub fn compute_radial_gradient(
     variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
-    let bearing = region
+    let bearings = region
         .face_bearing
         .as_ref()
         .ok_or("face_bearing required")?;
-    let bearing_rad = bearing.mapv(|b| b.to_radians());
+    let bearings_rad = bearings.mapv(|b| b.to_radians());
     let radgrad: Vec<f64> = (0..region.n_face)
         .into_par_iter()
         .map(|f| {
             let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
-            grad_meridional * bearing_rad[f].cos() + grad_zonal * bearing_rad[f].sin()
+            grad_meridional * bearings_rad[f].cos() + grad_zonal * bearings_rad[f].sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
