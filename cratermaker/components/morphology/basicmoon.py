@@ -651,8 +651,8 @@ class BasicMoonMorphology(Morphology):
                 bearings=bearings,
                 reference_elevations=reference_elevations,
                 crater=crater,
-                include_crater=True,
-                include_ejecta=False,
+                include_crater=include_crater,
+                include_ejecta=include_ejecta,
             )
         else:
             elevation = np.zeros_like(radial_distances)
@@ -663,8 +663,8 @@ class BasicMoonMorphology(Morphology):
                 bearings=bearings[outer],
                 reference_elevations=reference_elevations[outer],
                 crater=crater,
-                include_crater=True,
-                include_ejecta=False,
+                include_crater=include_crater,
+                include_ejecta=include_ejecta,
             )
             outer_ring = crater
             old_ring_ref = reference_elevations
@@ -678,16 +678,16 @@ class BasicMoonMorphology(Morphology):
                         bearings=bearings[middle],
                         reference_elevations=old_ring_ref[middle],
                         crater=outer_ring,
-                        include_crater=True,
-                        include_ejecta=False,
+                        include_crater=include_crater,
+                        include_ejecta=include_ejecta,
                     )
                     innerh = profile_func(
                         radial_distances=radial_distances[middle],
                         bearings=bearings[middle],
                         reference_elevations=ring_ref[middle],
                         crater=ring,
-                        include_crater=True,
-                        include_ejecta=False,
+                        include_crater=include_crater,
+                        include_ejecta=include_ejecta,
                     )
 
                     elevation[middle] = np.where(outerh > innerh, outerh, innerh)
@@ -697,8 +697,8 @@ class BasicMoonMorphology(Morphology):
                         bearings=bearings[inner],
                         reference_elevations=ring_ref[inner],
                         crater=ring,
-                        include_crater=True,
-                        include_ejecta=False,
+                        include_crater=include_crater,
+                        include_ejecta=include_ejecta,
                     )
                 inner = radial_distances < ring.radius
                 outer_ring = ring
@@ -754,8 +754,6 @@ class BasicMoonMorphology(Morphology):
         self,
         crater: BasicMoonCrater,
         radial_distances: ArrayLike,
-        crater_cls: type[Crater] = BasicMoonCrater,
-        profile_func: Callable = basicmoon_bindings.basicmoon_profile,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
