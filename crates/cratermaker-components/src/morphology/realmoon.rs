@@ -44,7 +44,10 @@ pub struct RealMoonCrater<'a> {
     pub ejprofile: f64,
     pub peak_height: f64,
     pub peak_width: f64,
-    pub peak_offset: f64,
+    pub peak_ring_radius: f64,
+    pub peak_center_distance: f64,
+    pub peak_center_bearing: f64,
+    pub elevation_offset: f64,
     pub rim_radius_rng_seed: u64,
     pub rim_flank_radius_rng_seed: u64,
     pub rim_elevation_rng_seed: u64,
@@ -108,6 +111,8 @@ pub fn realmoon_profile(
             .sum::<f64>()
             / ninc as f64
     };
+    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
+    let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
     let (rim_radius_profile, floor_radius_profile) =
@@ -152,11 +157,11 @@ pub fn realmoon_profile(
             let href = reference_elevations[i];
             let rim_r = rim_radius_profile[i];
             let floor_r = floor_radius_profile[i];
-            let rim_elev = crater.rim_elevation * ((rim_r - floor_r) / (crater.radius - crater.floor_radius));
+            let rim_elev = rim_elevation * ((rim_r - floor_r) / (crater.radius - crater.floor_radius));
             let mut hcrat = crater_profile_function(
                 r,
                 rim_r,                 // per-angle rim radius
-                crater.floor_elevation,
+                floor_elevation,
                 floor_r,               // per-angle floor radius
                 crater.wall_curvature,
                 crater.rim_width,
@@ -164,7 +169,7 @@ pub fn realmoon_profile(
                 crater.rimdrop,
                 crater.peak_height,
                 crater.peak_width,
-                crater.peak_offset,
+                crater.peak_ring_radius,
             );
 
             let mut hej = ejecta_profile_function(r, rim_r, crater.ejrim, crater.ejprofile);
@@ -185,7 +190,7 @@ pub fn realmoon_profile(
                 hej = 0.0;
             }
 
-            let h = href + hcrat + hej;
+            let h = href + hcrat + hej + crater.elevation_offset;
             if r <= rim_r { h.max(min_elevation) } else { h }
         }).collect();
 

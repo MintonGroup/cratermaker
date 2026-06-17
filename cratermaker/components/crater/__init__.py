@@ -885,9 +885,9 @@ class Crater(ComponentBase):
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be a Crater object.")
             old_parameters = {}
-            for field in crater.as_dict():
-                if field in locals() and locals()[field] is None and getattr(crater, field) is not None:
-                    old_parameters[field] = getattr(crater, field)
+            for field, value in crater.as_dict(skip_complex_data=True).items():
+                if field in locals() and locals()[field] is None and value is not None:
+                    old_parameters[field] = value
             if (
                 n_size_inputs == 0
             ):  # The user has not passed any size parameters, so we will use the size parameters from the crater object

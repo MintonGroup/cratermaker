@@ -53,7 +53,10 @@ pub struct BasicMoonCrater {
     pub ejprofile: f64,
     pub peak_height: f64,
     pub peak_width: f64,
-    pub peak_offset: f64,
+    pub peak_ring_radius: f64,
+    pub peak_center_distance: f64,
+    pub peak_center_bearing: f64,
+    pub elevation_offset: f64,
 }
 
 // Computes a either a crater and/or ejecta 1D profile array from input radial distances and reference elevations using the model of
@@ -105,17 +108,20 @@ pub fn basicmoon_profile(
             .sum::<f64>()
             / ninc as f64
     };
+    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
+    let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
+
 
     Ok(Array1::from_iter(
         reference_elevations
             .iter()
             .zip(radial_distances.iter().copied())
             .map(|(href, r)| {
-                let mut hcrat = crater_profile_function(r, crater.radius, crater.floor_elevation, crater.floor_radius, crater.wall_curvature, crater.rim_width, crater.rim_elevation, crater.rimdrop, crater.peak_height, crater.peak_width, crater.peak_offset);
+                let mut hcrat = crater_profile_function(r, crater.radius, floor_elevation, crater.floor_radius, crater.wall_curvature, crater.rim_width, rim_elevation, crater.rimdrop, crater.peak_height, crater.peak_width, crater.peak_ring_radius);
                 let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
                 if r < crater.radius && r > crater.floor_radius {
-                    hej += (hcrat - (crater.rim_elevation - crater.ejrim)).max(0.0);
+                    hej += (hcrat - (rim_elevation - crater.ejrim)).max(0.0);
                 }
 
                 if include_crater {
@@ -129,7 +135,7 @@ pub fn basicmoon_profile(
                     hej = 0.0;
                 }
 
-                let h = href + hcrat + hej;
+                let h = href + hcrat + hej + crater.elevation_offset; 
 
                 if r <= crater.radius {
                     h.max(min_elevation)
