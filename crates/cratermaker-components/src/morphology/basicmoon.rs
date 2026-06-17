@@ -126,8 +126,9 @@ pub fn basicmoon_profile(
 
                 if include_crater {
                     if r > crater.radius || hcrat > 0.0 {
-                        hcrat = (hcrat - hej).max(0.0);
+                        hcrat = (hcrat - hej).max(0.0); 
                     } 
+                    hcrat += crater.elevation_offset;
                 } else {
                     hcrat = 0.0;
                 }
@@ -135,7 +136,7 @@ pub fn basicmoon_profile(
                     hej = 0.0;
                 }
 
-                let h = href + hcrat + hej + crater.elevation_offset; 
+                let h = href + hcrat + hej; 
 
                 if r <= crater.radius {
                     h.max(min_elevation)
