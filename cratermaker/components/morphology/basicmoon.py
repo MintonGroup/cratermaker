@@ -395,8 +395,21 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
-        if crater.morphology_type == "multiring":
-            pass
+        if crater.morphology_type == "multiring" and crater.ring is None and not crater.isring:
+            num_rings = kwargs.pop("num_rings", morphology.rng.integers(low=2, high=4))
+            for i in range(num_rings):
+                elevation_offset = (i + 1) / (num_rings + 1) * crater.floor_elevation
+                if i == 0:
+                    ejrim = crater.ejrim * np.sqrt(2.0) ** (crater.ejprofile)
+                else:
+                    ejrim = 0.0
+                crater.add_ring(
+                    radius=crater.radius / np.sqrt(2.0) ** (i + 1),
+                    elevation_offset=elevation_offset,
+                    floor_radius=crater.floor_radius / np.sqrt(2.0) ** (i + 1),
+                    rim_elevation=crater.rim_elevation * (0.4) ** (i + 1) + elevation_offset,
+                    ejrim=ejrim,
+                )
 
         return crater
 
