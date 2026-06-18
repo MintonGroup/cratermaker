@@ -577,10 +577,10 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         """
         y = np.asarray(y, dtype=np.float64)
-        ymean = np.mean(y)
-        dfft = fft.rfft(y - ymean)
-
         n = len(y)
+        ymean = np.mean(y)
+        dfft = fft.rfft(y - ymean) / n
+
         interval = 2 * math.pi / n
         power = (2 * np.abs(dfft)) ** 2 / (interval * n)
 
