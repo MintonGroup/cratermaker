@@ -494,7 +494,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        bearings = np.ravel(np.radians(bearings))
         return super().crater_profile(
             crater=crater,
             radial_distances=radial_distances,
@@ -539,7 +538,6 @@ class RealmoonMorphology(BasicMoonMorphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        bearings = np.ravel(np.radians(bearings))
         return super().ejecta_profile(
             crater=crater,
             radial_distances=radial_distances,

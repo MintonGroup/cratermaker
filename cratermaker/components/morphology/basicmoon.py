@@ -702,6 +702,7 @@ class BasicMoonMorphology(Morphology):
         self,
         crater: BasicMoonCrater,
         radial_distances: ArrayLike,
+        bearings: ArrayLike | None = None,
         reference_elevations: ArrayLike | None = None,
         crater_cls: type[Crater] = BasicMoonCrater,
         profile_func: Callable = basicmoon_bindings.basicmoon_profile,
@@ -718,6 +719,8 @@ class BasicMoonMorphology(Morphology):
             The crater object containing the parameters for the crater profile.
         radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
+        bearings : ArrayLike, optional.
+            Bearings (in degrees) corresponding to the radial distances for profiles that are non-axisymmetric.
         reference_elevations : ArrayLike, optional
             Reference elevation values to be modified by the crater profile.
         crater_cls : type[Crater], optional
@@ -754,7 +757,10 @@ class BasicMoonMorphology(Morphology):
         orig_shape = radial_distances.shape
         radial_distances = np.ravel(radial_distances)
         reference_elevations = np.ravel(reference_elevations)
-        bearings = kwargs.pop("bearings", np.empty_like(radial_distances))
+        if bearings is None:
+            bearings = np.zeros_like(radial_distances)
+        else:
+            bearings = np.ravel(np.radians(bearings))
 
         ring = crater.ring
         if ring is None:
@@ -855,7 +861,7 @@ class BasicMoonMorphology(Morphology):
                 delta_thickness, delta_intensity = self.ejecta_distribution(crater, radial_distances, bearings)
                 intensity *= delta_intensity
             else:
-                delta_thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
+                delta_thickness = self.ejecta_profile(crater, radial_distances, bearings)
             thickness += delta_thickness
             crater = crater.ring
 
@@ -865,6 +871,9 @@ class BasicMoonMorphology(Morphology):
         self,
         crater: BasicMoonCrater,
         radial_distances: ArrayLike,
+        bearings: ArrayLike | None = None,
+        crater_cls: type[Crater] = BasicMoonCrater,
+        profile_func: Callable = basicmoon_bindings.basicmoon_profile,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
@@ -876,10 +885,14 @@ class BasicMoonMorphology(Morphology):
             The crater object containing the parameters for the ejecta profile.
         radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
+        bearings : ArrayLike, optional.
+            Bearings (in degrees) corresponding to the radial distances for profiles that are non-axisymmetric.
         crater_cls : type[Crater], optional
             The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
         profile_func: Callable, optional
             The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
+        kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -895,6 +908,9 @@ class BasicMoonMorphology(Morphology):
         return self.crater_profile(
             crater=crater,
             radial_distances=radial_distances,
+            bearings=bearings,
+            crater_cls=crater_cls,
+            profile_func=profile_func,
             include_crater=False,
             include_ejecta=True,
             **kwargs,
