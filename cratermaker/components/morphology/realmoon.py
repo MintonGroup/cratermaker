@@ -31,8 +31,6 @@ _PSD1D_MIN_POINTS = 8
 class RealMoonCraterFixed(BasicMoonCraterFixed):
     rim_radius_rng_seed: int | None = None
     """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    rim_flank_radius_rng_seed: int | None = None
-    """The random seed used to generate the rim flank radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
     rim_elevation_rng_seed: int | None = None
     """The random seed used to generate the rim elevation PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
     floor_radius_rng_seed: int | None = None
@@ -50,7 +48,6 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
         self,
         rim_radius_control: np.ndarray | None = None,
         rim_elevation_control: np.ndarray | None = None,
-        rim_flank_radius_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
@@ -59,7 +56,6 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
         super().__init__(**kwargs)
         object.__setattr__(self, "_rim_radius_control", rim_radius_control)
         object.__setattr__(self, "_rim_elevation_control", rim_elevation_control)
-        object.__setattr__(self, "_rim_flank_radius_control", rim_flank_radius_control)
         object.__setattr__(self, "_floor_radius_control", floor_radius_control)
         object.__setattr__(self, "_wall_texture_control", wall_texture_control)
         object.__setattr__(self, "_ejecta_texture_control", ejecta_texture_control)
@@ -78,13 +74,6 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
         The control points for the rim elevation PSD.
         """
         return self._rim_elevation_control
-
-    @property
-    def rim_flank_radius_control(self) -> np.ndarray | None:
-        """
-        The control points for the rim flank radius PSD.
-        """
-        return self._rim_flank_radius_control
 
     @property
     def floor_radius_control(self) -> np.ndarray | None:
@@ -116,7 +105,6 @@ class RealMoonCrater(BasicMoonCrater):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        str_repr += f"Rim flank radius: {format_large_units(self.rim_flank_radius, quantity='length')}\n"
         return str_repr
 
     @classmethod
@@ -126,7 +114,6 @@ class RealMoonCrater(BasicMoonCrater):
         morphology: Morphology | None = None,
         rim_radius_control: np.ndarray | None = None,
         rim_elevation_control: np.ndarray | None = None,
-        rim_flank_radius_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
@@ -147,8 +134,6 @@ class RealMoonCrater(BasicMoonCrater):
             Control points for the rim crest radius PSD. If None, then it will be computed
         rim_elevation_control : np.ndarray, optional
             Conntrol points for the rim elevation PSD. If None then it will be computed.
-        rim_flank_radius_control : np.ndarray, optional
-            Control points for the rim flank radius PDS. If None then it will be computed.
         floor_radius_control : np.ndarray, optional
             Control points for the floor radius profile. If None then it will be computed.
         wall_texture_control : np.ndarray, optional
@@ -171,9 +156,6 @@ class RealMoonCrater(BasicMoonCrater):
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, RealMoonCrater):
             rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
-            rim_flank_radius_control = (
-                crater.rim_flank_radius_control if rim_flank_radius_control is None else rim_flank_radius_control
-            )
             floor_radius_control = crater.floor_radius_control if floor_radius_control is None else floor_radius_control
             rim_elevation_control = crater.rim_elevation_control if rim_elevation_control is None else rim_elevation_control
             wall_texture_control = crater.wall_texture_control if wall_texture_control is None else wall_texture_control
@@ -186,7 +168,6 @@ class RealMoonCrater(BasicMoonCrater):
 
         for var in [
             "rim_radius",
-            "rim_flank_radius",
             "floor_radius",
             "rim_elevation",
             "wall_texture",
@@ -235,32 +216,6 @@ class RealMoonCrater(BasicMoonCrater):
             rng_seed=self.rim_radius_rng_seed,
         )
 
-    def rim_flank_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
-        """
-        Compute the rim flank radius profile of the crater based on the rim flank radius PSD.
-
-        Parameters
-        ----------
-        crater : RealMoonCrater
-            The crater for which to compute the rim flank radius profile.
-        bearings : ArrayLike
-            The bearings (in degrees) at which to compute the rim flank radius profile. This is used to compute the azimuthal variation in the rim flank radius based on the 2D PSD model.
-
-        Returns
-        -------
-        rim_flank_radius_profile : NDArray[np.float64]
-            The computed rim flank radius profile at each bearing.
-        """
-        theta = np.radians(bearings)
-        return realmoon_bindings.profile_from_psd(
-            crater_radius=self.radius,
-            ymean=self.rim_flank_radius,
-            psd=self.rim_flank_radius_psd,
-            theta=theta,
-            phases=None,
-            rng_seed=self.rim_flank_radius_rng_seed,
-        )
-
     def floor_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the floor radius profile of the crater based on the floor radius PSD.
@@ -307,7 +262,7 @@ class RealMoonCrater(BasicMoonCrater):
         return realmoon_bindings.profile_from_psd(
             crater_radius=self.radius,
             ymean=self.rim_elevation,
-            psd=self.rim_elevation_psd,
+            psd=self.rim_radius_psd,
             theta=theta,
             phases=None,
             rng_seed=self.rim_elevation_rng_seed,
@@ -327,19 +282,6 @@ class RealMoonCrater(BasicMoonCrater):
         )
 
     @property
-    def rim_flank_radius_psd(self) -> np.ndarray:
-        """
-        The power spectral density distribution of the rim flank radius outline.
-        """
-        npoints = int(2 * math.pi * self.rim_flank_radius / self.morphology.surface.pix)
-        return realmoon_bindings.get_1d_psd_from_control_points(
-            control_points=self.rim_flank_radius_control,
-            npoints=npoints,
-            add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_flank_radius_rng_seed,
-        )
-
-    @property
     def floor_radius_psd(self) -> np.ndarray:
         """
         The power spectral density distribution of the floor radius outline.
@@ -353,52 +295,21 @@ class RealMoonCrater(BasicMoonCrater):
         )
 
     @property
-    def rim_elevation_psd(self) -> np.ndarray:
-        """
-        The power spectral density distribution of the rim elevation profile.
-        """
-        npoints = max(int(2 * math.pi * self.radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
-        return realmoon_bindings.get_1d_psd_from_control_points(
-            control_points=self.rim_elevation_control,
-            npoints=npoints,
-            add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_elevation_rng_seed,
-        )
-
-    @property
     def rim_radius_control(self) -> np.ndarray | None:
         if self._var._rim_radius_control is None:
             self._var._rim_radius_control = self.morphology.get_control_points(
-                crater=self, coef_sigma=self.morphology.psd1d_coef["rim_radius"]
+                crater=self, psd1d_coef=self.morphology.psd1d_coef["rim"]
             )
         return self._var._rim_radius_control
-
-    @property
-    def rim_flank_radius_control(self) -> np.ndarray | None:
-        if self._var._rim_flank_radius_control is None:
-            self._var._rim_flank_radius_control = self.morphology.get_control_points(
-                crater=self,
-                coef_sigma=self.morphology.psd1d_coef["rim_flank_radius"],
-            )
-        return self._var._rim_flank_radius_control
 
     @property
     def floor_radius_control(self) -> np.ndarray | None:
         if self._var._floor_radius_control is None:
             self._var._floor_radius_control = self.morphology.get_control_points(
                 crater=self,
-                coef_sigma=self.morphology.psd1d_coef["floor_radius"],
+                psd1d_coef=self.morphology.psd1d_coef["floor"],
             )
         return self._var._floor_radius_control
-
-    @property
-    def rim_elevation_control(self) -> np.ndarray | None:
-        if self._var._rim_elevation_control is None:
-            self._var._rim_elevation_control = self.morphology.get_control_points(
-                crater=self,
-                coef_sigma=self.morphology.psd1d_coef["rim_elevation"],
-            )
-        return self._var._rim_elevation_control
 
 
 @Morphology.register("realmoon")
@@ -606,7 +517,7 @@ class RealmoonMorphology(BasicMoonMorphology):
             raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
         self._add_noise = value
 
-    def get_control_points(self, crater: Crater, coef_sigma: xr.DataArray):
+    def get_control_points(self, crater: Crater, psd1d_coef: xr.DataArray):
         """
         Get the control points for the PSD model based on the crater diameter and the provided coefficient and sigma values.
 
@@ -614,28 +525,21 @@ class RealmoonMorphology(BasicMoonMorphology):
         ----------
         crater : Crater
             The crater for which to compute the control points.
-        coef_sigma : xr.DataArray
-            A DataArray containing the coefficients and sigma values for the control points. The expected dimensions are "index" and "term", where "index" corresponds to the different coefficients (e.g., mean and sigma for the control points) and "term" corresponds to the different control points (e.g., "Slope_12", "Breakpoint_2_x", "Breakpoint_2_y", "Breakpoint_3_y", "Breakpoint_4_y").
+        psd1d_coef : xr.DataArray
+            A DataArray containing the coefficients and sigma values for the control points. The expected dimensions are "index" and "term", where "index" corresponds to the different coefficients (e.g., mean and sigma for the control points) and "term" corresponds to the different control points (e.g., "s12", "x2", "y2", etc.).
         add_noise : bool
             Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
         """
-        if crater.morphology_type == "simple":
-            index = 0
-        else:
-            index = 3
         diameter_km = crater.diameter * 1e-3
 
         control_points = {}
         sigma = {}
-        for term in coef_sigma.term:
-            control_points[str(term.data)] = coef_sigma.sel(index=index, term=term) * diameter_km + coef_sigma.sel(
-                index=index + 1, term=term
-            )
-
-        # ------------------------------------------------------------------------------------------------------------------
-        if self.add_noise:
-            for term in coef_sigma.term:
-                sigma = coef_sigma.sel(index=index + 2, term=term)
+        coef = psd1d_coef.sel(morphology_type=crater.morphology_type)
+        for term in coef.term:
+            c = coef.sel(term=term)
+            control_points[str(term.data)] = c.sel(param="m") * diameter_km + c.sel(param="b")
+            if self.add_noise:
+                sigma = c.sel(param="sigma")
                 cmid = control_points[str(term.data)]
                 control_points[str(term.data)] = self.rng.normal(cmid, sigma)
 

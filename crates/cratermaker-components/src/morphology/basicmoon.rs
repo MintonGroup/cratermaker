@@ -48,7 +48,6 @@ pub struct BasicMoonCrater {
     pub rim_width: f64,
     pub rim_elevation: f64,
     pub rimdrop: f64,
-    pub rim_flank_radius: f64,
     pub ejrim: f64,
     pub ejprofile: f64,
     pub peak_height: f64,

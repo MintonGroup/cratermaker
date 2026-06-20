@@ -38,8 +38,6 @@ class BasicMoonCraterFixed(CraterFixed):
     """The curvature of the crater walls."""
     rim_width: float | None = None
     """The width of the crater rim in meters."""
-    rim_flank_radius: float | None = None
-    """Mean radius of the rim flank of the crater in meters."""
     rimdrop: float | None = None
     """The power law exponent for the structural uplift underneath the ejecta"""
     ejrim: float | None = None
@@ -168,7 +166,6 @@ class BasicMoonCrater(MorphologyCrater):
         wall_curvature: float | None = None,
         rim_width: float | None = None,
         rim_elevation: float | None = None,
-        rim_flank_radius: float | None = None,
         rimdrop: float | None = None,
         ejrim: float | None = None,
         ejprofile: float | None = None,
@@ -192,8 +189,6 @@ class BasicMoonCrater(MorphologyCrater):
             The morphology model to use for generating morphology parameters.
         rim_elevation : float, optional
             Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
-        rim_flank_radius : float, optional
-            The mean radius of the rim flank in meters. If None, it will be computed.
         floor_elevation : float, optional
             Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_radius : float, optional
@@ -232,7 +227,6 @@ class BasicMoonCrater(MorphologyCrater):
             wall_curvature = crater.wall_curvature if wall_curvature is None else wall_curvature
             rim_width = crater.rim_width if rim_width is None else rim_width
             rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
-            rim_flank_radius = crater.rim_flank_radius if rim_flank_radius is None else rim_flank_radius
             rimdrop = crater.rimdrop if rimdrop is None else rimdrop
             ejrim = crater.ejrim if ejrim is None else ejrim
             ejprofile = crater.ejprofile if ejprofile is None else ejprofile
@@ -362,15 +356,6 @@ class BasicMoonCrater(MorphologyCrater):
         if rim_width is None:
             rim_width = max(sample_logfit_heteroskedastic(diameter_m, **rim_width_params[morphology_type])[0], 0.0)
         args["rim_width"] = rim_width
-
-        if rim_flank_radius is None:
-            # Values from Jun Du
-            a = 2.8740358071397156
-            b = -0.12400776345642424
-            sigma = 0.18025709610312335
-            mean = a * diameter_km**b
-            rim_flank_radius = morphology.rng.normal(mean, sigma, 1)[0] * diameter_km / 2 * 1e3
-        args["rim_flank_radius"] = rim_flank_radius
 
         # Try to approximately conserve volume when setting the ejecta thickness at the rim value
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile

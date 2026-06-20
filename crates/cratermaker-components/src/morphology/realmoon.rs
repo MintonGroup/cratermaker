@@ -38,7 +38,6 @@ pub struct RealMoonCrater<'a> {
     pub wall_curvature: f64,
     pub rim_width: f64,
     pub rim_elevation: f64,
-    pub rim_flank_radius: f64,
     pub rimdrop: f64,
     pub ejrim: f64,
     pub ejprofile: f64,
@@ -49,15 +48,12 @@ pub struct RealMoonCrater<'a> {
     pub peak_center_bearing: f64,
     pub elevation_offset: f64,
     pub rim_radius_rng_seed: u64,
-    pub rim_flank_radius_rng_seed: u64,
     pub rim_elevation_rng_seed: u64,
     pub floor_radius_rng_seed: u64,
     pub wall_texture_rng_seed: u64,
     pub ejecta_texture_rng_seed: u64,
     pub floor_texture_rng_seed: u64,
     pub rim_radius_psd: ArrayView2<'a, f64>,
-    pub rim_elevation_psd: ArrayView2<'a, f64>,
-    pub rim_flank_radius_psd: ArrayView2<'a, f64>,
     pub floor_radius_psd: ArrayView2<'a, f64>,
 }
 
@@ -203,15 +199,14 @@ pub fn realmoon_profile(
 ///
 /// # Arguments
 /// * `control_points` - A dictionary containing the control points for the piecewise linear function. The expected keys are:
-/// - "Slope_12": The slope of the first segment (largest wavelengths).
-/// - "Breakpoint_2_x": The x-coordinate of the breakpoint between the first and second segments (in log10(wavelength)).
-/// - "Breakpoint_2_y": The y-coordinate of the breakpoint between the first and second
-///   segments (in log10(power)).
-/// - "Breakpoint_3_y": The y-coordinate of the breakpoint between the second and third
-///   segments (in log10(power)).
-/// - "Breakpoint_4_y": The y-coordinate of the breakpoint for the smallest wavelengths (in log10(power)).
+/// - "s12": The slope of the first segment (y2-y1)/(x2-x1) 
+/// - "y1": The y-coordinate of the first breakpoint in ln(power).
+/// - "x2": The x-coordinate of the second breakpoint in ln(wavelength). 
+/// - "y2": The y-coordinate of the second breakpoint in ln(power).
+/// - "y3": The y-coordinate at the third breakpoint (2nd highest wavelength) in log(power).
+/// - "y4": The y-coordinate of the highest wavelength in ln(power).
 ///  * `npoints` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
-///  * `add_noise` - Whether to add Gaussian noise to the log10(power) values to simulate natural variability in the PSD.
+///  * `add_noise` - Whether to add Gaussian noise to the ln(power) values to simulate natural variability in the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
 ///
 pub fn get_1d_psd_from_control_points(
@@ -220,17 +215,17 @@ pub fn get_1d_psd_from_control_points(
     add_noise: bool,
     rng_seed: u64,
 ) -> ArrayResult2D {
-    let slope_12 = control_points["Slope_12"];
-    let bp2_x = control_points["Breakpoint_2_x"];
-    let bp2_y = control_points["Breakpoint_2_y"];
-    let bp3_y = control_points["Breakpoint_3_y"];
-    let bp4_y = control_points["Breakpoint_4_y"];
+    let s12 = control_points["s12"];
+    let x2 = control_points["x2"];
+    let y2 = control_points["y2"];
+    let y3 = control_points["y3"];
+    let y4 = control_points["y4"];
 
-    let bp4_x = TAU.log10();
-    let bp3_x = (10_f64.powf(bp4_x) / 2.0).log10();
+    let x4 = TAU.ln();
+    let x3 = (TAU * 0.5).ln();
 
-    // Same spacing logic as Python: interval = 10**bp4_x / npoints
-    let interval = 10_f64.powf(bp4_x) / npoints as f64;
+    // Same spacing logic as Python: interval = exp(bp4_)x / npoints
+    let interval = (x4).exp() / npoints as f64;
 
     // Equivalent to rfft sizing in Python:
     // dfft.size = npoints/2 + 1, iend = dfft.size - 1
@@ -247,41 +242,40 @@ pub fn get_1d_psd_from_control_points(
         psd[[row, 0]] = base / k as f64;
     }
 
-    // Find bp2_x_index (matching Python loop behavior)
-    let threshold = 10_f64.powf(bp2_x);
-    let mut bp2_x_index = nrows.saturating_sub(1);
+    // Find x2_index (matching Python loop behavior)
+    let threshold = (x2).exp();
+    let mut x2_index = nrows.saturating_sub(1);
     for i in 0..nrows {
         if psd[[i, 0]] < threshold {
-            bp2_x_index = i.saturating_sub(1);
+            x2_index = i.saturating_sub(1);
             break;
         }
     }
 
-    // Piecewise lines in log10-log10 space
-    let k_23 = (bp3_y - bp2_y) / (bp3_x - bp2_x);
-    let b_23 = bp3_y - k_23 * bp3_x;
-    let k_12 = slope_12;
-    let b_12 = bp2_y - k_12 * bp2_x;
+    // Piecewise lines in log-log space
+    let s23 = (y3 - y2) / (x3 - x2);
+    let b23 = y3 - s23 * x3;
+    let b12 = y2 - s12 * x2;
 
     if nrows > 0 {
-        psd[[0, 1]] = 10_f64.powf(bp4_y);
+        psd[[0, 1]] = y4.exp(); 
     }
     if nrows > 1 {
-        psd[[1, 1]] = 10_f64.powf(bp3_y);
+        psd[[1, 1]] = y3.exp(); 
     }
 
-    // psd[2 : bp2_x_index + 1, 1]
-    if bp2_x_index >= 2 {
-        for i in 2..=bp2_x_index {
-            let log_w = psd[[i, 0]].log10();
-            psd[[i, 1]] = 10_f64.powf(k_23 * log_w + b_23);
+    // psd[2 : x2_index + 1, 1]
+    if x2_index >= 2 {
+        for i in 2..=x2_index {
+            let log_w = psd[[i, 0]].ln();
+            psd[[i, 1]] = (s23 * log_w + b23).exp();
         }
     }
 
-    // psd[bp2_x_index + 1 :, 1]
-    for i in (bp2_x_index + 1)..nrows {
-        let log_w = psd[[i, 0]].log10();
-        psd[[i, 1]] = 10_f64.powf(k_12 * log_w + b_12);
+    // psd[x2_index + 1 :, 1]
+    for i in (x2_index + 1)..nrows {
+        let log_w = psd[[i, 0]].ln();
+        psd[[i, 1]] = (s12 * log_w + b12).exp();
     }
 
     // flipud
@@ -290,14 +284,14 @@ pub fn get_1d_psd_from_control_points(
         flipped.row_mut(i).assign(&psd.row(nrows - 1 - i));
     }
 
-    // Optional Gaussian noise in log10 power
+    // Optional Gaussian noise in log power
     if add_noise {
         let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
         let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
         for i in 0..nrows {
-            let log_power = flipped[[i, 1]].log10();
+            let log_power = flipped[[i, 1]].ln();
             let noisy_log_power = log_power + normal.sample(&mut rng);
-            flipped[[i, 1]] = 10_f64.powf(noisy_log_power);
+            flipped[[i, 1]] = (noisy_log_power).exp();
         }
     }
 
@@ -328,21 +322,16 @@ pub fn profile_from_psd(
 ) -> ArrayResult {
     let nfreq = psd.nrows();
     let ntheta = theta.len();
-    //let n = ntheta as f64;
-    // Temporary until I can fix the noramlization issues with the model PSDs
-    let n:f64 = 1e4;
-    let period_total = TAU;
-    let pix = period_total / n;
 
     let phase_values: Array1<f64> = if let Some(p) = phases {
         p.to_owned()
     } else {
         let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-        let uniform = Uniform::new(0.0, period_total).expect("valid uniform distribution");
+        let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
         Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
     };
 
-    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * pix / n).sqrt());
+    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * TAU).sqrt());
 
     let out: Vec<f64> = (0..ntheta)
         .into_par_iter()
@@ -353,7 +342,6 @@ pub fn profile_from_psd(
                 let freq = 1.0 / psd[[i, 0]];
                 dy += amplitude[i] * (TAU * freq * t + phase_values[i]).cos();
             }
-            //println!("{} bearing = {} dy = {}",j,t,dy);
             dy * crater_radius + ymean 
         })
         .collect();
