@@ -539,7 +539,9 @@ class RealmoonMorphology(BasicMoonMorphology):
             c = coef.sel(term=term)
             control_points[str(term.data)] = c.sel(param="m") * diameter_km + c.sel(param="b")
             if self.add_noise:
-                sigma = c.sel(param="sigma")
+                sigma = (
+                    c.sel(param="sigma") / len(coef.term)
+                )  # There are too many correlations in the breakpoints for the control points to be random. Dividing by the number of terms suppresses the noise in the control points a bit so that the PSDs don't become extreme
                 cmid = control_points[str(term.data)]
                 control_points[str(term.data)] = self.rng.normal(cmid, sigma)
 
