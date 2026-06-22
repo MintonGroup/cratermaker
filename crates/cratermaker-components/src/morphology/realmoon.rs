@@ -227,7 +227,7 @@ pub fn get_1d_psd_from_control_points(
     let x1 = TAU.ln();
 
     // Same spacing logic as Python: interval = exp(bp4_)x / npoints
-    let interval = (x1).exp() / npoints as f64;
+    let interval = x1.exp() / npoints as f64;
 
     // Equivalent to rfft sizing in Python:
     // dfft.size = npoints/2 + 1, iend = dfft.size - 1
@@ -244,27 +244,16 @@ pub fn get_1d_psd_from_control_points(
         psd[[row, 0]] = base / k as f64;
     }
 
-    if nrows > 0 {
-        psd[[0, 1]] = y1.exp(); 
-    }
-    if nrows > 1 {
-        psd[[1, 1]] = y2.exp(); 
-    }
-    if nrows > 2 {
-        psd[[2, 1]] = y3.exp(); 
-    }
-    if nrows > 3 {
-        psd[[3, 1]] = y4.exp(); 
-    }
-    if nrows > 4 {
-        psd[[4, 1]] = y5.exp(); 
-    }
+    psd[[0, 1]] = y1.exp(); 
+    psd[[1, 1]] = y2.exp(); 
+    psd[[2, 1]] = y3.exp(); 
+    psd[[3, 1]] = y4.exp(); 
+    psd[[4, 1]] = y5.exp(); 
+    
     let xn = psd[[5, 0]].ln();
-    if nrows > 5 {
-        for i in 5..nrows {
-            let log_x = psd[[i, 0]].ln();
-            psd[[i, 1]] = (yn + sn * (log_x - xn)).exp();
-        }
+    for i in 5..nrows {
+        let log_x = psd[[i, 0]].ln();
+        psd[[i, 1]] = (yn + sn * (log_x - xn)).exp();
     }
 
     // flipud
