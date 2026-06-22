@@ -24,7 +24,7 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
-_PSD1D_MIN_POINTS = 8
+_PSD1D_MIN_POINTS = 16
 
 
 @dataclass(frozen=True, slots=True)
