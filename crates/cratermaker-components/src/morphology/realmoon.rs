@@ -199,12 +199,13 @@ pub fn realmoon_profile(
 ///
 /// # Arguments
 /// * `control_points` - A dictionary containing the control points for the piecewise linear function. The expected keys are:
-/// - "s12": The slope of the first segment (y2-y1)/(x2-x1) 
-/// - "y1": The y-coordinate of the first breakpoint in ln(power).
-/// - "x2": The x-coordinate of the second breakpoint in ln(wavelength). 
+/// - "sn": The slope of the first segment (y2-y1)/(x2-x1) 
+/// - "yn": The y-coordinate of the first breakpoint in ln(power).
+/// - "y1": The x-coordinate of the second breakpoint in ln(wavelength). 
 /// - "y2": The y-coordinate of the second breakpoint in ln(power).
 /// - "y3": The y-coordinate at the third breakpoint (2nd highest wavelength) in log(power).
 /// - "y4": The y-coordinate of the highest wavelength in ln(power).
+/// - "y5": The y-coordinate of the highest wavelength in ln(power).
 ///  * `npoints` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
 ///  * `add_noise` - Whether to add Gaussian noise to the ln(power) values to simulate natural variability in the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
@@ -215,17 +216,18 @@ pub fn get_1d_psd_from_control_points(
     add_noise: bool,
     rng_seed: u64,
 ) -> ArrayResult2D {
-    let s12 = control_points["s12"];
-    let x2 = control_points["x2"];
+    let sn = control_points["sn"];
+    let yn = control_points["yn"];
+    let y1 = control_points["y1"];
     let y2 = control_points["y2"];
     let y3 = control_points["y3"];
     let y4 = control_points["y4"];
+    let y5 = control_points["y5"];
 
-    let x4 = TAU.ln();
-    let x3 = (TAU * 0.5).ln();
+    let x1 = TAU.ln();
 
     // Same spacing logic as Python: interval = exp(bp4_)x / npoints
-    let interval = (x4).exp() / npoints as f64;
+    let interval = (x1).exp() / npoints as f64;
 
     // Equivalent to rfft sizing in Python:
     // dfft.size = npoints/2 + 1, iend = dfft.size - 1
@@ -242,40 +244,27 @@ pub fn get_1d_psd_from_control_points(
         psd[[row, 0]] = base / k as f64;
     }
 
-    // Find x2_index (matching Python loop behavior)
-    let threshold = (x2).exp();
-    let mut x2_index = nrows.saturating_sub(1);
-    for i in 0..nrows {
-        if psd[[i, 0]] < threshold {
-            x2_index = i.saturating_sub(1);
-            break;
-        }
-    }
-
-    // Piecewise lines in log-log space
-    let s23 = (y3 - y2) / (x3 - x2);
-    let b23 = y3 - s23 * x3;
-    let b12 = y2 - s12 * x2;
-
     if nrows > 0 {
-        psd[[0, 1]] = y4.exp(); 
+        psd[[0, 1]] = y1.exp(); 
     }
     if nrows > 1 {
-        psd[[1, 1]] = y3.exp(); 
+        psd[[1, 1]] = y2.exp(); 
     }
-
-    // psd[2 : x2_index + 1, 1]
-    if x2_index >= 2 {
-        for i in 2..=x2_index {
-            let log_w = psd[[i, 0]].ln();
-            psd[[i, 1]] = (s23 * log_w + b23).exp();
+    if nrows > 2 {
+        psd[[2, 1]] = y3.exp(); 
+    }
+    if nrows > 3 {
+        psd[[3, 1]] = y4.exp(); 
+    }
+    if nrows > 4 {
+        psd[[4, 1]] = y5.exp(); 
+    }
+    let xn = psd[[5, 0]].ln();
+    if nrows > 5 {
+        for i in 5..nrows {
+            let log_x = psd[[i, 0]].ln();
+            psd[[i, 1]] = (yn + sn * (log_x - xn)).exp();
         }
-    }
-
-    // psd[x2_index + 1 :, 1]
-    for i in (x2_index + 1)..nrows {
-        let log_w = psd[[i, 0]].ln();
-        psd[[i, 1]] = (s12 * log_w + b12).exp();
     }
 
     // flipud
