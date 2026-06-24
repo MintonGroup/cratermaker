@@ -178,6 +178,8 @@ class MorphologyCrater(Crater):
                 raise ValueError("Cannot provide both location and relative_location")
             if not isinstance(relative_location, dict) or "distance" not in relative_location or "bearing" not in relative_location:
                 raise TypeError("relative_location must be a dict with keys 'distance' and 'bearing'.")
+            relative_location["distances"] = relative_location.pop("distance")
+            relative_location["bearings"] = relative_location.pop("bearing")
             location = morphology.surface.compute_location_from_distance_bearing(**relative_location)
 
         crater = super().maker(
