@@ -1006,7 +1006,7 @@ class Surface(ComponentBase):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
         bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
@@ -1028,7 +1028,7 @@ class Surface(ComponentBase):
             Longitude and latitude of the target point or points in degrees.
         """
         return self._full().compute_location_from_distance_bearing(
-            distance=distance,
+            distances=distances,
             bearings=bearings,
             reference_location=reference_location,
         )
@@ -2589,14 +2589,14 @@ class LocalSurface(CratermakerBase):
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
-        def _find_reference_elevations(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
+        def _find_reference_coeffs(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
             """
-            Compute the mean plane that fits the points given by the projected x, projected y, and elevation array.
+            Compute the coefficients of the mean plane that fits the points given by the projected x, projected y, and elevation array.
 
             Parameters
             ----------
             region_points : NDArray
-                An array of shape (n, 3) where each row contains [x, y, elevation].
+                An array of shape (3) containing the [A,B,C] values
 
             Returns
             -------
@@ -2609,7 +2609,7 @@ class LocalSurface(CratermakerBase):
             # Solve for the coefficients of the plane (Ax + By + C = z)
             coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
 
-            return coeffs[0] * x + coeffs[1] * y + coeffs[2]
+            return coeffs
 
         if reference_radius is None:
             reference_radius = self.region_radius
@@ -2639,10 +2639,9 @@ class LocalSurface(CratermakerBase):
             x = np.concatenate([self.face_proj_x, self.node_proj_x])
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
-        reference_elevation = elevation
-        reference_elevation[points_within_region] = _find_reference_elevations(
-            x[points_within_region], y[points_within_region], z[points_within_region]
-        )
+        coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
+        coeffs[2] = np.mean(z)
+        reference_elevation = coeffs[0] * x + coeffs[1] * y + coeffs[2]
 
         return reference_elevation
 

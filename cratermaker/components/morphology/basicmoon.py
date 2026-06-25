@@ -800,16 +800,11 @@ class BasicMoonMorphology(Morphology):
 
         radial_distances = np.concatenate([region.face_distance, region.node_distance])
         bearings = np.concatenate([region.face_bearing, region.node_bearing])
-        thickness = np.zeros_like(radial_distances)
-        intensity = np.ones_like(thickness)
-        while crater is not None:
-            if self.dorays:
-                delta_thickness, delta_intensity = self.ejecta_distribution(crater, radial_distances, bearings)
-                intensity *= delta_intensity
-            else:
-                delta_thickness = self.ejecta_profile(crater, radial_distances, bearings)
-            thickness += delta_thickness
-            crater = crater.ring
+        if self.dorays:
+            thickness, intensity = self.ejecta_distribution(crater, radial_distances, bearings)
+        else:
+            thickness = self.ejecta_profile(crater, radial_distances, bearings)
+            intensity = np.ones_like(radial_distances)
 
         return thickness, intensity
 
