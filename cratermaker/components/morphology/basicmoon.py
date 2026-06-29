@@ -757,16 +757,20 @@ class BasicMoonMorphology(Morphology):
             include_ejecta=include_ejecta,
         )
         ring = crater.ring
+        outer_ring = crater
         while ring is not None:
-            ring_elevation = profile_func(
-                radial_distances=radial_distances,
-                bearings=bearings,
-                reference_elevations=reference_elevations,
-                crater=ring,
-                include_crater=include_crater,
-                include_ejecta=include_ejecta,
-            )
-            elevation = np.where(ring_elevation > elevation, ring_elevation, elevation)
+            rin = radial_distances < outer_ring.radius
+            if np.sum(rin) > 0:
+                ring_elevation = profile_func(
+                    radial_distances=radial_distances[rin],
+                    bearings=bearings[rin],
+                    reference_elevations=reference_elevations[rin],
+                    crater=ring,
+                    include_crater=include_crater,
+                    include_ejecta=include_ejecta,
+                )
+                elevation[rin] = np.where(ring_elevation > elevation[rin], ring_elevation, elevation[rin])
+            outer_ring = ring
             ring = ring.ring
         elevation = np.array(elevation, dtype=np.float64)
         elevation = np.reshape(elevation, orig_shape)

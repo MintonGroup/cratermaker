@@ -212,8 +212,6 @@ class RealMoonCrater(BasicMoonCrater):
             ymean=self.radius,
             psd=self.rim_radius_psd,
             theta=theta,
-            phases=None,
-            rng_seed=self.rim_radius_rng_seed,
         )
 
     def floor_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
@@ -238,8 +236,6 @@ class RealMoonCrater(BasicMoonCrater):
             ymean=self.floor_radius,
             psd=self.floor_radius_psd,
             theta=theta,
-            phases=None,
-            rng_seed=self.floor_radius_rng_seed,
         )
 
     def rim_elevation_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
@@ -264,8 +260,6 @@ class RealMoonCrater(BasicMoonCrater):
             ymean=self.rim_elevation,
             psd=self.rim_radius_psd,
             theta=theta,
-            phases=None,
-            rng_seed=self.rim_elevation_rng_seed,
         )
 
     @property

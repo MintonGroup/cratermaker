@@ -95,14 +95,14 @@ pub fn basicmoon_profile(
         *radial_distances
             .iter()
             .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .min_by(|&(&radius_a, _), &(&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
             .unwrap()
             .1
     } else {
         radial_distances
             .iter()
             .zip(reference_elevations)
-            .filter(|(&r, _)| r <= crater.radius)
+            .filter(|&(&r, _)| r <= crater.radius)
             .map(|(_, &e)| e)
             .sum::<f64>()
             / ninc as f64

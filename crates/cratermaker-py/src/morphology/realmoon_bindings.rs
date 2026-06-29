@@ -264,20 +264,15 @@ pub fn profile_from_psd<'py>(
     ymean: f64,
     psd: PyReadonlyArray2<'py, f64>,
     theta: PyReadonlyArray1<'py, f64>,
-    phases: Option<PyReadonlyArray1<'py, f64>>,
-    rng_seed: u64,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let psd_v = psd.as_array();
     let theta_v = theta.as_array();
-    let phases_v = phases.as_ref().map(|p| p.as_array());
 
     let result = cratermaker_components::morphology::realmoon::profile_from_psd(
         crater_radius,
         ymean,
         psd_v,
         theta_v,
-        phases_v,
-        rng_seed,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))

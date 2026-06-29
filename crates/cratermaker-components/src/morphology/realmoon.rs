@@ -9,6 +9,7 @@ use rand_chacha::ChaCha12Rng;
 use numpy::ndarray::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+
 /// Defines crater dimensions for surface modification computations.
 ///
 /// Used to parameterize the final crater size in meters.
@@ -95,14 +96,14 @@ pub fn realmoon_profile(
         *radial_distances
             .iter()
             .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .min_by(|&(&radius_a, _), &(&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
             .unwrap()
             .1
     } else {
         radial_distances
             .iter()
             .zip(reference_elevations)
-            .filter(|(&r, _)| r <= crater.radius)
+            .filter(|&(&r, _)| r <= crater.radius)
             .map(|(_, &e)| e)
             .sum::<f64>()
             / ninc as f64
@@ -111,48 +112,14 @@ pub fn realmoon_profile(
     let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
-    let (rim_radius_profile, floor_radius_profile) =
-        crossbeam::thread::scope(|s| {
-            let h1 = s.spawn(|_| {
-                profile_from_psd(
-                    crater.radius,
-                    crater.radius,
-                    crater.rim_radius_psd,
-                    bearings,
-                    None,
-                    crater.rim_radius_rng_seed,
-                )
-            });
-
-            let h2 = s.spawn(|_| {
-                if include_crater {
-                    profile_from_psd(
-                        crater.radius,
-                        crater.floor_radius,
-                        crater.floor_radius_psd,
-                        bearings,
-                        None,
-                        crater.floor_radius_rng_seed,
-                    )
-                } else {
-                    Ok(Array1::<f64>::from_elem(bearings.len(), crater.floor_radius))
-                }
-            });
-
-            (h1.join().unwrap(), h2.join().unwrap())
-        })
-        .map_err(|_| "crossbeam scope panicked".to_string())?;
-
-    let rim_radius_profile = rim_radius_profile?;
-    let floor_radius_profile = floor_radius_profile?;
-
     let out: Vec<f64> = (0..n_points)
         .into_par_iter() 
         .map(|i| {
             let r = radial_distances[i];
             let href = reference_elevations[i];
-            let rim_r = rim_radius_profile[i];
-            let floor_r = floor_radius_profile[i];
+            let theta = bearings[i];
+            let rim_r = compute_one_profile_from_psd(crater.radius, crater.radius, crater.rim_radius_psd, theta);
+            let floor_r = compute_one_profile_from_psd(crater.radius, crater.floor_radius, crater.floor_radius_psd, theta);
             let rim_elev = rim_elevation * ((rim_r - floor_r) / (crater.radius - crater.floor_radius));
             let mut hcrat = crater_profile_function(
                 r,
@@ -226,22 +193,19 @@ pub fn get_1d_psd_from_control_points(
 
     let x1 = TAU.ln();
 
-    // Same spacing logic as Python: interval = exp(bp4_)x / npoints
     let interval = x1.exp() / npoints as f64;
 
     // Equivalent to rfft sizing in Python:
-    // dfft.size = npoints/2 + 1, iend = dfft.size - 1
     let iend = npoints / 2;
     let nrows = iend.saturating_sub(1); // wavelength from bins 1..iend-1
-
-    let mut psd = Array2::<f64>::zeros((nrows, 2));
-
-    // wavelength[k-1] = 1 / freq[k], freq[k] = k / (npoints * interval)
-    // => wavelength = (npoints * interval) / k
+    let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
+    let mut psd = Array2::<f64>::zeros((nrows, 3));
     let base = npoints as f64 * interval;
+    let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
     for k in 1..iend {
         let row = k - 1;
-        psd[[row, 0]] = base / k as f64;
+        psd[[row, 0]] = base / k as f64; // Wavelength
+        psd[[row, 2]] = uniform.sample(&mut rng); // Phase (randomized)
     }
 
     psd[[0, 1]] = y1.exp(); 
@@ -256,15 +220,13 @@ pub fn get_1d_psd_from_control_points(
         psd[[i, 1]] = (yn + sn * (log_x - xn)).exp();
     }
 
-    // flipud
-    let mut flipped = Array2::<f64>::zeros((nrows, 2));
+    let mut flipped = Array2::<f64>::zeros((nrows, 3));
     for i in 0..nrows {
         flipped.row_mut(i).assign(&psd.row(nrows - 1 - i));
     }
 
     // Optional Gaussian noise in log power
     if add_noise {
-        let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
         let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
         for i in 0..nrows {
             let log_power = flipped[[i, 1]].ln();
@@ -282,10 +244,9 @@ pub fn get_1d_psd_from_control_points(
 /// # Arguments
 /// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
 /// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
-/// * `psd` - A 2D array where the first column contains wavelengths and the second column contains power values, defining the roughness characteristics of the surface.
+/// * `psd` - A (nfreq,3) array where the first column contains wavelengths, the second column contains power values, and the third column contains the phases, which define the variability of the profile.
 /// * `theta` - A 1D array of angular positions (in radians) at which to compute the profile, typically ranging from 0 to 2π.
 ///    - A 1D array of polar angle (in radians) at which to compute the profile, typically ranging from 0 to 2π.
-/// * `phases` - An optional 1D array of phase values (in radians) corresponding to each frequency in the PSD. If not provided, random phases will be generated.
 /// * `rng_seed` - The random seed for reproducibility when generating random phases if `phases` is not provided.
 /// # Returns
 /// * A 1D array of values corresponding to the input angles, representing the linear profile generated from the PSD and phase information.
@@ -295,34 +256,34 @@ pub fn profile_from_psd(
     ymean: f64,
     psd: ArrayView2<'_, f64>,
     theta: ArrayView1<'_, f64>,
-    phases: Option<ArrayView1<'_, f64>>,
-    rng_seed: u64,
 ) -> ArrayResult {
-    let nfreq = psd.nrows();
     let ntheta = theta.len();
-
-    let phase_values: Array1<f64> = if let Some(p) = phases {
-        p.to_owned()
-    } else {
-        let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-        let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
-        Array1::from_iter((0..nfreq).map(|_| uniform.sample(&mut rng)))
-    };
-
-    let amplitude: Array1<f64> = psd.column(1).mapv(|p| (p * TAU).sqrt());
 
     let out: Vec<f64> = (0..ntheta)
         .into_par_iter()
         .map(|j| {
-            let t = theta[j];
-            let mut dy = 0.0;
-            for i in 0..nfreq {
-                let freq = 1.0 / psd[[i, 0]];
-                dy += amplitude[i] * (TAU * freq * t + phase_values[i]).cos();
-            }
-            dy * crater_radius + ymean 
+            compute_one_profile_from_psd(crater_radius, ymean, psd, theta[j])
         })
         .collect();
 
     Ok(Array1::from_vec(out))
+}
+
+#[inline]
+pub fn compute_one_profile_from_psd(
+    crater_radius: f64,
+    ymean: f64,
+    psd: ArrayView2<'_, f64>,
+    theta: f64,
+) -> f64 {
+    let nfreq = psd.nrows();
+
+    let mut dy = 0.0;
+    for i in 0..nfreq {
+        let freq = TAU / psd[[i, 0]];
+        let amplitude = (psd[[i, 1]] * TAU).sqrt();
+        let phase = psd[[i,2]];
+        dy += amplitude * (freq * theta + phase).cos();
+    }
+    dy * crater_radius + ymean 
 }

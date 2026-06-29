@@ -1,7 +1,7 @@
 [package]
 name = "cratermaker-components"
 version = "2026.5.0-a14+gd6d69b0bf"
-edition = "2021"
+edition = "2024"
 
 
 [dependencies]
@@ -10,10 +10,10 @@ rand = "0.10.1"
 noise = "0.9.0"
 rand_chacha = "0.10.0"
 rand_distr = "0.6.0"
-numpy = "0.27.1"
+numpy = "0.29.0"
 blas = "0.23"
 rayon = "1.11"
-pyo3 = { version = "0.27", features = ["extension-module"] }
+pyo3 = { version = "0.29", features = ["extension-module"] }
 libm = "0.2"
 crossbeam = "0.8.4"
 
