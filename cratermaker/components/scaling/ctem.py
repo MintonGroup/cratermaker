@@ -13,7 +13,7 @@ class CTEMScaling(MonteCarloScaling):
     An operations class for computing the scaling relationships between projectiles and craters.
 
     This class encapsulates the logic for converting between projectile properties and crater properties,
-    as well as determining crater morphology based on size and target propertiesImplements the scaling laws described in Richardson (2009) that were implemented in CTEM.
+    as well as determining crater morphology based on size and target properties. Implements the scaling laws described in Richardson (2009) that were implemented in CTEM.
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ class CTEMScaling(MonteCarloScaling):
     Ybar : FloatLike, optional
         The strength of the target material, (Pa)
     density : FloatLike, optional
-        Volumentric density of target material, (kg/m³)
+        Volumetric density of target material, (kg/m³)
     **kwargs : Any
         |kwargs|
 
@@ -40,7 +40,7 @@ class CTEMScaling(MonteCarloScaling):
     - The `material` parameter is optional. If not provided, it will be retrieved from `target`. Setting it explicitly will override the value in `target`.
     - The `K1`, `mu`, `Ybar`, and `density` parameters are optional. If not provided, they will be retrieved from the material catalogue based on the `material`. Setting them explicitly will override the values in the catalogue.
     - The built-in material property values are from Holsapple (1993) and Kraus et al. (2011).
-    - Complex craater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004).
+    - Complex crater scaling parameters are a synthesis of Pike (1980), Croft (1985), and Schenk et al. (2004).
 
     References
     ----------
@@ -81,7 +81,7 @@ class CTEMScaling(MonteCarloScaling):
         Computes and sets the internal attributes for transition factors between simple and complex craters.
         """
         # Constants from CTEM
-        CXEXPS = 1 / 0.885 - 1.0  # Complex crater scaling explonent for silicate rock (Croft 1985)
+        CXEXPS = 1 / 0.885 - 1.0  # Complex crater scaling exponent for silicate rock (Croft 1985)
         SIMCOMKS = 16533.8  # Simple-to-complex transition scaling coefficient for silicate rock
         SIMCOMPS = -1.0303  # Simple-to-complex transition scaling exponent for silicate rock
         CXEXPI = 0.155  # Complex crater scaling exponent for ice
