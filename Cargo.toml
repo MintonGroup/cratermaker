@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["crates/cratermaker-components", "crates/cratermaker-py", "crates/cratermaker-tools"]
+members = ["crates/cratermaker-components", "crates/cratermaker-py"]
