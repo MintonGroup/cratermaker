@@ -1,9 +1,10 @@
 use cratermaker_components::morphology::realmoon::RealMoonCrater;
+use interp::{InterpMode, interp_slice};
 use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
-
+use std::f64::consts::TAU;
 
 // Mirrors the RealMoonCrater struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyRealMoonCrater<'py> {
@@ -84,7 +85,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             diameter: obj.getattr("diameter")?.extract()?,
             radius: obj.getattr("radius")?.extract()?,
             semimajor_axis: obj.getattr("semimajor_axis")?.extract()?,
-            semiminor_axis: obj.getattr("semiminor_axis")?.extract()?,  
+            semiminor_axis: obj.getattr("semiminor_axis")?.extract()?,
             orientation: obj.getattr("orientation")?.extract()?,
             transient_diameter: obj.getattr("transient_diameter")?.extract()?,
             projectile_diameter: obj.getattr("projectile_diameter")?.extract()?,
@@ -126,7 +127,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
     }
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
     pub fn as_views(&self) -> RealMoonCrater<'_> {
-        RealMoonCrater{
+        RealMoonCrater {
             id: self.id,
             diameter: self.diameter,
             radius: self.radius,
@@ -173,8 +174,6 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
     }
 }
 
-
-
 /// Computes a crater profile elevation array from input radial distances and reference elevations using the realistic moon model of Du et al. (2024a,b).
 ///
 /// This function applies `profile_function` to each radial distance in the input array.
@@ -185,7 +184,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
 ///
 /// * `py` - Python GIL token.
 /// * `radial_distances` - 1D array of radial distances from crater center (in meters).
-/// * `bearings` - 1D array of bearing angles (radians, clockwise north). 
+/// * `bearings` - 1D array of bearing angles (radians, clockwise north).
 /// * `reference_elevations` - 1D array of reference elevations corresponding to each radius.
 /// * `crater` - A BasicMoonCrater struct containing the crater's properties.
 /// * `include_crater` - Boolean indicating whether to include the crater profile.
@@ -224,7 +223,6 @@ pub fn realmoon_profile<'py>(
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray1::from_owned_array(py, result))
 }
-
 
 #[pyfunction]
 pub fn get_1d_psd_from_control_points<'py>(
@@ -267,14 +265,23 @@ pub fn profile_from_psd<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let psd_v = psd.as_array();
     let theta_v = theta.as_array();
+    let mut psd_theta: Vec<f64> = Vec::new();
 
-    let result = cratermaker_components::morphology::realmoon::profile_from_psd(
+    let profile = cratermaker_components::morphology::realmoon::compute_profile_from_psd(
         crater_radius,
         ymean,
         psd_v,
-        theta_v,
-    )
-    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray1::from_owned_array(py, result))
-}   
+    );
+    let npoints = profile.len();
+    for i in 0..npoints {
+        psd_theta.push(TAU * ((i - 1) as f64 / (npoints - 2) as f64));
+    }
 
+    let result = interp_slice(
+        &psd_theta,
+        &profile,
+        &theta_v.to_vec(),
+        &InterpMode::default(),
+    );
+    Ok(PyArray1::from_vec(py, result))
+}
