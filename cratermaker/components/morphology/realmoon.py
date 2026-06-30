@@ -24,7 +24,7 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
-_PSD1D_MIN_POINTS = 16
+_PSD1D_MIN_POINTS = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,7 +232,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         theta = np.radians(bearings)
         return realmoon_bindings.profile_from_psd(
-            crater_radius=self.floor_radius,
+            crater_radius=self.crater_radius,
             ymean=self.floor_radius,
             psd=self.floor_radius_psd,
             theta=theta,
