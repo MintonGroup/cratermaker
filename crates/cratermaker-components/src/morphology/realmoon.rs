@@ -127,10 +127,15 @@ pub fn realmoon_profile(
     let floor_radius_profile =
         compute_profile_from_psd(crater.radius, crater.floor_radius, crater.floor_radius_psd);
 
-    let mut psd_theta: Vec<f64> = Vec::new();
-    let npoints = rim_radius_profile.len();
-    for i in 0..npoints {
-        psd_theta.push(TAU * ((i - 1) as f64 / (npoints - 2) as f64));
+    let mut rimtheta: Vec<f64> = Vec::new();
+    let mut floortheta: Vec<f64> = Vec::new();
+    let nrim = rim_radius_profile.len();
+    let nfloor = floor_radius_profile.len();
+    for i in 0..nrim {
+        rimtheta.push(TAU * ((i - 1) as f64 / (nrim - 2) as f64));
+    }
+    for i in 0..nfloor {
+        floortheta.push(TAU * ((i - 1) as f64 / (nfloor - 2) as f64));
     }
 
     let out: Vec<f64> = (0..n_points)
@@ -140,13 +145,13 @@ pub fn realmoon_profile(
             let href = reference_elevations[i];
             let theta = bearings[i];
             let rim_r = interp(
-                &psd_theta,
+                &rimtheta,
                 &rim_radius_profile,
                 theta,
                 &InterpMode::default(),
             );
             let floor_r = interp(
-                &psd_theta,
+                &floortheta,
                 &floor_radius_profile,
                 theta,
                 &InterpMode::default(),
