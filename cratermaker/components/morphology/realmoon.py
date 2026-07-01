@@ -452,15 +452,6 @@ class RealmoonMorphology(BasicMoonMorphology):
             **kwargs,
         )
 
-    # These will use the BasicMoon profiles for inversions
-    def _profile_invert_ejecta(self, r, crater, minimum_thickness):
-        ans = super().ejecta_profile(crater, r) - minimum_thickness
-        return ans[0]
-
-    def _profile_invert_crater(self, r, crater, minimum_thickness):
-        ans = super().crater_profile(crater, r, np.zeros(1)) - minimum_thickness
-        return ans[0]
-
     @staticmethod
     def compute_psd1d(y):
         """

@@ -20,21 +20,26 @@ mod cratermaker {
     mod counting_bindings {
         #[pymodule_export]
         use crate::counting::counting_bindings::{
-            fit_one_ellipse, fit_one_ellipse_fixed_center, fit_one_circle, fit_one_circle_fixed_center, fit_rim, measure_floor_elevation,
-            measure_rim_elevation, score_rim,
+            fit_one_circle, fit_one_circle_fixed_center, fit_one_ellipse,
+            fit_one_ellipse_fixed_center, fit_rim, measure_floor_elevation, measure_rim_elevation,
+            score_rim,
         };
     }
 
     #[pymodule]
     mod basicmoon_bindings {
         #[pymodule_export]
-        use crate::morphology::basicmoon_bindings::{basicmoon_profile, ray_intensity};
+        use crate::morphology::basicmoon_bindings::{
+            basicmoon_profile, crater_profile_function, ejecta_profile_function, ray_intensity,
+        };
     }
 
     #[pymodule]
     mod realmoon_bindings {
         #[pymodule_export]
-        use crate::morphology::realmoon_bindings::{realmoon_profile,get_1d_psd_from_control_points,profile_from_psd};
+        use crate::morphology::realmoon_bindings::{
+            get_1d_psd_from_control_points, profile_from_psd, realmoon_profile,
+        };
     }
 
     #[pymodule]

@@ -1037,12 +1037,10 @@ class BasicMoonMorphology(Morphology):
         return
 
     def _profile_invert_ejecta(self, r, crater, minimum_thickness):
-        ans = self.ejecta_profile(crater, r) - minimum_thickness
-        return ans[0]
+        return basicmoon_bindings.ejecta_profile_function(crater, r) - minimum_thickness
 
     def _profile_invert_crater(self, r, crater, minimum_thickness):
-        ans = self.crater_profile(crater, r, np.zeros(1)) - minimum_thickness
-        return ans[0]
+        return basicmoon_bindings.crater_profile_function(crater, r) - minimum_thickness
 
     def rmax(
         self,

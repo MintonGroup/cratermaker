@@ -82,4 +82,39 @@ pub fn ray_intensity<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
+#[pyfunction]
+pub fn crater_profile_function<'py>(
+    _py: Python<'py>,
+    crater: BasicMoonCrater,
+    r: f64,
+) -> PyResult<f64> {
+    let result = cratermaker_components::morphology::basicmoon::crater_profile_function(
+        r,
+        crater.radius,
+        crater.floor_elevation,
+        crater.floor_radius,
+        crater.wall_curvature,
+        crater.rim_width,
+        crater.rim_elevation,
+        crater.rimdrop,
+        crater.peak_height,
+        crater.peak_width,
+        crater.peak_ring_radius,
+    );
+    Ok(result)
+}
 
+#[pyfunction]
+pub fn ejecta_profile_function<'py>(
+    _py: Python<'py>,
+    crater: BasicMoonCrater,
+    r: f64,
+) -> PyResult<f64> {
+    let result = cratermaker_components::morphology::basicmoon::ejecta_profile_function(
+        r,
+        crater.radius,
+        crater.ejrim,
+        crater.ejprofile,
+    );
+    Ok(result)
+}

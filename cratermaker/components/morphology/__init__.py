@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
 # The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 2.0
+_RIM_BUFFER_FACTOR = 1.5
 
 from abc import abstractmethod
 from collections.abc import Callable
@@ -265,10 +265,8 @@ class MorphologyCrater(Crater):
         This is extracted from the morphology's associated Surface object based on the location of the crater and a radius that extends by a `_RIM_BUFFER_FACTOR` constant times the crater radius. If the crater region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
         if self._var._crater_region is None and self._has_initialized_surface_data:
-            self._var._crater_region = self.morphology.surface.extract_region(
-                location=self.location,
-                region_radius=_RIM_BUFFER_FACTOR * self.radius,
-            )
+            region_radius = self.morphology.rmax(self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater")
+            self._var._crater_region = self.morphology.surface.extract_region(location=self.location, region_radius=region_radius)
         return self._var._crater_region
 
     @property
