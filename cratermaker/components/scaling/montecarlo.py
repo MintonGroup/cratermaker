@@ -172,7 +172,7 @@ class MonteCarloScaling(Scaling):
         # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular
         transition_range = (0.5 * self.transition_nominal, 2 * self.transition_nominal)
 
-        if self._multiring_transition is not None and diameter > self._multiring_transition:
+        if self._multiring_transition is not None and diameter >= self._multiring_transition:
             morphology_type = "multiring"
         elif diameter < transition_range[0]:
             morphology_type = "simple"

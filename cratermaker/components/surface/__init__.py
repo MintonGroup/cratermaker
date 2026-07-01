@@ -2641,7 +2641,7 @@ class LocalSurface(CratermakerBase):
             z = np.concatenate([self.face_elevation, self.node_elevation])
         coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
         coeffs[2] = np.mean(z)
-        reference_elevation = coeffs[0] * x + coeffs[1] * y + coeffs[2]
+        reference_elevation = np.where(points_within_region, coeffs[0] * x + coeffs[1] * y + coeffs[2], elevation)
 
         return reference_elevation
 
