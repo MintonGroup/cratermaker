@@ -157,7 +157,7 @@ pub fn realmoon_profile(
                 &InterpMode::default(),
             );
             let rim_elev =
-                rim_elevation * ((rim_r - floor_r) / (crater.radius - crater.floor_radius));
+                rim_elevation * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
             let mut hcrat = crater_profile_function(
                 r,
                 rim_r, // per-angle rim radius
