@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
 # The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.5
+_RIM_BUFFER_FACTOR = 2.0
 
 from abc import abstractmethod
 from collections.abc import Callable
@@ -595,11 +595,11 @@ class Morphology(ComponentBase):
 
         # Check to make sure that the face at the crater location is not smaller than the crater area
         if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.ejecta_region)
-            crater.ejecta_region.update_elevation(elevation_change)
+            elevation_change = self.crater_shape(crater, crater.crater_region)
+            crater.crater_region.update_elevation(elevation_change)
             if self.do_slope_collapse:
-                crater.ejecta_region.slope_collapse()
-            self._excavated_volume = crater.ejecta_region.compute_volume(elevation_change[: crater.ejecta_region.n_face])
+                crater.crater_region.slope_collapse()
+            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
 
             # Remove any ejecta from the interior of the crater
             inner_crater_region = crater.crater_region.extract_subregion(crater.radius)

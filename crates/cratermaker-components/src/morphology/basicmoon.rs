@@ -3,9 +3,9 @@ use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
 use pyo3::FromPyObject;
+use rand::SeedableRng;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::f64::{
@@ -111,22 +111,35 @@ pub fn basicmoon_profile(
     let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
-
     Ok(Array1::from_iter(
         reference_elevations
             .iter()
             .zip(radial_distances.iter().copied())
             .map(|(href, r)| {
-                let mut hcrat = crater_profile_function(r, crater.radius, floor_elevation, crater.floor_radius, crater.wall_curvature, crater.rim_width, rim_elevation, crater.rimdrop, crater.peak_height, crater.peak_width, crater.peak_ring_radius);
-                let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
+                let mut hcrat = crater_profile_function(
+                    r,
+                    crater.radius,
+                    floor_elevation,
+                    crater.floor_radius,
+                    crater.wall_curvature,
+                    crater.rim_width,
+                    rim_elevation,
+                    crater.rimdrop,
+                    crater.peak_height,
+                    crater.peak_width,
+                    crater.peak_ring_radius,
+                );
+                let mut hej =
+                    ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
                 if r < crater.radius && r > crater.floor_radius {
-                    hej += (hcrat - (rim_elevation - crater.ejrim)).max(0.0);
+                    hej += hcrat - rim_elevation + crater.ejrim;
+                    hej = hej.max(0.0);
                 }
 
                 if include_crater {
                     if r > crater.radius || hcrat > 0.0 {
-                        hcrat = (hcrat - hej).max(0.0); 
-                    } 
+                        hcrat = (hcrat - hej).max(0.0);
+                    }
                     hcrat += crater.elevation_offset;
                 } else {
                     hcrat = 0.0;
@@ -135,7 +148,7 @@ pub fn basicmoon_profile(
                     hej = 0.0;
                 }
 
-                let h = href + hcrat + hej; 
+                let h = href + hcrat + hej;
 
                 if r <= crater.radius {
                     h.max(min_elevation)
@@ -177,7 +190,19 @@ pub fn basicmoon_profile(
 ///
 /// * Elevation values at distance `r`.
 #[inline]
-pub fn crater_profile_function(r: f64, radius: f64, hf: f64, rf: f64, beta: f64, rw: f64, hr: f64, prd: f64, hc: f64, rc: f64, ro: f64) -> f64 {
+pub fn crater_profile_function(
+    r: f64,
+    radius: f64,
+    hf: f64,
+    rf: f64,
+    beta: f64,
+    rw: f64,
+    hr: f64,
+    prd: f64,
+    hc: f64,
+    rc: f64,
+    ro: f64,
+) -> f64 {
     let rw_half = rw / 2.0;
     let fc = hc * (-((r - ro) / rc).powi(2)).exp(); // Central peak contribution. Compute this separately to avoid sharp discontinuities
     if r <= rf {
@@ -191,7 +216,9 @@ pub fn crater_profile_function(r: f64, radius: f64, hf: f64, rf: f64, beta: f64,
             let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
             let t = (r - (radius - rw_half)) / rw;
             let phi = 6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3);
-            let fw = (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr;
+            let fw = (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp()))
+                .min(0.0)
+                + hr;
             if r <= radius - rw_half {
                 fw + fc
             } else {
