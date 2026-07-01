@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from cratermaker.components.morphology import Morphology
     from cratermaker.components.surface import LocalSurface
 
-# The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.5
 
 from abc import abstractmethod
 from collections.abc import Callable

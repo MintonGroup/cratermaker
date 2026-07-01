@@ -37,6 +37,9 @@ _N_LAYER = 8
 # The minimum number of faces required in a region to perform crater counting, which corresponds to a roughly 6-8 pix diameter crater
 _MIN_FACE_FOR_COUNTING = 100
 
+# The factor by which the crater tagging region is extended beyond the final rim.
+_RIM_BUFFER_FACTOR = 1.5
+
 
 class Counting(ComponentBase):
     """
@@ -192,7 +195,7 @@ class Counting(ComponentBase):
             )
 
         # Tag a region just outside crater rim with the id
-        crater_region = crater.crater_region
+        crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
         if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
             crater_region.add_tag(
