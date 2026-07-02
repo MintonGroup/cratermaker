@@ -2408,22 +2408,15 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
+        return
 
-    def compute_slope(self) -> NDArray[np.float64]:
+    def compute_slope(self) -> None:
         """
-        Compute the slope of the surface.
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The slope of all faces in degrees.
+        Compute the slope of the surface and stores it as a new variable "face_slope".
         """
-        slope = surface_bindings.compute_slope(
-            face_elevation=self.face_elevation,
-            region=self,
-        )
-
-        return np.rad2deg(np.arctan(slope))
+        slope = surface_bindings.compute_slope(region=self)
+        self.add_data(name="face_slope", long_name="face slope", units="deg", data=np.rad2deg(np.arctan(slope)), overwrite=True)
+        return
 
     def apply_noise(
         self,
@@ -2640,7 +2633,6 @@ class LocalSurface(CratermakerBase):
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
         coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
-        coeffs[2] = np.mean(z)
         reference_elevation = np.where(points_within_region, coeffs[0] * x + coeffs[1] * y + coeffs[2], elevation)
 
         return reference_elevation
