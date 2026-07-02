@@ -237,10 +237,14 @@ class BasicMoonCrater(MorphologyCrater):
         .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. `doi:10.1029/2021GL095537 <https://doi.org/10.1029/2021GL095537>`_
         .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
         """
+        input_args = locals()
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic, sample_pikefit
 
         if crater is not None and isinstance(crater, BasicMoonCrater):
+            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
+                input_args.pop(k, None)
+            conserve_volume = any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
