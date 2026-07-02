@@ -88,6 +88,7 @@ class BasicMoonCraterVariable(MorphologyCraterVariable):
         Return a dictionary representation of the crater variable properties.
         """
         dict_repr = super().as_dict()
+        dict_repr["ejrim"] = self.ejrim
         dict_repr["ring"] = self.ring
 
         return dict_repr
