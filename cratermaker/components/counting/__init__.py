@@ -1500,7 +1500,7 @@ class Counting(ComponentBase):
                 f.write(f"coordinate_system_name = {self.surface.local.crs.name}\n")
                 if region_poly is None:  # We only need to do this the first time through
                     region_circle = self.Crater.maker(
-                        radius=self.surface.local_radius, location=self.surface.local_location
+                        radius=self.surface.local_radius, location=self.surface.local_location, conserve_volume=False
                     )  # We can get away with using just the base class for Crater here
                     region_poly = (
                         region_circle.to_geoseries(surface=self.surface, split_antimeridian=False, use_measured_properties=False)

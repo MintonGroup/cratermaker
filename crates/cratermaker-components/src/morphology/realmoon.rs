@@ -175,7 +175,8 @@ pub fn realmoon_profile(
             let mut hej = ejecta_profile_function(r, rim_r, crater.ejrim, crater.ejprofile);
 
             if r < rim_r && r > floor_r {
-                hej += (hcrat - (rim_elev - crater.ejrim)).max(0.0);
+                hej += hcrat - rim_elev + crater.ejrim;
+                hej = hej.clamp(0.0, crater.ejrim);
             }
 
             if include_crater {

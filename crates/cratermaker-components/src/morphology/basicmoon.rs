@@ -133,7 +133,7 @@ pub fn basicmoon_profile(
                     ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
                 if r < crater.radius && r > crater.floor_radius {
                     hej += hcrat - rim_elevation + crater.ejrim;
-                    hej = hej.max(0.0);
+                    hej = hej.clamp(0.0, crater.ejrim);
                 }
 
                 if include_crater {

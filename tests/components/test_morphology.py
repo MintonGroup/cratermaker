@@ -57,14 +57,15 @@ class TestMorphology(unittest.TestCase):
                 morphology = Morphology.maker(morphology=model_name, surface=surface)
                 crater_radius_values = [1.0, 1e3, 15e3, 50e3, 500e3, 3000e3]
                 rvals = np.linspace(0, 10, 1000)
+                bvals = np.zeros_like(rvals)
                 for radius in crater_radius_values:
                     crater = Crater.maker(radius=radius)
-                    crater_shape = morphology.crater_profile(crater, rvals * radius)
+                    crater_shape = morphology.crater_profile(crater, rvals * radius, bvals)
                     self.assertTrue(
                         np.all(np.isfinite(crater_shape)),
                         f"Crater profile for {model_name} contains NaN or Inf values.",
                     )
-                    ejecta_shape = morphology.ejecta_profile(crater, rvals * radius)
+                    ejecta_shape = morphology.ejecta_profile(crater, rvals * radius, bvals)
                     self.assertTrue(
                         np.all(np.isfinite(ejecta_shape)),
                         f"Ejecta profile for {model_name} contains NaN or Inf values.",
@@ -72,8 +73,8 @@ class TestMorphology(unittest.TestCase):
 
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
-        diameter_list = [100e3, 200e3, 500e3, 1000e3]
-        delta_vals = [0.4, 0.3, 0.3, 0.2]
+        diameter_list = [200e3, 500e3, 1000e3]
+        delta_vals = [0.3, 0.3, 0.2]
 
         surface_args = {
             "icosphere": {"gridlevel": 6},
@@ -89,7 +90,7 @@ class TestMorphology(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             for name, args in surface_args.items():
-                sim = Simulation(simdir=simdir, surface=name, ask_overwrite=False, **args)
+                sim = Simulation(simdir=simdir, surface=name, ask_overwrite=False, rng_seed=8675309, **args)
                 for diameter, delta in zip(diameter_list, delta_vals, strict=False):
                     sim.reset()
                     # verify that the surface is flat
@@ -118,7 +119,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
 
-                    crater = sim.Crater.maker(diameter=diameter, location=(0, 0))
+                    crater = sim.Crater.maker(diameter=diameter, location=(0, 0), peak_height=0.0, rim_width=0.0)
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values

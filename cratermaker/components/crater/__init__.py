@@ -428,7 +428,7 @@ class Crater(ComponentBase):
                 raise TypeError("crater must be an instance of Crater or None")
             fixed_fields = asdict(crater._fixed)
             for f in fields(crater._fixed):
-                if not f.init:
+                if not f.init or f.name in kwargs:
                     fixed_fields.pop(f.name)
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs
@@ -447,6 +447,9 @@ class Crater(ComponentBase):
                 fixed_fields[f.name] = kwargs.pop(f.name)
 
         var_fields.update({k: v for k, v in kwargs.items() if k not in fixed_fields})
+        location = fixed_fields.pop("location", None)
+        if location is not None:
+            fixed_fields["location"] = (float(location[0]), float(location[1]))
         self._fixed = fixed_cls(**fixed_fields)
         self._var = variable_cls(**var_fields)
         return
@@ -769,7 +772,7 @@ class Crater(ComponentBase):
                 raise ValueError("Both longitude and latitude must be passed or location must be passed.")
             if check_redundant_inputs and (location is not None or projectile_location is not None):
                 raise ValueError("location cannot be used with longitude and latitude as separate arguments")
-            location = [longitude, latitude]
+            location = (longitude, latitude)
 
         if location is None:
             location = projectile_location
