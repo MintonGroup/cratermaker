@@ -454,8 +454,8 @@ class BasicMoonCrater(MorphologyCrater):
                 ejecta_volume = morphology.estimate_volume(crater, include_crater=False, include_ejecta=True)
                 result = ejecta_volume + excavated_volume
                 crater.ejrim = ejrim_orig
-                ring = crater.ring
                 if len(ring_ejrim_orig) > 0:
+                    ring = crater.ring
                     for ring_ejrim in ring_ejrim_orig:
                         ring.ejrim = ring_ejrim
                         ring = ring.ring
@@ -472,7 +472,18 @@ class BasicMoonCrater(MorphologyCrater):
                 )
                 lower_bound = _func(0.0, crater)
 
-            upper_bracket = max(crater.rim_elevation, 3 * crater.ejrim)
+            upper_bracket = crater.rim_elevation
+            upper_bound = _func(upper_bracket, crater)
+            while upper_bound < 0.0:
+                # This occurs when the rim_elevation is too low
+                kwargs["rim_elevation"] *= 1.1
+                crater = cls(
+                    crater=crater,
+                    morphology=morphology,
+                    **kwargs,
+                )
+                upper_bound = _func(crater.rim_elevation, crater)
+                upper_bracket = crater.rim_elevation
 
             sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[0.0, upper_bracket], method="brentq")
             ejrim = sol.root if sol.converged else crater.ejrim
@@ -593,6 +604,92 @@ class BasicMoonCrater(MorphologyCrater):
         for _ in range(ring_number):
             ring = ring.ring
         return ring
+
+    @property
+    def rim_elevation(self) -> float | None:
+        """Original rim height of the crater in meters relative to the reference surface."""
+        return self._fixed.rim_elevation
+
+    @property
+    def floor_elevation(self) -> float | None:
+        """Original floor depth of the crater in meters relative to the reference surface."""
+        return self._fixed.floor_elevation
+
+    @property
+    def floor_radius(self) -> float | None:
+        """Original floor diameter of the crater in meters."""
+        return self._fixed.floor_radius
+
+    @property
+    def wall_curvature(self) -> float | None:
+        """The curvature of the crater walls."""
+        return self._fixed.wall_curvature
+
+    @property
+    def rim_width(self) -> float | None:
+        """The width of the crater rim in meters."""
+        return self._fixed.rim_width
+
+    @property
+    def rimdrop(self) -> float | None:
+        """The power law exponent for the structural uplift underneath the ejecta"""
+        return self._fixed.rimdrop
+
+    @property
+    def ejprofile(self) -> float | None:
+        """Power law exponent for the ejecta thickness profile of the crater."""
+        return self._fixed.ejprofile
+
+    @property
+    def peak_height(self) -> float | None:
+        """Central peak height of the crater in meters relative to the reference surface. 0 for simple craters."""
+        return self._fixed.peak_height
+
+    @property
+    def peak_width(self) -> float | None:
+        """Central peak width of the crater in meters. 0 for simple craters."""
+        return self._fixed.peak_width
+
+    @property
+    def peak_ring_radius(self) -> float | None:
+        """Radius of peak ring in meters. 0 for central peaks."""
+        return self._fixed.peak_ring_radius
+
+    @property
+    def peak_center_distance(self) -> float | None:
+        """Distance of central peak/peak ring from crater center in meters."""
+        return self._fixed.peak_center_distance
+
+    @property
+    def peak_center_bearing(self) -> float | None:
+        """Bearing angle of central peak/peak ring in degrees."""
+        return self._fixed.peak_center_bearing
+
+    @property
+    def elevation_offset(self) -> float | None:
+        """Offset in elevation values (used for multiring basins)."""
+        return self._fixed.elevation_offset
+
+    @property
+    def isring(self) -> bool | None:
+        """Flag that indicates that this is a ring rather than a crater."""
+        return self._fixed.isring
+
+    @property
+    def ejrim(self) -> float | None:
+        """Ejecta rim thickness of the crater in meters."""
+        return self._var._ejrim
+
+    @property
+    def ring(self) -> BasicMoonCrater | None:
+        return self._var._ring
+
+    @property
+    def nrings(self) -> int:
+        """
+        Returns the number of rings associated with this Crater.
+        """
+        return self._var.nrings
 
 
 @Morphology.register("basicmoon")
@@ -1208,21 +1305,26 @@ class BasicMoonMorphology(Morphology):
         if not (include_crater or include_ejecta):
             return np.float64(0.0)
 
-        def func(r):
-            radial_distances = np.atleast_1d(r)
-            bearings = np.zeros_like(radial_distances)
-            h = self.crater_profile(
-                crater=crater,
-                radial_distances=radial_distances,
-                bearings=bearings,
-                crater_cls=crater_cls,
-                profile_func=profile_func,
-                include_crater=include_crater,
-                include_ejecta=include_ejecta,
-            )
-            return r * h[0]
+        def _crater_func(r):
+            h = basicmoon_bindings.crater_profile_function(crater, r)
+            return r * h
 
-        v = quad(func, 0.0, 100 * crater.radius, **{"limit": 100, **kwargs}, full_output=1)[0]
+        def _ejecta_func(r):
+            h = basicmoon_bindings.ejecta_profile_function(crater, r)
+            return r * h
+
+        def _combo_func(r):
+            hc = basicmoon_bindings.crater_profile_function(crater, r)
+            he = basicmoon_bindings.ejecta_profile_function(crater, r)
+            return r * (hc + he)
+
+        if include_crater and not include_ejecta:
+            func = _crater_func
+        elif include_ejecta and not include_crater:
+            func = _ejecta_func
+        else:
+            func = _combo_func
+        v = quad(func, 0.0, 20 * crater.radius, **{"limit": 100, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
 
     def degradation_function(

@@ -1405,6 +1405,187 @@ class Crater(ComponentBase):
         """
         pass
 
+    @property
+    def name(self) -> str | None:
+        """Optional name of the crater, which does not need to be unique."""
+        return self._var._name
+
+    @property
+    def measured_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self._var.measured_diameter
+
+    @property
+    def measured_radius(self) -> float | None:
+        """
+        The measured radius of the crater in meters. For a circular crater, this is equal to the measured semimajor and semiminor axes.
+
+        For a non-circular crater, this is the geometric mean of the measured semimajor and measured semiminor axes. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_radius
+
+    @property
+    def measured_semimajor_axis(self) -> float | None:
+        """
+        The measured semimajor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semiminor axis and the measured radius. For a non-circular crater, this is the longest axis of the crater. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_semimajor_axis
+
+    @property
+    def measured_semiminor_axis(self) -> float | None:
+        """
+        The measured semiminor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semimajor axis and the measured radius. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_semiminor_axis
+
+    @property
+    def measured_orientation(self) -> float | None:
+        """
+        The measured orientation of the crater in degrees, measured clockwise from north.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed orientation attribute.
+        """
+        return self._var.measured_orientation
+
+    @property
+    def measured_location(self) -> tuple[float, float] | None:
+        return self._var.measured_location
+
+    @property
+    def measured_rim_elevation(self) -> float | None:
+        return self._var.measured_rim_elevation
+
+    @property
+    def measured_floor_elevation(self) -> float | None:
+        """
+        The measured floor depth below the local reference plane of the crater in meters.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
+        return self._var._measured_floor_elevation
+
+    @property
+    def degradation_state(self) -> float | None:
+        """The degradation state of the crater in m², which is a measure of how much the crater has degraded diffusively from its original state.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
+        return self._var._degradation_state
+
+    @property
+    def production_time(self) -> float | None:
+        """The range of ages of the crater in Myr before present, used by the quasi-monte carlo sampling method to emplace a user-defined crater within a time period."""
+        return self._var.production_time
+
+    @property
+    def production_ND(self) -> tuple[float, float, float] | tuple[float, float] | None:
+        """A tuple of diameter and cumulative number values, in the form of a (D, N), or (D, N, N_stdev) used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
+        return self._var._production_ND
+
+    @property
+    def production_sequence(self) -> int | None:
+        """The production sequence number of the crater, used by the quasi-monte carlo sampling method to emplace a user-defined crater in a relative sequence order with other quasi-monte carlo sampled craters."""
+        return self._var._production_sequence
+
+    @property
+    def id(self) -> np.uint32 | None:
+        """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
+        return self._fixed.id
+
+    @property
+    def semimajor_axis(self) -> float | None:
+        """The semimajor axis of the cratermeters. For a circular crater, this is equal to the semiminor axis and the radius."""
+        return self._fixed.semimajor_axis
+
+    @property
+    def semiminor_axis(self) -> float | None:
+        """The semiminor axis of the crater in meters. For a circular crater, this is equal to the semimajor axis and the radius."""
+        return self._fixed.semiminor_axis
+
+    @property
+    def orientation(self) -> float | None:
+        """Orientation of the crater in degrees, measured clockwise from north. For a circular crater, this value is not meaningful, but will be set to the same value as `projectile_orientation`."""
+        return self._fixed.orientation
+
+    @property
+    def transient_diameter(self) -> float | None:
+        """The transient diameter of the crater in meters."""
+        return self._fixed.transient_diameter
+
+    @property
+    def projectile_diameter(self) -> float | None:
+        """The diameter of the projectile in meters."""
+        return self._fixed.projectile_diameter
+
+    @property
+    def projectile_velocity(self) -> float | None:
+        """The velocity of the projectile in meters per second."""
+        return self._fixed.projectile_velocity
+
+    @property
+    def projectile_angle(self) -> float | None:
+        """The impact angle of the projectile relative to the surfacein degrees."""
+        return self._fixed.projectile_angle
+
+    @property
+    def projectile_mass(self) -> float | None:
+        """The mass of the projectile in kg."""
+        return self._fixed.projectile_mass
+
+    @property
+    def location(self) -> PairOfFloats | None:
+        """The location of the crater center in (longitude, latitude) in degrees."""
+        return self._fixed.location
+
+    @property
+    def morphology_type(self) -> str | None:
+        """The morphology type of the crater, i.e. "simple", "complex", etc."""
+        return self._fixed.morphology_type
+
+    @property
+    def time(self) -> float | None:
+        """The time in My before present at which the crater was emplaced or observed."""
+        return self._fixed.time
+
+    @property
+    def radius(self) -> float | None:
+        """The radius of the crater in meters. For a circular crater, this is equal to the semimajor and semiminor axes. For a non-circular crater, this is the geometric mean of the semimajor and semiminor axes."""
+        return self._fixed.radius
+
+    @property
+    def diameter(self) -> float | None:
+        """The diameter of the crater in meters. For a circular crater, this is equal to twice the semimajor and semiminor axes. For a non-circular crater, this is twice the geometric mean of the semimajor and semiminor axes."""
+        return self._fixed.diameter
+
+    @property
+    def transient_radius(self) -> float | None:
+        """The transient radius of the crater in meters, which is half the transient diameter."""
+        return self._fixed.transient_radius
+
+    @property
+    def projectile_radius(self) -> float | None:
+        """The radius of the projectile in meters, which is half the projectile diameter."""
+        return self._fixed.projectile_radius
+
+    @property
+    def projectile_density(self) -> float | None:
+        """The density of the projectile in kg/m³."""
+        return self._fixed.projectile_density
+
+    @property
+    def projectile_vertical_velocity(self) -> float | None:
+        """The vertical component of the projectile velocity in meters per second."""
+        return self._fixed.projectile_vertical_velocity
+
+    @property
+    def projectile_direction(self) -> float | None:
+        """The direction of the projectile in degrees, measured clockwise from north. This is the same as `orientation`."""
+        return self._fixed.projectile_direction
+
 
 def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
     tuple_map = {

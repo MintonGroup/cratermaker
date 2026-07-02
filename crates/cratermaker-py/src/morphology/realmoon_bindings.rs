@@ -1,33 +1,15 @@
 use cratermaker_components::morphology::realmoon::RealMoonCrater;
 use interp::{InterpMode, interp_slice};
 use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::exceptions::{PyAttributeError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::TAU;
 
 // Mirrors the RealMoonCrater struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyRealMoonCrater<'py> {
-    pub id: u32,
     pub diameter: f64,
     pub radius: f64,
-    pub semimajor_axis: f64,
-    pub semiminor_axis: f64,
-    pub orientation: f64,
-    pub transient_diameter: f64,
-    pub projectile_diameter: f64,
-    pub projectile_velocity: f64,
-    pub projectile_angle: f64,
-    pub projectile_density: f64,
-    pub location: (f64, f64),
-    pub morphology_type: String,
-    pub measured_semimajor_axis: f64,
-    pub measured_semiminor_axis: f64,
-    pub measured_orientation: f64,
-    pub measured_diameter: f64,
-    pub measured_radius: f64,
-    pub measured_location: (f64, f64),
-    pub time: Option<f64>,
     pub floor_elevation: f64,
     pub floor_radius: f64,
     pub wall_curvature: f64,
@@ -42,65 +24,15 @@ pub struct PyReadonlyRealMoonCrater<'py> {
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
     pub elevation_offset: f64,
-    pub rim_radius_rng_seed: u64,
-    pub rim_elevation_rng_seed: u64,
-    pub floor_radius_rng_seed: u64,
-    pub wall_texture_rng_seed: u64,
-    pub ejecta_texture_rng_seed: u64,
-    pub floor_texture_rng_seed: u64,
     pub rim_radius_psd: PyReadonlyArray2<'py, f64>,
     pub floor_radius_psd: PyReadonlyArray2<'py, f64>,
 }
-
-fn getattr_optional<'py, T>(obj: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<T>>
-where
-    T: for<'a> pyo3::FromPyObject<'a, 'py>,
-    for<'a> <T as pyo3::FromPyObject<'a, 'py>>::Error: Into<pyo3::PyErr>,
-{
-    let py = obj.py();
-    match obj.getattr(name) {
-        Ok(val) => {
-            if val.is_none() {
-                Ok(None)
-            } else {
-                Ok(Some(val.extract::<T>().map_err(Into::into)?))
-            }
-        }
-        Err(err) => {
-            // If the attribute simply doesn't exist on the Python object, treat it as optional.
-            if err.is_instance_of::<PyAttributeError>(py) {
-                Ok(None)
-            } else {
-                Err(err)
-            }
-        }
-    }
-}
-
 impl<'py> PyReadonlyRealMoonCrater<'py> {
     /// Build from a Python PyReadonlyLocalSurface object
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            id: obj.getattr("id")?.extract()?,
             diameter: obj.getattr("diameter")?.extract()?,
             radius: obj.getattr("radius")?.extract()?,
-            semimajor_axis: obj.getattr("semimajor_axis")?.extract()?,
-            semiminor_axis: obj.getattr("semiminor_axis")?.extract()?,
-            orientation: obj.getattr("orientation")?.extract()?,
-            transient_diameter: obj.getattr("transient_diameter")?.extract()?,
-            projectile_diameter: obj.getattr("projectile_diameter")?.extract()?,
-            projectile_velocity: obj.getattr("projectile_velocity")?.extract()?,
-            projectile_angle: obj.getattr("projectile_angle")?.extract()?,
-            projectile_density: obj.getattr("projectile_density")?.extract()?,
-            location: obj.getattr("location")?.extract()?,
-            morphology_type: obj.getattr("morphology_type")?.extract()?,
-            measured_semimajor_axis: obj.getattr("measured_semimajor_axis")?.extract()?,
-            measured_semiminor_axis: obj.getattr("measured_semiminor_axis")?.extract()?,
-            measured_orientation: obj.getattr("measured_orientation")?.extract()?,
-            measured_diameter: obj.getattr("measured_diameter")?.extract()?,
-            measured_radius: obj.getattr("measured_radius")?.extract()?,
-            measured_location: obj.getattr("measured_location")?.extract()?,
-            time: getattr_optional(obj, "time")?,
             floor_elevation: obj.getattr("floor_elevation")?.extract()?,
             floor_radius: obj.getattr("floor_radius")?.extract()?,
             wall_curvature: obj.getattr("wall_curvature")?.extract()?,
@@ -115,12 +47,6 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_center_distance: obj.getattr("peak_center_distance")?.extract()?,
             peak_center_bearing: obj.getattr("peak_center_bearing")?.extract()?,
             elevation_offset: obj.getattr("elevation_offset")?.extract()?,
-            rim_radius_rng_seed: obj.getattr("rim_radius_rng_seed")?.extract()?,
-            rim_elevation_rng_seed: obj.getattr("rim_elevation_rng_seed")?.extract()?,
-            floor_radius_rng_seed: obj.getattr("floor_radius_rng_seed")?.extract()?,
-            wall_texture_rng_seed: obj.getattr("wall_texture_rng_seed")?.extract()?,
-            ejecta_texture_rng_seed: obj.getattr("ejecta_texture_rng_seed")?.extract()?,
-            floor_texture_rng_seed: obj.getattr("floor_texture_rng_seed")?.extract()?,
             rim_radius_psd: obj.getattr("rim_radius_psd")?.extract()?,
             floor_radius_psd: obj.getattr("floor_radius_psd")?.extract()?,
         })
@@ -128,26 +54,8 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
     /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
     pub fn as_views(&self) -> RealMoonCrater<'_> {
         RealMoonCrater {
-            id: self.id,
             diameter: self.diameter,
             radius: self.radius,
-            semimajor_axis: self.semimajor_axis,
-            semiminor_axis: self.semiminor_axis,
-            orientation: self.orientation,
-            transient_diameter: self.transient_diameter,
-            projectile_diameter: self.projectile_diameter,
-            projectile_velocity: self.projectile_velocity,
-            projectile_angle: self.projectile_angle,
-            projectile_density: self.projectile_density,
-            location: self.location,
-            morphology_type: self.morphology_type.clone(),
-            measured_semimajor_axis: self.measured_semimajor_axis,
-            measured_semiminor_axis: self.measured_semiminor_axis,
-            measured_orientation: self.measured_orientation,
-            measured_diameter: self.measured_diameter,
-            measured_radius: self.measured_radius,
-            measured_location: self.measured_location,
-            time: self.time,
             floor_elevation: self.floor_elevation,
             floor_radius: self.floor_radius,
             wall_curvature: self.wall_curvature,
@@ -162,12 +70,6 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_center_distance: self.peak_center_distance,
             peak_center_bearing: self.peak_center_bearing,
             elevation_offset: self.elevation_offset,
-            rim_radius_rng_seed: self.rim_radius_rng_seed,
-            rim_elevation_rng_seed: self.rim_elevation_rng_seed,
-            floor_radius_rng_seed: self.floor_radius_rng_seed,
-            wall_texture_rng_seed: self.wall_texture_rng_seed,
-            ejecta_texture_rng_seed: self.ejecta_texture_rng_seed,
-            floor_texture_rng_seed: self.floor_texture_rng_seed,
             rim_radius_psd: self.rim_radius_psd.as_array(),
             floor_radius_psd: self.floor_radius_psd.as_array(),
         }
