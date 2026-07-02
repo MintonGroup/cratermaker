@@ -424,8 +424,15 @@ class BasicMoonCrater(MorphologyCrater):
                     ejrim=ejrim,
                 )
 
+        # Make sure rings are the correct type
+        outer_ring = crater
+        while outer_ring.ring is not None:
+            if not isinstance(outer_ring.ring, cls):
+                outer_ring._ring = cls(crater=outer_ring._ring, morphology=morphology)
+            outer_ring = outer_ring.ring
+
         # Adjust ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
-        if conserve_volume:
+        if conserve_volume and not crater.isring:
 
             def _func(ejrim, crater):
                 ejrim_orig = crater.ejrim
@@ -461,7 +468,9 @@ class BasicMoonCrater(MorphologyCrater):
                 )
                 lower_bound = _func(0.0, crater)
 
-            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[0.0, crater.rim_elevation], method="brentq")
+            upper_bracket = max(crater.rim_elevation, 3 * crater.ejrim)
+
+            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[0.0, upper_bracket], method="brentq")
             ejrim = sol.root if sol.converged else crater.ejrim
             if ejrim > _VSMALL:
                 conservation_factor = ejrim / crater.ejrim
@@ -839,6 +848,8 @@ class BasicMoonMorphology(Morphology):
         while ring is not None:
             rin = radial_distances < outer_ring.radius
             if np.sum(rin) > 0:
+                if not isinstance(ring, crater_cls):
+                    ring = crater_cls.maker(crater=ring, morphology=self, isring=True)
                 ring_elevation = profile_func(
                     radial_distances=radial_distances[rin],
                     bearings=bearings[rin],

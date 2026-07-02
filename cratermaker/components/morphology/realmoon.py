@@ -182,12 +182,10 @@ class RealMoonCrater(BasicMoonCrater):
         if crater.ring is not None:
             args["ring"] = cls(crater=crater.ring, morphology=morphology, **args)
 
-        kwargs = {**args, **kwargs}
-
         return cls(
             crater=crater,
             morphology=morphology,
-            **kwargs,
+            **args,
         )
 
     def rim_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
