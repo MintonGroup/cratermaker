@@ -106,6 +106,7 @@ pub fn realmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: Bound<'py, PyAny>,
+    rings: Bound<'py, PyAny>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {

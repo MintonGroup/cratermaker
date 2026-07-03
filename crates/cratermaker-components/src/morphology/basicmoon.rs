@@ -63,6 +63,7 @@ pub fn basicmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater: &BasicMoonCrater,
+    rings: &Option<Vec<BasicMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
@@ -111,8 +112,42 @@ pub fn basicmoon_profile(
                     crater.peak_width,
                     crater.peak_ring_radius,
                 );
+                match rings {
+                    Some(rings) => {
+                        for ring in rings.iter() {
+                            let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
+                            let ring_floor_elevation = ring.floor_elevation - ring.elevation_offset;
+                            let hring = crater_profile_function(
+                                r,
+                                ring.radius,
+                                ring_floor_elevation,
+                                ring.floor_radius,
+                                ring.wall_curvature,
+                                ring.rim_width,
+                                ring_rim_elevation,
+                                ring.rimdrop,
+                                ring.peak_height,
+                                ring.peak_width,
+                                ring.peak_ring_radius,
+                            ) + ring.elevation_offset;
+                            hcrat = hcrat.max(hring);
+                        }
+                    }
+                    None => (),
+                }
                 let mut hej =
                     ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
+                match rings {
+                    Some(rings) => {
+                        for ring in rings.iter() {
+                            let hring =
+                                ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
+                            hej = hej.max(hring);
+                        }
+                    }
+                    None => (),
+                }
+
                 if r < crater.radius && r > crater.floor_radius {
                     hej += hcrat - rim_elevation + crater.ejrim;
                     hej = hej.clamp(0.0, crater.ejrim);

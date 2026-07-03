@@ -33,6 +33,7 @@ pub fn basicmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: BasicMoonCrater,
+    rings: Option<Vec<BasicMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -43,6 +44,7 @@ pub fn basicmoon_profile<'py>(
         radial_distances_v,
         reference_elevations_v,
         &crater,
+        &rings,
         include_crater,
         include_ejecta,
     )
