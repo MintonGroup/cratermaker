@@ -144,7 +144,11 @@ class BasicMoonCrater(MorphologyCrater):
         variable_cls=BasicMoonCraterVariable,
         **kwargs,
     ):
-        isring = kwargs.pop("isring", False)
+        if hasattr(crater, "isring"):
+            isring = crater.isring
+        else:
+            isring = False
+        isring = kwargs.pop("isring", isring)
         elevation_offset = kwargs.pop("elevation_offset", 0.0)
         if not isring:
             elevation_offset = 0.0
@@ -950,7 +954,9 @@ class BasicMoonMorphology(Morphology):
             rin = radial_distances < outer_ring.radius
             if np.sum(rin) > 0:
                 if not isinstance(ring, crater_cls):
+                    inner_ring = ring.ring
                     ring = crater_cls.maker(crater=ring, morphology=self, isring=True)
+                    ring._ring = inner_ring
                 ring_elevation = profile_func(
                     radial_distances=radial_distances[rin],
                     bearings=bearings[rin],
