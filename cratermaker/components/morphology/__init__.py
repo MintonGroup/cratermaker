@@ -311,7 +311,7 @@ class MorphologyCrater(Crater):
     def emplaceable(self) -> bool | None:
         """Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted."""
         if self._var._emplaceable is None and self._has_initialized_surface_data:
-            self._var._emplaceable = self.crater_region is not None
+            self._var._emplaceable = self.crater_region is not None or self.ejecta_region is not None
         return self._var._emplaceable
 
     @property
