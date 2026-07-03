@@ -137,20 +137,27 @@ pub fn basicmoon_profile(
                 }
                 let mut hej =
                     ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
-                match rings {
-                    Some(rings) => {
-                        for ring in rings.iter() {
-                            let hring =
-                                ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
-                            hej = hej.max(hring);
-                        }
-                    }
-                    None => (),
-                }
 
                 if r < crater.radius && r > crater.floor_radius {
                     hej += hcrat - rim_elevation + crater.ejrim;
                     hej = hej.clamp(0.0, crater.ejrim);
+                }
+                match rings {
+                    Some(rings) => {
+                        for ring in rings.iter() {
+                            let mut hring =
+                                ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
+                            let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
+                            if r < ring.radius && r > ring.floor_radius {
+                                hring +=
+                                    hcrat - ring.elevation_offset - ring_rim_elevation + ring.ejrim;
+                                hring = hring.clamp(0.0, ring.ejrim);
+                            }
+
+                            hej = hej.max(hring);
+                        }
+                    }
+                    None => (),
                 }
 
                 if include_crater {
