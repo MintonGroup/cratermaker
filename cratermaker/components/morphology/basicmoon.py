@@ -149,7 +149,7 @@ class BasicMoonCrater(MorphologyCrater):
         else:
             isring = False
         isring = kwargs.pop("isring", isring)
-        elevation_offset = kwargs.pop("elevation_offset", 0.0)
+        elevation_offset = kwargs.pop("elevation_offset", crater.elevation_offset if crater is not None else 0.0)
         if not isring:
             elevation_offset = 0.0
         super().__init__(

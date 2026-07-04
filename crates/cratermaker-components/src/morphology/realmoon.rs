@@ -333,7 +333,7 @@ pub fn compute_profile_from_psd(
 
     let mut theta: Vec<f64> = Vec::with_capacity(num_points);
     for i in 0..num_points {
-        theta.push(TAU * ((i - 1) as f64 / (num_points) as f64));
+        theta.push(TAU * (i as f64 - 1.0) / (num_points as f64 - 2.0));
     }
 
     (theta, out)

@@ -4,7 +4,6 @@ use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::f64::consts::TAU;
 
 // Mirrors the RealMoonCrater struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyRealMoonCrater<'py> {
@@ -189,7 +188,6 @@ pub fn profile_from_psd<'py>(
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let psd_v = psd.as_array();
     let theta_v = theta.as_array();
-    let mut psd_theta: Vec<f64> = Vec::new();
 
     let (profile, psd_theta) =
         cratermaker_components::morphology::realmoon::compute_profile_from_psd(
