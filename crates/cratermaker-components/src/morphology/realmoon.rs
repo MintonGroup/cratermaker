@@ -1,4 +1,4 @@
-use crate::morphology::basicmoon::{crater_profile_function, ejecta_profile_function};
+use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
 use crate::{ArrayResult, ArrayResult2D};
 use interp::{InterpMode, interp};
 use numpy::ndarray::prelude::*;
@@ -58,6 +58,7 @@ pub fn realmoon_profile(
     bearings: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater: &RealMoonCrater,
+    rings: &Option<Vec<RealMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
@@ -94,25 +95,27 @@ pub fn realmoon_profile(
             / ninc as f64
     };
     let rim_elevation = crater.rim_elevation - crater.elevation_offset;
-    let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
     // Create profile functions that will be interpolated later
-    let rim_radius_profile =
+    let (rimtheta, rim_profile) =
         compute_profile_from_psd(crater.radius, crater.radius, crater.rim_radius_psd);
-    let floor_radius_profile =
+    let (floortheta, floor_profile) =
         compute_profile_from_psd(crater.radius, crater.floor_radius, crater.floor_radius_psd);
-
-    let mut rimtheta: Vec<f64> = Vec::new();
-    let mut floortheta: Vec<f64> = Vec::new();
-    let nrim = rim_radius_profile.len();
-    let nfloor = floor_radius_profile.len();
-    for i in 0..nrim {
-        rimtheta.push(TAU * ((i - 1) as f64 / (nrim - 2) as f64));
-    }
-    for i in 0..nfloor {
-        floortheta.push(TAU * ((i - 1) as f64 / (nfloor - 2) as f64));
-    }
+    let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
+        rings_vec
+            .iter()
+            .map(|ring| compute_profile_from_psd(ring.radius, ring.radius, ring.rim_radius_psd))
+            .collect()
+    });
+    let rings_floor_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
+        rings_vec
+            .iter()
+            .map(|ring| {
+                compute_profile_from_psd(ring.radius, ring.floor_radius, ring.floor_radius_psd)
+            })
+            .collect()
+    });
 
     let out: Vec<f64> = (0..n_points)
         .into_par_iter()
@@ -120,60 +123,77 @@ pub fn realmoon_profile(
             let r = radial_distances[i];
             let href = reference_elevations[i];
             let theta = bearings[i];
-            let rim_r = interp(
-                &rimtheta,
-                &rim_radius_profile,
-                theta,
-                &InterpMode::default(),
-            );
-            let floor_r = interp(
-                &floortheta,
-                &floor_radius_profile,
-                theta,
-                &InterpMode::default(),
-            );
+            let rim_r = interp(&rimtheta, &rim_profile, theta, &InterpMode::default());
+            let floor_r = interp(&floortheta, &floor_profile, theta, &InterpMode::default());
             let rim_elev =
                 rim_elevation * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
-            let mut hcrat = crater_profile_function(
-                r,
-                rim_r, // per-angle rim radius
-                floor_elevation,
-                floor_r, // per-angle floor radius
-                crater.wall_curvature,
-                crater.rim_width,
-                rim_elev, // per-angle rim elevation
-                crater.rimdrop,
-                crater.peak_height,
-                crater.peak_width,
-                crater.peak_ring_radius,
-            );
+            let icrater = realtobasic(crater, rim_r, floor_r, rim_elev);
+            let irings: Option<Vec<BasicMoonCrater>> =
+                if let (Some(rings_vec), Some(rim_profiles), Some(floor_profiles)) =
+                    (&rings, &rings_rim_profile, &rings_floor_profile)
+                {
+                    let new_rings = rings_vec
+                        .iter()
+                        .zip(rim_profiles.iter())
+                        .zip(floor_profiles.iter())
+                        .map(
+                            |((ring, (irimtheta, irimprofile)), (ifloortheta, ifloorprofile))| {
+                                let iring_rim_r =
+                                    interp(irimtheta, irimprofile, theta, &InterpMode::default());
+                                let iring_floor_r = interp(
+                                    ifloortheta,
+                                    ifloorprofile,
+                                    theta,
+                                    &InterpMode::default(),
+                                );
 
-            let mut hej = ejecta_profile_function(r, rim_r, crater.ejrim, crater.ejprofile);
+                                let irim_elevation = ring.rim_elevation - ring.elevation_offset;
+                                let irim_elev = irim_elevation
+                                    * (iring_rim_r / ring.radius)
+                                    * (ring.floor_radius / iring_floor_r);
 
-            if r < rim_r && r > floor_r {
-                hej += hcrat - rim_elev + crater.ejrim;
-                hej = hej.clamp(0.0, crater.ejrim);
-            }
+                                realtobasic(&ring, iring_rim_r, iring_floor_r, irim_elev)
+                            },
+                        )
+                        .collect();
+                    Some(new_rings)
+                } else {
+                    None
+                };
 
-            if include_crater {
-                if r > rim_r || hcrat > 0.0 {
-                    hcrat = (hcrat - hej).max(0.0);
-                }
-                hcrat += crater.elevation_offset;
-            } else {
-                hcrat = 0.0;
-            }
-
-            if !include_ejecta {
-                hej = 0.0;
-            }
-
-            let h = href + hcrat + hej;
+            let h =
+                basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
             if r <= rim_r { h.max(min_elevation) } else { h }
         })
         .collect();
 
     Ok(Array1::from_vec(out))
+}
+
+fn realtobasic(
+    crater: &RealMoonCrater,
+    radius: f64,
+    floor_radius: f64,
+    rim_elevation: f64,
+) -> BasicMoonCrater {
+    BasicMoonCrater {
+        diameter: 2.0 * radius,
+        radius: radius,
+        floor_radius: floor_radius,
+        rim_elevation: rim_elevation,
+        floor_elevation: crater.floor_elevation,
+        wall_curvature: crater.wall_curvature,
+        rim_width: crater.rim_width,
+        rimdrop: crater.rimdrop,
+        ejrim: crater.ejrim,
+        ejprofile: crater.ejprofile,
+        peak_height: crater.peak_height,
+        peak_width: crater.peak_width,
+        peak_ring_radius: crater.peak_ring_radius,
+        peak_center_distance: crater.peak_center_distance,
+        peak_center_bearing: crater.peak_center_bearing,
+        elevation_offset: crater.elevation_offset,
+    }
 }
 ///
 ///
@@ -267,9 +287,9 @@ pub fn compute_profile_from_psd(
     crater_radius: f64,
     ymean: f64,
     psd: ArrayView2<'_, f64>,
-) -> Vec<f64> {
+) -> (Vec<f64>, Vec<f64>) {
     let nfreq = psd.nrows();
-    let num_points = 2 * nfreq;
+    let mut num_points = 2 * nfreq;
     let mut planner = FftPlanner::new();
     let ifft = planner.plan_fft_inverse(num_points);
     let mut buffer: Vec<Complex<f64>> = vec![Complex { re: 0.0, im: 0.0 }; num_points];
@@ -309,6 +329,12 @@ pub fn compute_profile_from_psd(
     let last_val = out[out.len() - 1];
     out.insert(0, last_val);
     out.push(first_val);
+    num_points = out.len();
 
-    out
+    let mut theta: Vec<f64> = Vec::with_capacity(num_points);
+    for i in 0..num_points {
+        theta.push(TAU * ((i - 1) as f64 / (num_points) as f64));
+    }
+
+    (theta, out)
 }

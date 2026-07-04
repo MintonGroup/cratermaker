@@ -20,7 +20,7 @@ const FRAYREDUCTION: f64 = 0.90;
 /// Defines crater dimensions for surface modification computations.
 ///
 /// Used to parameterize the final crater size in meters.
-#[derive(FromPyObject, Clone, Debug)]
+#[derive(FromPyObject, Clone, Copy, Debug)]
 pub struct BasicMoonCrater {
     pub diameter: f64,
     pub radius: f64,
@@ -58,7 +58,7 @@ pub struct BasicMoonCrater {
 ///
 /// # Errors
 ///
-/// Returns a `PyValueError` if the input arrays have mismatched lengths.
+/// Errors if the input arrays have mismatched lengths.
 pub fn basicmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
@@ -90,8 +90,6 @@ pub fn basicmoon_profile(
             .sum::<f64>()
             / ninc as f64
     };
-    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
-    let floor_elevation = crater.floor_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
     Ok(Array1::from_iter(
@@ -99,81 +97,8 @@ pub fn basicmoon_profile(
             .iter()
             .zip(radial_distances.iter().copied())
             .map(|(href, r)| {
-                let mut hcrat = crater_profile_function(
-                    r,
-                    crater.radius,
-                    floor_elevation,
-                    crater.floor_radius,
-                    crater.wall_curvature,
-                    crater.rim_width,
-                    rim_elevation,
-                    crater.rimdrop,
-                    crater.peak_height,
-                    crater.peak_width,
-                    crater.peak_ring_radius,
-                );
-                match rings {
-                    Some(rings) => {
-                        for ring in rings.iter() {
-                            let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
-                            let ring_floor_elevation = ring.floor_elevation - ring.elevation_offset;
-                            let hring = crater_profile_function(
-                                r,
-                                ring.radius,
-                                ring_floor_elevation,
-                                ring.floor_radius,
-                                ring.wall_curvature,
-                                ring.rim_width,
-                                ring_rim_elevation,
-                                ring.rimdrop,
-                                ring.peak_height,
-                                ring.peak_width,
-                                ring.peak_ring_radius,
-                            ) + ring.elevation_offset;
-                            hcrat = hcrat.max(hring);
-                        }
-                    }
-                    None => (),
-                }
-                let mut hej =
-                    ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
-
-                if r < crater.radius && r > crater.floor_radius {
-                    hej += hcrat - rim_elevation + crater.ejrim;
-                    hej = hej.clamp(0.0, crater.ejrim);
-                }
-                match rings {
-                    Some(rings) => {
-                        for ring in rings.iter() {
-                            let mut hring =
-                                ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
-                            let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
-                            if r < ring.radius && r > ring.floor_radius {
-                                hring +=
-                                    hcrat - ring.elevation_offset - ring_rim_elevation + ring.ejrim;
-                                hring = hring.clamp(0.0, ring.ejrim);
-                            }
-
-                            hej = hej.max(hring);
-                        }
-                    }
-                    None => (),
-                }
-
-                if include_crater {
-                    if r > crater.radius || hcrat > 0.0 {
-                        hcrat = (hcrat - hej).max(0.0);
-                    }
-                    hcrat += crater.elevation_offset;
-                } else {
-                    hcrat = 0.0;
-                }
-                if !include_ejecta {
-                    hej = 0.0;
-                }
-
-                let h = href + hcrat + hej;
-
+                let h =
+                    basicmoon_profile_one(r, *href, crater, rings, include_crater, include_ejecta);
                 if r <= crater.radius {
                     h.max(min_elevation)
                 } else {
@@ -181,6 +106,108 @@ pub fn basicmoon_profile(
                 }
             }),
     ))
+}
+
+// Computes a either a crater and/or ejecta 1D profile at a single point using the model of  Minton et al. (2026)
+//
+//
+/// # Arguments
+///
+/// * `r` - Radial distance from crater center (in meters).
+/// * `href` - the reference surface at the point r (in meters)
+/// * `crater` - BasicMoonCrater struct containing crater dimensions and morphology parameters.
+/// * `include_crater` - Whether to include the crater profile in the output (true/false).
+/// * `include_ejecta` - Whether to include the ejecta profile in the output (true/false).
+///
+/// # Returns
+///
+/// * A NumPy array of modified elevations based on the crater model.
+///
+/// # Errors
+///
+/// Errors if the input arrays have mismatched lengths.
+pub fn basicmoon_profile_one(
+    r: f64,
+    href: f64,
+    crater: &BasicMoonCrater,
+    rings: &Option<Vec<BasicMoonCrater>>,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> f64 {
+    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
+    let floor_elevation = crater.floor_elevation - crater.elevation_offset;
+
+    let mut hcrat = crater_profile_function(
+        r,
+        crater.radius,
+        floor_elevation,
+        crater.floor_radius,
+        crater.wall_curvature,
+        crater.rim_width,
+        rim_elevation,
+        crater.rimdrop,
+        crater.peak_height,
+        crater.peak_width,
+        crater.peak_ring_radius,
+    );
+    match rings {
+        Some(rings) => {
+            for ring in rings.iter() {
+                let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
+                let ring_floor_elevation = ring.floor_elevation - ring.elevation_offset;
+                let hring = crater_profile_function(
+                    r,
+                    ring.radius,
+                    ring_floor_elevation,
+                    ring.floor_radius,
+                    ring.wall_curvature,
+                    ring.rim_width,
+                    ring_rim_elevation,
+                    ring.rimdrop,
+                    ring.peak_height,
+                    ring.peak_width,
+                    ring.peak_ring_radius,
+                ) + ring.elevation_offset;
+                hcrat = hcrat.max(hring);
+            }
+        }
+        None => (),
+    }
+    let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
+
+    if r < crater.radius && r > crater.floor_radius {
+        hej += hcrat - crater.rim_elevation + crater.ejrim;
+        hej = hej.clamp(0.0, crater.ejrim);
+    }
+    match rings {
+        Some(rings) => {
+            for ring in rings.iter() {
+                let mut hring = ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
+                let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
+                if r < ring.radius && r > ring.floor_radius {
+                    hring += hcrat - ring.elevation_offset - ring_rim_elevation + ring.ejrim;
+                    hring = hring.clamp(0.0, ring.ejrim);
+                }
+
+                hej = hej.max(hring);
+            }
+        }
+        None => (),
+    }
+
+    if include_crater {
+        if r > crater.radius || hcrat > 0.0 {
+            hcrat = (hcrat - hej).max(0.0);
+        }
+        hcrat += crater.elevation_offset;
+    } else {
+        hcrat = 0.0;
+    }
+    if !include_ejecta {
+        hej = 0.0;
+    }
+
+    href + hcrat + hej
 }
 
 /// Calculates the elevation of a crater as a function of distance from the center.

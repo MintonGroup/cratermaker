@@ -28,7 +28,7 @@ pub struct PyReadonlyRealMoonCrater<'py> {
     pub floor_radius_psd: PyReadonlyArray2<'py, f64>,
 }
 impl<'py> PyReadonlyRealMoonCrater<'py> {
-    /// Build from a Python PyReadonlyLocalSurface object
+    /// Build from a Python PyReadonlyCrater object
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         Ok(Self {
             diameter: obj.getattr("diameter")?.extract()?,
@@ -99,6 +99,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
 /// # Errors
 ///
 /// Returns a `PyValueError` if the input arrays have mismatched lengths.
+///
 #[pyfunction]
 pub fn realmoon_profile<'py>(
     py: Python<'py>,
@@ -106,11 +107,30 @@ pub fn realmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: Bound<'py, PyAny>,
-    rings: Bound<'py, PyAny>,
+    rings: Option<Vec<Bound<'py, PyAny>>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let crater_py = PyReadonlyRealMoonCrater::from_py(&crater)?;
+
+    // Convert the optional rings vector into the views that we can pass to the profile function.
+    // This has to be done in two steps in order to get the PyReaonly version first as an immutable, then to extract its views.
+    let rings_py: Option<Vec<PyReadonlyRealMoonCrater>> = match rings {
+        Some(rings) => {
+            let mut temp_vec = Vec::new();
+            for ring in rings.iter() {
+                temp_vec.push(PyReadonlyRealMoonCrater::from_py(&ring)?);
+            }
+            Some(temp_vec)
+        }
+        None => None,
+    };
+
+    let rings_v: Option<Vec<RealMoonCrater>> = match &rings_py {
+        Some(py_vec) => Some(py_vec.iter().map(|py_ring| py_ring.as_views()).collect()),
+        None => None,
+    };
+
     let crater_v = crater_py.as_views();
     let radial_distances_v = radial_distances.as_array();
     let bearings_v = bearings.as_array();
@@ -120,6 +140,7 @@ pub fn realmoon_profile<'py>(
         bearings_v,
         reference_elevations_v,
         &crater_v,
+        &rings_v,
         include_crater,
         include_ejecta,
     )
@@ -170,15 +191,12 @@ pub fn profile_from_psd<'py>(
     let theta_v = theta.as_array();
     let mut psd_theta: Vec<f64> = Vec::new();
 
-    let profile = cratermaker_components::morphology::realmoon::compute_profile_from_psd(
-        crater_radius,
-        ymean,
-        psd_v,
-    );
-    let npoints = profile.len();
-    for i in 0..npoints {
-        psd_theta.push(TAU * ((i - 1) as f64 / (npoints - 2) as f64));
-    }
+    let (profile, psd_theta) =
+        cratermaker_components::morphology::realmoon::compute_profile_from_psd(
+            crater_radius,
+            ymean,
+            psd_v,
+        );
 
     let result = interp_slice(
         &psd_theta,
