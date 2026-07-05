@@ -444,7 +444,10 @@ class BasicMoonCrater(MorphologyCrater):
 
             def _func(ejrim, crater):
                 ejrim_orig = crater.ejrim
-                erat = max(ejrim / ejrim_orig, 0.0)
+                if ejrim_orig > 0.0:
+                    erat = max(ejrim / ejrim_orig, 0.0)
+                else:
+                    erat = 0.0
                 ring = crater.ring
                 crater.ejrim = max(ejrim, 0.0)
                 ring = crater.ring
