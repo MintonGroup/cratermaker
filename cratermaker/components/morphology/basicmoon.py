@@ -465,31 +465,38 @@ class BasicMoonCrater(MorphologyCrater):
                         ring = ring.ring
                 return result
 
-            lower_bound = _func(0.0, crater)
-            while lower_bound > 0.0:
-                # This occurs when rim_elevation is too high
-                kwargs["rim_elevation"] *= 0.9
-                crater = cls(
-                    crater=crater,
-                    morphology=morphology,
-                    **kwargs,
-                )
-                lower_bound = _func(0.0, crater)
+            for _ in range(10):
+                lower_bracket = 0.25 * crater.rim_elevation
+                lower_bound = _func(lower_bracket, crater)
+                upper_bracket = 0.75 * crater.rim_elevation
+                upper_bound = _func(upper_bracket, crater)
+                if lower_bound < 0.0 and upper_bound > 0.0:
+                    break
+                while lower_bound > 0.0:
+                    # This occurs when rim_elevation is too high
+                    kwargs["rim_elevation"] *= 0.9
+                    crater = cls(
+                        crater=crater,
+                        morphology=morphology,
+                        **kwargs,
+                    )
+                    lower_bracket = 0.25 * crater.rim_elevation
+                    lower_bound = _func(lower_bracket, crater)
 
-            upper_bracket = crater.rim_elevation
-            upper_bound = _func(upper_bracket, crater)
-            while upper_bound < 0.0:
-                # This occurs when the rim_elevation is too low
-                kwargs["rim_elevation"] *= 1.1
-                crater = cls(
-                    crater=crater,
-                    morphology=morphology,
-                    **kwargs,
-                )
-                upper_bound = _func(crater.rim_elevation, crater)
-                upper_bracket = crater.rim_elevation
+                upper_bracket = 0.75 * crater.rim_elevation
+                upper_bound = _func(upper_bracket, crater)
+                while upper_bound < 0.0:
+                    # This occurs when the rim_elevation is too low
+                    kwargs["rim_elevation"] *= 1.1
+                    crater = cls(
+                        crater=crater,
+                        morphology=morphology,
+                        **kwargs,
+                    )
+                    upper_bracket = 0.75 * crater.rim_elevation
+                    upper_bound = _func(upper_bracket, crater)
 
-            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[0.0, upper_bracket], method="brentq")
+            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[lower_bracket, upper_bracket], method="brentq")
             ejrim = sol.root if sol.converged else crater.ejrim
             if ejrim > _VSMALL:
                 conservation_factor = ejrim / crater.ejrim
