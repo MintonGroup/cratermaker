@@ -501,7 +501,7 @@ class BasicMoonCrater(MorphologyCrater):
 
             sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[lower_bracket, upper_bracket], method="brentq")
             ejrim = sol.root if sol.converged else crater.ejrim
-            if ejrim > _VSMALL:
+            if crater.ejrim > _VSMALL:
                 conservation_factor = ejrim / crater.ejrim
             else:
                 conservation_factor = 1.0
