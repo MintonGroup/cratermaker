@@ -4632,7 +4632,7 @@ class DataComposer(AbstractContextManager):
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
 
         def _orderable_distance(lon1, lat1, lon2, lat2):
-            _nnon1 = np.deg2rad(lon1)
+            lon1 = np.deg2rad(lon1)
             lat1 = np.deg2rad(lat1)
             lon2 = np.deg2rad(lon2)
             lat2 = np.deg2rad(lat2)
