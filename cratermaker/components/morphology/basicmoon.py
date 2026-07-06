@@ -871,13 +871,14 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
-        reference_elevation = region.get_reference_surface(reference_radius=crater.radius)
+        reference_elevation = region.get_reference_surface(reference_radius=crater.diameter)
 
         # Combine distances and references for nodes and faces
         radial_distances = np.concatenate([region.face_distance, region.node_distance])
         bearings = np.concatenate([region.face_bearing, region.node_bearing])
 
         original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
+        reference_elevation[radial_distances > crater.radius] = original_elevation[radial_distances > crater.radius]
 
         new_elevation = self.crater_profile(
             crater=crater, radial_distances=radial_distances, bearings=bearings, reference_elevations=reference_elevation
