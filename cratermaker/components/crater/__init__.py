@@ -1390,6 +1390,10 @@ class Crater(ComponentBase):
                 craters[crater.id] = crater
 
         if len(rings) > 0:
+            # First remove any auto-generated rings
+            for ring in rings:
+                craters[ring.parent]._rings = []
+            # Now add the input rings
             for ring in rings:
                 craters[ring.parent].add_ring(ring=ring)
 
