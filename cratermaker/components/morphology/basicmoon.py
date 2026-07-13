@@ -126,7 +126,10 @@ class BasicMoonCraterVariable(MorphologyCraterVariable):
         """
         Returns the number of rings associated with this Crater.
         """
-        return len(self._rings)
+        if self._rings is None:
+            return 0
+        else:
+            return len(self._rings)
 
 
 @Crater.register("basicmooncrater")
