@@ -452,8 +452,17 @@ class Counting(ComponentBase):
             d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
             d["id"].attrs["long_name"] = _TALLY_LONG_NAME
             data.append(d)
+            if c.nrings > 0:
+                for ring in c.rings:
+                    d = ring.as_dict(skip_complex_data=True)
+                    d = _convert_tuple_vars(input_dict=d, inverse=False)
+                    d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
+                    d["id"].attrs["long_name"] = _TALLY_LONG_NAME
+                    d["parent"] = c.id.astype(np.uint32)
+                    d["parent"].attrs["long_name"] = "id of crater that this ring belongs to"
+                    data.append(d)
 
-        return xr.concat(data, dim="id").sortby("id")
+        return xr.concat(data, dim="id", data_vars="all").sortby("id")
 
     def save(
         self,

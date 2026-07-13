@@ -179,8 +179,9 @@ class RealMoonCrater(BasicMoonCrater):
             argname = f"{var}_control"
             args[argname] = input_args.get(argname)
 
-        if crater.ring is not None:
-            args["ring"] = cls(crater=crater.ring, morphology=morphology, **args)
+        if crater.nrings > 0:
+            for i, ring in enumerate(crater.rings):
+                crater.rings[i] = cls(crater=ring, morphology=morphology, isring=True, **args)
 
         return cls(
             crater=crater,

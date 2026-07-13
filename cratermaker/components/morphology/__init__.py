@@ -645,11 +645,10 @@ class Morphology(ComponentBase):
         conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
         ejecta_thickness *= conservation_factor
         crater.ejrim *= conservation_factor
-        ring = crater.ring
-        while ring is not None:
-            if ring.ejrim is not None and ring.ejrim > 0.0:
-                ring.ejrim *= conservation_factor
-            ring = ring.ring
+        if crater.nrings > 0:
+            for ring in crater.rings:
+                if ring.ejrim is not None and ring.ejrim > 0.0:
+                    ring.ejrim *= conservation_factor
 
         crater.ejecta_region.add_data(
             "ejecta_thickness",

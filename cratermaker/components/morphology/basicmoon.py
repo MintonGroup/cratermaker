@@ -56,6 +56,7 @@ class BasicMoonCraterFixed(CraterFixed):
     """Offset in elevation values (used for multiring basins)."""
     isring: bool | None = field(default=False, init=True)
     """Flag that indicates that this is a ring rather than a crater."""
+    parent: np.uint32 | None = field(default=False, init=True)
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -73,14 +74,19 @@ class BasicMoonCraterFixed(CraterFixed):
 
 
 class BasicMoonCraterVariable(MorphologyCraterVariable):
-    def __init__(self, ejrim: float | None = None, ring: BasicMoonCrater | None = None, **kwargs: Any) -> None:
+    def __init__(self, ejrim: float | None = None, rings: list[BasicMoonCrater] = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        object.__setattr__(self, "_ring", None)
+        object.__setattr__(self, "_rings", [])
         object.__setattr__(self, "_ejrim", None)
         if ejrim is not None:
             self.ejrim = ejrim
-        if ring is not None:
-            self.ring = ring
+        if rings is not None:
+            if isinstance(rings, list):
+                self._rings = rings
+            elif isinstance(rings, BasicMoonCrater):
+                self._ring = [rings]
+            else:
+                raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
 
     def as_dict(self) -> dict:
@@ -89,7 +95,7 @@ class BasicMoonCraterVariable(MorphologyCraterVariable):
         """
         dict_repr = super().as_dict()
         dict_repr["ejrim"] = self.ejrim
-        dict_repr["ring"] = self.ring
+        dict_repr["rings"] = self.rings
 
         return dict_repr
 
@@ -109,30 +115,18 @@ class BasicMoonCraterVariable(MorphologyCraterVariable):
         return
 
     @property
-    def ring(self) -> BasicMoonCrater | None:
-        return self._ring
-
-    @ring.setter
-    def ring(self, value: BasicMoonCrater | None):
-        if value is not None:
-            if not isinstance(value, Crater):
-                raise TypeError("ring must be a Crater type")
-            if not isinstance(value, BasicMoonCrater) or not value.isring:
-                value = BasicMoonCrater.maker(crater=value, isring=True)
-        self._ring = value
-        return
+    def rings(self) -> list[BasicMoonCrater]:
+        if self.nrings == 0:
+            return None
+        else:
+            return self._rings
 
     @property
     def nrings(self) -> int:
         """
         Returns the number of rings associated with this Crater.
         """
-        n = 0
-        ring = self.ring
-        while ring is not None:
-            n += 1
-            ring = ring.ring
-        return n
+        return len(self._rings)
 
 
 @Crater.register("basicmooncrater")
@@ -410,7 +404,7 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
-        if crater.morphology_type == "multiring" and crater.ring is None and not crater.isring:
+        if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
             num_rings = 3  # kwargs.pop("num_rings", morphology.rng.integers(low=2, high=4))
             for i in range(num_rings):
                 rnd_factor = morphology.rng.normal(loc=1.0, scale=0.1, size=4)
@@ -433,11 +427,11 @@ class BasicMoonCrater(MorphologyCrater):
                 )
 
         # Make sure rings are the correct type
-        outer_ring = crater
-        while outer_ring.ring is not None:
-            if not isinstance(outer_ring.ring, cls):
-                outer_ring._ring = cls(crater=outer_ring._ring, morphology=morphology)
-            outer_ring = outer_ring.ring
+        for i in range(crater.nrings):
+            ring = crater.rings[i]
+            if not isinstance(ring, cls):
+                ring = cls(crater=ring, morphology=morphology)
+                crater.rings[i] = ring
 
         # Adjust ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
         if conserve_volume and not crater.isring:
@@ -448,24 +442,20 @@ class BasicMoonCrater(MorphologyCrater):
                     erat = max(ejrim / ejrim_orig, 0.0)
                 else:
                     erat = 0.0
-                ring = crater.ring
                 crater.ejrim = max(ejrim, 0.0)
-                ring = crater.ring
                 ring_ejrim_orig = []
-                while ring is not None:
-                    if ring.ejrim is not None:
-                        ring_ejrim_orig.append(ring.ejrim)
-                        ring.ejrim *= erat
-                        ring = ring.ring
+                if crater.nrings > 0:
+                    for ring in crater.rings:
+                        if ring.ejrim is not None:
+                            ring_ejrim_orig.append(ring.ejrim)
+                            ring.ejrim *= erat
                 excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
                 ejecta_volume = morphology.estimate_volume(crater, include_crater=False, include_ejecta=True)
                 result = ejecta_volume + excavated_volume
                 crater.ejrim = ejrim_orig
                 if len(ring_ejrim_orig) > 0:
-                    ring = crater.ring
-                    for ring_ejrim in ring_ejrim_orig:
+                    for ring, ring_ejrim in zip(crater.rings, ring_ejrim_orig, strict=True):
                         ring.ejrim = ring_ejrim
-                        ring = ring.ring
                 return result
 
             for _ in range(10):
@@ -506,11 +496,10 @@ class BasicMoonCrater(MorphologyCrater):
             else:
                 conservation_factor = 1.0
             crater._ejrim *= conservation_factor
-            ring = crater.ring
-            while ring is not None:
-                if ring.ejrim is not None and ring.ejrim > 0.0:
-                    ring.ejrim *= conservation_factor
-                ring = ring.ring
+            if crater.nrings > 0:
+                for ring in crater.rings:
+                    if ring.ejrim is not None and ring.ejrim > 0.0:
+                        ring.ejrim *= conservation_factor
 
         return crater
 
@@ -526,12 +515,13 @@ class BasicMoonCrater(MorphologyCrater):
             If True, skip complex data types when creating the dictionary representation. This is useful when serializing the object for saving to a file, as it removes complex data types that may not be serializable. Default is False.
         """
         if skip_complex_data:
-            ignore_keys += ("ring",)
+            ignore_keys += ("rings",)
         dict_repr = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
         return dict_repr
 
     def add_ring(
         self,
+        ring: BasicMoonCrater | None = None,
         radius: float | None = None,
         floor_radius: float | None = None,
         wall_curvature: float | None = None,
@@ -545,6 +535,8 @@ class BasicMoonCrater(MorphologyCrater):
 
         Parameters
         ----------
+        ring: BasicMoonCrater, optional
+            An existing Crater object that will be converted into a ring object.
         radius : float, optional
             The radius of the ring in meters.
         floor_radius : float, optional
@@ -571,8 +563,12 @@ class BasicMoonCrater(MorphologyCrater):
                 f"Elevation offset value must be between 0 and the crater floor elevation value of {self.floor_elevation}"
             )
         floor_elevation = kwargs.pop("floor_elevation", self.floor_elevation)
+        if ring is not None:
+            crater = ring
+        else:
+            crater = self
         newring = self.__class__.maker(
-            crater=self,
+            crater=crater,
             morphology=self.morphology,
             radius=radius,
             floor_radius=floor_radius,
@@ -582,42 +578,28 @@ class BasicMoonCrater(MorphologyCrater):
             floor_elevation=floor_elevation,
             ejrim=ejrim,
             elevation_offset=elevation_offset,
+            morphology_type="ring",
             isring=True,
             conserve_volume=False,
+            parent=self.id,
             **kwargs,
         )
         if newring.radius > self.radius:
             raise ValueError("Ring radius cannot be larger than the crater radius!")
 
         # If there are rings, we need to insert this ring into the correct order. Rings are added in descending order by radius
-        oldring = self
-        while oldring.ring is not None:
-            if newring.radius > oldring.ring.radius:
-                newring._ring = oldring.ring
-                break
-            oldring = oldring.ring
-        oldring._ring = newring
+        if self.nrings == 0:
+            self._rings.append(newring)
+        else:
+            oldtot = self.nrings
+            for i in range(oldtot):
+                if newring.radius > self.rings[i].radius:
+                    self._rings.insert(i, newring)
+                    break
+                if i == oldtot - 1:
+                    self._rings.append(newring)
+
         return
-
-    def get_ring(self, ring_number: int):
-        """
-        Retrieves a ring by number, where 0 is the outermost ring (the crater itself), 1 is the next innermost ring, and so on.
-
-        Parameters
-        ----------
-        ring_number : int
-            The number of the ring to retrieve.
-
-        Returns
-        -------
-        BasicMoonCrater
-        """
-        if ring_number > self.nrings or ring_number < 0:
-            raise ValueError(f"Invalid ring number. This crater has {self.nrings} rings.")
-        ring = self
-        for _ in range(ring_number):
-            ring = ring.ring
-        return ring
 
     @property
     def rim_elevation(self) -> float | None:
@@ -695,8 +677,8 @@ class BasicMoonCrater(MorphologyCrater):
         return self._var._ejrim
 
     @property
-    def ring(self) -> BasicMoonCrater | None:
-        return self._var._ring
+    def rings(self) -> list[BasicMoonCrater]:
+        return self._var.rings
 
     @property
     def nrings(self) -> int:
@@ -951,20 +933,12 @@ class BasicMoonMorphology(Morphology):
         else:
             bearings = np.ravel(np.radians(bearings))
 
-        if crater.nrings > 0:
-            ring = crater.ring
-            rings = []
-            while ring is not None:
-                rings.append(ring)
-                ring = ring.ring
-        else:
-            rings = None
         elevation = profile_func(
             radial_distances=radial_distances,
             bearings=bearings,
             reference_elevations=reference_elevations,
             crater=crater,
-            rings=rings,
+            rings=crater.rings,
             include_crater=include_crater,
             include_ejecta=include_ejecta,
         )

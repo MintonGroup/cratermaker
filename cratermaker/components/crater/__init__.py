@@ -1351,7 +1351,6 @@ class Crater(ComponentBase):
         list[Crater]
             A list of Crater objects imported from the xarray Dataset.
         """
-        craters = []
         if type(dataset) is dict:
             if interval is None:
                 dataset = dataset[-1]
@@ -1373,6 +1372,8 @@ class Crater(ComponentBase):
         if len(dims) > 1:
             raise ValueError(f"Dataset has more than one dimension: {dims}. Cannot convert to Crater objects.")
         dimname = list(dims)[0]
+        craters = {}
+        rings = []
         for i in tqdm(
             range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
         ):
@@ -1383,9 +1384,16 @@ class Crater(ComponentBase):
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
             crater = cls.maker(**crater_data, check_redundant_inputs=False)
-            craters.append(crater)
+            if crater.morphology_type == "ring":
+                rings.append(crater)
+            else:
+                craters[crater.id] = crater
 
-        return craters
+        if len(rings) > 0:
+            for ring in rings:
+                craters[ring.parent].add_ring(ring=ring)
+
+        return list(craters.values())
 
     @property
     def final_diameter(self) -> float | None:
