@@ -563,6 +563,8 @@ class BasicMoonCrater(MorphologyCrater):
             if crater.elevation_offset == 0.0:
                 # elevation_offset should ideally be specified, but if not it will fall back to half the floor_elevation value
                 elevation_offset = 0.5 * self.floor_elevation
+            else:
+                elevation_offset = crater.elevation_offset
         elif elevation_offset > 0.0 or elevation_offset < self.floor_elevation:
             raise ValueError(
                 f"Elevation offset value must be between 0 and the crater floor elevation value of {self.floor_elevation}"
