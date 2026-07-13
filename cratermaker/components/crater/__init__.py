@@ -1273,7 +1273,8 @@ class Crater(ComponentBase):
         """
         import csv
 
-        craters = []
+        craters = {}
+        rings = []
         input_file = Path(input_file)
         if not input_file.exists():
             raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
@@ -1301,10 +1302,22 @@ class Crater(ComponentBase):
                         except ValueError:
                             continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
+                crater_data["isring"] = crater_data["morphology_type"] == "ring"
                 crater = cls.maker(**crater_data, check_redundant_inputs=False)
-                craters.append(crater)
+                if crater.morphology_type == "ring":
+                    rings.append(crater)
+                else:
+                    craters[crater.id] = crater
 
-        return craters
+            if len(rings) > 0:
+                # First remove any auto-generated rings
+                for ring in rings:
+                    craters[ring.parent]._rings = []
+                # Now add the input rings
+                for ring in rings:
+                    craters[ring.parent].add_ring(ring=ring)
+
+        return list(craters.values())
 
     @classmethod
     def from_scc_file(cls, input_file: Path | str) -> list[Crater]:
@@ -1383,8 +1396,9 @@ class Crater(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
+            crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater = cls.maker(**crater_data, check_redundant_inputs=False)
-            if crater.morphology_type == "ring":
+            if crater.isring:
                 rings.append(crater)
             else:
                 craters[crater.id] = crater

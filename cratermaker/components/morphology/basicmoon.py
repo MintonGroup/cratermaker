@@ -337,7 +337,7 @@ class BasicMoonCrater(MorphologyCrater):
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
-        if crater.morphology_type in ["basin", "multiring", "peakring"]:
+        if crater.morphology_type in ["basin", "multiring", "peakring", "ring"]:
             morphology_type = "complex"
         else:
             morphology_type = crater.morphology_type
@@ -552,21 +552,23 @@ class BasicMoonCrater(MorphologyCrater):
         **kwargs : Any
             Additional keyword arguments that are passed to the .maker() method. Any arguments that are valid for a Crater ar valid for a ring. Otherwise the ring properties are copied from its associated crater.
         """
-        ejrim = kwargs.pop(
-            "ejrim", 0.0
-        )  # By default, don't generate ejecta for a ring, but stil allow for the possibility to be overridden.
-        if elevation_offset is None:
-            # elevation_offset should ideally be specified, but if not it will fall back to half the floor_elevation value
-            elevation_offset = 0.5 * self.floor_elevation
-        if elevation_offset > 0.0 or elevation_offset < self.floor_elevation:
-            raise ValueError(
-                f"Elevation offset value must be between 0 and the crater floor elevation value of {self.floor_elevation}"
-            )
-        floor_elevation = kwargs.pop("floor_elevation", self.floor_elevation)
         if ring is not None:
             crater = ring
         else:
             crater = self
+        ejrim = kwargs.pop(
+            "ejrim", 0.0
+        )  # By default, don't generate ejecta for a ring, but stil allow for the possibility to be overridden.
+        if elevation_offset is None:
+            if crater.elevation_offset == 0.0:
+                # elevation_offset should ideally be specified, but if not it will fall back to half the floor_elevation value
+                elevation_offset = 0.5 * self.floor_elevation
+        elif elevation_offset > 0.0 or elevation_offset < self.floor_elevation:
+            raise ValueError(
+                f"Elevation offset value must be between 0 and the crater floor elevation value of {self.floor_elevation}"
+            )
+        floor_elevation = kwargs.pop("floor_elevation", self.floor_elevation)
+
         newring = self.__class__.maker(
             crater=crater,
             morphology=self.morphology,

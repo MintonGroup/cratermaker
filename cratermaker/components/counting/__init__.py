@@ -1392,6 +1392,11 @@ class Counting(ComponentBase):
 
         craters = self._validate_export_args(crater_type=crater_type, interval=interval, craters=craters)
 
+        ncraters = len(craters)
+        for i in range(ncraters):
+            if craters[i].nrings > 0:
+                craters.extend(craters[i].rings)
+
         if output_file is None:
             filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")
             output_file = self.export_dir / f"{crater_type}_{filename_base}"
