@@ -518,7 +518,11 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         control_points = {}
         sigma = {}
-        coef = psd1d_coef.sel(morphology_type=crater.morphology_type)
+        if crater.morphology_type == "ring":
+            morphology_type = "complex"
+        else:
+            morphology_type = crater.morphology_type
+        coef = psd1d_coef.sel(morphology_type=morphology_type)
         for term in coef.term:
             c = coef.sel(term=term)
             control_points[str(term.data)] = c.sel(param="m") * diameter_km + c.sel(param="b")
