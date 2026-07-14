@@ -1227,7 +1227,7 @@ class Crater(ComponentBase):
         return GeoSeries([poly], crs=surface.crs)
 
     @classmethod
-    def from_file(cls, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
+    def from_file(cls, filename: str | Path, conserve_volume: bool = False, **kwargs: Any) -> list[Crater] | None:
         """
         Load a list of craters from a file.
 
@@ -1235,6 +1235,8 @@ class Crater(ComponentBase):
         ----------
         filename : str | Path
             The path to the file to load from.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1249,15 +1251,15 @@ class Crater(ComponentBase):
         extension = filename.suffix.lower().lstrip(".")
         if extension == "nc":
             ds = xr.open_dataset(filename)
-            craters = cls.from_xarray(ds, **kwargs)
+            craters = cls.from_xarray(ds, conserve_volume=conserve_volume, **kwargs)
         elif extension == "csv":
-            craters = cls.from_csv_file(filename, **kwargs)
+            craters = cls.from_csv_file(filename, conserve_volume=conserve_volume, **kwargs)
         elif extension == "scc":
-            craters = cls.from_scc_file(filename, **kwargs)
+            craters = cls.from_scc_file(filename, conserve_volume=conserve_volume, **kwargs)
         return craters
 
     @classmethod
-    def from_csv_file(cls, input_file: Path | str) -> list[Crater]:
+    def from_csv_file(cls, input_file: Path | str, conserve_volume: bool = False, **kwargs: Any) -> list[Crater]:
         """
         Import crater data from a CSV file.
 
@@ -1265,6 +1267,10 @@ class Crater(ComponentBase):
         ----------
         input_file : Path | str
             The path to the CSV file containing crater data.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -1303,7 +1309,7 @@ class Crater(ComponentBase):
                             continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
                 crater_data["isring"] = crater_data["morphology_type"] == "ring"
-                crater = cls.maker(**crater_data, check_redundant_inputs=False)
+                crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
                 if crater.morphology_type == "ring":
                     rings.append(crater)
                 else:
@@ -1320,7 +1326,7 @@ class Crater(ComponentBase):
         return list(craters.values())
 
     @classmethod
-    def from_scc_file(cls, input_file: Path | str) -> list[Crater]:
+    def from_scc_file(cls, input_file: Path | str, conserve_volume: bool = False, **kwargs: Any) -> list[Crater]:
         """
         Import crater data from a Spatial Crater Count file.
 
@@ -1328,6 +1334,10 @@ class Crater(ComponentBase):
         ----------
         input_file : Path | str
             The path to the SCC file containing crater data.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs: Any
+            |kwargs|
 
         Returns
         -------
@@ -1344,13 +1354,17 @@ class Crater(ComponentBase):
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            crater = cls.maker(
+                diameter=diam * 1e3, location=(lon, lat), conserve_volume=conserve_volume, check_redundant_inputs=False
+            )
             craters.append(crater)
 
         return craters
 
     @classmethod
-    def from_xarray(cls, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
+    def from_xarray(
+        cls, dataset: xr.Dataset | dict, interval: int | None = None, conserve_volume: bool = False, **kwargs
+    ) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
 
@@ -1358,6 +1372,10 @@ class Crater(ComponentBase):
         ----------
         dataset : xr.Dataset | dict
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -1397,7 +1415,7 @@ class Crater(ComponentBase):
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
             crater_data["isring"] = crater_data["morphology_type"] == "ring"
-            crater = cls.maker(**crater_data, check_redundant_inputs=False)
+            crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
             if crater.isring:
                 rings.append(crater)
             else:
