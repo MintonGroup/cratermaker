@@ -245,7 +245,7 @@ class BasicMoonCrater(MorphologyCrater):
         if crater is not None and isinstance(crater, BasicMoonCrater):
             for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
                 input_args.pop(k, None)
-            conserve_volume = any(list(input_args.values()))
+            conserve_volume = conserve_volume and any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
