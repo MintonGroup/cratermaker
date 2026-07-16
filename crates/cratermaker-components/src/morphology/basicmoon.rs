@@ -26,7 +26,7 @@ pub struct BasicMoonCrater {
     pub radius: f64,
     pub floor_elevation: f64,
     pub floor_radius: f64,
-    pub wall_curvature: f64,
+    pub wall_blend: f64,
     pub rim_width: f64,
     pub rim_elevation: f64,
     pub rimdrop: f64,
@@ -142,7 +142,7 @@ pub fn basicmoon_profile_one(
         crater.radius,
         floor_elevation,
         crater.floor_radius,
-        crater.wall_curvature,
+        crater.wall_blend,
         crater.rim_width,
         rim_elevation,
         crater.rimdrop,
@@ -160,7 +160,7 @@ pub fn basicmoon_profile_one(
                     ring.radius,
                     ring_floor_elevation,
                     ring.floor_radius,
-                    ring.wall_curvature,
+                    ring.wall_blend,
                     ring.rim_width,
                     ring_rim_elevation,
                     ring.rimdrop,
@@ -229,7 +229,7 @@ pub fn basicmoon_profile_one(
 /// * `radius` - Radius of the crater rim (in meters).
 /// * `hf` - Elevation of the crater floor relative to the reference plane.
 /// * `rf` - Radius of the crater floor.
-/// * `beta` - Wall curvature parameter (1.0 means straight, > 1.0 means curved)
+/// * `rfw` - Wall curvature parameter (0<rfw<radius blends the floor to the wall with a smooth curve)
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
 /// * `prd` - Exponent for the rim dropoff function.
@@ -246,7 +246,7 @@ pub fn crater_profile_function(
     radius: f64,
     hf: f64,
     rf: f64,
-    beta: f64,
+    rfw: f64,
     rw: f64,
     hr: f64,
     prd: f64,
@@ -254,29 +254,58 @@ pub fn crater_profile_function(
     rc: f64,
     ro: f64,
 ) -> f64 {
-    let rw_half = rw / 2.0;
-    let fc = hc * (-((r - ro) / rc).powi(2)).exp(); // Central peak contribution. Compute this separately to avoid sharp discontinuities
-    if r <= rf {
-        fc + hf
+    let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Compute this separately to avoid sharp discontinuities
+    let hwall = if r > rf {
+        wallfunc(r, radius, rf, hr, hf, rfw)
     } else {
-        let fe = hr * (r / radius).powf(prd);
-        if r >= radius + rw_half {
-            fe
-        } else {
-            let r0 = (r - rf) / (radius - rf);
-            let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-            let t = (r - (radius - rw_half)) / rw;
-            let phi = 6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3);
-            let fw = (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp()))
-                .min(0.0)
-                + hr;
-            if r <= radius - rw_half {
-                fw + fc
-            } else {
-                (1.0 - phi) * fw + phi * fe + fc
-            }
-        }
+        hfloor
+    };
+    let hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
+    let hrim = rimfunc(r, radius, hr, prd);
+    wall_rim_blend(r, hwall, hrim, radius, rw)
+}
+
+#[inline]
+fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
+    hc * (-((r - ro) / rc).powi(2)).exp() + hf
+}
+
+#[inline]
+fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
+    let beta: f64 = 1.0 + 3.0 * rfw / radius;
+    let r0 = (r - rf) / (radius - rf);
+    let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
+    (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+}
+
+#[inline]
+fn rimfunc(r: f64, radius: f64, hr: f64, prd: f64) -> f64 {
+    hr * (r / radius).powf(prd)
+}
+
+#[inline]
+fn smoothstep(t: f64) -> f64 {
+    if t <= 0.0 {
+        0.0
+    } else if t <= 1.0 {
+        6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3)
+    } else {
+        1.0
     }
+}
+
+#[inline]
+fn floor_wall_blend(r: f64, hfloor: f64, hwall: f64, rf: f64, rfw: f64) -> f64 {
+    let t = (r - (rf - rfw)) / (2.0 * rfw);
+    let phi = smoothstep(t);
+    (1.0 - phi) * hfloor + phi * hwall
+}
+
+#[inline]
+fn wall_rim_blend(r: f64, hwall: f64, hrim: f64, radius: f64, rw: f64) -> f64 {
+    let t = (r - (radius - rw)) / (2.0 * rw);
+    let phi = smoothstep(t);
+    (1.0 - phi) * hwall + phi * hrim
 }
 
 /// Computes the ejecta profile scaling at a given radial distance.

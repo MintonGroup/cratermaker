@@ -34,8 +34,8 @@ class BasicMoonCraterFixed(CraterFixed):
     """Original floor depth of the crater in meters relative to the reference surface."""
     floor_radius: float | None = None
     """Original floor diameter of the crater in meters."""
-    wall_curvature: float | None = None
-    """The curvature of the crater walls."""
+    wall_blend: float | None = None
+    """The curvature of the crater wall to floor transition."""
     rim_width: float | None = None
     """The width of the crater rim in meters."""
     rimdrop: float | None = None
@@ -169,7 +169,7 @@ class BasicMoonCrater(MorphologyCrater):
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Central peak width: {format_large_units(self.peak_width, quantity='length') if self.peak_width else 'None'}\n"
             f"Central peak offset: {format_large_units(self.peak_ring_radius, quantity='length') if self.peak_ring_radius else 'None'}\n"
-            f"Wall curvature factor: {self.wall_curvature}\n"
+            f"Wall curvature factor: {self.wall_blend}\n"
             f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
         )
         return str_repr
@@ -181,7 +181,7 @@ class BasicMoonCrater(MorphologyCrater):
         morphology: Morphology | None = None,
         floor_elevation: float | None = None,
         floor_radius: float | None = None,
-        wall_curvature: float | None = None,
+        wall_blend: float | None = None,
         rim_width: float | None = None,
         rim_elevation: float | None = None,
         rimdrop: float | None = None,
@@ -212,7 +212,7 @@ class BasicMoonCrater(MorphologyCrater):
             Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_radius : float, optional
             Original floor radius of the crater in meters. If None, it will be computed.
-        wall_curvature : float, optional
+        wall_blend : float, optional
             The curvature of the crater walls. If None, it will be computed based on the morphology type and diameter.
         ejrim : float, optional
             Original ejecta rim thickness of the crater in meters. If None, it will be computed.
@@ -249,7 +249,7 @@ class BasicMoonCrater(MorphologyCrater):
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
-            wall_curvature = crater.wall_curvature if wall_curvature is None else wall_curvature
+            wall_blend = crater.wall_blend if wall_blend is None else wall_blend
             rim_width = crater.rim_width if rim_width is None else rim_width
             rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
             rimdrop = crater.rimdrop if rimdrop is None else rimdrop
@@ -372,11 +372,10 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_center_distance"] = 0.0 if peak_center_distance is None else peak_center_distance
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
 
-        if wall_curvature is None:
-            wall_curvature = morphology.rng.uniform(low=0.1, high=6, size=1)[0]
-        else:
-            wall_curvature = max(wall_curvature, 0.1)
-        args["wall_curvature"] = wall_curvature
+        if wall_blend is None:
+            wall_blend = morphology.rng.uniform(low=0.0, high=crater.radius, size=1)[0]
+
+        args["wall_blend"] = wall_blend
 
         if rim_width is None:
             rim_width = max(sample_logfit_heteroskedastic(diameter_m, **rim_width_params[morphology_type])[0], 0.0)
@@ -527,7 +526,7 @@ class BasicMoonCrater(MorphologyCrater):
         ring: BasicMoonCrater | None = None,
         radius: float | None = None,
         floor_radius: float | None = None,
-        wall_curvature: float | None = None,
+        wall_blend: float | None = None,
         rim_width: float | None = None,
         rim_elevation: float | None = None,
         elevation_offset: float | None = None,
@@ -544,8 +543,8 @@ class BasicMoonCrater(MorphologyCrater):
             The radius of the ring in meters.
         floor_radius : float, optional
             The floor radius of the ring in meters.
-        wall_curvature : float, optional
-            The wall curvature of the ring.
+        wall_blend : float, optional
+            The wall curvature of the ring wall to floor transition.
         rim_width : float, optional
             The rim width of the ring in meters.
         rim_elevation : float, optional
@@ -579,7 +578,7 @@ class BasicMoonCrater(MorphologyCrater):
             morphology=self.morphology,
             radius=radius,
             floor_radius=floor_radius,
-            wall_curvature=wall_curvature,
+            wall_blend=wall_blend,
             rim_width=rim_width,
             rim_elevation=rim_elevation,
             floor_elevation=floor_elevation,
@@ -624,9 +623,9 @@ class BasicMoonCrater(MorphologyCrater):
         return self._fixed.floor_radius
 
     @property
-    def wall_curvature(self) -> float | None:
-        """The curvature of the crater walls."""
-        return self._fixed.wall_curvature
+    def wall_blend(self) -> float | None:
+        """The curvature of the crater wall to floor transition."""
+        return self._fixed.wall_blend
 
     @property
     def rim_width(self) -> float | None:
