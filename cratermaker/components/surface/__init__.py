@@ -4537,6 +4537,7 @@ class LocalSurface(CratermakerBase):
                 units="m",
                 data=self.face_elevation.data - reference_elevation,
                 positive_only=False,
+                overwrite=True,
             )
         return
 
