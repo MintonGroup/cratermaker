@@ -262,7 +262,7 @@ pub fn crater_profile_function(
     let mut hwall = if r > rf {
         wallfunc(r, radius, rf, hr, hf, rfw)
     } else {
-        hfloor
+        hf
     };
     hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
     let hej = if r > radius {
