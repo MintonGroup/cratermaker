@@ -26,7 +26,7 @@ pub struct BasicMoonCrater {
     pub radius: f64,
     pub floor_elevation: f64,
     pub floor_radius: f64,
-    pub wall_blend: f64,
+    pub wall_curvature: f64,
     pub rim_width: f64,
     pub rim_elevation: f64,
     pub ejrim: f64,
@@ -141,7 +141,7 @@ pub fn basicmoon_profile_one(
         crater.radius,
         floor_elevation,
         crater.floor_radius,
-        crater.wall_blend,
+        crater.wall_curvature,
         crater.rim_width,
         rim_elevation,
         crater.ejrim,
@@ -160,7 +160,7 @@ pub fn basicmoon_profile_one(
                     ring.radius,
                     ring_floor_elevation,
                     ring.floor_radius,
-                    ring.wall_blend,
+                    ring.wall_curvature,
                     ring.rim_width,
                     ring_rim_elevation,
                     ring.ejrim,
@@ -197,7 +197,7 @@ pub fn basicmoon_profile_one(
     }
 
     if include_crater {
-        if r > crater.radius || hcrat > 0.0 {
+        if r > crater.radius || (hcrat > 0.0 && hej > 0.0) {
             hcrat = (hcrat - hej).max(0.0);
         }
         hcrat += crater.elevation_offset;
@@ -230,7 +230,7 @@ pub fn basicmoon_profile_one(
 /// * `radius` - Radius of the crater rim (in meters).
 /// * `hf` - Elevation of the crater floor relative to the reference plane.
 /// * `rf` - Radius of the crater floor.
-/// * `rfw` - Wall curvature parameter (0<rfw<radius blends the floor to the wall with a smooth curve)
+/// * `wc` - Wall curvature parameter (0<rfw<2 the floor to the wall with a smooth curve)
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
 /// * `hej` - Thickness of ejecta at the rim.
@@ -248,7 +248,7 @@ pub fn crater_profile_function(
     radius: f64,
     hf: f64,
     rf: f64,
-    rfw: f64,
+    wc: f64,
     rw: f64,
     hr: f64,
     he: f64,
@@ -257,14 +257,16 @@ pub fn crater_profile_function(
     rc: f64,
     ro: f64,
 ) -> f64 {
+    let rfw = wc * (radius - rf);
     let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Compute this separately to avoid sharp discontinuities
-    let hwall = if r > rf {
+    let mut hwall = if r > rf {
         wallfunc(r, radius, rf, hr, hf, rfw)
     } else {
         hfloor
     };
-    let hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
-    let hrim = rimfunc(r, radius, hr, he) + ejecta_profile_function(r, radius, he, pej);
+    hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
+    let hej = ejecta_profile_function(r, radius, he, pej);
+    let hrim = rimfunc(r, radius, hr, he) + hej;
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
 
@@ -275,7 +277,7 @@ fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
 
 #[inline]
 fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
-    let beta: f64 = 1.0 + 3.0 * rfw / radius;
+    let beta: f64 = 1.0 + 4.0 * rfw / radius;
     let r0 = (r - rf) / (radius - rf);
     let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
     (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
