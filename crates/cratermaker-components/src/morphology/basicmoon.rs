@@ -265,7 +265,11 @@ pub fn crater_profile_function(
         hfloor
     };
     hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
-    let hej = ejecta_profile_function(r, radius, he, pej);
+    let hej = if r > radius {
+        ejecta_profile_function(r, radius, he, pej)
+    } else {
+        he
+    };
     let hrim = rimfunc(r, radius, hr, he) + hej;
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
@@ -277,7 +281,7 @@ fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
 
 #[inline]
 fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
-    let beta: f64 = 1.0 + 4.0 * rfw / radius;
+    let beta: f64 = 1.0 + 9.0 * rfw / radius;
     let r0 = (r - rf) / (radius - rf);
     let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
     (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
@@ -286,7 +290,7 @@ fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
 #[inline]
 fn rimfunc(r: f64, radius: f64, hr: f64, he: f64) -> f64 {
     if r < radius {
-        hr
+        hr - he
     } else if r < 1.5 * radius {
         (hr - he) * (3.0 - 2.0 * r / radius)
     } else {
