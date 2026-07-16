@@ -29,7 +29,6 @@ pub struct BasicMoonCrater {
     pub wall_blend: f64,
     pub rim_width: f64,
     pub rim_elevation: f64,
-    pub rimdrop: f64,
     pub ejrim: f64,
     pub ejprofile: f64,
     pub peak_height: f64,
@@ -145,7 +144,8 @@ pub fn basicmoon_profile_one(
         crater.wall_blend,
         crater.rim_width,
         rim_elevation,
-        crater.rimdrop,
+        crater.ejrim,
+        crater.ejprofile,
         crater.peak_height,
         crater.peak_width,
         crater.peak_ring_radius,
@@ -163,7 +163,8 @@ pub fn basicmoon_profile_one(
                     ring.wall_blend,
                     ring.rim_width,
                     ring_rim_elevation,
-                    ring.rimdrop,
+                    ring.ejrim,
+                    ring.ejprofile,
                     ring.peak_height,
                     ring.peak_width,
                     ring.peak_ring_radius,
@@ -232,6 +233,7 @@ pub fn basicmoon_profile_one(
 /// * `rfw` - Wall curvature parameter (0<rfw<radius blends the floor to the wall with a smooth curve)
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
+/// * `hej` - Thickness of ejecta at the rim.
 /// * `prd` - Exponent for the rim dropoff function.
 /// * `hc` - Height of the central peak above the floor.
 /// * `rc` - Radius of the central peak.
@@ -249,7 +251,8 @@ pub fn crater_profile_function(
     rfw: f64,
     rw: f64,
     hr: f64,
-    prd: f64,
+    he: f64,
+    pej: f64,
     hc: f64,
     rc: f64,
     ro: f64,
@@ -261,7 +264,7 @@ pub fn crater_profile_function(
         hfloor
     };
     let hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
-    let hrim = rimfunc(r, radius, hr, prd);
+    let hrim = rimfunc(r, radius, hr, he) + ejecta_profile_function(r, radius, he, pej);
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
 
@@ -279,8 +282,14 @@ fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
 }
 
 #[inline]
-fn rimfunc(r: f64, radius: f64, hr: f64, prd: f64) -> f64 {
-    hr * (r / radius).powf(prd)
+fn rimfunc(r: f64, radius: f64, hr: f64, he: f64) -> f64 {
+    if r < radius {
+        hr
+    } else if r < 1.5 * radius {
+        (hr - he) * (3.0 - 2.0 * r / radius)
+    } else {
+        0.0
+    }
 }
 
 #[inline]

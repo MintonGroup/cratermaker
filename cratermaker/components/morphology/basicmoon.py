@@ -22,7 +22,6 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
 
-_RIMDROP = -6.0
 _EJPROFILE = -3.0
 
 
@@ -38,8 +37,6 @@ class BasicMoonCraterFixed(CraterFixed):
     """The curvature of the crater wall to floor transition."""
     rim_width: float | None = None
     """The width of the crater rim in meters."""
-    rimdrop: float | None = None
-    """The power law exponent for the structural uplift underneath the ejecta"""
     ejprofile: float | None = None
     """Power law exponent for the ejecta thickness profile of the crater."""
     peak_height: float | None = None
@@ -184,7 +181,6 @@ class BasicMoonCrater(MorphologyCrater):
         wall_blend: float | None = None,
         rim_width: float | None = None,
         rim_elevation: float | None = None,
-        rimdrop: float | None = None,
         ejrim: float | None = None,
         ejprofile: float | None = None,
         peak_height: float | None = None,
@@ -252,7 +248,6 @@ class BasicMoonCrater(MorphologyCrater):
             wall_blend = crater.wall_blend if wall_blend is None else wall_blend
             rim_width = crater.rim_width if rim_width is None else rim_width
             rim_elevation = crater.rim_elevation if rim_elevation is None else rim_elevation
-            rimdrop = crater.rimdrop if rimdrop is None else rimdrop
             ejrim = crater.ejrim if ejrim is None else ejrim
             ejprofile = crater.ejprofile if ejprofile is None else ejprofile
             peak_height = crater.peak_height if peak_height is None else peak_height
@@ -263,7 +258,7 @@ class BasicMoonCrater(MorphologyCrater):
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
-
+        rng = morphology.rng
         depth_params = {
             "simple_sub500m": {
                 "coefficients": [-1.910001619942053, 0.7831875571105978, 0.042836046225245894],
@@ -346,24 +341,28 @@ class BasicMoonCrater(MorphologyCrater):
             morphology_type = crater.morphology_type
 
         if rim_elevation is None:
-            rim_elevation = max(sample_logfit_heteroskedastic(diameter_m, **rim_elevation_params[morphology_type])[0], 0.0)
+            rim_elevation = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **rim_elevation_params[morphology_type])[0], 0.0)
         args["rim_elevation"] = rim_elevation
 
         if floor_elevation is None:
             if crater.diameter < 500.0:
-                floor_elevation = -sample_logfit_heteroskedastic(diameter_m, **depth_params["simple_sub500m"])[0] + rim_elevation
+                floor_elevation = (
+                    -sample_logfit_heteroskedastic(diameter_m, rng=rng, **depth_params["simple_sub500m"])[0] + rim_elevation
+                )
             else:
-                floor_elevation = -sample_logfit_heteroskedastic(diameter_m, **depth_params[morphology_type])[0] + rim_elevation
+                floor_elevation = (
+                    -sample_logfit_heteroskedastic(diameter_m, rng=rng, **depth_params[morphology_type])[0] + rim_elevation
+                )
             floor_elevation = min(floor_elevation, 0.0)
         args["floor_elevation"] = floor_elevation
 
         if floor_radius is None:
-            floor_radius = max(sample_logfit_heteroskedastic(diameter_m, **floor_radius_params[morphology_type])[0], 0.0)
+            floor_radius = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **floor_radius_params[morphology_type])[0], 0.0)
         args["floor_radius"] = min(floor_radius, 0.8 * crater.radius)
 
         if peak_height is None:
             if crater.morphology_type == "complex":
-                peak_height = sample_pikefit(diameter_km, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
+                peak_height = sample_pikefit(diameter_km, rng=rng, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
             else:
                 peak_height = 0.0
         args["peak_height"] = peak_height
@@ -373,29 +372,21 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
 
         if wall_blend is None:
-            wall_blend = morphology.rng.uniform(low=0.0, high=crater.radius, size=1)[0]
+            wall_blend = rng.uniform(low=0.0, high=crater.radius, size=1)[0]
 
         args["wall_blend"] = wall_blend
 
         if rim_width is None:
-            rim_width = max(sample_logfit_heteroskedastic(diameter_m, **rim_width_params[morphology_type])[0], 0.0)
+            rim_width = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **rim_width_params[morphology_type])[0], 0.0)
         args["rim_width"] = rim_width
 
         # Try to approximately conserve volume when setting the ejecta thickness at the rim value
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
-        args["rimdrop"] = _RIMDROP if rimdrop is None else rimdrop
 
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if ejrim is None:
             ejrim = 0.14 * (diameter_m / 2) ** 0.74
-            if diameter_km > 300:
-                hf = -args["floor_elevation"]
-                hr = args["rim_elevation"]
-                fr = args["floor_radius"] / (0.5 * diameter_m)
-                prd = args["rimdrop"]
-                pej = args["ejprofile"]
-                ejrim = max(ejrim, (hf * fr**2 - 2 * hr / (2 - prd)) / (2 * (1.0 / (2 - pej) - 1.0 / (2 - prd))))
-                ejrim = min(ejrim, args["rim_elevation"])
+            ejrim = min(ejrim, args["rim_elevation"])
         args["ejrim"] = ejrim
 
         kwargs = {**args, **kwargs}
@@ -407,9 +398,9 @@ class BasicMoonCrater(MorphologyCrater):
         )
 
         if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
-            num_rings = 3  # kwargs.pop("num_rings", morphology.rng.integers(low=2, high=4))
+            num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
             for i in range(num_rings):
-                rnd_factor = morphology.rng.normal(loc=1.0, scale=0.1, size=4)
+                rnd_factor = rng.normal(loc=1.0, scale=0.1, size=4)
                 radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
                 floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
                 elevation_offset = (i + 1) / (num_rings + 1) * crater.floor_elevation * rnd_factor[2]
@@ -424,7 +415,6 @@ class BasicMoonCrater(MorphologyCrater):
                     floor_radius=floor_radius,
                     floor_elevation=crater.floor_elevation,
                     rim_elevation=rim_elevation,
-                    rimdrop=-6.0,
                     ejrim=ejrim,
                 )
 
@@ -631,11 +621,6 @@ class BasicMoonCrater(MorphologyCrater):
     def rim_width(self) -> float | None:
         """The width of the crater rim in meters."""
         return self._fixed.rim_width
-
-    @property
-    def rimdrop(self) -> float | None:
-        """The power law exponent for the structural uplift underneath the ejecta"""
-        return self._fixed.rimdrop
 
     @property
     def ejprofile(self) -> float | None:
