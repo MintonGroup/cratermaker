@@ -21,8 +21,8 @@ pub struct RealMoonCrater<'a> {
     pub floor_radius: f64,
     pub wall_curvature: f64,
     pub rim_width: f64,
-    pub rim_elevation: f64,
-    pub ejrim: f64,
+    pub rim_height: f64,
+    pub frac_ejrim: f64,
     pub ejprofile: f64,
     pub peak_height: f64,
     pub peak_width: f64,
@@ -93,7 +93,6 @@ pub fn realmoon_profile(
             .sum::<f64>()
             / ninc as f64
     };
-    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
     let min_elevation = meanref + crater.floor_elevation;
 
     // Create profile functions that will be interpolated later
@@ -125,7 +124,7 @@ pub fn realmoon_profile(
             let rim_r = interp(&rimtheta, &rim_profile, theta, &InterpMode::default());
             let floor_r = interp(&floortheta, &floor_profile, theta, &InterpMode::default());
             let rim_elev =
-                rim_elevation * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
+                crater.rim_height * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
             let icrater = realtobasic(crater, rim_r, floor_r, rim_elev);
             let irings: Option<Vec<BasicMoonCrater>> =
                 if let (Some(rings_vec), Some(rim_profiles), Some(floor_profiles)) =
@@ -146,8 +145,7 @@ pub fn realmoon_profile(
                                     &InterpMode::default(),
                                 );
 
-                                let irim_elevation = ring.rim_elevation - ring.elevation_offset;
-                                let irim_elev = irim_elevation
+                                let irim_elev = ring.rim_height
                                     * (iring_rim_r / ring.radius)
                                     * (ring.floor_radius / iring_floor_r);
 
@@ -173,17 +171,17 @@ fn realtobasic(
     crater: &RealMoonCrater,
     radius: f64,
     floor_radius: f64,
-    rim_elevation: f64,
+    rim_height: f64,
 ) -> BasicMoonCrater {
     BasicMoonCrater {
         diameter: 2.0 * radius,
         radius: radius,
         floor_radius: floor_radius,
-        rim_elevation: rim_elevation,
+        rim_height: rim_height,
         floor_elevation: crater.floor_elevation,
         wall_curvature: crater.wall_curvature,
         rim_width: crater.rim_width,
-        ejrim: crater.ejrim,
+        frac_ejrim: crater.frac_ejrim,
         ejprofile: crater.ejprofile,
         peak_height: crater.peak_height,
         peak_width: crater.peak_width,

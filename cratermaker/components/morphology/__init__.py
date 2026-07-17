@@ -315,12 +315,12 @@ class MorphologyCrater(Crater):
         return self._var._emplaceable
 
     @property
-    def measured_rim_elevation(self) -> float | None:
+    def measured_rim_height(self) -> float | None:
         """The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_rim_elevation = counting_bindings.measure_rim_elevation(self.crater_region, self)
-        return self._var._measured_rim_elevation
+            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
+        return self._var._measured_rim_height
 
     @property
     def measured_floor_elevation(self) -> float | None:
@@ -335,13 +335,13 @@ class MorphologyCrater(Crater):
         """
         The measured depth to diameter ratio of the crater.
 
-        This is computed from `measured_rim_elevation`-`measured_floor_elevation`
+        This is computed from `measured_rim_height`-`measured_floor_elevation`
         """
         if self.crater_region is not None:
             self.crater_region._desloped_face_elevation = None
             floor_elevation = self.measured_floor_elevation
-            rim_elevation = self.measured_rim_elevation
-            return (rim_elevation - floor_elevation) / self.measured_diameter
+            rim_height = self.measured_rim_height
+            return (rim_height - floor_elevation) / self.measured_diameter
         else:
             return None
 
@@ -643,12 +643,16 @@ class Morphology(ComponentBase):
         ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
         ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
         conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
+        ejrim = crater.frac_ejrim * crater.rim_height
         ejecta_thickness *= conservation_factor
-        crater.ejrim *= conservation_factor
+        ejrim *= conservation_factor
+        crater.frac_ejrim = max(ejrim / crater.rim_height, 1.0)
         if crater.nrings > 0:
             for ring in crater.rings:
-                if ring.ejrim is not None and ring.ejrim > 0.0:
-                    ring.ejrim *= conservation_factor
+                if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
+                    ejrim = ring.frac_ejrim * ring.rim_height
+                    ejrim *= conservation_factor
+                    ring.frac_ejrim = max(ejrim / ring.rim_height, 1.0)
 
         crater.ejecta_region.add_data(
             "ejecta_thickness",

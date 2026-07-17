@@ -1,6 +1,6 @@
+use crate::ArrayResult;
 use crate::crater::Crater;
 use crate::surface::LocalSurfaceView;
-use crate::ArrayResult;
 use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{Eig, Inverse};
 use numpy::ndarray::prelude::*;
@@ -76,7 +76,7 @@ pub fn measure_floor_elevation(
     Ok(elev_sum / (n_floor as f64))
 }
 
-pub fn measure_rim_elevation(
+pub fn measure_rim_height(
     region: &LocalSurfaceView<'_>,
     crater: &Crater,
 ) -> Result<f64, &'static str> {
@@ -345,11 +345,7 @@ fn ellipse_coefficients_to_parameters(
 
     // compute the orientation with respect to the x-axis and deal with special cases
     let mut phi = if b.abs() < 1e-12 {
-        if a < c {
-            0.0
-        } else {
-            FRAC_PI_2
-        }
+        if a < c { 0.0 } else { FRAC_PI_2 }
     } else {
         0.5 * (2.0 * b).atan2(a - c)
     };

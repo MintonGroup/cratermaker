@@ -136,13 +136,13 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
-                        sim.surface.node_elevation.max() / crater.rim_elevation,
+                        sim.surface.node_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
                     self.assertAlmostEqual(
-                        sim.surface.face_elevation.max() / crater.rim_elevation,
+                        sim.surface.face_elevation.max() / crater.rim_height,
                         1.0,
                         delta=2 * delta,
                         msg=f"Failed for {name} with diameter {diameter}",

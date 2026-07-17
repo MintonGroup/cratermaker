@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 const _FITTING_RADIUS_RATIO: f64 = 2.0;
 
 #[pyfunction]
-pub fn measure_rim_elevation<'py>(
+pub fn measure_rim_height<'py>(
     _py: Python<'py>,
     region: &Bound<'py, PyAny>,
     crater: Crater,
@@ -14,13 +14,13 @@ pub fn measure_rim_elevation<'py>(
     let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
     let region_v = region_py.as_views();
 
-    let rim_elevation =
-        match cratermaker_components::counting::measure_rim_elevation(&region_v, &crater) {
+    let rim_height =
+        match cratermaker_components::counting::measure_rim_height(&region_v, &crater) {
             Ok(v) => v,
             Err(_) => return Ok(-f64::MAX),
         };
 
-    Ok(rim_elevation)
+    Ok(rim_height)
 }
 
 #[pyfunction]

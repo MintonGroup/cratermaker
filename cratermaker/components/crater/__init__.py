@@ -99,7 +99,7 @@ class CraterVariable:
         measured_semiminor_axis: float | None = None,
         measured_orientation: float | None = None,
         measured_location: PairOfFloats | None = None,
-        measured_rim_elevation: float | None = None,
+        measured_rim_height: float | None = None,
         measured_floor_elevation: float | None = None,
         degradation_state: float | None = None,
         production_time: tuple[float, float] | float | None = None,
@@ -113,7 +113,7 @@ class CraterVariable:
         object.__setattr__(self, "_measured_radius", None)
         object.__setattr__(self, "_measured_orientation", None)
         object.__setattr__(self, "_measured_location", None)
-        object.__setattr__(self, "_measured_rim_elevation", None)
+        object.__setattr__(self, "_measured_rim_height", None)
         object.__setattr__(self, "_measured_floor_elevation", None)
         object.__setattr__(self, "_degradation_state", None)
         object.__setattr__(self, "_production_time", None)
@@ -133,8 +133,8 @@ class CraterVariable:
             self.measured_orientation = measured_orientation
         if measured_location is not None:
             self.measured_location = measured_location
-        if measured_rim_elevation is not None:
-            self.measured_rim_elevation = measured_rim_elevation
+        if measured_rim_height is not None:
+            self.measured_rim_height = measured_rim_height
         if measured_floor_elevation is not None:
             self.measured_floor_elevation = measured_floor_elevation
         if degradation_state is not None:
@@ -157,7 +157,7 @@ class CraterVariable:
             f"measured_semiminor_axis={self.measured_semiminor_axis}, "
             f"measured_orientation={self.measured_orientation}, "
             f"measured_location={self.measured_location}, "
-            f"measured_rim_elevation={self.measured_rim_elevation}, "
+            f"measured_rim_height={self.measured_rim_height}, "
             f"measured_floor_elevation={self.measured_floor_elevation}, "
             f"degradation_state={self.degradation_state}, "
             f"production_time={self.production_time}, "
@@ -175,7 +175,7 @@ class CraterVariable:
         dict_repr = {
             "measured_orientation": self.measured_orientation,
             "measured_location": self.measured_location,
-            "measured_rim_elevation": self.measured_rim_elevation,
+            "measured_rim_height": self.measured_rim_height,
             "measured_floor_elevation": self.measured_floor_elevation,
             "degradation_state": self.degradation_state,
         }
@@ -317,20 +317,20 @@ class CraterVariable:
         return
 
     @property
-    def measured_rim_elevation(self) -> float | None:
-        return self._measured_rim_elevation
+    def measured_rim_height(self) -> float | None:
+        return self._measured_rim_height
 
-    @measured_rim_elevation.setter
-    def measured_rim_elevation(self, value: float | None):
+    @measured_rim_height.setter
+    def measured_rim_height(self, value: float | None):
         """
         The measured rim height above the local reference plane of the crater in meters.
 
         This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
         """
         if value is None:
-            self._measured_rim_elevation = None
+            self._measured_rim_height = None
             return
-        self._measured_rim_elevation = float(value)
+        self._measured_rim_height = float(value)
         return
 
     @property
@@ -532,8 +532,8 @@ class Crater(ComponentBase):
         str_repr += f"location (lon,lat): ({self.location[0]:.4f}°, {self.location[1]:.4f}°)\n"
         if self.measured_location is not None and self.measured_location != self.location:
             str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
-        if self.measured_rim_elevation is not None and np.abs(self.measured_rim_elevation) < _VBIG:
-            str_repr += f"Measured rim height: {format_large_units(self.measured_rim_elevation, quantity='length')}\n"
+        if self.measured_rim_height is not None and np.abs(self.measured_rim_height) < _VBIG:
+            str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
         if self.measured_floor_elevation is not None and np.abs(self.measured_floor_elevation) < _VBIG:
             str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_elevation, quantity='length')}\n"
         if self.production_sequence is not None:
@@ -596,7 +596,7 @@ class Crater(ComponentBase):
         measured_diameter: float | None = None,
         measured_radius: float | None = None,
         measured_location: PairOfFloats | None = None,
-        measured_rim_elevation: float | None = None,
+        measured_rim_height: float | None = None,
         measured_floor_elevation: float | None = None,
         degradation_state: float | None = None,
         production_time: tuple[float, float] | float | None = None,
@@ -680,7 +680,7 @@ class Crater(ComponentBase):
             The measured radius of the crater in meters.
         measured_location : pair of floats, optional
             The measured (longitude, latitude) location of the crater.
-        measured_rim_elevation : float, optional
+        measured_rim_height : float, optional
             The measured rim height of the crater in meters.
         measured_floor_elevation : float, optional
             The measured floor depth of the crater in meters.
@@ -866,8 +866,8 @@ class Crater(ComponentBase):
             args["measured_orientation"] = measured_orientation
         if measured_location is not None:
             args["measured_location"] = measured_location
-        if measured_rim_elevation is not None:
-            args["measured_rim_elevation"] = measured_rim_elevation
+        if measured_rim_height is not None:
+            args["measured_rim_height"] = measured_rim_height
         if measured_floor_elevation is not None:
             args["measured_floor_elevation"] = measured_floor_elevation
         if degradation_state is not None:
@@ -1187,8 +1187,8 @@ class Crater(ComponentBase):
 
         # Measure the rim height so that the polygon sits on to of the surface rather than underneath
         region = surface.extract_region(location=(lon, lat), region_radius=radius, at_least_one_face=True)
-        rim_elevation = np.max(region.face_elevation)
-        z = np.full_like(theta, rim_elevation)
+        rim_height = np.max(region.face_elevation)
+        z = np.full_like(theta, rim_height)
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
@@ -1500,8 +1500,8 @@ class Crater(ComponentBase):
         return self._var.measured_location
 
     @property
-    def measured_rim_elevation(self) -> float | None:
-        return self._var.measured_rim_elevation
+    def measured_rim_height(self) -> float | None:
+        return self._var.measured_rim_height
 
     @property
     def measured_floor_elevation(self) -> float | None:

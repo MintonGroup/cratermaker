@@ -31,7 +31,7 @@ _PSD1D_MIN_POINTS = 64
 class RealMoonCraterFixed(BasicMoonCraterFixed):
     rim_radius_rng_seed: int | None = None
     """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    rim_elevation_rng_seed: int | None = None
+    rim_height_rng_seed: int | None = None
     """The random seed used to generate the rim elevation PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
     floor_radius_rng_seed: int | None = None
     """The random seed used to generate the floor radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
@@ -47,7 +47,7 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
     def __init__(
         self,
         rim_radius_control: np.ndarray | None = None,
-        rim_elevation_control: np.ndarray | None = None,
+        rim_height_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
@@ -55,7 +55,7 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
     ) -> None:
         super().__init__(**kwargs)
         object.__setattr__(self, "_rim_radius_control", rim_radius_control)
-        object.__setattr__(self, "_rim_elevation_control", rim_elevation_control)
+        object.__setattr__(self, "_rim_height_control", rim_height_control)
         object.__setattr__(self, "_floor_radius_control", floor_radius_control)
         object.__setattr__(self, "_wall_texture_control", wall_texture_control)
         object.__setattr__(self, "_ejecta_texture_control", ejecta_texture_control)
@@ -69,11 +69,11 @@ class RealMoonCraterVariable(BasicMoonCraterVariable):
         return self._rim_radius_control
 
     @property
-    def rim_elevation_control(self) -> np.ndarray | None:
+    def rim_height_control(self) -> np.ndarray | None:
         """
         The control points for the rim elevation PSD.
         """
-        return self._rim_elevation_control
+        return self._rim_height_control
 
     @property
     def floor_radius_control(self) -> np.ndarray | None:
@@ -113,7 +113,7 @@ class RealMoonCrater(BasicMoonCrater):
         crater: Crater | None = None,
         morphology: Morphology | None = None,
         rim_radius_control: np.ndarray | None = None,
-        rim_elevation_control: np.ndarray | None = None,
+        rim_height_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
@@ -132,7 +132,7 @@ class RealMoonCrater(BasicMoonCrater):
             The morphology model to use for generating morphology parameters.
         rim_radius_control : np.ndarray, optional
             Control points for the rim crest radius PSD. If None, then it will be computed
-        rim_elevation_control : np.ndarray, optional
+        rim_height_control : np.ndarray, optional
             Conntrol points for the rim elevation PSD. If None then it will be computed.
         floor_radius_control : np.ndarray, optional
             Control points for the floor radius profile. If None then it will be computed.
@@ -157,7 +157,7 @@ class RealMoonCrater(BasicMoonCrater):
         if crater is not None and isinstance(crater, RealMoonCrater):
             rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
             floor_radius_control = crater.floor_radius_control if floor_radius_control is None else floor_radius_control
-            rim_elevation_control = crater.rim_elevation_control if rim_elevation_control is None else rim_elevation_control
+            rim_height_control = crater.rim_height_control if rim_height_control is None else rim_height_control
             wall_texture_control = crater.wall_texture_control if wall_texture_control is None else wall_texture_control
             ejecta_texture_control = crater.ejecta_texture_control if ejecta_texture_control is None else ejecta_texture_control
 
@@ -169,7 +169,7 @@ class RealMoonCrater(BasicMoonCrater):
         for var in [
             "rim_radius",
             "floor_radius",
-            "rim_elevation",
+            "rim_height",
             "wall_texture",
             "ejecta_texture",
             "floor_texture",
@@ -237,7 +237,7 @@ class RealMoonCrater(BasicMoonCrater):
             theta=theta,
         )
 
-    def rim_elevation_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+    def rim_height_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the rim elevation profile of the crater based on the rim elevation PSD.
 
@@ -250,13 +250,13 @@ class RealMoonCrater(BasicMoonCrater):
 
         Returns
         -------
-        rim_elevation_profile : NDArray[np.float64]
+        rim_height_profile : NDArray[np.float64]
             The computed rim elevation profile at each bearing.
         """
         theta = np.radians(bearings)
         return realmoon_bindings.profile_from_psd(
             crater_radius=self.radius,
-            ymean=self.rim_elevation,
+            ymean=self.rim_height,
             psd=self.rim_radius_psd,
             theta=theta,
         )

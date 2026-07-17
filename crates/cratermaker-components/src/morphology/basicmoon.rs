@@ -9,7 +9,7 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::f64::{
-    self,
+    self, EPSILON,
     consts::{PI, SQRT_2, TAU},
 };
 
@@ -28,8 +28,8 @@ pub struct BasicMoonCrater {
     pub floor_radius: f64,
     pub wall_curvature: f64,
     pub rim_width: f64,
-    pub rim_elevation: f64,
-    pub ejrim: f64,
+    pub rim_height: f64,
+    pub frac_ejrim: f64,
     pub ejprofile: f64,
     pub peak_height: f64,
     pub peak_width: f64,
@@ -133,7 +133,6 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
-    let rim_elevation = crater.rim_elevation - crater.elevation_offset;
     let floor_elevation = crater.floor_elevation - crater.elevation_offset;
 
     let mut hcrat = crater_profile_function(
@@ -143,17 +142,16 @@ pub fn basicmoon_profile_one(
         crater.floor_radius,
         crater.wall_curvature,
         crater.rim_width,
-        rim_elevation,
-        crater.ejrim,
+        crater.rim_height,
+        crater.frac_ejrim,
         crater.ejprofile,
         crater.peak_height,
         crater.peak_width,
         crater.peak_ring_radius,
-    );
+    ) + crater.elevation_offset;
     match rings {
         Some(rings) => {
             for ring in rings.iter() {
-                let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
                 let ring_floor_elevation = ring.floor_elevation - ring.elevation_offset;
                 let hring = crater_profile_function(
                     r,
@@ -162,8 +160,8 @@ pub fn basicmoon_profile_one(
                     ring.floor_radius,
                     ring.wall_curvature,
                     ring.rim_width,
-                    ring_rim_elevation,
-                    ring.ejrim,
+                    ring.rim_height,
+                    ring.frac_ejrim,
                     ring.ejprofile,
                     ring.peak_height,
                     ring.peak_width,
@@ -174,23 +172,35 @@ pub fn basicmoon_profile_one(
         }
         None => (),
     }
-    let mut hej = ejecta_profile_function(r, crater.radius, crater.ejrim, crater.ejprofile);
+    let mut hej = ejecta_profile_function(
+        r,
+        crater.radius,
+        crater.frac_ejrim * crater.rim_height,
+        crater.ejprofile,
+    );
 
-    if r < crater.radius && r > crater.floor_radius {
-        hej += hcrat - crater.rim_elevation + crater.ejrim;
-        hej = hej.clamp(0.0, crater.ejrim);
+    // Add the upper portion of the rim to the ejecta
+    let hrel = hcrat - crater.elevation_offset;
+    if r <= crater.radius && hrel >= 0.0 {
+        let hup = (1.0 - crater.frac_ejrim) * crater.rim_height;
+        hej += (hrel - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
     }
     match rings {
         Some(rings) => {
             for ring in rings.iter() {
-                let mut hring = ejecta_profile_function(r, ring.radius, ring.ejrim, ring.ejprofile);
-                let ring_rim_elevation = ring.rim_elevation - ring.elevation_offset;
-                if r < ring.radius && r > ring.floor_radius {
-                    hring += hcrat - ring.elevation_offset - ring_rim_elevation + ring.ejrim;
-                    hring = hring.clamp(0.0, ring.ejrim);
+                let mut hejring = ejecta_profile_function(
+                    r,
+                    ring.radius,
+                    ring.frac_ejrim * ring.rim_height,
+                    ring.ejprofile,
+                );
+                // Add the upper portion of the ring rim to the ejecta
+                let hrel = hcrat - ring.elevation_offset;
+                if r < ring.radius && hrel >= 0.0 {
+                    let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
+                    hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
                 }
-
-                hej = hej.max(hring);
+                hej = hej.max(hejring);
             }
         }
         None => (),
@@ -200,6 +210,7 @@ pub fn basicmoon_profile_one(
         if r > crater.radius || (hcrat > 0.0 && hej > 0.0) {
             hcrat = (hcrat - hej).max(0.0);
         }
+
         hcrat += crater.elevation_offset;
     } else {
         hcrat = 0.0;
@@ -230,11 +241,11 @@ pub fn basicmoon_profile_one(
 /// * `radius` - Radius of the crater rim (in meters).
 /// * `hf` - Elevation of the crater floor relative to the reference plane.
 /// * `rf` - Radius of the crater floor.
-/// * `wc` - Wall curvature parameter (0<rfw<2 the floor to the wall with a smooth curve)
+/// * `wc` - Wall curvature parameter (0<wc<1). 0 is straighter walls, 1 is curvy walls.
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
-/// * `hej` - Thickness of ejecta at the rim.
-/// * `prd` - Exponent for the rim dropoff function.
+/// * `fe` - Fraction of the rim that is made of ejecta.
+/// * `pej` - Exponent for the ejecta dropoff function.
 /// * `hc` - Height of the central peak above the floor.
 /// * `rc` - Radius of the central peak.
 /// * `ro` - Radial offset of the central peak from the crater center .
@@ -251,18 +262,23 @@ pub fn crater_profile_function(
     wc: f64,
     rw: f64,
     hr: f64,
-    he: f64,
+    fe: f64,
     pej: f64,
     hc: f64,
     rc: f64,
     ro: f64,
 ) -> f64 {
-    let rfw = wc * (radius - rf);
-    let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Compute this separately to avoid sharp discontinuities
-    let mut hwall = if r > rf {
-        wallfunc(r, radius, rf, hr, hf, rfw)
+    let he = fe * hr;
+    let rfw = if rf < 0.5 * radius {
+        wc * rf
     } else {
-        hf
+        wc * (radius - rf)
+    };
+    let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Include this to avoid sharp discontinuities
+    let mut hwall = if r > rf {
+        wallfunc(r, radius, rf, hr, hfloor, wc)
+    } else {
+        hfloor
     };
     hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
     let hej = if r > radius {
@@ -270,32 +286,30 @@ pub fn crater_profile_function(
     } else {
         he
     };
-    let hrim = rimfunc(r, radius, hr, he) + hej;
+    let hrim = rimfunc(r, radius, hr, he, rw) + hej;
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
 
 #[inline]
 fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
-    hc * (-((r - ro) / rc).powi(2)).exp() + hf
+    if rc > EPSILON {
+        hc * (-((r - ro) / rc).powi(2)).exp() + hf
+    } else {
+        hf
+    }
 }
 
 #[inline]
-fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
-    let beta: f64 = 1.0 + 9.0 * rfw / radius;
+fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, wc: f64) -> f64 {
+    let beta: f64 = 1.0 + 4.0 * wc;
     let r0 = (r - rf) / (radius - rf);
     let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
     (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
 }
 
 #[inline]
-fn rimfunc(r: f64, radius: f64, hr: f64, he: f64) -> f64 {
-    if r < radius {
-        hr - he
-    } else if r < 1.5 * radius {
-        (hr - he) * (3.0 - 2.0 * r / radius)
-    } else {
-        0.0
-    }
+fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
+    (hr - he) * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
 #[inline]
