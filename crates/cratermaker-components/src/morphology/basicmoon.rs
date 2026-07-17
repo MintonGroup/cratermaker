@@ -241,7 +241,7 @@ pub fn basicmoon_profile_one(
 /// * `radius` - Radius of the crater rim (in meters).
 /// * `hf` - Elevation of the crater floor relative to the reference plane.
 /// * `rf` - Radius of the crater floor.
-/// * `wc` - Wall curvature parameter (0<wc<1). 0 is straighter walls, 1 is curvy walls.
+/// * `beta` - Wall curvature parameter (0<beta<10). ~1 is straighter walls, 10 is curvy walls.
 /// * `rw` - Width of the crater rim
 /// * `hr` - Height of the crater rim above the reference plane.
 /// * `fe` - Fraction of the rim that is made of ejecta.
@@ -259,7 +259,7 @@ pub fn crater_profile_function(
     radius: f64,
     hf: f64,
     rf: f64,
-    wc: f64,
+    beta: f64,
     rw: f64,
     hr: f64,
     fe: f64,
@@ -269,23 +269,15 @@ pub fn crater_profile_function(
     ro: f64,
 ) -> f64 {
     let he = fe * hr;
-    let rfw = if rf < 0.5 * radius {
-        wc * rf
-    } else {
-        wc * (radius - rf)
-    };
+    let rfw = if rf < 0.5 * radius { rf } else { radius - rf };
     let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Include this to avoid sharp discontinuities
     let mut hwall = if r > rf {
-        wallfunc(r, radius, rf, hr, hfloor, wc)
+        wallfunc(r, radius, rf, hr, hfloor, beta)
     } else {
         hfloor
     };
     hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
-    let hej = if r > radius {
-        ejecta_profile_function(r, radius, he, pej)
-    } else {
-        he
-    };
+    let hej = ejecta_profile_function(r, radius, he, pej);
     let hrim = rimfunc(r, radius, hr, he, rw) + hej;
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
@@ -300,8 +292,7 @@ fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
 }
 
 #[inline]
-fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, wc: f64) -> f64 {
-    let beta: f64 = 1.0 + 4.0 * wc;
+fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
     let r0 = (r - rf) / (radius - rf);
     let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
     (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
@@ -309,7 +300,8 @@ fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, wc: f64) -> f64 {
 
 #[inline]
 fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
-    (hr - he) * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
+    let hmax = if r >= radius { hr - he } else { hr };
+    hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
 #[inline]

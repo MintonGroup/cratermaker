@@ -389,7 +389,7 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
 
         if wall_curvature is None:
-            wall_curvature = rng.uniform(low=0.0, high=1.0, size=1)[0]
+            wall_curvature = rng.uniform(low=1.0, high=2.0, size=1)[0]
 
         args["wall_curvature"] = wall_curvature
 
