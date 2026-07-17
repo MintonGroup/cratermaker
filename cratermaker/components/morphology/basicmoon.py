@@ -18,6 +18,7 @@ from cratermaker.components.morphology import Morphology, MorphologyCrater, Morp
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.constants import _VSMALL, FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
+from cratermaker.utils.montecarlo_utils import bounded_norm
 
 if TYPE_CHECKING:
     from cratermaker.components.surface import LocalSurface
@@ -353,8 +354,11 @@ class BasicMoonCrater(MorphologyCrater):
 
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if frac_ejrim is None:
-            frac_ejrim = 0.14 * (diameter_m / 2) ** 0.74 / rim_height
-            frac_ejrim = min(frac_ejrim, 1.0)
+            if rim_height > 0.0:
+                frac_ejrim = 0.14 * (diameter_m / 2) ** 0.74 / rim_height
+                frac_ejrim = min(frac_ejrim, 1.0)
+            else:
+                frac_ejrim = 0.0
         args["frac_ejrim"] = frac_ejrim
 
         if floor_elevation is None:
@@ -400,7 +404,7 @@ class BasicMoonCrater(MorphologyCrater):
         if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
             num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
             for i in range(num_rings):
-                rnd_factor = rng.normal(loc=1.0, scale=0.1, size=4)
+                rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
                 radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
                 floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
                 elevation_offset = (i + 1) / (num_rings + 1) * crater.floor_elevation * rnd_factor[2]
