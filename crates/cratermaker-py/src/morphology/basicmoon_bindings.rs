@@ -118,6 +118,7 @@ pub fn ejecta_profile_function<'py>(
         crater.radius,
         crater.frac_ejrim,
         crater.ejprofile,
+        crater.rim_width,
     );
     Ok(result)
 }

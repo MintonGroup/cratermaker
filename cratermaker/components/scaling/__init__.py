@@ -162,6 +162,15 @@ class Scaling(ComponentBase):
         return
 
     @property
+    def monte_carlo_scaling(self):
+        """Whether to vary scaling properties randomly (disabled in the base class, but included for API compatibility)."""
+        return False
+
+    @monte_carlo_scaling.setter
+    def monte_carlo_scaling(self, value):
+        return
+
+    @property
     def model(self):
         """The name of the scaling model."""
         return self._component_name

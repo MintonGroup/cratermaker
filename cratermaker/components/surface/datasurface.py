@@ -138,7 +138,6 @@ class DataSurface(HiResLocalSurface):
 
         self._superdomain_dem_file = superdomain_dem_file
         self.ask_overwrite = ask_overwrite
-        return
 
     def _get_location_extents(self):
         """

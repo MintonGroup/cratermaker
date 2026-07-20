@@ -482,6 +482,7 @@ def sample_pikefit(
     errhi: float,
     errlo: float,
     n: int,
+    compute_nominal: bool = False,
     rng: Generator | None = None,
     rng_seed: int | None = None,
     rng_state: dict | None = None,
@@ -506,6 +507,8 @@ def sample_pikefit(
         The standard error of the fit in log-space in the negative direction.
     n : int
         The number of data points used to compute the fit.
+    compute_nominal : bool, optional
+        Set to True to return the nominal value without the random variation. Default is False.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -519,19 +522,21 @@ def sample_pikefit(
     ----------
     .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
     """
-    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-
     log_y = np.log(b) + a * np.log(x)
 
-    sighi = np.sqrt(n) * errhi
-    siglo = -np.sqrt(n) * errlo
-
-    # Average the logspace upper/lower error values
-    var = rng.normal(0, 0.5, size=np.size(x))
-    if var > 0.0:
-        var *= sighi
+    if compute_nominal:
+        var = np.zeros(np.size(x))
     else:
-        var *= siglo
+        rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        sighi = np.sqrt(n) * errhi
+        siglo = -np.sqrt(n) * errlo
+        # Average the logspace upper/lower error values
+        var = rng.normal(0, 0.5, size=np.size(x))
+        if var > 0.0:
+            var *= sighi
+        else:
+            var *= siglo
+
     y = np.exp(log_y + var)
 
     return y
@@ -542,6 +547,7 @@ def sample_logfit_heteroskedastic(
     coefficients: list[float],
     c: float,
     alpha: float,
+    compute_nominal: bool = False,
     rng: Generator | None = None,
     rng_seed: int | None = None,
     rng_state: dict | None = None,
@@ -566,6 +572,8 @@ def sample_logfit_heteroskedastic(
         The slope of the sigma vs x fit.
     n : int
         The number of data points used to compute the fit.
+    compute_nominal : bool, optional
+        Set to True to return the nominal value without the random variation. Default is False.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -579,7 +587,6 @@ def sample_logfit_heteroskedastic(
     ----------
     .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
     """
-    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
     def polyfunc(x, *cn):
         ans = 0.0
@@ -590,7 +597,11 @@ def sample_logfit_heteroskedastic(
     log_y = polyfunc(np.log(x), *coefficients)
     y = np.exp(log_y)
 
-    sigma = np.exp(c / 2) * y ** (alpha / 2)
-    var = rng.normal(0, sigma, size=np.size(x))
+    if compute_nominal:
+        return np.atleast_1d(y)
+    else:
+        rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        sigma = np.exp(c / 2) * y ** (alpha / 2)
+        var = rng.normal(0, sigma, size=np.size(x))
 
     return y + var

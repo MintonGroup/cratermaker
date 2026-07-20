@@ -177,6 +177,7 @@ pub fn basicmoon_profile_one(
         crater.radius,
         crater.frac_ejrim * crater.rim_height,
         crater.ejprofile,
+        crater.rim_width,
     );
 
     // Add the upper portion of the rim to the ejecta
@@ -193,6 +194,7 @@ pub fn basicmoon_profile_one(
                     ring.radius,
                     ring.frac_ejrim * ring.rim_height,
                     ring.ejprofile,
+                    ring.rim_width,
                 );
                 // Add the upper portion of the ring rim to the ejecta
                 let hrel = hcrat - ring.elevation_offset;
@@ -269,7 +271,8 @@ pub fn crater_profile_function(
     ro: f64,
 ) -> f64 {
     let he = fe * hr;
-    let rfw = if rf < 0.5 * radius { rf } else { radius - rf };
+    let mut rfw = if rf < 0.5 * radius { rf } else { radius - rf };
+    rfw = (rfw * (beta - 0.5)).min(0.5 * radius);
     let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Include this to avoid sharp discontinuities
     let mut hwall = if r > rf {
         wallfunc(r, radius, rf, hr, hfloor, beta)
@@ -277,7 +280,7 @@ pub fn crater_profile_function(
         hfloor
     };
     hwall = floor_wall_blend(r, hfloor, hwall, rf, rfw);
-    let hej = ejecta_profile_function(r, radius, he, pej);
+    let hej = ejecta_profile_function(r, radius, he, pej, rw);
     let hrim = rimfunc(r, radius, hr, he, rw) + hej;
     wall_rim_blend(r, hwall, hrim, radius, rw)
 }
@@ -293,9 +296,13 @@ fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
 
 #[inline]
 fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
-    let r0 = (r - rf) / (radius - rf);
-    let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-    (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+    if r <= radius {
+        let r0 = (r - rf) / (radius - rf);
+        let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
+        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+    } else {
+        hr
+    }
 }
 
 #[inline]
@@ -345,10 +352,13 @@ fn wall_rim_blend(r: f64, hwall: f64, hrim: f64, radius: f64, rw: f64) -> f64 {
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64) -> f64 {
+pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, rw: f64) -> f64 {
     if r >= radius {
-        let rej = r / radius;
-        ejrim * rej.powf(ejprofile)
+        let t = (r - (radius - rw)) / (2.0 * rw);
+        let phi = smoothstep(t);
+        let hg = rimfunc(r, radius, ejrim, 0.0, rw);
+        let hp = ejrim * (r / radius).powf(ejprofile);
+        (1.0 - phi) * hg + phi * hp
     } else {
         0.0
     }

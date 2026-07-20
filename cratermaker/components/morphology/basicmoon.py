@@ -195,7 +195,7 @@ class BasicMoonCrater(MorphologyCrater):
         """
         Initialize a BasicMoonCrater object either from an existing Crater object or from parameters.
 
-        This generates a specialized Crater object with morphology parameters. The morphometric parameters are mostly taken from Pike (1977) [#]_ for D>5 km craters with a higher value of d/D and floor_radius from Fassett and Thomson (2014) [#]_, Yang et al. (2021) [#]_ for D<50 m craters, and a random weighted mixture of the two models using the d/D vs D trend seen in Hoover at al. (2024) [#]_.
+        This generates a specialized Crater object with morphology parameters.
 
         Parameters
         ----------
@@ -230,10 +230,7 @@ class BasicMoonCrater(MorphologyCrater):
 
         References
         ----------
-        .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
-        .. [#] Fassett, C.I., Thomson, B.J., 2014. Crater degradation on the lunar maria: Topographic diffusion and the rate of erosion on the Moon. J. Geophys. Res. 119, 2014JE004698-2271. `doi:10.1002/2014JE004698 <https://doi.org/10.1002/2014JE004698>`_
-        .. [#] Yang, X., Fa, W., Du, J., Xie, M., Liu, T., 2021. Effect of Topographic Degradation on Small Lunar Craters: Implications for Regolith Thickness Estimation. Geophysical Research Letters 48, e2021GL095537. `doi:10.1029/2021GL095537 <https://doi.org/10.1029/2021GL095537>`_
-        .. [#] Hoover, R.H., Robbins, S.J., Hynek, B.M., Hayne, P.O., 2024. Depth-to-diameter Ratios of Fresh Craters on the Moon and Implications for Surface Age Estimates. Planet. Sci. J. 5, 26. `doi:10.3847/PSJ/ad18d4 <https://doi.org/10.3847/PSJ/ad18d4>`_
+        TODO: Update with Minton et al. (2026) info once done.
         """
         input_args = locals()
         from cratermaker.components.morphology import Morphology
@@ -259,6 +256,8 @@ class BasicMoonCrater(MorphologyCrater):
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
+        monte_carlo_scaling = morphology.scaling.monte_carlo_scaling
+        compute_nominal = not monte_carlo_scaling
         rng = morphology.rng
         depth_params = {
             "simple_sub500m": {
@@ -336,17 +335,31 @@ class BasicMoonCrater(MorphologyCrater):
         args = {}
         diameter_m = crater.diameter
         diameter_km = diameter_m * 1e-3
+
         if crater.morphology_type in ["basin", "multiring", "peakring", "ring"]:
             morphology_type = "complex"
         else:
             morphology_type = crater.morphology_type
 
+        # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
+        ejrim = 0.14 * (diameter_m / 2) ** 0.74
+
         if rim_height is None:
-            rim_height = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **rim_height_params[morphology_type])[0], 0.0)
+            rim_height = max(
+                sample_logfit_heteroskedastic(
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[morphology_type]
+                )[0],
+                ejrim,
+            )
         args["rim_height"] = rim_height
 
         if rim_width is None:
-            rim_width = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **rim_width_params[morphology_type])[0], 0.0)
+            rim_width = max(
+                sample_logfit_heteroskedastic(
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[morphology_type]
+                )[0],
+                0.0,
+            )
         args["rim_width"] = rim_width
 
         # Try to approximately conserve volume when setting the ejecta thickness at the rim value
@@ -355,7 +368,7 @@ class BasicMoonCrater(MorphologyCrater):
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if frac_ejrim is None:
             if rim_height > 0.0:
-                frac_ejrim = 0.14 * (diameter_m / 2) ** 0.74 / rim_height
+                frac_ejrim = ejrim / rim_height
                 frac_ejrim = min(frac_ejrim, 1.0)
             else:
                 frac_ejrim = 0.0
@@ -364,22 +377,38 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_elevation is None:
             if crater.diameter < 500.0:
                 floor_elevation = (
-                    -sample_logfit_heteroskedastic(diameter_m, rng=rng, **depth_params["simple_sub500m"])[0] + rim_height
+                    -sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **depth_params["simple_sub500m"]
+                    )[0]
+                    + rim_height
                 )
             else:
                 floor_elevation = (
-                    -sample_logfit_heteroskedastic(diameter_m, rng=rng, **depth_params[morphology_type])[0] + rim_height
+                    -sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **depth_params[morphology_type]
+                    )[0]
+                    + rim_height
                 )
             floor_elevation = min(floor_elevation, 0.0)
         args["floor_elevation"] = floor_elevation
 
         if floor_radius is None:
-            floor_radius = max(sample_logfit_heteroskedastic(diameter_m, rng=rng, **floor_radius_params[morphology_type])[0], 0.0)
+            floor_radius = max(
+                sample_logfit_heteroskedastic(
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[morphology_type]
+                )[0],
+                0.0,
+            )
         args["floor_radius"] = min(floor_radius, 0.8 * crater.radius)
 
         if peak_height is None:
             if crater.morphology_type == "complex":
-                peak_height = sample_pikefit(diameter_km, rng=rng, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22)[0] * 1e3
+                peak_height = (
+                    sample_pikefit(
+                        diameter_km, compute_nominal=compute_nominal, rng=rng, a=0.900, b=0.032, errhi=0.0011, errlo=-0.008, n=22
+                    )[0]
+                    * 1e3
+                )
             else:
                 peak_height = 0.0
         args["peak_height"] = peak_height
@@ -389,7 +418,10 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
 
         if wall_curvature is None:
-            wall_curvature = rng.uniform(low=1.0, high=2.0, size=1)[0]
+            if monte_carlo_scaling:
+                wall_curvature = rng.uniform(low=1.0, high=2.0, size=1)[0]
+            else:
+                wall_curvature = 1.0
 
         args["wall_curvature"] = wall_curvature
 
@@ -404,7 +436,10 @@ class BasicMoonCrater(MorphologyCrater):
         if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
             num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
             for i in range(num_rings):
-                rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
+                if monte_carlo_scaling:
+                    rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
+                else:
+                    rnd_factor = np.ones(4)
                 radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
                 floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
                 elevation_offset = (i + 1) / (num_rings + 1) * crater.floor_elevation * rnd_factor[2]
