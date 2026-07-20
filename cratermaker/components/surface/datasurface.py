@@ -135,6 +135,8 @@ class DataSurface(HiResLocalSurface):
             "ask_overwrite": self.ask_overwrite,
         }
         super().__init__(**super_kwargs)
+        # This following  necessary because the _user_defined list gets overridden by the call to super()
+        self._user_defined.add("dem_file_list")
 
         self._superdomain_dem_file = superdomain_dem_file
         self.ask_overwrite = ask_overwrite

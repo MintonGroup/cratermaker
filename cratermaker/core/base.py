@@ -972,38 +972,6 @@ def _rng_init(
     return rng, rng_state
 
 
-# def _simdir_init(simdir: str | Path | None = None, **kwargs: Any) -> Path:
-#     """
-#     Initialize the simulation directory.
-
-#     Parameters
-#     ----------
-#     simdir : str | Path | None
-#         |simdir|
-
-#     Returns
-#     -------
-#     Path
-#         The initialized simulation directory as a Path object. Will be a relative path if possible, otherwise will be absolute.
-#     """
-#     if simdir is None:
-#         p = Path.cwd()
-#     else:
-#         try:
-#             p = Path(simdir)
-#             if not p.is_absolute():
-#                 p = Path.cwd() / p
-#             p.mkdir(parents=True, exist_ok=True)
-#             p = p.resolve()
-#         except TypeError as e:
-#             raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
-#     try:
-#         simdir = p.relative_to(Path.cwd())
-#     except ValueError:
-#         simdir = p
-#     return simdir
-
-
 def _convert_for_yaml(obj):
     if isinstance(obj, dict):
         return {k: _convert_for_yaml(v) for k, v in obj.items()}
