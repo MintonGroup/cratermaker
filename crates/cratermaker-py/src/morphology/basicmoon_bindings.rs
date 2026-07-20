@@ -96,6 +96,7 @@ pub fn crater_profile_function<'py>(
         crater.floor_elevation,
         crater.floor_radius,
         crater.wall_curvature,
+        crater.floor_blend,
         crater.rim_width,
         crater.rim_height,
         crater.frac_ejrim,
