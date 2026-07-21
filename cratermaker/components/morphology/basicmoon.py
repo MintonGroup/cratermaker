@@ -600,10 +600,16 @@ class BasicMoonCrater(MorphologyCrater):
         """
         if ring is not None:
             crater = ring
+            radius = ring.radius if radius is None else radius
+            floor_radius = ring.floor_radius if floor_radius is None else floor_radius
+            wall_curvature = ring.wall_curvature if wall_curvature is None else wall_curvature
+            frac_ejrim = ring.frac_ejrim if frac_ejrim is None else frac_ejrim
+            rim_width = ring.rim_width if rim_width is None else rim_width
+            rim_height = ring.rim_height if rim_height is None else rim_height
+            elevation_offset = ring.elevation_offset if elevation_offset is None else elevation_offset
         else:
             crater = self
-        if frac_ejrim is None:
-            frac_ejrim = 0.0
+        frac_ejrim = 0.0 if frac_ejrim is None else frac_ejrim
 
         if elevation_offset is None:
             if crater.elevation_offset == 0.0:
