@@ -542,6 +542,23 @@ class DataSurface(HiResLocalSurface):
         return
 
     @parameter
+    def pix(self) -> float:
+        if self._pix is None and self._dem_file_list is not None:
+            # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
+            pixvals = []
+            for f in self._dem_file_list:
+                with rasterio.open(f) as src:
+                    pixvals.append(src.res[0])
+            self._pix = min(pixvals)
+        return self._pix
+
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
+
+    @parameter
     def dem_file_list(self) -> list[str] | None:
         """
         The list of files to use for the DEM data in the high resolution local region.
@@ -566,14 +583,6 @@ class DataSurface(HiResLocalSurface):
             raise TypeError("'dem_file_list' must be a list of strings or Path objects, or None.")
 
         self._dem_file_list = value
-
-        # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
-
-        pixvals = []
-        for f in self._dem_file_list:
-            with rasterio.open(f) as src:
-                pixvals.append(src.res[0])
-        self._pix = min(pixvals)
 
         return
 
