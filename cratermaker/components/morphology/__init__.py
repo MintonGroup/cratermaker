@@ -637,7 +637,7 @@ class Morphology(ComponentBase):
         if not isinstance(crater, MorphologyCrater):
             crater = MorphologyCrater.maker(crater=crater, morphology=self)
 
-        if not self._excavated_volume:
+        if not self._excavated_volume or crater.ejecta_region is None:
             return None, None
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
         ejecta_thickness = np.maximum(ejecta_thickness, 0.0)

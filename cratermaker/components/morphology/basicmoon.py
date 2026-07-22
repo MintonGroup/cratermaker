@@ -266,82 +266,79 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo_scaling = morphology.scaling.monte_carlo_scaling
         compute_nominal = not monte_carlo_scaling
         rng = morphology.rng
+        min_valid_diameter = 500.0  # Cutoff where the model is constrained.
         depth_params = {
-            "simple_sub500m": {
-                "coefficients": [-1.910001619942053, 0.7831875571105978, 0.042836046225245894],
-                "c": -2.975325517042965,
-                "alpha": 1.4136290732609256,
-            },
             "simple": {
-                "coefficients": [-4.521021365770051, 1.7347527856394551, -0.04489022602475602],
-                "c": -5.26570819908019,
-                "alpha": 1.8641293440183668,
+                "coefficients": [-4.12929453954893, 1.6186582785253847, -0.03654228089366738],
+                "c": -0.7978977562214146,
+                "alpha": 1.230288898576757,
             },
             "transitional": {
-                "coefficients": [22.18782422399827, -3.203597438379582, 0.17631543814150283],
-                "c": 63.24942043364388,
-                "alpha": -6.715217581955981,
+                "coefficients": [13.544394609003302, -1.4349772241877992, 0.0864974576815312],
+                "c": 29.832704911091195,
+                "alpha": -2.4195839537761463,
             },
             "complex": {
-                "coefficients": [-1.6315393638746256, 1.5032727501015142, -0.055610926613342146],
-                "c": -27.654075266623785,
-                "alpha": 4.694621309150626,
+                "coefficients": [-8.088308862863402, 2.6975260607735225, -0.11054039080484096],
+                "c": 7.993093743747507,
+                "alpha": 0.3208726177481036,
             },
         }
         rim_height_params = {
             "simple": {
-                "coefficients": [-9.087441060124089, 2.3723804170387552, -0.07722891774004866],
-                "c": -1.3414979152290676,
-                "alpha": 1.3146593627541205,
+                "coefficients": [-8.271313414224338, 2.1780660034399393, -0.06590590019301233],
+                "c": -2.0063879230179578,
+                "alpha": 1.2479301339151092,
             },
             "transitional": {
-                "coefficients": [-10.564003835229924, 2.9763623205780294, -0.12704846222410626],
-                "c": -53.730085877961216,
-                "alpha": 9.537258205109097,
+                "coefficients": [-8.059278782540039, 2.554156289155327, -0.1096155984856503],
+                "c": -18.211075653420696,
+                "alpha": 4.085584712178312,
             },
             "complex": {
-                "coefficients": [-12.791362969209594, 3.1852601403185417, -0.12566215471641845],
-                "c": -4.245272638928989,
-                "alpha": 1.9263059567962026,
-            },
-        }
-        floor_radius_params = {
-            "simple": {
-                "coefficients": [-19.235109460529202, 4.840583566677377, -0.21450124590854683],
-                "c": -8.422750876479917,
-                "alpha": 2.569365299227605,
-            },
-            "transitional": {
-                "coefficients": [-47.25759607077153, 10.01636202766342, -0.4444138708218017],
-                "c": 8.073586072170954,
-                "alpha": 0.41963094367654863,
-            },
-            "complex": {
-                "coefficients": [4.571914820366517, -0.21608677058312598, 0.061233414548021586],
-                "c": 0.7771019915975753,
-                "alpha": 1.295875187989571,
+                "coefficients": [-8.891646866181162, 2.5083058440327792, -0.09669451537649532],
+                "c": -14.873628790748345,
+                "alpha": 3.4661785636393705,
             },
         }
         rim_width_params = {
             "simple": {
-                "coefficients": [-24.82061509600679, 6.470961147998662, -0.32200704888815185],
-                "c": 0.9641271074363086,
-                "alpha": 1.619163211456247,
+                "coefficients": [-9.488293680414406, 2.810408424718434, -0.10907145408865704],
+                "c": -11.491659223438303,
+                "alpha": 2.914906260269271,
             },
             "transitional": {
-                "coefficients": [-129.98317617103737, 27.374040577016952, -1.3529946148839573],
-                "c": 13.424721979662507,
-                "alpha": 0.01699281614062642,
+                "coefficients": [17.281830217600284, -2.926699529590276, 0.19917534369662218],
+                "c": -12.320305204746344,
+                "alpha": 3.005434864001613,
             },
             "complex": {
-                "coefficients": [-6.156942924353989, 1.9832268288802843, -0.055861398599379546],
-                "c": -4.278121587075394,
-                "alpha": 2.348577422207449,
+                "coefficients": [-0.5588749331872054, 0.741932527414169, 0.010515195948127332],
+                "c": -7.146938235118926,
+                "alpha": 2.314670062281234,
+            },
+        }
+        floor_radius_params = {
+            "simple": {
+                "coefficients": [-22.686946304312624, 5.868957235073512, -0.2859711767854806],
+                "c": -6.216199203883163,
+                "alpha": 2.255415282938512,
+            },
+            "transitional": {
+                "coefficients": [-38.82514199442406, 8.388394016848952, -0.36490680476970033],
+                "c": 4.139305903932077,
+                "alpha": 0.9166479383008681,
+            },
+            "complex": {
+                "coefficients": [8.863315887146682, -0.8889562385083289, 0.08746216954176912],
+                "c": 18.70159621595362,
+                "alpha": -0.4694908752922602,
             },
         }
         args = {}
-        diameter_m = crater.diameter
+        diameter_m = crater.diameter if crater.diameter > min_valid_diameter else min_valid_diameter
         diameter_km = diameter_m * 1e-3
+        fcorrection = crater.diameter / diameter_m
 
         if crater.morphology_type in ["basin", "multiring", "peakring", "ring"]:
             morphology_type = "complex"
@@ -349,13 +346,14 @@ class BasicMoonCrater(MorphologyCrater):
             morphology_type = crater.morphology_type
 
         # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
-        ejrim = 0.14 * (diameter_m / 2) ** 0.74
+        ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
 
         if rim_height is None:
             rim_height = max(
                 sample_logfit_heteroskedastic(
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[morphology_type]
-                )[0],
+                )[0]
+                * fcorrection,
                 ejrim,
             )
         args["rim_height"] = rim_height
@@ -364,7 +362,8 @@ class BasicMoonCrater(MorphologyCrater):
             rim_width = max(
                 sample_logfit_heteroskedastic(
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[morphology_type]
-                )[0],
+                )[0]
+                * fcorrection,
                 0.0,
             )
         args["rim_width"] = rim_width
@@ -382,20 +381,13 @@ class BasicMoonCrater(MorphologyCrater):
         args["frac_ejrim"] = frac_ejrim
 
         if floor_elevation is None:
-            if crater.diameter < 500.0:
-                floor_elevation = (
-                    -sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **depth_params["simple_sub500m"]
-                    )[0]
-                    + rim_height
-                )
-            else:
-                floor_elevation = (
-                    -sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **depth_params[morphology_type]
-                    )[0]
-                    + rim_height
-                )
+            floor_elevation = (
+                -sample_logfit_heteroskedastic(
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **depth_params[morphology_type]
+                )[0]
+                * fcorrection
+                + rim_height
+            )
             floor_elevation = min(floor_elevation, 0.0)
         args["floor_elevation"] = floor_elevation
 
@@ -403,7 +395,8 @@ class BasicMoonCrater(MorphologyCrater):
             floor_radius = max(
                 sample_logfit_heteroskedastic(
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[morphology_type]
-                )[0],
+                )[0]
+                * fcorrection,
                 0.0,
             )
         args["floor_radius"] = min(floor_radius, 0.8 * crater.radius)
@@ -426,14 +419,17 @@ class BasicMoonCrater(MorphologyCrater):
 
         if wall_curvature is None:
             if monte_carlo_scaling:
-                wall_curvature = rng.uniform(low=0.0, high=0.1, size=1)[0]  # Temporary until a morphometric analysis ic complete
+                wall_curvature = rng.uniform(low=0.0, high=0.5, size=1)[0]  # Temporary until a morphometric analysis ic complete
             else:
                 wall_curvature = 1.0
 
         args["wall_curvature"] = wall_curvature
 
         if floor_blend is None:
-            floor_blend = 0.5
+            if monte_carlo_scaling:
+                floor_blend = rng.uniform(low=0.0, high=0.5, size=1)[0]  # Temporary until a morphometric analysis ic complete
+            else:
+                floor_blend = 0.25
 
         args["floor_blend"] = floor_blend
 
