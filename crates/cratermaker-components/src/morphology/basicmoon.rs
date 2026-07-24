@@ -150,8 +150,12 @@ pub fn basicmoon_profile_one(
     );
     match rings {
         Some(rings) => {
-            for ring in rings.iter() {
-                let elevation_offset = elevation_offset_func(crater, ring);
+            for (i, ring) in rings.iter().enumerate() {
+                let elevation_offset = if i == 0 {
+                    elevation_offset_func(crater, ring)
+                } else {
+                    elevation_offset_func(&rings[i - 1], ring)
+                };
                 let ring_floor_elevation = crater.floor_elevation - elevation_offset;
                 let hring = crater_profile_function(
                     r,
@@ -181,14 +185,9 @@ pub fn basicmoon_profile_one(
         crater.rim_width,
     );
 
-    // Add the upper portion of the rim to the ejecta
-    if r <= crater.radius && hcrat >= 0.0 {
-        let hup = (1.0 - crater.frac_ejrim) * crater.rim_height;
-        hej += (hcrat - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
-    }
     match rings {
         Some(rings) => {
-            for ring in rings.iter() {
+            for (i, ring) in rings.iter().enumerate() {
                 let mut hejring = ejecta_profile_function(
                     r,
                     ring.radius,
@@ -196,8 +195,12 @@ pub fn basicmoon_profile_one(
                     ring.ejprofile,
                     ring.rim_width,
                 );
-                // Add the upper portion of the ring rim to the ejecta
-                let hrel = hcrat - elevation_offset_func(crater, ring);
+                let elevation_offset = if i == 0 {
+                    elevation_offset_func(crater, ring)
+                } else {
+                    elevation_offset_func(&rings[i - 1], ring)
+                };
+                let hrel = hcrat - elevation_offset;
                 if r < ring.radius && hrel >= 0.0 {
                     let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
                     hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
@@ -206,6 +209,18 @@ pub fn basicmoon_profile_one(
             }
         }
         None => (),
+    }
+
+    // Add the upper portion of the rim to the ejecta
+    if r <= crater.radius && hcrat >= 0.0 {
+        let hup = rimfunc(
+            r,
+            crater.radius,
+            (1.0 - crater.frac_ejrim) * crater.rim_height,
+            0.0,
+            0.5 * crater.rim_width,
+        );
+        hej += (hcrat - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
     }
 
     if include_crater {
