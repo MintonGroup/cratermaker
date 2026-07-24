@@ -52,8 +52,6 @@ class BasicMoonCraterFixed(CraterFixed):
     """Distance of central peak/peak ring from crater center in meters."""
     peak_center_bearing: float | None = None
     """Bearing angle of central peak/peak ring in degrees."""
-    elevation_offset: float | None = field(default=0.0, init=True)
-    """Offset in elevation values (used for multiring basins)."""
     isring: bool | None = field(default=False, init=True)
     """Flag that indicates that this is a ring rather than a crater."""
     parent: np.uint32 | None = field(default=False, init=True)
@@ -146,14 +144,10 @@ class BasicMoonCrater(MorphologyCrater):
         else:
             isring = False
         isring = kwargs.pop("isring", isring)
-        elevation_offset = kwargs.pop("elevation_offset", crater.elevation_offset if crater is not None else 0.0)
-        if not isring:
-            elevation_offset = 0.0
         super().__init__(
             crater=crater,
             fixed_cls=fixed_cls,
             variable_cls=variable_cls,
-            elevation_offset=elevation_offset,
             isring=isring,
             **kwargs,
         )
@@ -450,7 +444,6 @@ class BasicMoonCrater(MorphologyCrater):
                     rnd_factor = np.ones(4)
                 radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
                 floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
-                elevation_offset = (i + 1) / (num_rings + 1) * crater.floor_elevation * rnd_factor[2]
                 rim_height = rnd_factor[3] * crater.rim_height * (0.4) ** (i + 1)
                 if i == 0:
                     frac_ejrim = crater.frac_ejrim * rim_height / crater.rim_height
@@ -458,7 +451,6 @@ class BasicMoonCrater(MorphologyCrater):
                     frac_ejrim = 0.0
                 crater.add_ring(
                     radius=radius,
-                    elevation_offset=elevation_offset,
                     floor_radius=floor_radius,
                     rim_height=rim_height,
                     frac_ejrim=frac_ejrim,
@@ -567,7 +559,6 @@ class BasicMoonCrater(MorphologyCrater):
         frac_ejrim: float | None = None,
         rim_width: float | None = None,
         rim_height: float | None = None,
-        elevation_offset: float | None = None,
         **kwargs: Any,
     ):
         """
@@ -589,8 +580,6 @@ class BasicMoonCrater(MorphologyCrater):
             The rim width of the ring in meters.
         rim_height : float, optional
             The rim elevation of the ring in meters.
-        elevation_offset : float, optional
-            The elevation offset of the ring in meters.
         **kwargs : Any
             Additional keyword arguments that are passed to the .maker() method. Any arguments that are valid for a Crater ar valid for a ring. Otherwise the ring properties are copied from its associated crater.
         """
@@ -602,21 +591,9 @@ class BasicMoonCrater(MorphologyCrater):
             frac_ejrim = ring.frac_ejrim if frac_ejrim is None else frac_ejrim
             rim_width = ring.rim_width if rim_width is None else rim_width
             rim_height = ring.rim_height if rim_height is None else rim_height
-            elevation_offset = ring.elevation_offset if elevation_offset is None else elevation_offset
         else:
             crater = self
         frac_ejrim = 0.0 if frac_ejrim is None else frac_ejrim
-
-        if elevation_offset is None:
-            if crater.elevation_offset == 0.0:
-                # elevation_offset should ideally be specified, but if not it will fall back to half the floor_elevation value
-                elevation_offset = 0.5 * self.floor_elevation
-            else:
-                elevation_offset = crater.elevation_offset
-        elif elevation_offset > 0.0 or elevation_offset < self.floor_elevation:
-            raise ValueError(
-                f"Elevation offset value must be between 0 and the crater floor elevation value of {self.floor_elevation}"
-            )
 
         # Link together parameters that are controlled by the main crater feature by passing them in as argtuments
         newring = self.__class__.maker(
@@ -624,20 +601,12 @@ class BasicMoonCrater(MorphologyCrater):
             morphology_type="ring",
             parent=self.id,
             morphology=self.morphology,
-            floor_blend=self.floor_blend,
-            floor_elevation=self.floor_elevation,
-            peak_height=self.peak_height,
-            peak_width=self.peak_width,
-            peak_ring_radius=self.peak_ring_radius,
-            peak_center_distance=self.peak_center_distance,
-            peak_center_bearing=self.peak_center_bearing,
             radius=radius,
             floor_radius=floor_radius,
             wall_curvature=wall_curvature,
             rim_width=rim_width,
             rim_height=rim_height,
             frac_ejrim=frac_ejrim,
-            elevation_offset=elevation_offset,
             isring=True,
             conserve_volume=False,
             **kwargs,
@@ -718,11 +687,6 @@ class BasicMoonCrater(MorphologyCrater):
     def peak_center_bearing(self) -> float | None:
         """Bearing angle of central peak/peak ring in degrees."""
         return self._fixed.peak_center_bearing
-
-    @property
-    def elevation_offset(self) -> float | None:
-        """Offset in elevation values (used for multiring basins)."""
-        return self._fixed.elevation_offset
 
     @property
     def isring(self) -> bool | None:

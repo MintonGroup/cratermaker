@@ -22,7 +22,6 @@ pub struct PyReadonlyRealMoonCrater<'py> {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
-    pub elevation_offset: f64,
     pub rim_radius_psd: PyReadonlyArray2<'py, f64>,
     pub floor_radius_psd: PyReadonlyArray2<'py, f64>,
 }
@@ -45,7 +44,6 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_ring_radius: obj.getattr("peak_ring_radius")?.extract()?,
             peak_center_distance: obj.getattr("peak_center_distance")?.extract()?,
             peak_center_bearing: obj.getattr("peak_center_bearing")?.extract()?,
-            elevation_offset: obj.getattr("elevation_offset")?.extract()?,
             rim_radius_psd: obj.getattr("rim_radius_psd")?.extract()?,
             floor_radius_psd: obj.getattr("floor_radius_psd")?.extract()?,
         })
@@ -68,7 +66,6 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_ring_radius: self.peak_ring_radius,
             peak_center_distance: self.peak_center_distance,
             peak_center_bearing: self.peak_center_bearing,
-            elevation_offset: self.elevation_offset,
             rim_radius_psd: self.rim_radius_psd.as_array(),
             floor_radius_psd: self.floor_radius_psd.as_array(),
         }

@@ -30,7 +30,6 @@ pub struct RealMoonCrater<'a> {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
-    pub elevation_offset: f64,
     pub rim_radius_psd: ArrayView2<'a, f64>,
     pub floor_radius_psd: ArrayView2<'a, f64>,
 }
@@ -190,7 +189,6 @@ fn realtobasic(
         peak_ring_radius: crater.peak_ring_radius,
         peak_center_distance: crater.peak_center_distance,
         peak_center_bearing: crater.peak_center_bearing,
-        elevation_offset: crater.elevation_offset,
     }
 }
 ///
