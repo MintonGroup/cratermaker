@@ -201,7 +201,7 @@ pub fn basicmoon_profile_one(
                     elevation_offset_func(&rings[i - 1], ring)
                 };
                 let hrel = hcrat - elevation_offset;
-                if r < ring.radius && hrel >= 0.0 {
+                if r <= ring.radius && hrel >= 0.0 {
                     let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
                     hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
                 }
@@ -350,7 +350,7 @@ fn walltofloorfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> 
 
 #[inline]
 fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
-    let hmax = if r >= radius { hr - he } else { hr };
+    let hmax = if r > radius { hr - he } else { hr };
     hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
@@ -389,7 +389,7 @@ fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
 pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, rw: f64) -> f64 {
-    if r >= radius {
+    if r > radius {
         let t = (r - (radius - rw)) / (2.0 * rw);
         let phi = smoothstep(t);
         let hg = rimfunc(r, radius, ejrim, 0.0, rw);
@@ -499,13 +499,13 @@ pub fn ray_intensity(
     let max_val = intensity
         .iter()
         .zip(radial_distances.iter())
-        .filter_map(|(&val, &r)| if r >= crater_radius { Some(val) } else { None })
+        .filter_map(|(&val, &r)| if r > crater_radius { Some(val) } else { None })
         .fold(f64::MIN, |a, b| a.max(b));
     intensity = intensity
         .into_iter()
         .zip(radial_distances.iter())
         .map(|(intensity, &r)| {
-            if r >= crater_radius {
+            if r > crater_radius {
                 intensity / max_val
             } else {
                 intensity
