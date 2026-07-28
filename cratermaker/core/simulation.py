@@ -179,6 +179,9 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
+        # For surface types that use dem files for input, be sure not to let the input pix value override the one that is already set.
+        if "dem_file_list" in surface_config and "pix" in surface_config:
+            kwargs.pop("pix", None)
         surface_config = {
             **surface_config,
             **kwargs,

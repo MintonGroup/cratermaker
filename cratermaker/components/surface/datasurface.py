@@ -622,4 +622,7 @@ class DataSurface(HiResLocalSurface):
         The variables used to generate the hash.
 
         """
-        return super()._hashvars + [self._dem_file_list]
+        _hashvars = super()._hashvars + [self._dem_file_list]
+        # Pop the pix value because this is set by the datafile, which provides the unique info
+        _hashvars.pop(3)
+        return _hashvars
