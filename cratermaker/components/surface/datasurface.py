@@ -226,6 +226,7 @@ class DataSurface(HiResLocalSurface):
 
         nodata_val = _NODATA
         target_res = min(s.res[0] for s in src_list)
+        self._pix = target_res
         dst_width = int(np.ceil(2 * half_box_size / target_res))
         dst_height = dst_width
         dst_transform = Affine(target_res, 0.0, -half_box_size, 0.0, -target_res, half_box_size)
@@ -296,6 +297,8 @@ class DataSurface(HiResLocalSurface):
             r_vals = self.compute_distances(
                 reference_location=self.local_location, locations=list(zip(longitudes, latitudes, strict=False))
             )
+
+            # Reset the current resolution value, as it will later be read in from file
             local_dem_data = {
                 "elevation": elevation,
                 "mask": r_vals <= region_radius + self.pix / 4,

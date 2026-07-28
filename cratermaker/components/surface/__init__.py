@@ -31,10 +31,11 @@ from cratermaker.bindings import surface_bindings
 from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
-from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
+from cratermaker.utils.general_utils import convert_deg2m_res, format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 _N_TAG_LAYERS = 8
+LOLA_LUNAR_RADIUS = 1737400.0
 
 
 class Surface(ComponentBase):
@@ -4842,6 +4843,7 @@ class DataComposer(AbstractContextManager):
         AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
         diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
         pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
+        pix = convert_deg2m_res(pds_file_resolution, radius=LOLA_LUNAR_RADIUS)
 
         lat_min, lat_max = lat_range
         lon_min, lon_max = lon_range
@@ -4849,20 +4851,15 @@ class DataComposer(AbstractContextManager):
 
         # First, retrive the file for the centerpoint:
         filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
-        if pds_file_resolution < 256:
-            return (
-                filelist,
-                pds_file_resolution,
-            )  # These files cover the entire globe, no need to determine if boundaries are crossed
+        if pds_file_resolution >= 256:
+            combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
-        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
+            for loc in combo:
+                f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
+                if f not in filelist:
+                    filelist.append(f)
 
-        for loc in combo:
-            f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
-            if f not in filelist:
-                filelist.append(f)
-
-        return filelist, pds_file_resolution
+        return filelist, pix
 
     @staticmethod
     def get_lola_polar_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats) -> tuple[list[str], int]:
@@ -4926,7 +4923,7 @@ class DataComposer(AbstractContextManager):
         lon_range : PairOfFloats, optional
             The (min_lon, max_lon) in degrees of the local region.
         """
-        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix  # The moon's radius
+        target_pds_resolution = convert_deg2m_res(pix, radius=LOLA_LUNAR_RADIUS)
         if target_pds_resolution > 10 and (
             np.abs(lat_range[0]) > 60 or np.abs(lat_range[1]) > 60
         ):  # Use polar files high latitude, high resolution regions.

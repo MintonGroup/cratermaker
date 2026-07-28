@@ -502,3 +502,21 @@ def cleanup(simdir: str | Path | None = None):
             if dir_path.exists():
                 shutil.rmtree(dir_path)
     return
+
+
+def convert_deg2m_res(inres: FloatLike, radius: FloatLike) -> float:
+    """
+    Converts between deg/pix and m/pix.
+
+    Parameters
+    ----------
+    inres : FloatLike
+        Input resolution, in either px/deg or m/px.
+    radius : FloatLike
+        Planetary radius in m.
+
+    Returns
+    -------
+    float : The converted value of either m/px or px/deg, depending on which one was input
+    """
+    return np.pi / 180.0 * radius / inres
