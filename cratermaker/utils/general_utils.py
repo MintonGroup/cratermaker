@@ -519,4 +519,4 @@ def convert_deg2m_res(inres: FloatLike, radius: FloatLike) -> float:
     -------
     float : The converted value of either m/px or px/deg, depending on which one was input
     """
-    return np.pi / 180.0 * radius / inres
+    return float(np.pi / 180.0 * radius / inres)

@@ -136,11 +136,12 @@ class HiResLocalSurface(Surface):
         FloatLike
             The effective pixel size at the given distance from the local center.
         """
-        return np.where(
+        retval = np.where(
             r < self.local_radius,
             self.pix,
             self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
+        return float(retval.item())
 
     def extract_region(
         self,
@@ -499,7 +500,7 @@ class HiResLocalSurface(Surface):
             print("Could not fit superdomain function, using default values.")
             self._superdomain_function_slope = 1.0
             self._superdomain_function_exponent = 1.0
-        self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
+        self.superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
         morphology.scaling.monte_carlo_scaling = monte_carlo_scaling_orig
 
@@ -787,7 +788,7 @@ class HiResLocalSurface(Surface):
             raise ValueError("local_radius must be less than pi * radius of the target body")
         if value < self.pix:
             raise ValueError("local_radius must be greater than or equal to pix (the approximate face size in the local region")
-        self._local_radius = value
+        self._local_radius = float(value)
 
     @parameter
     def local_location(self) -> PairOfFloats:
@@ -838,7 +839,7 @@ class HiResLocalSurface(Surface):
     def superdomain_scale_factor(self, value: FloatLike):
         if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
             raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
-        self._superdomain_scale_factor = value
+        self._superdomain_scale_factor = float(value)
 
     @property
     def _hashvars(self):

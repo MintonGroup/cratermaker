@@ -138,7 +138,7 @@ class DataSurface(HiResLocalSurface):
         # This following  necessary because the _user_defined list gets overridden by the call to super()
         self._user_defined.add("dem_file_list")
 
-        self._superdomain_dem_file = superdomain_dem_file
+        self.superdomain_dem_file = superdomain_dem_file
         self.ask_overwrite = ask_overwrite
 
     def _get_location_extents(self):
@@ -600,6 +600,7 @@ class DataSurface(HiResLocalSurface):
     @superdomain_dem_file.setter
     def superdomain_dem_file(self, value: str | Path | None):
         if value is None:
+            self._superdomain_dem_file = None
             # If the superdomain has not been set yet, we will defer setting this until later
             if self.superdomain_scale_factor is None:
                 return
@@ -607,7 +608,7 @@ class DataSurface(HiResLocalSurface):
             sdpix = self.superdomain_scale_factor * self.pix / 10.0
             if sdpix < min_global_pix:
                 sdpix = min_global_pix
-            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[
+            self.superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[
                 0
             ][0]
             return
