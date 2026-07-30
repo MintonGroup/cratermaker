@@ -223,8 +223,13 @@ class DataSurface(HiResLocalSurface):
                 src_list.append(rasterio.open(f))
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
+        dtype = src_list[0].dtypes[0]
 
-        nodata_val = _NODATA
+        if "float" in dtype:
+            nodata_val = np.finfo(dtype).min
+        elif "int" in dtype:
+            nodata_val = np.iinfo(dtype).min
+
         target_res = min(s.res[0] for s in src_list)
         self._pix = target_res
         dst_width = int(np.ceil(2 * half_box_size / target_res))
@@ -261,13 +266,14 @@ class DataSurface(HiResLocalSurface):
 
         with MemoryFile() as memfile, memfile.open(**out_meta) as src:
             src.units = src_list[0].units
+            scale = src_list[0].scales[0]
             src.write(mosaic)
 
             window = Window(0, 0, src.width, src.height)
             if "KILOMETER" in src.units:
-                scale_factor = 1000.0
+                scale_factor = 1000.0 * scale
             else:
-                scale_factor = 1.0
+                scale_factor = 1.0 * scale
 
             # Read the data within the window
             elevation = src.read(1, window=window) * scale_factor

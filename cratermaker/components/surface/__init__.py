@@ -1169,7 +1169,7 @@ class Surface(ComponentBase):
         orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
-        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-8)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
 
         uxgrid.attrs["_id"] = self._id
@@ -4900,6 +4900,8 @@ class DataComposer(AbstractContextManager):
         diffs = [abs(resolution - res) for res in valid_resolutions]
         pds_file_resolution = valid_resolutions[np.argmin(diffs)]
         pds_lat_min = valid_min_lat[np.argmin(diffs)]
+        if pds_lat_min == 87.5:
+            pds_lat_min = 875
         filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
         url = f"{src_url}{filename}_float.xml"
 
