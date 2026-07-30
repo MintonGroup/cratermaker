@@ -314,21 +314,20 @@ class BasicMoonCrater(MorphologyCrater):
         diameter_km = diameter_m * 1e-3
         fcorrection = crater.diameter / diameter_m
 
-        if crater.morphology_type in ["basin", "multiring", "peakring", "ring"]:
+        if crater.morphology_type in ["complex", "transitional", "basin", "multiring", "peakring", "ring"]:
             morphology_type = "non-simple"
         else:
             morphology_type = crater.morphology_type
 
         # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
-        ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
+        # ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
 
         if rim_height is None:
-            rim_height = max(
+            rim_height = (
                 sample_logfit_heteroskedastic(
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[morphology_type]
                 )[0]
-                * fcorrection,
-                ejrim,
+                * fcorrection
             )
         args["rim_height"] = rim_height
 
@@ -348,11 +347,13 @@ class BasicMoonCrater(MorphologyCrater):
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if frac_ejrim is None:
             if rim_height > 0.0:
-                frac_ejrim = ejrim / rim_height
-                frac_ejrim = min(frac_ejrim, 1.0)
+                if monte_carlo_scaling:
+                    frac_ejrim = rng.uniform(low=0.3, high=0.7, size=1)[0]  # Temporary until a morphometric analysis ic complete
+                else:
+                    frac_ejrim = 0.5
             else:
                 frac_ejrim = 0.0
-        args["frac_ejrim"] = frac_ejrim
+        args["frac_ejrim"] = min(max(frac_ejrim, 0.0), 1.0)
 
         if floor_elevation is None:
             floor_elevation = (
