@@ -4927,7 +4927,7 @@ class DataComposer(AbstractContextManager):
         """
         target_pds_resolution = convert_deg2m_res(pix, radius=LOLA_LUNAR_RADIUS)
         if target_pds_resolution > 10 and (
-            np.abs(lat_range[0]) > 60 or np.abs(lat_range[1]) > 60
+            (lat_range[0] < -60 and lat_range[1] < -60) or (lat_range[0] > 60 and lat_range[1] > 60)
         ):  # Use polar files high latitude, high resolution regions.
             return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
         else:  # Use cylindrical for all other cases
