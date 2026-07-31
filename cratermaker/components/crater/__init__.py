@@ -1408,13 +1408,14 @@ class Crater(ComponentBase):
         for i in tqdm(
             range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
         ):
-            crater_data = dataset.isel(indexers={dimname: i}).to_dict()["data_vars"]
-            crater_data = {k: v["data"] for k, v in crater_data.items()}
+            crater_dict = dataset.isel(indexers={dimname: i}).to_dict()
+            crater_data = {k: v["data"] for k, v in crater_dict["data_vars"].items()}
             crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
             crater_data["isring"] = crater_data["morphology_type"] == "ring"
+            crater_data[dimname] = crater_dict["coords"][dimname]["data"]
             crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
             if crater.isring:
                 rings.append(crater)
