@@ -1308,7 +1308,8 @@ class Crater(ComponentBase):
                         except ValueError:
                             continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
-                crater_data["isring"] = crater_data["morphology_type"] == "ring"
+                if "morphology_type" in crater_data:
+                    crater_data["isring"] = crater_data["morphology_type"] == "ring"
                 crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
                 if crater.morphology_type == "ring":
                     rings.append(crater)
@@ -1414,7 +1415,8 @@ class Crater(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            crater_data["isring"] = crater_data["morphology_type"] == "ring"
+            if "morphology_type" in crater_data:
+                crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
             crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
             if crater.isring:
