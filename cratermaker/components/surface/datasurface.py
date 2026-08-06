@@ -196,6 +196,7 @@ class DataSurface(HiResLocalSurface):
             return
         from affine import Affine
         from pyproj import Transformer
+        from rasterio.fill import fillnodata
         from rasterio.io import MemoryFile
         from rasterio.merge import merge
         from rasterio.vrt import WarpedVRT
@@ -277,6 +278,9 @@ class DataSurface(HiResLocalSurface):
 
             # Read the data within the window
             elevation = src.read(1, window=window) * scale_factor
+            mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
+            elevation = np.ma.masked_where(~mask_nodata, elevation)
+            elevation = fillnodata(elevation)
 
             # Preserve the window grid and affine for later interpolation
             window_transform = src.window_transform(window)
@@ -290,10 +294,6 @@ class DataSurface(HiResLocalSurface):
             y_coords = np.array(y_coords).flatten()
             elevation = elevation.flatten()
 
-            # Handle nodata values
-            mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
-            mean_elevation = np.mean(elevation[mask_nodata])
-            elevation[~mask_nodata] = mean_elevation
             elevation = elevation.astype(np.float32)
 
             transformer_to_geodetic = Transformer.from_crs(dst_crs, self.crs, always_xy=True)
