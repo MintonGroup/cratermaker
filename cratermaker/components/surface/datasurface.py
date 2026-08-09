@@ -279,8 +279,9 @@ class DataSurface(HiResLocalSurface):
             # Read the data within the window
             elevation = src.read(1, window=window) * scale_factor
             mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
-            elevation = np.ma.masked_where(~mask_nodata, elevation)
-            elevation = fillnodata(elevation)
+            if np.any(~mask_nodata):
+                elevation = np.ma.masked_where(~mask_nodata, elevation)
+                elevation = fillnodata(elevation)
 
             # Preserve the window grid and affine for later interpolation
             window_transform = src.window_transform(window)
@@ -292,6 +293,11 @@ class DataSurface(HiResLocalSurface):
             x_coords, y_coords = rasterio.transform.xy(window_transform, rows, cols, offset="center")
             x_coords = np.array(x_coords).flatten()
             y_coords = np.array(y_coords).flatten()
+
+            if np.any(~mask_nodata):
+                elevation = np.ma.masked_where(~mask_nodata, elevation)
+                elevation = fillnodata(elevation)
+
             elevation = elevation.flatten()
 
             elevation = elevation.astype(np.float32)
