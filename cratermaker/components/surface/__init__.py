@@ -3438,8 +3438,8 @@ class LocalSurface(CratermakerBase):
             extent = ret[1]
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
             H, W = elevation.shape
-            azimuth = 300.0
-            solar_angle = 20.0
+            azimuth = kwargs.pop("azimuth", 300)
+            solar_angle = kwargs.pop("solar_angle", 20.0)
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
             if do_overlay:
                 if cmap is None:
@@ -3447,7 +3447,8 @@ class LocalSurface(CratermakerBase):
                 cmap = plt.get_cmap(cmap)
                 variable_raster = np.clip((variable_raster - vmin) / (vmax - vmin), 0.0, 1.0)
                 rgb = cmap(variable_raster)
-                blended = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
+                blend_mode = kwargs.pop("blend_mode", "overlay")
+                blended = ls.shade_rgb(rgb, elevation, blend_mode=blend_mode, **hill_args)
                 if np.any(np.isnan(variable_raster[~np.isnan(elevation)])):
                     hillshade = ls.hillshade(elevation, **hill_args)
                     graymap = plt.get_cmap("gray")

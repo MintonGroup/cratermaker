@@ -280,8 +280,9 @@ class DataSurface(HiResLocalSurface):
             elevation = src.read(1, window=window) * scale_factor
             mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
             if np.any(~mask_nodata):
-                elevation = np.ma.masked_where(~mask_nodata, elevation)
-                elevation = fillnodata(elevation)
+                # elevation = np.ma.masked_where(~mask_nodata, elevation)
+                # elevation = fillnodata(elevation)
+                elevation = np.where(mask_nodata, elevation, np.nanmean(elevation))
 
             # Preserve the window grid and affine for later interpolation
             window_transform = src.window_transform(window)
