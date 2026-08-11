@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numba import njit
@@ -547,6 +547,7 @@ def sample_logfit_heteroskedastic(
     coefficients: list[float],
     c: float,
     alpha: float,
+    fit_scale: Literal["linear", "logx", "logy", "loglog"] = "loglog",
     compute_nominal: bool = False,
     rng: Generator | None = None,
     rng_seed: int | None = None,
@@ -558,7 +559,7 @@ def sample_logfit_heteroskedastic(
 
     This is primarily used on morphometric fits.
 
-    Fitting log(res^2) = c + alpha * log(f) → sigma(x) = exp(c/2) * f(x)^{alpha/2}
+    Fitting y = c + alpha * x, where y is either res**2 or log(res**2) and x is either f or log(f), depending on the value of fit_scale.
 
     Parameters
     ----------
@@ -594,14 +595,24 @@ def sample_logfit_heteroskedastic(
             ans += c * x**i
         return ans
 
-    log_y = polyfunc(np.log(x), *coefficients)
-    y = np.exp(log_y)
+    if fit_scale in ["loglog", "logx"]:
+        xval = np.log(x)
+    else:
+        xval = x
+    if fit_scale in ["loglog", "logy"]:
+        log_y = polyfunc(xval, *coefficients)
+        y = np.exp(log_y)
+    else:
+        y = polyfunc(xval, *coefficients)
 
     if compute_nominal:
         return np.atleast_1d(y)
     else:
         rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        sigma = np.exp(c / 2) * y ** (alpha / 2)
+        if fit_scale in ["loglog", "logy"]:
+            sigma = np.exp(c / 2) * y ** (alpha / 2)
+        else:
+            sigma = np.sqrt(max(c + alpha * y, 0.0))
         var = rng.normal(0, sigma, size=np.size(x))
 
     return y + var
