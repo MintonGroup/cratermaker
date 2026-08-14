@@ -2125,12 +2125,12 @@ class LocalSurface(CratermakerBase):
 
     def add_data(
         self,
-        name: str,
         data: FloatLike | NDArray,
+        name: str,
         long_name: str | None = None,
         units: str | None = None,
         isfacedata: bool = True,
-        overwrite: bool = False,
+        overwrite: bool = True,
         fill_value: float = 0.0,
         dtype=np.float64,
         positive_only: bool = False,
@@ -2141,10 +2141,10 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
-        name : str
-            Name of the data variable. This will also be used as the data file name.
         data : scalar or array-like
             Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        name : str
+            Name of the data variable. This will also be used as the data file name.
         long_name : str, optional
             Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
         units : str, optional
@@ -2163,6 +2163,13 @@ class LocalSurface(CratermakerBase):
             |kwargs|
 
         """
+        if isinstance(data, DatasetReader | str | os.PathLike | list):
+            with self.data_composer() as composer:
+                composer.add_data(
+                    data=data, name=name, long_name=long_name, units=units, isfacedata=isfacedata, overwrite=overwrite
+                )
+            return
+
         # Check if the data is a scalar or an array
         if np.isscalar(data):
             n = self.n_face if isfacedata else self.n_node
@@ -2182,6 +2189,7 @@ class LocalSurface(CratermakerBase):
 
         if name not in self.surface.uxds.data_vars:
             overwrite = True
+        if overwrite:
             self.surface._add_new_data(
                 name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
             )
@@ -2219,12 +2227,16 @@ class LocalSurface(CratermakerBase):
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
 
-        def raise_invalid_elevation_error():
+        def raise_invalid_elevation_error(e):
             raise ValueError(
-                "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces"
-            )
+                "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces, a rasterio DatasetReader object or list of objects, or a string, pathlike, or url (or list of such types) that can be read by rasterio."
+            ) from e
 
         try:
+            if isinstance(new_elevation, DatasetReader | str | os.PathLike | list):
+                with self.data_composer() as composer:
+                    composer.update_elevation(new_elevation)
+                return
             new_elevation = np.asarray(new_elevation)
 
             if np.asarray(new_elevation).size == 1:
@@ -2249,9 +2261,7 @@ class LocalSurface(CratermakerBase):
                 else:
                     raise_invalid_elevation_error()
         except Exception as e:
-            raise ValueError(
-                "new_elev must be None, a scalar, or an array with the same number of elements as either the faces or nodes of the surface mesh."
-            ) from e
+            raise_invalid_elevation_error(e)
 
         if update_face:
             self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
@@ -2389,7 +2399,14 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
+        self.add_data(
+            "ejecta_thickness",
+            long_name="ejecta thickness",
+            units="m",
+            data=delta_face_elevation,
+            positive_only=True,
+            overwrite=False,
+        )
         return
 
     def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
@@ -2408,7 +2425,14 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
+        self.add_data(
+            "ejecta_thickness",
+            long_name="ejecta thickness",
+            units="m",
+            data=delta_face_elevation,
+            positive_only=True,
+            overwrite=False,
+        )
         return
 
     def compute_slope(self) -> None:
@@ -3414,6 +3438,7 @@ class LocalSurface(CratermakerBase):
         if close_when_done is None:
             close_when_done = save and not show
         colorbar = colorbar and (plot_style == "map" or do_overlay)
+        alpha = kwargs.pop("alpha", 1.0)
 
         if variable_name is not None:
             ret = self.to_raster(uxds[variable_name].load())
@@ -4587,13 +4612,33 @@ class DataComposer(AbstractContextManager):
         """
         **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
         """
+        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_long_name", None)
+        object.__setattr__(self, "_units", None)
+        object.__setattr__(self, "_isfacedata", None)
+        object.__setattr__(self, "_overwrite", None)
+        object.__setattr__(self, "_iselevation", False)
         self._localsurface = surface
         self._data_list: list[DatasetReader] = []
         self._finished = False
 
+    def update_elevation(self, data: DatasetReader | str | list[DatasetReader | str], overwrite: bool = True):
+        """
+        Adds elevation data to eventually be applied to the surface.
+
+        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+        """
+        self._iselevation = True
+        return self.add_data(data, name="elevation", long_name=None, units="m", overwrite=overwrite)
+
     def add_data(
         self,
         data: DatasetReader | str | list[DatasetReader | str],
+        name: str,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool = True,
+        overwrite: bool = True,
     ):
         """
         Adds data to eventually be applied to the surface.
@@ -4602,12 +4647,31 @@ class DataComposer(AbstractContextManager):
 
         Parameters
         ----------
-        dataset : DatasetReader | str | list[DatasetReader | str]
+        data : DatasetReader | str | list[DatasetReader | str]
             A single dataset or a list of multiple datasets to be merged.
             Calls ``rasterio.open`` when necessary.
+        name: str
+            Name of the data variable to store the added data on the surface.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        isfacedata : bool, optional, default True
+            Flag to indicate whether the data is face data or node data.
+        overwrite : bool, optional, default True
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
         """
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
+
+        self.name = name
+        self.long_name = long_name
+        if self.name is None and units is None:
+            self.units = "m"
+        else:
+            self.units = units
+        self.isfacedata = isfacedata
+        self.overwrite = overwrite
 
         if not isinstance(data, list):
             data = [data]
@@ -4666,17 +4730,20 @@ class DataComposer(AbstractContextManager):
             return res, res_window
 
         print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
-
-        lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
-        lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+        if self._iselevation:
+            lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
+            lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+        else:
+            lons = self._localsurface.face_lon
+            lats = self._localsurface.face_lat
 
         read_data: list[NDArray] = []
         data_windows: list[Window] = []
 
         pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
         for n, dataset in enumerate(self._data_list):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
-            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs, always_xy=True)
+            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs, always_xy=True)
 
             x_coords, y_coords = to_data.transform(lons, lats)
 
@@ -4698,8 +4765,6 @@ class DataComposer(AbstractContextManager):
 
             values = data[rows - window.row_off, cols - window.col_off]
 
-            print("        Calculating pixel distances")
-
             mask3 = np.isfinite(values) & (values != dataset.nodata)
             mask1[mask1] = mask3
             x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
@@ -4707,27 +4772,36 @@ class DataComposer(AbstractContextManager):
 
         idx = np.argmin(pix_dist, axis=0)
         global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
-        elevation = np.zeros_like(idx, dtype=np.float32)
+        datavals = np.zeros_like(idx, dtype=np.float32)
 
-        print("    Setting elevation data")
+        print(f"    Getting {self.name} data")
         for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
+            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs, always_xy=True)
             mask = global_mask & (idx == n)
 
-            if "KILOMETER" in dataset.units:
+            if self.units == "m" and "KILOMETER" in dataset.units:
                 scale_factor = 1000.0
             else:
                 scale_factor = 1.0
 
             x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
             rows, cols = rowcol(dataset.transform, x_coords, y_coords)
-            elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            datavals[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
             dataset.close()
 
-        self._localsurface.update_elevation(elevation)
+        if self._iselevation:
+            self._localsurface.update_elevation(datavals, overwrite=self.overwrite)
+        else:
+            self._localsurface.add_data(
+                name=self.name,
+                data=datavals,
+                long_name=self.long_name,
+                units=self.units,
+                isfacedata=self.isfacedata,
+                overwrite=self.overwrite,
+            )
         self._data_list = []
         self._finished = True
-        print("    Done")
 
     def __enter__(self) -> DataComposer:
         return self
@@ -4951,11 +5025,13 @@ class DataComposer(AbstractContextManager):
 
         if self._localsurface.is_local:
             lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
-            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
+            self.update_elevation(
+                DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0]
+            )
         else:
-            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
+            self.update_elevation(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
+            self.update_elevation(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
+            self.update_elevation(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
 
     @property
     def localsurface(self) -> LocalSurface:
@@ -4977,6 +5053,56 @@ class DataComposer(AbstractContextManager):
         Whether ``finish()`` or ``cancel()`` has been called or not.
         """
         return self._finished
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise TypeError("name must be str type")
+        self._name = value
+
+    @property
+    def long_name(self) -> str | None:
+        return self._long_name
+
+    @long_name.setter
+    def long_name(self, value):
+        if not isinstance(value, str | None):
+            raise TypeError("long_name must be str type or None")
+        self._long_name = value
+
+    @property
+    def units(self) -> str | None:
+        return self._units
+
+    @units.setter
+    def units(self, value):
+        if not isinstance(value, str | None):
+            raise TypeError("units must be str type or None")
+        self._units = value
+
+    @property
+    def isfacedata(self) -> bool:
+        return self._isfacedata
+
+    @isfacedata.setter
+    def isfacedata(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("isfacedata must be bool type")
+        self._isfacedata = value
+
+    @property
+    def overwrite(self) -> bool:
+        return self._overwrite
+
+    @overwrite.setter
+    def overwrite(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("overwrite must be bool type")
+        self._overwrite = value
 
 
 import_components(__name__, __path__)

@@ -659,6 +659,7 @@ class Morphology(ComponentBase):
             long_name="ejecta thickness",
             units="m",
             data=ejecta_thickness[: crater.ejecta_region.n_face],
+            overwrite=False,
         )
 
         crater.ejecta_region.update_elevation(ejecta_thickness)
