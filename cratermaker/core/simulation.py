@@ -200,11 +200,12 @@ class Simulation(CratermakerBase):
         if self.surface.is_new is not None:
             self.is_new = self.surface.is_new
 
+        # In order to read in old Counting data, we need a Morphology model. But Morphology needs Counting, so we initialize a temporary Counting model without any old data in it, using reset=True, then build it again after Morphology is created if necessary
         counting_config = {**counting_config, **kwargs}
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
-            reset=self.is_new,
+            reset=True,
             **counting_config,
         )
 
@@ -217,6 +218,8 @@ class Simulation(CratermakerBase):
             scaling=self.scaling,
             **morphology_config,
         )
+        if not self.is_new:
+            self.counting = Counting.maker(self.morphology.counting, surface=self.surface, reset=self.is_new, **counting_config)
 
         # If this is a variant of the HiResLocalSurface we need to check to see if it has a grid yet.
         # This is because when creating a new Surface object of this type, the grid generation is deferred until the Scaling and Morphology objects are initialized in order to set the superdomain properly.

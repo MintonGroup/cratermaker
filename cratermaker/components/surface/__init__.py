@@ -3438,7 +3438,6 @@ class LocalSurface(CratermakerBase):
         if close_when_done is None:
             close_when_done = save and not show
         colorbar = colorbar and (plot_style == "map" or do_overlay)
-        alpha = kwargs.pop("alpha", 1.0)
 
         if variable_name is not None:
             ret = self.to_raster(uxds[variable_name].load())

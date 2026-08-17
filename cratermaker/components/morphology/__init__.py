@@ -608,8 +608,8 @@ class Morphology(ComponentBase):
                     overwrite=True,
                 )
 
-            self.counting.emplaced.append(crater)
-            # Record the crater to the counting layerk
+            #
+            # Record the crater to the counting layer
             if self.do_counting:
                 self.counting.add(crater, **kwargs)
 

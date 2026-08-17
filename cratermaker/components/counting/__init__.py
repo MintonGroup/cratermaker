@@ -194,10 +194,15 @@ class Counting(ComponentBase):
                 "Surface must have an associated Uxarray dataset to use for counting. This is commonly caused by using a HiResLocal surface type without setting the superdomain_scale_factor."
             )
 
+        # Only tag if the crater is big enough
+        if crater.crater_region is None:
+            return
+
         # Tag a region just outside crater rim with the id
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
         if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
+            self.emplaced.append(crater)
             crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
