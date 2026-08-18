@@ -4734,20 +4734,14 @@ class DataComposer(AbstractContextManager):
         """
         Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
         """
+        import os
+
         import scipy.ndimage
+
+        os.environ["PROJ_IGNORE_CELESTIAL_BODY"] = "YES"
 
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
-
-        def _orderable_distance(lon1, lat1, lon2, lat2):
-            lon1 = np.deg2rad(lon1)
-            lat1 = np.deg2rad(lat1)
-            lon2 = np.deg2rad(lon2)
-            lat2 = np.deg2rad(lat2)
-
-            dlon = (lon2 - lon1 + np.pi) % (2 * np.pi)
-            dlat = lat2 - lat1
-            return np.pow(np.sin(dlat / 2), 2) + np.cos(lat1) * np.cos(lat2) * np.pow(np.sin(dlon / 2), 2)
 
         def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
             # Constrain the requested window to the actual dataset bounds
