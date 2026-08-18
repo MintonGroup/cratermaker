@@ -601,7 +601,7 @@ class Morphology(ComponentBase):
             inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
             if inner_crater_region is not None:
                 inner_crater_region.add_data(
-                    "ejecta_thickness",
+                    name="ejecta_thickness",
                     long_name="ejecta thickness",
                     units="m",
                     data=0.0,
@@ -655,7 +655,7 @@ class Morphology(ComponentBase):
                     ring.frac_ejrim = max(ejrim / ring.rim_height, 1.0)
 
         crater.ejecta_region.add_data(
-            "ejecta_thickness",
+            name="ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
             data=ejecta_thickness[: crater.ejecta_region.n_face],

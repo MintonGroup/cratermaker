@@ -2412,7 +2412,7 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data(
-            "ejecta_thickness",
+            name="ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
             data=delta_face_elevation,
@@ -2438,7 +2438,7 @@ class LocalSurface(CratermakerBase):
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
         self.add_data(
-            "ejecta_thickness",
+            name="ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
             data=delta_face_elevation,
@@ -4570,7 +4570,7 @@ class LocalSurface(CratermakerBase):
         if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
             self.add_data(
-                "desloped_face_elevation",
+                name="desloped_face_elevation",
                 long_name="face elevation (desloped)",
                 units="m",
                 data=self.face_elevation.data - reference_elevation,
@@ -4660,7 +4660,7 @@ class DataComposer(AbstractContextManager):
         """
         self._iselevation = True
         return self.add_data(
-            data, name="elevation", long_name=None, units="m", overwrite=overwrite, resampling_order=resampling_order, **kwargs
+            data=data, name="elevation", long_name=None, units="m", overwrite=overwrite, resampling_order=resampling_order, **kwargs
         )
 
     def add_data(
