@@ -2166,7 +2166,7 @@ class LocalSurface(CratermakerBase):
         if isinstance(data, DatasetReader | str | os.PathLike | list):
             with self.data_composer() as composer:
                 composer.add_data(
-                    data=data, name=name, long_name=long_name, units=units, isfacedata=isfacedata, overwrite=overwrite
+                    data=data, name=name, long_name=long_name, units=units, isfacedata=isfacedata, overwrite=overwrite, **kwargs
                 )
             return
 
