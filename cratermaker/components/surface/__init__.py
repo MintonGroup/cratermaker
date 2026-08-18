@@ -2187,11 +2187,6 @@ class LocalSurface(CratermakerBase):
         else:
             raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
-        if np.any(np.isnan(data)):
-            if overwrite:
-                data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
-            else:
-                data[np.isnan(data)] = 0.0
         if name not in self.surface.uxds.data_vars:
             self.surface._add_new_data(
                 name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
@@ -2202,6 +2197,12 @@ class LocalSurface(CratermakerBase):
                 self.surface.uxds[name].attrs["long_name"] = long_name
             if units is not None:
                 self.surface.uxds[name].attrs["units"] = units
+
+        if np.any(np.isnan(data)):
+            if overwrite:
+                data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
+            else:
+                data[np.isnan(data)] = 0.0
 
         if overwrite:
             self.surface.uxds[name].data[indices] = data
