@@ -2199,6 +2199,8 @@ class LocalSurface(CratermakerBase):
                 self.surface.uxds[name].attrs["units"] = units
 
         if np.any(np.isnan(data)):
+            if np.all(np.isnan(data)):
+                return
             if overwrite:
                 data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
             else:
@@ -2245,7 +2247,7 @@ class LocalSurface(CratermakerBase):
         try:
             if isinstance(new_elevation, DatasetReader | str | os.PathLike | list):
                 with self.data_composer() as composer:
-                    composer.update_elevation(new_elevation)
+                    composer.update_elevation(new_elevation, **kwargs)
                 return
             new_elevation = np.asarray(new_elevation)
 
@@ -4627,18 +4629,39 @@ class DataComposer(AbstractContextManager):
         object.__setattr__(self, "_isfacedata", None)
         object.__setattr__(self, "_overwrite", None)
         object.__setattr__(self, "_iselevation", False)
-        self._localsurface = surface
+        object.__setattr__(self, "_resampling_order", 1)
+        object.__setattr__(self, "_finished", False)
+        object.__setattr__(self, "_surface", surface)
         self._data_list: list[DatasetReader] = []
-        self._finished = False
 
-    def update_elevation(self, data: DatasetReader | str | list[DatasetReader | str], overwrite: bool = True):
+    def update_elevation(
+        self,
+        data: DatasetReader | str | list[DatasetReader | str],
+        overwrite: bool = True,
+        resampling_order: int = 1,
+        **kwargs: Any,
+    ):
         """
         Adds elevation data to eventually be applied to the surface.
 
         The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+
+        Parameters
+        ----------
+        data : DatasetReader | str | list[DatasetReader | str]
+            A single dataset or a list of multiple datasets to be merged.
+            Calls ``rasterio.open`` when necessary.
+        overwrite : bool, optional, default True
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        resampling_order: int, optional, default 0
+            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
+        **kwargs : Any
+            |kwargs|
         """
         self._iselevation = True
-        return self.add_data(data, name="elevation", long_name=None, units="m", overwrite=overwrite)
+        return self.add_data(
+            data, name="elevation", long_name=None, units="m", overwrite=overwrite, resampling_order=resampling_order, **kwargs
+        )
 
     def add_data(
         self,
@@ -4648,6 +4671,8 @@ class DataComposer(AbstractContextManager):
         units: str | None = None,
         isfacedata: bool = True,
         overwrite: bool = True,
+        resampling_order: int = 1,
+        **kwargs: Any,
     ):
         """
         Adds data to eventually be applied to the surface.
@@ -4669,6 +4694,10 @@ class DataComposer(AbstractContextManager):
             Flag to indicate whether the data is face data or node data.
         overwrite : bool, optional, default True
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        resampling_order: int, optional, default 1
+            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
+        **kwargs : Any
+            |kwargs|
         """
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
@@ -4681,6 +4710,7 @@ class DataComposer(AbstractContextManager):
             self.units = units
         self.isfacedata = isfacedata
         self.overwrite = overwrite
+        self.resampling_order = resampling_order
 
         if not isinstance(data, list):
             data = [data]
@@ -4704,6 +4734,8 @@ class DataComposer(AbstractContextManager):
         """
         Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
         """
+        import scipy.ndimage
+
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
 
@@ -4718,90 +4750,120 @@ class DataComposer(AbstractContextManager):
             return np.pow(np.sin(dlat / 2), 2) + np.cos(lat1) * np.cos(lat2) * np.pow(np.sin(dlon / 2), 2)
 
         def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
-            block_windows = []
-            for _, block in dataset.block_windows(1):
-                if window is None or windows.intersect(window, block):
-                    block_windows.append(block)
-
-            res_window: Window = windows.union(block_windows)
+            # Constrain the requested window to the actual dataset bounds
+            full_window = Window(0, 0, dataset.width, dataset.height)
+            if window is None:
+                res_window = full_window
+            else:
+                res_window = window.intersection(full_window).round_offsets().round_lengths()
 
             print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
 
-            res = np.empty((res_window.height, res_window.width))
+            # Initialize output array
+            res = np.empty((res_window.height, res_window.width), dtype=dataset.dtypes[0])
 
-            for block in tqdm(block_windows):
-                out = res[
-                    block.row_off - res_window.row_off : block.row_off - res_window.row_off + block.height,
-                    block.col_off - res_window.col_off : block.col_off - res_window.col_off + block.width,
-                ]
-                dataset.read(1, window=block, out=out)
+            # Find blocks that actually intersect our target window
+            intersecting_blocks = [block for _, block in dataset.block_windows(1) if windows.intersect(res_window, block)]
+
+            # Read blocks with tqdm, using rasterio's native intersection logic
+            for block in tqdm(intersecting_blocks, desc=f"Reading {dataset.name} blocks"):
+                # Get the exact overlapping area between the block and our target window
+                overlap = res_window.intersection(block).round_offsets().round_lengths()
+                if overlap.width <= 0 or overlap.height <= 0:
+                    continue
+
+                # Calculate where this overlap belongs in our local `res` array
+                row_start = overlap.row_off - res_window.row_off
+                col_start = overlap.col_off - res_window.col_off
+
+                # Read only the overlapping portion directly into our array slice
+                res[row_start : row_start + overlap.height, col_start : col_start + overlap.width] = dataset.read(
+                    1, window=overlap, out_dtype=np.float32
+                )
 
             return res, res_window
 
         print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
         if self._iselevation:
-            lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
-            lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
+            lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
+            lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
         else:
-            lons = self._localsurface.face_lon
-            lats = self._localsurface.face_lat
+            lons = self._surface.face_lon
+            lats = self._surface.face_lat
 
-        read_data: list[NDArray] = []
-        data_windows: list[Window] = []
-
-        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
-        for n, dataset in enumerate(self._data_list):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs, always_xy=True)
-            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs, always_xy=True)
+        datavals = np.full(lons.shape, np.nan)
+        for dataset in self._data_list:
+            to_data = Transformer.from_crs(self._surface.surface.crs, dataset.crs, always_xy=True)
 
             x_coords, y_coords = to_data.transform(lons, lats)
 
             mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
-            rows, cols = rowcol(dataset.transform, x_coords[mask1], y_coords[mask1])
-            mask2 = (cols >= 0) & (cols < dataset.width) & (rows >= 0) & (rows < dataset.height)
-            mask1[mask1] = mask2
-            rows = rows[mask2]
-            cols = cols[mask2]
 
-            if self._localsurface.is_local:
-                cmin, rmin, cmax, rmax = np.min(cols), np.min(rows), np.max(cols), np.max(rows)
-                data, window = _read(dataset, window=Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1))
+            # Transform to fractional grid location so data can be interpolated from the source to the grid
+            inv_transform = ~dataset.transform
+            cols_frac, rows_frac = inv_transform * (x_coords[mask1], y_coords[mask1])
+
+            # Filter valid indices using fractional coordinates
+            mask2 = (cols_frac >= 0) & (cols_frac < dataset.width) & (rows_frac >= 0) & (rows_frac < dataset.height)
+            mask1[mask1] = mask2
+
+            rows_frac = rows_frac[mask2]
+            cols_frac = cols_frac[mask2]
+
+            if self._surface.is_local and len(rows_frac) > 0:
+                # Create a window based on the min/max of the exact bounds
+                cmin, cmax = int(np.floor(cols_frac.min())), int(np.ceil(cols_frac.max()))
+                rmin, rmax = int(np.floor(rows_frac.min())), int(np.ceil(rows_frac.max()))
+                target_window = Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1)
+                data, window = _read(dataset, window=target_window)
             else:
                 data, window = _read(dataset)
 
-            read_data.append(data)
-            data_windows.append(window)
+            # RESAMPLING: Map exact fractional coords to our local window grid
+            win_rows = rows_frac - window.row_off
+            win_cols = cols_frac - window.col_off
 
-            values = data[rows - window.row_off, cols - window.col_off]
-
-            mask3 = np.isfinite(values) & (values != dataset.nodata)
-            mask1[mask1] = mask3
-            x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
-            pix_dist[n, mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
-
-        idx = np.argmin(pix_dist, axis=0)
-        global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
-        datavals = np.full_like(idx, np.nan, dtype=np.float32)
-
-        print(f"    Getting {self.name} data")
-        for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs, always_xy=True)
-            mask = global_mask & (idx == n)
-
-            if self.units == "m" and "KILOMETER" in dataset.units:
-                scale_factor = 1000.0
+            # Identify valid data points in the source raster
+            nodata_val = dataset.nodata
+            if nodata_val is None:
+                valid_mask = np.isfinite(data)
             else:
-                scale_factor = 1.0
+                valid_mask = np.isfinite(data) & (data != nodata_val)
 
-            x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
-            rows, cols = rowcol(dataset.transform, x_coords, y_coords)
-            datavals[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            # Convert to float64 to prevent overflow/rounding artifacts during division
+            clean_data = np.where(valid_mask, data, 0.0).astype(np.float64)
+            weight_grid = valid_mask.astype(np.float64)
+
+            # Interpolate the values (with invalid areas filled with 0.0)
+            interpolated_values = scipy.ndimage.map_coordinates(
+                clean_data, [win_rows, win_cols], order=self.resampling_order, mode="nearest"
+            )
+
+            # Interpolate the weights using the exact same grid transform
+            interpolated_weights = scipy.ndimage.map_coordinates(
+                weight_grid, [win_rows, win_cols], order=self.resampling_order, mode="nearest"
+            )
+
+            # Divide interpolated values by weights to scale out the effect of 0.0 nodata pixels.
+            # Avoid division by zero where weights are 0.0
+            with np.errstate(invalid="ignore", divide="ignore"):
+                values = np.where(interpolated_weights > 0.0, interpolated_values / interpolated_weights, np.nan)
+
+            # Apply a strict threshold on the weights (e.g., 0.5) to define the clean boundary edge.
+            # If weight is < 0.5, the point is too close to/outside the valid boundary.
+            mask3 = np.isfinite(values) & (interpolated_weights >= 0.5)
+
+            mask1[mask1] = mask3
+
+            scale_factor = 1000.0 if self.units == "m" and "KILOMETER" in dataset.units else 1.0
+
+            datavals[mask1] = values[mask3] * scale_factor
             dataset.close()
 
         if self._iselevation:
-            self._localsurface.update_elevation(datavals, overwrite=self.overwrite)
+            self._surface.update_elevation(datavals, overwrite=self.overwrite)
         else:
-            self._localsurface.add_data(
+            self._surface.add_data(
                 name=self.name,
                 data=datavals,
                 long_name=self.long_name,
@@ -5030,10 +5092,10 @@ class DataComposer(AbstractContextManager):
             Defaults to the resolution of the surface used.
         """
         if pix is None:
-            pix = self._localsurface.pix
+            pix = self._surface.pix
 
-        if self._localsurface.is_local:
-            lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
+        if self._surface.is_local:
+            lon_min, lon_max, lat_min, lat_max = self._surface.get_location_extents()
             self.update_elevation(
                 DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0]
             )
@@ -5043,18 +5105,11 @@ class DataComposer(AbstractContextManager):
             self.update_elevation(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
 
     @property
-    def localsurface(self) -> LocalSurface:
+    def surface(self) -> LocalSurface:
         """
         The ``LocalSurface`` used to create the ``DataComposer``.
         """
-        return self._localsurface
-
-    @property
-    def surface(self) -> Surface:
-        """
-        The ``Surface`` used to create the ``DataComposer``.
-        """
-        return self._localsurface.surface
+        return self._surface
 
     @property
     def finished(self):
@@ -5112,6 +5167,17 @@ class DataComposer(AbstractContextManager):
         if not isinstance(value, bool):
             raise TypeError("overwrite must be bool type")
         self._overwrite = value
+
+    @property
+    def resampling_order(self) -> int:
+        return self._resampling_order
+
+    @resampling_order.setter
+    def resampling_order(self, value):
+        value = int(value)
+        if value < 0 or value > 5:
+            raise ValueError("resampling order must be an integer between 0 and 5")
+        self._resampling_order = value
 
 
 import_components(__name__, __path__)
