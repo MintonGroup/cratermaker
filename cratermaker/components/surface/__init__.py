@@ -4632,6 +4632,7 @@ class DataComposer(AbstractContextManager):
         object.__setattr__(self, "_resampling_order", 1)
         object.__setattr__(self, "_finished", False)
         object.__setattr__(self, "_surface", surface)
+        object.__setattr__(self, "_data", None)
         self._data_list: list[DatasetReader] = []
 
     def update_elevation(
@@ -4713,13 +4714,15 @@ class DataComposer(AbstractContextManager):
         self.resampling_order = resampling_order
 
         if not isinstance(data, list):
-            data = [data]
+            self._data = [data].copy()
+        else:
+            self._data = data.copy()
 
-        for i, src in enumerate(data):
+        for i, src in enumerate(self._data):
             if not isinstance(src, DatasetReader):
-                data[i] = rasterio.open(src)
+                self._data[i] = rasterio.open(src)
 
-            self._data_list.append(data[i])
+            self._data_list.append(self._data[i])
 
     def cancel(self):
         """
@@ -4866,6 +4869,7 @@ class DataComposer(AbstractContextManager):
                 overwrite=self.overwrite,
             )
         self._data_list = []
+        self._data = None
         self._finished = True
 
     def __enter__(self) -> DataComposer:
