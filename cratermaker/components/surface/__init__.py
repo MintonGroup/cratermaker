@@ -3458,8 +3458,8 @@ class LocalSurface(CratermakerBase):
             variable_raster = ret[0]
             extent = ret[1]
             H, W = variable_raster.shape
-            vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
-            vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
+            vmin = kwargs.pop("vmin", np.nanmin(variable_raster) if np.any(~np.isnan(variable_raster)) else 0.0)
+            vmax = kwargs.pop("vmax", np.nanmax(variable_raster) if np.any(~np.isnan(variable_raster)) else 1.0)
             norm = Normalize(vmin=vmin, vmax=vmax)
         else:
             variable_long_name = ""
@@ -4885,7 +4885,10 @@ class DataComposer(AbstractContextManager):
 
     @staticmethod
     def _get_lola_cylindrical_url_from_pds(
-        pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)
+        pds_file_resolution: int,
+        location: PairOfFloats,
+        boundary_offset: tuple[int, int] = (0, 0),
+        dem_src: Literal["sldem", "ldem"] = "sldem",
     ) -> str:
         """
         Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
@@ -4898,6 +4901,8 @@ class DataComposer(AbstractContextManager):
             The longitude and latitude of the location in degrees.
         boundary_offset : tuple[int, int], optional
             Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
+        dem_src : Literal["sldem","ldem]
+            Source of DEM files (Kaguya/LOLA SLDEM or LOLA-only LDEM)
 
         Returns
         -------
@@ -4916,15 +4921,25 @@ class DataComposer(AbstractContextManager):
         sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
         sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
 
-        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
+        def _get_dem_file_suffix(pds_file_resolution, location, boundary_offset, dem_src):
             if location[0] < 0:
                 location = (location[0] + 360, location[1])
-            if pds_file_resolution == 512:
-                dlon = 45
-                dlat = 30
-            elif pds_file_resolution == 256:
-                dlon = 120
-                dlat = 60
+            if dem_src == "sldem":
+                if pds_file_resolution == 512:
+                    dlon = 45
+                    dlat = 30
+                elif pds_file_resolution == 256:
+                    dlon = 120
+                    dlat = 60
+            elif dem_src == "ldem":
+                if pds_file_resolution == 512:
+                    dlon = 90
+                    dlat = 45
+                elif pds_file_resolution == 256:
+                    dlon = 180
+                    dlat = 90
+            else:
+                raise ValueError("invalid dem_src. Must be 'sldem' or 'ldem'")
 
             latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
             latval = np.abs(location[1] / dlat) + boundary_offset[1]
@@ -4957,12 +4972,18 @@ class DataComposer(AbstractContextManager):
             elif pds_file_resolution == 256:
                 return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
 
-        if pds_file_resolution >= 256:
-            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
-        elif pds_file_resolution == 128:
-            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        if dem_src == "sldem":
+            if pds_file_resolution >= 256:
+                url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_dem_file_suffix(pds_file_resolution=pds_file_resolution, location=location, boundary_offset=boundary_offset, dem_src=dem_src)}_float.xml"
+            elif pds_file_resolution == 128:
+                url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        elif dem_src == "ldem":
+            if pds_file_resolution >= 256:
+                url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_{_get_dem_file_suffix(pds_file_resolution=pds_file_resolution, location=location, boundary_offset=boundary_offset, dem_src=dem_src)}_float.xml"
+            else:
+                url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
         else:
-            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
+            raise ValueError("invalid dem_src. Must be 'sldem' or 'ldem'")
 
         return url
 
@@ -4992,14 +5013,24 @@ class DataComposer(AbstractContextManager):
         lat_min, lat_max = lat_range
         lon_min, lon_max = lon_range
         center = ((lon_min + lon_max) / 2.0, (lat_min + lat_max) / 2.0)
+        if abs(lat_min) <= 60.0 and abs(lat_max) <= 60.0:
+            dem_src = "sldem"
+        else:
+            dem_src = "ldem"
 
         # First, retrive the file for the centerpoint:
-        filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
+        filelist = [
+            DataComposer._get_lola_cylindrical_url_from_pds(
+                pds_file_resolution=pds_file_resolution, location=center, dem_src=dem_src
+            )
+        ]
         if pds_file_resolution >= 256:
             combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
             for loc in combo:
-                f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
+                f = DataComposer._get_lola_cylindrical_url_from_pds(
+                    pds_file_resolution=pds_file_resolution, location=loc, dem_src=dem_src
+                )
                 if f not in filelist:
                     filelist.append(f)
 
