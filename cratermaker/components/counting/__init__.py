@@ -629,6 +629,7 @@ class Counting(ComponentBase):
         ax: Axes | None = None,
         close_when_done: bool = True,
         minimum_plot_width: float | None = 800,
+        surface: Surface | LocalSurface | None = None,
         **kwargs: Any,
     ) -> Axes:
         """
@@ -676,22 +677,24 @@ class Counting(ComponentBase):
         """
         import matplotlib.pyplot as plt
 
+        from cratermaker.components.surface import LocalSurface
         from cratermaker.components.surface.hireslocal import HiResLocalSurface
 
         if close_when_done is None:
             close_when_done = save and not show
 
-        crs = self.surface.crs
-        split_antimeridian = True
-        file_prefix = f"{self.surface.output_file_prefix}"
-        # Handle the HiResLocal surface case where we may or may not be plotting the global surface
-        if isinstance(self.surface, HiResLocalSurface):
-            superdomain = kwargs.pop("superdomain", False)
-            if not superdomain and self.surface.local is not None:
-                crs = self.surface.local.crs
-                split_antimeridian = False
-                file_prefix = f"{self.surface.local.output_file_prefix}"
+        if surface is None:
+            surface = self.surface
+            if isinstance(self.surface, HiResLocalSurface):
+                superdomain = kwargs.pop("superdomain", False)
+                if not superdomain and self.surface.local is not None:
+                    surface = self.surface.local
 
+        crs = surface.crs
+        split_antimeridian = not isinstance(surface, LocalSurface)
+        file_prefix = f"{self.surface.output_file_prefix}"
+
+        # Handle the HiResLocal surface case where we may or may not be plotting the global surface
         file_prefix += f"_{self.output_file_prefix}"
         if variable_name is not None:
             file_prefix += f"_{variable_name}"
@@ -727,7 +730,7 @@ class Counting(ComponentBase):
             if filename is None:
                 filename = self.plot_dir / f"{file_prefix}.{self.surface.output_image_file_extension}"
 
-        ax = self.surface.plot(
+        ax = surface.plot(
             plot_style=plot_style,
             variable_name=variable_name,
             interval=interval,
