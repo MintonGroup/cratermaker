@@ -282,7 +282,7 @@ fn elevation_offset_func(crater: &BasicMoonCrater, ring: &BasicMoonCrater) -> f6
 /// * `fe` - Fraction of the rim that is made of ejecta.
 /// * `pej` - Exponent for the ejecta dropoff function.
 /// * `hc` - Height of the central peak above the floor.
-/// * `rc` - Radius of the central peak.
+/// * `rc` - Width of the central peak.
 /// * `ro` - Radial offset of the central peak from the crater center .
 ///
 /// # Returns
