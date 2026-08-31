@@ -5013,7 +5013,7 @@ class DataComposer(AbstractContextManager):
         lat_min, lat_max = lat_range
         lon_min, lon_max = lon_range
         center = ((lon_min + lon_max) / 2.0, (lat_min + lat_max) / 2.0)
-        if abs(lat_min) <= 60.0 and abs(lat_max) <= 60.0:
+        if pds_file_resolution >= 256 and abs(lat_min) <= 60.0 and abs(lat_max) <= 60.0:
             dem_src = "sldem"
         else:
             dem_src = "ldem"
