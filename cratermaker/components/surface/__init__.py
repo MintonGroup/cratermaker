@@ -4756,27 +4756,45 @@ class DataComposer(AbstractContextManager):
 
             print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
 
-            # Initialize output array
             res = np.empty((res_window.height, res_window.width), dtype=dataset.dtypes[0])
 
-            # Find blocks that actually intersect our target window
-            intersecting_blocks = [block for _, block in dataset.block_windows(1) if windows.intersect(res_window, block)]
+            chunk_size = 1000
+            # for block in tqdm(intersecting_blocks, desc=f"Reading {dataset.name} blocks"):
+            for chunk_row_start in tqdm(range(0, res_window.height, chunk_size), desc="Reading data...", unit="chunks"):
+                chunk_height = min(chunk_size, res_window.height - chunk_row_start)
 
-            # Read blocks with tqdm, using rasterio's native intersection logic
-            for block in tqdm(intersecting_blocks, desc=f"Reading {dataset.name} blocks"):
-                # Get the exact overlapping area between the block and our target window
-                overlap = res_window.intersection(block).round_offsets().round_lengths()
-                if overlap.width <= 0 or overlap.height <= 0:
-                    continue
-
-                # Calculate where this overlap belongs in our local `res` array
-                row_start = overlap.row_off - res_window.row_off
-                col_start = overlap.col_off - res_window.col_off
-
-                # Read only the overlapping portion directly into our array slice
-                res[row_start : row_start + overlap.height, col_start : col_start + overlap.width] = dataset.read(
-                    1, window=overlap, out_dtype=np.float32
+                # Define the sub-window on the remote dataset
+                read_window = Window(
+                    col_off=res_window.col_off,
+                    row_off=res_window.row_off + chunk_row_start,
+                    width=res_window.width,
+                    height=chunk_height,
                 )
+
+                # Read the chunk and place it into our pre-allocated array
+                res[chunk_row_start : chunk_row_start + chunk_height, :] = dataset.read(
+                    1, window=read_window, out_dtype=np.float32, boundless=True
+                )
+            # # Initialize output array
+
+            # # Find blocks that actually intersect our target window
+            # intersecting_blocks = [block for _, block in dataset.block_windows(1) if windows.intersect(res_window, block)]
+
+            # # Read blocks with tqdm, using rasterio's native intersection logic
+            # for block in tqdm(intersecting_blocks, desc=f"Reading {dataset.name} blocks"):
+            #     # Get the exact overlapping area between the block and our target window
+            #     overlap = res_window.intersection(block).round_offsets().round_lengths()
+            #     if overlap.width <= 0 or overlap.height <= 0:
+            #         continue
+
+            #     # Calculate where this overlap belongs in our local `res` array
+            #     row_start = overlap.row_off - res_window.row_off
+            #     col_start = overlap.col_off - res_window.col_off
+
+            #     # Read only the overlapping portion directly into our array slice
+            #     res[row_start : row_start + overlap.height, col_start : col_start + overlap.width] = dataset.read(
+            #         1, window=overlap, out_dtype=np.float32
+            #     )
 
             return res, res_window
 
