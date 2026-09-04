@@ -4964,7 +4964,7 @@ class DataComposer(AbstractContextManager):
                 latlo = lathi
                 lathi = tmp
 
-            if pds_file_resolution == 512:
+            if pds_file_resolution == 512 or dem_src == "ldem":
                 return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
             elif pds_file_resolution == 256:
                 return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
