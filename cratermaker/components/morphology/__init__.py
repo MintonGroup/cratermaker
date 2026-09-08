@@ -358,6 +358,7 @@ class Morphology(ComponentBase):
         production: Production | str | None = None,
         counting: Counting | str | None = None,
         scaling: Scaling | str | None = None,
+        conserve_volume: bool = True,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
         do_counting: bool | None = None,
@@ -376,6 +377,8 @@ class Morphology(ComponentBase):
             The name of a Counting object, or an instance of Counting, to be associated with the morphology model. This is used to record crater counts during emplacement. If None, no counting will be performed.
         scaling : str, Scaling or None, optional
             The projectile->crater size scaling model to use from the components library. The default is "montecarlo".
+        conserve_volume : bool, optional
+            When True, volume will be conserved when generating craters on a Surface using a combination of adjusting input morphometric parameters and scaling ejecta thickness such that the net change of volume of material is near zero.
         do_subpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
@@ -395,6 +398,7 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_scaling", None)
+        object.__setattr__(self, "_conserve_volume", None)
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
@@ -421,6 +425,7 @@ class Morphology(ComponentBase):
             else:
                 self.do_counting = do_counting
 
+        self.conserve_volume = conserve_volume
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse
         if do_subpixel_degradation:
@@ -634,19 +639,24 @@ class Morphology(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
+
+        conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
         if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self)
+            crater = MorphologyCrater.maker(crater=crater, morphology=self, conserve_volume=conserve_volume)
 
         if not self._excavated_volume or crater.ejecta_region is None:
             return None, None
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
         ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
         ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
-        conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
+        if conserve_volume:
+            conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
+        else:
+            conservation_factor = 1.0
         ejrim = crater.frac_ejrim * crater.rim_height
         ejecta_thickness *= conservation_factor
         ejrim *= conservation_factor
-        crater.frac_ejrim = max(ejrim / crater.rim_height, 1.0)
+        crater.frac_ejrim = min(ejrim / crater.rim_height, 1.0)
         if crater.nrings > 0:
             for ring in crater.rings:
                 if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
@@ -852,6 +862,17 @@ class Morphology(ComponentBase):
         self._counting.morphology = self
 
     @parameter
+    def conserve_volume(self) -> bool:
+        """Whether to conserved volume during crater emplacement."""
+        return self._conserve_volume
+
+    @conserve_volume.setter
+    def conserve_volume(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("conserve_volume must be a boolean value")
+        self._conserve_volume = value
+
+    @parameter
     def do_subpixel_degradation(self) -> bool:
         """Whether to perform subpixel degradation during crater emplacement."""
         return self._do_subpixel_degradation
@@ -912,6 +933,8 @@ class Morphology(ComponentBase):
                 @classmethod
                 def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
                     kwargs["morphology"] = self
+                    if "conserve_volume" not in kwargs:
+                        kwargs["conserve_volume"] = self.conserve_volume
                     kwargs = {**kwargs, **vars(self.common_args)}
                     return self._CraterType.maker(**kwargs)
 
