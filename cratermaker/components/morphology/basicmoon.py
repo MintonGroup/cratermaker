@@ -883,7 +883,7 @@ class BasicMoonMorphology(Morphology):
             super().form_crater(crater, **kwargs)
         return
 
-    def form_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def compute_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
 
@@ -901,7 +901,7 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, BasicMoonCrater):
             crater = BasicMoonCrater.maker(crater, morphology=self)
-        ejecta_thickness, ejecta_intensity = super().form_ejecta(crater, **kwargs)
+        ejecta_thickness, ejecta_intensity = super().compute_ejecta(crater, **kwargs)
         if ejecta_thickness is None or ejecta_intensity is None:
             return None, None
         k_ej = self.ejecta_burial_degradation(ejecta_thickness[: crater.ejecta_region.n_face], ejecta_soften_factor=1.50)

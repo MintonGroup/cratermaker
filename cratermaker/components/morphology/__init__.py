@@ -597,9 +597,6 @@ class Morphology(ComponentBase):
         # Check to make sure that the face at the crater location is not smaller than the crater area
         if crater_area > self.surface.face_area[crater.face_index]:
             elevation_change = self.crater_shape(crater, crater.crater_region)
-            crater.crater_region.update_elevation(elevation_change)
-            if self.do_slope_collapse:
-                crater.crater_region.slope_collapse()
             self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
 
             # Remove any ejecta from the interior of the crater
@@ -613,17 +610,24 @@ class Morphology(ComponentBase):
                     overwrite=True,
                 )
 
-            #
             # Record the crater to the counting layer
             if self.do_counting:
                 self.counting.add(crater, **kwargs)
 
-            self.form_ejecta(crater, **kwargs)
+            ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
+            elevation_change += ejecta_thickness
+
+            # Apply the elevation change to the surface only after the ejecta formation has been run, to preven tthe crater from self-degrading
+            crater.crater_region.update_elevation(elevation_change)
+            if self.do_slope_collapse:
+                crater.crater_region.slope_collapse()
         return
 
-    def form_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
-        Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
+        Computes the ejecta blanket of the crater and returns its thickness and intensity values to be applied to the mesh later.
+
+        Ejecta burial and the diffusive degradation function are applied to the pre-existing surface.
 
         Parameters
         ----------
@@ -635,7 +639,7 @@ class Morphology(ComponentBase):
         Returns
         -------
         tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations. |
+            The computed ejecta thickness and intensity at the face and node elevations.
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
@@ -671,8 +675,6 @@ class Morphology(ComponentBase):
             data=ejecta_thickness[: crater.ejecta_region.n_face],
             overwrite=False,
         )
-
-        crater.ejecta_region.update_elevation(ejecta_thickness)
 
         return ejecta_thickness, ejecta_intensity
 
