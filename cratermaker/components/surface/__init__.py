@@ -3486,8 +3486,12 @@ class LocalSurface(CratermakerBase):
             variable_raster = ret[0]
             extent = ret[1]
             H, W = variable_raster.shape
-            vmin = kwargs.pop("vmin", np.nanmin(variable_raster) if np.any(~np.isnan(variable_raster)) else 0.0)
-            vmax = kwargs.pop("vmax", np.nanmax(variable_raster) if np.any(~np.isnan(variable_raster)) else 1.0)
+            vmin = kwargs.pop("vmin", None)
+            vmax = kwargs.pop("vmax", None)
+            if vmin is None:
+                vmin = np.nanmin(variable_raster) if np.any(~np.isnan(variable_raster)) else 0.0
+            if vmax is None:
+                vmax = np.nanmax(variable_raster) if np.any(~np.isnan(variable_raster)) else 1.0
             norm = Normalize(vmin=vmin, vmax=vmax)
         else:
             variable_long_name = ""
