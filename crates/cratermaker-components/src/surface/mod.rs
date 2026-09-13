@@ -107,11 +107,10 @@ pub fn apply_diffusion(
         edge_faces[e] = [f1, f2];
     }
 
-
     for _ in 0..nloops {
         let mut dhdt = vec![0.0f64; n_faces];
         // Loop over edges, accumulate flux contributions to each face
-        let updates = (0.. n_edges)
+        let updates = (0..n_edges)
             .into_par_iter()
             .fold(
                 || Vec::<(usize, f64)>::new(),
@@ -132,10 +131,11 @@ pub fn apply_diffusion(
 
                     updates.push((f1, flux / region.face_area[f1]));
                     updates.push((f2, -flux / region.face_area[f2]));
-                
-                    updates 
+
+                    updates
                 },
-            ).reduce(
+            )
+            .reduce(
                 || Vec::<(usize, f64)>::new(),
                 |mut a, mut b| {
                     a.append(&mut b);
@@ -181,10 +181,44 @@ pub fn compute_radial_gradient(
         .into_par_iter()
         .map(|f| {
             let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
-            grad_meridional * bearings_rad[f].cos() + grad_zonal * bearings_rad[f].sin()
+            let bearing = bearings_rad[f];
+            grad_meridional * bearing.cos() + grad_zonal * bearing.sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
+}
+
+/// Computes the gradient vector in a azimuthal direction defined by the face bearing at a face using the Green-Gauss method.
+///
+///
+/// This function is designed to be parallel and returns a NumPy array of slopes
+/// corresponding to the provided face indices.
+///
+/// # Arguments
+/// * `variable` - The variable to compute the gradient for at each face (1D array).
+/// * `region` - Reference to the local surface data structure containing mesh information.
+///
+/// # Returns
+/// An arrays of radial gradient values same length as `face_indices`.
+///
+pub fn compute_azimuthal_gradient(
+    variable: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+) -> ArrayResult {
+    let bearings = region
+        .face_bearing
+        .as_ref()
+        .ok_or("face_bearing required")?;
+    let bearings_rad = bearings.mapv(|b| b.to_radians());
+    let azgrad: Vec<f64> = (0..region.n_face)
+        .into_par_iter()
+        .map(|f| {
+            let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
+            let bearing = bearings_rad[f];
+            grad_meridional * bearing.sin() - grad_zonal * bearing.cos()
+        })
+        .collect();
+    Ok(Array1::from_vec(azgrad))
 }
 
 /// Computes the slope squared at a face using the Green-Gauss method.

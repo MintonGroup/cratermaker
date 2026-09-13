@@ -1326,6 +1326,7 @@ class Surface(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        _ = kwargs.pop("resampling_order", None)
         if self.uxgrid is None:
             with xr.open_dataset(self.grid_file, **kwargs) as ds:
                 ds.load()
@@ -2800,6 +2801,33 @@ class LocalSurface(CratermakerBase):
         )
 
         return radial_gradient
+
+    def compute_azimuthal_gradient(self, variable: str | NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Compute the azimuthal gradient of the local surface variable with respect to the local_location center.
+
+        Parameters
+        ----------
+        variable : str or NDArray[np.float64]
+            The variable to compute the radial gradient of. This can be a string (the name of a variable in the surface data) or an array of values the same size as the number of faces in the grid.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The azimuthal gradient of all faces in meters per meter.
+        """
+        if isinstance(variable, str):
+            if variable not in self.uxds:
+                raise ValueError(f"Variable {variable} not found in the surface data.")
+            variable = self.uxds[variable].data
+        elif variable.size != self.n_face:
+            raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
+        azimuthal_gradient = surface_bindings.compute_radial_gradient(
+            variable=variable,
+            region=self,
+        )
+
+        return azimuthal_gradient
 
     def export(
         self,
