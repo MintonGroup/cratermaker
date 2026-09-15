@@ -636,4 +636,4 @@ class DataSurface(HiResLocalSurface):
         The variables used to generate the hash.
 
         """
-        return super()._hashvars + [self._dem_file_list]
+        return super(HiResLocalSurface, self)._hashvars + [self.local_radius, self.local_location, self._dem_file_list]
