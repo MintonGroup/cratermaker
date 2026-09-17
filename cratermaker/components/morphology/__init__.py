@@ -287,6 +287,8 @@ class MorphologyCrater(Crater):
             self._var._ejecta_rmax = self.morphology.rmax(
                 self, minimum_thickness=self.morphology.surface.smallest_length, feature="ejecta"
             )
+            if self._var._crater_region is not None:
+                self._var._ejecta_rmax = max(self._var._ejecta_rmax, self._var._crater_region.radius)
         return self._var._ejecta_rmax
 
     @property

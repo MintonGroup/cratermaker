@@ -1323,7 +1323,7 @@ class BasicMoonMorphology(Morphology):
             func = _ejecta_func
         else:
             func = _combo_func
-        v = quad(func, 0.0, 20 * crater.radius, **{"limit": 100, **kwargs}, full_output=1)[0]
+        v = quad(func, 0.0, 20 * crater.radius, **{"limit": 100, "epsrel": 1e-2, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
 
     def degradation_function(
