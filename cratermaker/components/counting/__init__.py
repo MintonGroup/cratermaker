@@ -18,7 +18,7 @@ from tqdm import tqdm
 from vtk import vtkPolyData
 
 from cratermaker import __version__ as cratermaker_version
-from cratermaker.bindings import counting_bindings
+from cratermaker.bindings import basicmoon_bindings, counting_bindings
 from cratermaker.components.crater import _TALLY_LONG_NAME, Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
@@ -248,9 +248,7 @@ class Counting(ComponentBase):
         self.observed.pop(crater_id, None)
         return
 
-    def fit_rim(
-        self, crater: Crater, tol=0.01, nloops=4, score_quantile=0.95, fit_center=False, fit_ellipse=False, **kwargs
-    ) -> Crater:
+    def fit_crater(self, crater: Crater, fit_vars: list[str, ...], fit_bounds: dict[str, tuple] | None = None, **kwargs) -> Crater:
         """
         Find the rim region of a crater on the surface.
 
@@ -258,16 +256,10 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater for which to find the rim region.
-        tol : float, optional
-            The tolerance for the rim fitting algorithm. Default is 0.01.
-        nloops : int, optional
-            The number of iterations for the rim fitting algorithm. Default is 4.
-        score_quantile : float, optional
-            The quantile of rim scores to consider. Default is 0.95.
-        fit_center : bool, optional
-            If True, fit the crater center as well. Default is False.
-        fit_ellipse : bool, optional
-            If True, fit an ellipse to the rim, otherwise fit a circle. Default is False.
+        fit_vars: list[str,...]
+            List of crater parameters that will fit.
+        fit_bounds: dict[str,tuple], optional
+            Mapping of fit lower,upper bounds to fit parameters. If not provided, defaults will be used.
         **kwargs : Any
             |kwargs|
 
@@ -278,25 +270,7 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-
-        location, ap, bp, orientation = counting_bindings.fit_rim(
-            self.surface,
-            crater,
-            tol,
-            nloops,
-            score_quantile,
-            fit_center,
-            fit_ellipse,
-        )
-
-        if bp > ap:
-            ap, bp = bp, ap
-            orientation += np.pi / 2
-        crater.measured_semimajor_axis = ap
-        crater.measured_semiminor_axis = bp
-        crater.measured_orientation = np.degrees(orientation)
-        crater.measured_location = location
-
+        # TODO: Replace with new version that doesn't use OpenBLAS
         return crater
 
     def score_rim(

@@ -71,72 +71,13 @@ class BasicMoonCraterFixed(CraterFixed):
             return None
 
 
-class BasicMoonCraterVariable(MorphologyCraterVariable):
-    def __init__(self, frac_ejrim: float | None = None, rings: list[BasicMoonCrater] = None, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        object.__setattr__(self, "_rings", [])
-        object.__setattr__(self, "_frac_ejrim", None)
-        if frac_ejrim is not None:
-            self.frac_ejrim = frac_ejrim
-        if rings is not None:
-            if isinstance(rings, list):
-                self._rings = rings
-            elif isinstance(rings, BasicMoonCrater):
-                self._ring = [rings]
-            else:
-                raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
-        return
-
-    def as_dict(self) -> dict:
-        """
-        Return a dictionary representation of the crater variable properties.
-        """
-        dict_repr = super().as_dict()
-        dict_repr["frac_ejrim"] = self.frac_ejrim
-        dict_repr["rings"] = self.rings
-
-        return dict_repr
-
-    @property
-    def frac_ejrim(self) -> float | None:
-        """Ejecta rim thickness of the crater in meters."""
-        return self._frac_ejrim
-
-    @frac_ejrim.setter
-    def frac_ejrim(self, value: float | None):
-        if value is None:
-            self._frac_ejrim = None
-        else:
-            if value < 0.0:
-                raise ValueError("frac_ejrim must be positive.")
-            self._frac_ejrim = value
-        return
-
-    @property
-    def rings(self) -> list[BasicMoonCrater]:
-        if self.nrings == 0:
-            return None
-        else:
-            return self._rings
-
-    @property
-    def nrings(self) -> int:
-        """
-        Returns the number of rings associated with this Crater.
-        """
-        if self._rings is None:
-            return 0
-        else:
-            return len(self._rings)
-
-
 @Crater.register("basicmooncrater")
 class BasicMoonCrater(MorphologyCrater):
     def __init__(
         self,
         crater: Crater | None = None,
         fixed_cls=BasicMoonCraterFixed,
-        variable_cls=BasicMoonCraterVariable,
+        variable_cls=MorphologyCraterVariable,
         **kwargs,
     ):
         if hasattr(crater, "isring"):

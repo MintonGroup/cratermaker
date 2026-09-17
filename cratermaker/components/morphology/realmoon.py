@@ -13,11 +13,10 @@ from scipy import fft
 
 from cratermaker.bindings import basicmoon_bindings, realmoon_bindings
 from cratermaker.components.crater import Crater
-from cratermaker.components.morphology import Morphology
+from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import (
     BasicMoonCrater,
     BasicMoonCraterFixed,
-    BasicMoonCraterVariable,
     BasicMoonMorphology,
 )
 from cratermaker.utils.general_utils import format_large_units, parameter
@@ -43,7 +42,7 @@ class RealMoonCraterFixed(BasicMoonCraterFixed):
     """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
-class RealMoonCraterVariable(BasicMoonCraterVariable):
+class RealMoonCraterVariable(MorphologyCraterVariable):
     def __init__(
         self,
         rim_radius_control: np.ndarray | None = None,

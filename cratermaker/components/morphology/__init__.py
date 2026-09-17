@@ -45,7 +45,52 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_ejecta_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_rings", [])
+        object.__setattr__(self, "_frac_ejrim", None)
+        frac_ejrim = kwargs.pop("frac_ejrim", None)
+        rings = kwargs.pop("rings", None)
+        if frac_ejrim is not None:
+            self.frac_ejrim = frac_ejrim
+        if rings is not None:
+            if isinstance(rings, list):
+                self._rings = rings
+            elif isinstance(rings, MorphologyCrater):
+                self._ring = [rings]
+            else:
+                raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
+
+    @property
+    def frac_ejrim(self) -> float | None:
+        """Ejecta rim thickness of the crater in meters."""
+        return self._frac_ejrim
+
+    @frac_ejrim.setter
+    def frac_ejrim(self, value: float | None):
+        if value is None:
+            self._frac_ejrim = None
+        else:
+            if value < 0.0:
+                raise ValueError("frac_ejrim must be positive.")
+            self._frac_ejrim = value
+        return
+
+    @property
+    def rings(self) -> list[MorphologyCrater]:
+        if self.nrings == 0:
+            return None
+        else:
+            return self._rings
+
+    @property
+    def nrings(self) -> int:
+        """
+        Returns the number of rings associated with this Crater.
+        """
+        if self._rings is None:
+            return 0
+        else:
+            return len(self._rings)
 
     def as_dict(self) -> dict:
         """
@@ -62,7 +107,10 @@ class MorphologyCraterVariable(CraterVariable):
             "ejecta_region",
             "crater_region",
             "emplaceable",
+            "frac_ejrim",
+            "rings",
         )
+
         for key in keys:
             dict_repr[key] = getattr(self, key)
 

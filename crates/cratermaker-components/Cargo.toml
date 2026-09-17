@@ -11,20 +11,14 @@ noise = "0.9.0"
 rand_chacha = "0.10.0"
 rand_distr = "0.6.0"
 numpy = "0.29.0"
-blas = "0.23"
 rayon = "1.11"
 pyo3 = { version = "0.29", features = ["extension-module"] }
 libm = "0.2"
 rustfft = "6.4.1"
 interp = "2.1.2"
 
-[target.'cfg(windows)'.dependencies]
-ndarray-linalg = { version = "0.18", features = ["intel-mkl"] }
-intel-mkl-src = "0.8.1"
 
 [target.'cfg(unix)'.dependencies]
-openblas-src = { version = "0.10", features = ["system"] }
-ndarray-linalg = { version = "0.18", features = ["openblas-system"] }
 native-tls = "=0.2.15"
 openssl-sys = "=0.9.111"
 
