@@ -3,6 +3,14 @@
 What's New
 ==========
 
+.. _whats-new.2026.5.0-alpha:
+
+:release:`v2026.5.0-alpha`
+--------------------------
+
+- Fixed :issue:`128` :pull:`129` by ensuring that the Scaling model gets assigned to the Morphology model, and that density can be passed as an argument to the `new_projectile` method. `David Minton`_
+
+
 .. _whats-new.2026.4.4-alpha:
 
 :release:`v2026.4.4-alpha`

@@ -1,7 +1,8 @@
 use crate::{ArrayResult, ArrayResult2D};
+use itertools::izip;
 use noise::{NoiseFn, RotatePoint, ScalePoint, SuperSimplex};
 use numpy::ndarray::prelude::*;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::*;
 use std::f64::consts::{PI, TAU};
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
@@ -87,31 +88,63 @@ pub fn apply_diffusion(
     let dt = 1.0 / nloops as f64;
     let fac = dt / 2.0;
 
+    // Precompute once
+    let n_edges = region.edge_face_connectivity.nrows();
+    let n_faces = region.n_face;
+
+    let mut edge_faces = vec![[0usize; 2]; n_edges];
+
+    for e in 0..n_edges {
+        let f1_raw = region.edge_face_connectivity[(e, 0)];
+        let f2_raw = region.edge_face_connectivity[(e, 1)];
+
+        let f1 = f1_raw as usize;
+        let f2 = f2_raw as usize;
+
+        // keep your checks here (once)
+        assert!(f1 < n_faces && f2 < n_faces);
+
+        edge_faces[e] = [f1, f2];
+    }
+
     for _ in 0..nloops {
-        // Initialize dhdt as zeros with length n_face
-        let mut dhdt = Array1::<f64>::zeros(region.n_face);
-
+        let mut dhdt = vec![0.0f64; n_faces];
         // Loop over edges, accumulate flux contributions to each face
-        for (e, faces) in region.edge_face_connectivity.outer_iter().enumerate() {
-            let (f1, f2) = match extract_edge_faces(faces, e, region.n_face, "apply_diffusion") {
-                Some(pair) => pair,
-                None => continue,
-            };
+        let updates = (0..n_edges)
+            .into_par_iter()
+            .fold(
+                || Vec::<(usize, f64)>::new(),
+                |mut updates, e| {
+                    let [f1, f2] = edge_faces[e];
 
-            let distance = region.edge_face_distance[e];
-            let length = region.edge_length[e];
+                    let distance = region.edge_face_distance[e];
+                    let length = region.edge_length[e];
 
-            debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
+                    debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
 
-            let h1 = face_variable[f1] + face_delta[f1];
-            let h2 = face_variable[f2] + face_delta[f2];
-            let k1 = face_kappa[f1];
-            let k2 = face_kappa[f2];
+                    let h1 = face_variable[f1] + face_delta[f1];
+                    let h2 = face_variable[f2] + face_delta[f2];
+                    let k1 = face_kappa[f1];
+                    let k2 = face_kappa[f2];
 
-            let flux = (k1 + k2) * (h2 - h1) / distance * length;
+                    let flux = (k1 + k2) * (h2 - h1) / distance * length;
 
-            dhdt[f1] += flux / region.face_area[f1];
-            dhdt[f2] -= flux / region.face_area[f2];
+                    updates.push((f1, flux / region.face_area[f1]));
+                    updates.push((f2, -flux / region.face_area[f2]));
+
+                    updates
+                },
+            )
+            .reduce(
+                || Vec::<(usize, f64)>::new(),
+                |mut a, mut b| {
+                    a.append(&mut b);
+                    a
+                },
+            );
+
+        for (idx, val) in updates {
+            dhdt[idx] += val;
         }
 
         for f in 0..region.n_face {
@@ -139,19 +172,53 @@ pub fn compute_radial_gradient(
     variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
-    let bearing = region
+    let bearings = region
         .face_bearing
         .as_ref()
         .ok_or("face_bearing required")?;
-    let bearing_rad = bearing.mapv(|b| b.to_radians());
+    let bearings_rad = bearings.mapv(|b| b.to_radians());
     let radgrad: Vec<f64> = (0..region.n_face)
         .into_par_iter()
         .map(|f| {
             let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
-            grad_meridional * bearing_rad[f].cos() + grad_zonal * bearing_rad[f].sin()
+            let bearing = bearings_rad[f];
+            grad_meridional * bearing.cos() + grad_zonal * bearing.sin()
         })
         .collect();
     Ok(Array1::from_vec(radgrad))
+}
+
+/// Computes the gradient vector in a azimuthal direction defined by the face bearing at a face using the Green-Gauss method.
+///
+///
+/// This function is designed to be parallel and returns a NumPy array of slopes
+/// corresponding to the provided face indices.
+///
+/// # Arguments
+/// * `variable` - The variable to compute the gradient for at each face (1D array).
+/// * `region` - Reference to the local surface data structure containing mesh information.
+///
+/// # Returns
+/// An arrays of radial gradient values same length as `face_indices`.
+///
+pub fn compute_azimuthal_gradient(
+    variable: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+) -> ArrayResult {
+    let bearings = region
+        .face_bearing
+        .as_ref()
+        .ok_or("face_bearing required")?;
+    let bearings_rad = bearings.mapv(|b| b.to_radians());
+    let azgrad: Vec<f64> = (0..region.n_face)
+        .into_par_iter()
+        .map(|f| {
+            let (grad_zonal, grad_meridional) = compute_one_face_gradient(f, variable, region);
+            let bearing = bearings_rad[f];
+            grad_meridional * bearing.sin() - grad_zonal * bearing.cos()
+        })
+        .collect();
+    Ok(Array1::from_vec(azgrad))
 }
 
 /// Computes the slope squared at a face using the Green-Gauss method.
@@ -702,8 +769,6 @@ fn compute_dt_max(face_kappa: ArrayView1<'_, f64>, region: &LocalSurfaceView<'_>
         .fold(f64::INFINITY, f64::min)
 }
 
-use numpy::ndarray::ArrayView1; // you already have prelude, so this is just for clarity
-
 /// Safely extract a pair of face indices (f1, f2) from an edge-face row.
 ///
 /// Returns `Some((f1, f2))` if:
@@ -750,4 +815,49 @@ fn extract_edge_faces(
     }
 
     Some((f1, f2))
+}
+
+// This function takes arrays of x, y, z coordinates and a target radius, and returns new arrays where each point is projected radially to the specified radius from the origin.
+//
+// # Arguments
+// * `x`, `y`, `z` - 1D arrays of the same length giving 3D positions.
+// * `radius` - The target radius to project points onto.
+//
+// # Returns
+// A tuple of three 1D NumPy arrays (x_out, y_out, z_out) where each point has been scaled to lie on the sphere of the given radius.
+pub fn reset_radial_distances(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    z: ArrayView1<'_, f64>,
+    r: ArrayView1<'_, f64>,
+) -> Result<
+    (
+        numpy::ndarray::Array1<f64>,
+        numpy::ndarray::Array1<f64>,
+        numpy::ndarray::Array1<f64>,
+    ),
+    String,
+> {
+    let n = x.len();
+    if y.len() != n || z.len() != n || r.len() != n {
+        return Err("Input arrays must have the same length".to_string());
+    }
+
+    let mut x_out = Array1::<f64>::zeros(n);
+    let mut y_out = Array1::<f64>::zeros(n);
+    let mut z_out = Array1::<f64>::zeros(n);
+    for (i, (xh, yh, zh, rh)) in izip!(&x, &y, &z, &r).enumerate() {
+        let mag = (xh * xh + yh * yh + zh * zh).sqrt();
+        if mag > 0.0 {
+            x_out[i] = rh * xh / mag;
+            y_out[i] = rh * yh / mag;
+            z_out[i] = rh * zh / mag;
+        } else {
+            x_out[i] = 0.0;
+            y_out[i] = 0.0;
+            z_out[i] = 0.0;
+        }
+    }
+
+    Ok((x_out, y_out, z_out))
 }

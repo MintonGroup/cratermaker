@@ -268,7 +268,7 @@ class TestSurface(unittest.TestCase):
                 for distance in distances:
                     dist_arr = np.full_like(bearings, distance)
                     computed_locations = surface.compute_location_from_distance_bearing(
-                        reference_location=reference_location, distance=dist_arr, bearing=bearings
+                        reference_location=reference_location, distances=dist_arr, bearings=bearings
                     )
                     computed_distances = surface.compute_distances(
                         reference_location=reference_location, locations=computed_locations

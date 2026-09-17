@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+        os: [windows-latest, ubuntu-latest, macos-26, macos-15, macos-14]
 
     steps:
       - uses: actions/checkout@v6
@@ -31,25 +31,21 @@ jobs:
         run: |
           python buildscripts/set_version.py
 
-      - name: Install openblas/openssl (Linux host only; manylinux builds use container deps)
+      - name: Install openssl (Linux host only; manylinux builds use container deps)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libopenblas-dev
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev 
 
       - name: Export OpenSSL env
         if: runner.os == 'Linux'
         run: echo "OPENSSL_DIR=/usr/lib/ssl" >> $GITHUB_ENV
 
-      - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
+      - name:  Install OpenSSL via Homebrew (macOS)
         if: runner.os == 'macOS'
-        run: brew install openssl@3 openblas
-
-      - name: Install OpenBLAS via vcpkg (Windows)
-        if: runner.os == 'Windows'
         run: |
-          vcpkg install openblas intel-mkl --triplet x64-windows
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-          echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
-
+          brew install openssl@3 gcc
+          GCC_VER=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
+          GCC_LIB="$(brew --prefix gcc)/lib/gcc/${GCC_VER}"
+          echo "DYLD_LIBRARY_PATH=${GCC_LIB}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" >> $GITHUB_ENV
 
 
       - name: Build wheels
@@ -65,12 +61,12 @@ jobs:
             if command -v yum >/dev/null 2>&1; then
               yum -y install epel-release
               yum repolist
-              yum -y install pkgconfig openssl-devel openblas-devel
+              yum -y install pkgconfig openssl-devel 
             elif command -v dnf >/dev/null 2>&1; then
-              dnf -y install pkgconf-pkg-config openssl-devel flexiblas-devel
+              dnf -y install pkgconf-pkg-config openssl-devel 
             elif command -v apt-get >/dev/null 2>&1; then
               apt-get update
-              apt-get install -y pkg-config libssl-dev libopenblas-dev
+              apt-get install -y pkg-config libssl-dev 
             else
               echo "No supported package manager found in manylinux container" >&2
               exit 1
@@ -88,7 +84,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [windows-latest, ubuntu-latest, macos-26, macos-15, macos-14]
     
     steps:
       - uses: actions/checkout@v6
@@ -97,20 +93,13 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install openblas/openssl (Linux host only; manylinux builds use container deps)
+      - name: Install openssl (Linux host only; manylinux builds use container deps)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libopenblas-dev
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev 
 
-      - name:  Install OpenSSL OpenBLAS via Homebrew (macOS)
+      - name:  Install OpenSSL via Homebrew (macOS)
         if: runner.os == 'macOS'
-        run: brew install openssl@3 openblas
-
-      - name: Install OpenBLAS via vcpkg (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          vcpkg install openblas intel-mkl --triplet x64-windows
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-          echo "OPENBLAS_LIB=C:\vcpkg\installed\x64-windows\lib" >> $env:GITHUB_ENV
+        run: brew install openssl@3 
 
       - uses: actions/download-artifact@v8
         with:

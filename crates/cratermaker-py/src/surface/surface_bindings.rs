@@ -3,7 +3,7 @@ use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
-// Mirrors the PyReadonlyLocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
+// Mirrors the LocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyLocalSurface<'py> {
     pub n_face: usize,
     pub pix: f64,
@@ -509,6 +509,21 @@ pub fn compute_bearings<'py>(
 }
 
 #[pyfunction]
+///
+///
+/// Computes the destination coordinates given a starting point, distance, and bearing on a spherical surface.
+///
+///
+/// # Arguments
+//// * `py` - Python GIL token.
+/// * `lon1` - Longitude of the starting point, in radians.
+/// * `lat1` - Latitude of the starting point, in radians.
+/// * `distances` - Array of distances to travel from the starting point, in meters.
+/// * `bearings` - Array of bearing angles (radians) corresponding to each distance, where 0 is north and angles increase clockwise.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+//// A NumPy array of shape (n, 2) where each row contains the longitude and latitude (in radians) of the destination point corresponding to each distance and bearing pair.
 pub fn compute_location_from_distance_bearing<'py>(
     py: Python<'py>,
     lon1: f64,
@@ -528,4 +543,30 @@ pub fn compute_location_from_distance_bearing<'py>(
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray2::from_owned_array(py, lonlat2_v))
+}
+
+#[pyfunction]
+pub fn reset_radial_distances<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    z: PyReadonlyArray1<'py, f64>,
+    r: PyReadonlyArray1<'py, f64>,
+) -> PyResult<(
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<f64>>,
+)> {
+    let x_v = x.as_array();
+    let y_v = y.as_array();
+    let z_v = z.as_array();
+    let r_v = r.as_array();
+    let (x_out, y_out, z_out) =
+        cratermaker_components::surface::reset_radial_distances(x_v, y_v, z_v, r_v)
+            .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok((
+        PyArray1::from_owned_array(py, x_out),
+        PyArray1::from_owned_array(py, y_out),
+        PyArray1::from_owned_array(py, z_out),
+    ))
 }

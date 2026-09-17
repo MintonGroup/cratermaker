@@ -101,6 +101,10 @@ class DataSurface(HiResLocalSurface):
         object.__setattr__(self, "_superdomain_dem_file", None)
 
         super(HiResLocalSurface, self).__init__(target=target, simdir=simdir, **kwargs)
+        if local_radius > 1.49 * self.target.radius:
+            raise ValueError(
+                "The value of local_radius is too large. Consider using DataComposer on a global surface type, such as Icosphere."
+            )
         if dem_file_list is None and self.target.name != "Moon":
             raise ValueError("DataSurface currently only supports the Moon as a target if 'dem_file_list' is not provided.")
         if superdomain_dem_file is None and self.target.name != "Moon":
@@ -131,10 +135,11 @@ class DataSurface(HiResLocalSurface):
             "ask_overwrite": self.ask_overwrite,
         }
         super().__init__(**super_kwargs)
+        # This following  necessary because the _user_defined list gets overridden by the call to super()
+        self._user_defined.add("dem_file_list")
 
-        self._superdomain_dem_file = superdomain_dem_file
+        self.superdomain_dem_file = superdomain_dem_file
         self.ask_overwrite = ask_overwrite
-        return
 
     def _get_location_extents(self):
         """
@@ -191,6 +196,7 @@ class DataSurface(HiResLocalSurface):
             return
         from affine import Affine
         from pyproj import Transformer
+        from rasterio.fill import fillnodata
         from rasterio.io import MemoryFile
         from rasterio.merge import merge
         from rasterio.vrt import WarpedVRT
@@ -209,6 +215,7 @@ class DataSurface(HiResLocalSurface):
             name=self.target.name,
             location=self.local_location,
         )
+
         src_list = []
         print("Reading DEM files:")
         try:
@@ -217,10 +224,15 @@ class DataSurface(HiResLocalSurface):
                 src_list.append(rasterio.open(f))
         except Exception as e:
             raise RuntimeError(f"Error reading DEM file(s): {e}") from e
-        nodata_val = src_list[0].nodata
-        if nodata_val is None or np.isnan(nodata_val) or np.abs(nodata_val) < np.abs(_NODATA):
-            nodata_val = _NODATA
+        dtype = src_list[0].dtypes[0]
+
+        if "float" in dtype:
+            nodata_val = np.finfo(dtype).min
+        elif "int" in dtype:
+            nodata_val = np.iinfo(dtype).min
+
         target_res = min(s.res[0] for s in src_list)
+        self._pix = target_res
         dst_width = int(np.ceil(2 * half_box_size / target_res))
         dst_height = dst_width
         dst_transform = Affine(target_res, 0.0, -half_box_size, 0.0, -target_res, half_box_size)
@@ -232,15 +244,14 @@ class DataSurface(HiResLocalSurface):
                 width=dst_width,
                 height=dst_height,
                 resampling=Resampling.bilinear,
+                nodata=nodata_val,
+                src_nodata=src.nodata if src.nodata is not None else nodata_val,
+                init_dest_nodata=True,
             )
             for src in src_list
         ]
         # Ensure nodata is respected; if missing, use NaN and float32
-        mosaic, transform = merge(
-            vrt_list,
-            nodata=nodata_val,
-            dtype="float32" if np.isnan(nodata_val) else None,
-        )
+        mosaic, transform = merge(vrt_list, nodata=nodata_val, dtype="float32" if np.isnan(nodata_val) else None, masked=True)
 
         out_meta = src_list[0].meta.copy()
         out_meta.update(
@@ -256,16 +267,22 @@ class DataSurface(HiResLocalSurface):
 
         with MemoryFile() as memfile, memfile.open(**out_meta) as src:
             src.units = src_list[0].units
+            scale = src_list[0].scales[0]
             src.write(mosaic)
 
             window = Window(0, 0, src.width, src.height)
             if "KILOMETER" in src.units:
-                scale_factor = 1000.0
+                scale_factor = 1000.0 * scale
             else:
-                scale_factor = 1.0
+                scale_factor = 1.0 * scale
 
             # Read the data within the window
             elevation = src.read(1, window=window) * scale_factor
+            mask_nodata = (elevation != src.nodata) & (~np.isnan(elevation)) & (~np.isinf(elevation))
+            if np.any(~mask_nodata):
+                # elevation = np.ma.masked_where(~mask_nodata, elevation)
+                # elevation = fillnodata(elevation)
+                elevation = np.where(mask_nodata, elevation, np.nanmean(elevation))
 
             # Preserve the window grid and affine for later interpolation
             window_transform = src.window_transform(window)
@@ -277,12 +294,13 @@ class DataSurface(HiResLocalSurface):
             x_coords, y_coords = rasterio.transform.xy(window_transform, rows, cols, offset="center")
             x_coords = np.array(x_coords).flatten()
             y_coords = np.array(y_coords).flatten()
+
+            if np.any(~mask_nodata):
+                elevation = np.ma.masked_where(~mask_nodata, elevation)
+                elevation = fillnodata(elevation)
+
             elevation = elevation.flatten()
 
-            # Handle nodata values
-            mask_nodata = (elevation != src.nodata) & ~np.isnan(elevation)
-            mean_elevation = np.mean(elevation[mask_nodata])
-            elevation[~mask_nodata] = mean_elevation
             elevation = elevation.astype(np.float32)
 
             transformer_to_geodetic = Transformer.from_crs(dst_crs, self.crs, always_xy=True)
@@ -292,6 +310,8 @@ class DataSurface(HiResLocalSurface):
             r_vals = self.compute_distances(
                 reference_location=self.local_location, locations=list(zip(longitudes, latitudes, strict=False))
             )
+
+            # Reset the current resolution value, as it will later be read in from file
             local_dem_data = {
                 "elevation": elevation,
                 "mask": r_vals <= region_radius + self.pix / 4,
@@ -538,6 +558,23 @@ class DataSurface(HiResLocalSurface):
         return
 
     @parameter
+    def pix(self) -> float:
+        if self._pix is None and self._dem_file_list is not None:
+            # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
+            pixvals = []
+            for f in self._dem_file_list:
+                with rasterio.open(f) as src:
+                    pixvals.append(src.res[0])
+            self._pix = min(pixvals)
+        return self._pix
+
+    @pix.setter
+    def pix(self, value: FloatLike):
+        if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value <= 0:
+            raise TypeError("pix must be a positive float")
+        self._pix = value
+
+    @parameter
     def dem_file_list(self) -> list[str] | None:
         """
         The list of files to use for the DEM data in the high resolution local region.
@@ -552,7 +589,9 @@ class DataSurface(HiResLocalSurface):
                 # Compute a reasonable default resolution that will contain approximately 1e6 faces based on the local radius
                 self._pix = np.sqrt(np.pi * self.local_radius**2 / _DEFAULT_N_FACES_LOCAL)
             lon_min, lon_max, lat_min, lat_max = self.get_location_extents(self.local_location, self.local_radius)
-            value, self._pix = DataComposer.get_lola_dem_file_list(pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))
+            value, self._pix = DataComposer.get_lola_dem_file_list(
+                pix=self._pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max)
+            )
         elif isinstance(value, list):
             if not all(isinstance(f, (str, Path)) for f in value):
                 raise ValueError("All items in 'dem_file_list' must be strings or Path objects.")
@@ -560,14 +599,6 @@ class DataSurface(HiResLocalSurface):
             raise TypeError("'dem_file_list' must be a list of strings or Path objects, or None.")
 
         self._dem_file_list = value
-
-        # Set the pixel size based on the provided files. We take the highest resolution (smallest pixel size) among the files.
-
-        pixvals = []
-        for f in self._dem_file_list:
-            with rasterio.open(f) as src:
-                pixvals.append(src.res[0])
-        self._pix = min(pixvals)
 
         return
 
@@ -582,6 +613,7 @@ class DataSurface(HiResLocalSurface):
     @superdomain_dem_file.setter
     def superdomain_dem_file(self, value: str | Path | None):
         if value is None:
+            self._superdomain_dem_file = None
             # If the superdomain has not been set yet, we will defer setting this until later
             if self.superdomain_scale_factor is None:
                 return
@@ -589,7 +621,9 @@ class DataSurface(HiResLocalSurface):
             sdpix = self.superdomain_scale_factor * self.pix / 10.0
             if sdpix < min_global_pix:
                 sdpix = min_global_pix
-            self._superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[0][0]
+            self.superdomain_dem_file = DataComposer.get_lola_dem_file_list(pix=sdpix, lat_range=(-90, 90), lon_range=(-180, 180))[
+                0
+            ][0]
             return
         if not isinstance(value, (str, Path)):
             raise TypeError("'superdomain_dem_file' must be a strings or Path objects, or None.")
@@ -602,4 +636,4 @@ class DataSurface(HiResLocalSurface):
         The variables used to generate the hash.
 
         """
-        return super()._hashvars + [self._dem_file_list]
+        return super(HiResLocalSurface, self)._hashvars + [self.local_radius, self.local_location, self._dem_file_list]
