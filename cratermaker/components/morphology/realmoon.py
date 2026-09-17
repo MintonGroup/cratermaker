@@ -50,6 +50,8 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
+        rim_radius_psd: np.ndarray | None = None,
+        floor_radius_psd: np.ndarray | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -58,6 +60,8 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
         object.__setattr__(self, "_floor_radius_control", floor_radius_control)
         object.__setattr__(self, "_wall_texture_control", wall_texture_control)
         object.__setattr__(self, "_ejecta_texture_control", ejecta_texture_control)
+        object.__setattr__(self, "_rim_radius_psd", rim_radius_psd)
+        object.__setattr__(self, "_floor_radius_psd", rim_radius_psd)
         return
 
     @property
@@ -116,6 +120,8 @@ class RealMoonCrater(BasicMoonCrater):
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
+        rim_radius_psd: np.ndarray | None = None,
+        floor_radius_psd: np.ndarray | None = None,
         **kwargs: Any,
     ) -> RealMoonCrater:
         """
@@ -139,6 +145,10 @@ class RealMoonCrater(BasicMoonCrater):
             Control points for the wall texture. If None then it will be computed.
         ejecta_texture_control : np.ndarray, optional
             Control points for the ejecta texture. If None then it will be computed.
+        rim_radius_psd : np.ndarray, optional
+            Rim radius PSD. If None, then it will be computed from control points.
+        floor_radius_psd : np.ndarra, optional
+            Floor radius PSD. If None, then it will be computed from control points.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -265,26 +275,32 @@ class RealMoonCrater(BasicMoonCrater):
         """
         The power spectral density distribution of the rim radius outline.
         """
-        npoints = max(int(4 * math.pi * self.radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
-        return realmoon_bindings.get_1d_psd_from_control_points(
-            control_points=self.rim_radius_control,
-            npoints=npoints,
-            add_noise=self.morphology.add_noise,
-            rng_seed=self.rim_radius_rng_seed,
-        )
+        if self._var._rim_radius_psd is None:
+            npoints = max(int(4 * math.pi * self.radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
+            return realmoon_bindings.get_1d_psd_from_control_points(
+                control_points=self.rim_radius_control,
+                npoints=npoints,
+                add_noise=self.morphology.add_noise,
+                rng_seed=self.rim_radius_rng_seed,
+            )
+        else:
+            return self._var._rim_radius_psd
 
     @property
     def floor_radius_psd(self) -> np.ndarray:
         """
         The power spectral density distribution of the floor radius outline.
         """
-        npoints = max(int(4 * math.pi * self.floor_radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
-        return realmoon_bindings.get_1d_psd_from_control_points(
-            control_points=self.floor_radius_control,
-            npoints=npoints,
-            add_noise=self.morphology.add_noise,
-            rng_seed=self.floor_radius_rng_seed,
-        )
+        if self._var._floor_radius_psd is None:
+            npoints = max(int(4 * math.pi * self.floor_radius / self.morphology.surface.pix), _PSD1D_MIN_POINTS)
+            return realmoon_bindings.get_1d_psd_from_control_points(
+                control_points=self.floor_radius_control,
+                npoints=npoints,
+                add_noise=self.morphology.add_noise,
+                rng_seed=self.floor_radius_rng_seed,
+            )
+        else:
+            return self._var._floor_radius_psd
 
     @property
     def rim_radius_control(self) -> np.ndarray | None:
