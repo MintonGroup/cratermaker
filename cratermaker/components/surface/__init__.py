@@ -3026,7 +3026,7 @@ class LocalSurface(CratermakerBase):
 
         # Warp the mesh according to node elevation if it exists
         if "node_elevation" in uxds:
-            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
+            warped_xyz = node_xyz + uxds.node_elevation.data[self.node_indices, None] * node_normals
         else:
             warped_xyz = node_xyz
 
@@ -3050,7 +3050,11 @@ class LocalSurface(CratermakerBase):
         for v in uxds.variables:
             if uxds[v].dtype == np.dtype("bool"):
                 continue
-            array = numpy_to_vtk(uxds[v].values, deep=True)
+            if "n_node" in uxds[v].dims:
+                array = uxds[v].data[self.node_indices]
+            else:
+                array = uxds[v].data
+            array = numpy_to_vtk(array, deep=True)
             array.SetName(v)
             if "n_face" in uxds[v].dims:
                 grid.GetCellData().AddArray(array)
@@ -4140,6 +4144,10 @@ class LocalSurface(CratermakerBase):
         return self._n_node
 
     @property
+    def node_elevation(self) -> NDArray:
+        return self.surface.node_elevation[self.node_indices]
+
+    @property
     def n_nodes_per_face(self) -> NDArray:
         """The number of nodes per face in the view."""
         return self.surface.n_nodes_per_face[self.face_indices]
@@ -4428,7 +4436,7 @@ class LocalSurface(CratermakerBase):
         if self.is_local:
             uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
             if not reset:
-                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices), uxgrid=self.uxgrid)
             else:
                 return uxr.UxDataset(uxgrid=self.uxgrid)
 
@@ -4515,7 +4523,7 @@ class LocalSurface(CratermakerBase):
         """The UxDataset representation of the local surface."""
         if self.is_global:
             return self.surface.uxds
-        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices), uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
