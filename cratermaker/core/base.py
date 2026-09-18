@@ -425,7 +425,7 @@ class CratermakerBase:
                 ds = xr.open_mfdataset(
                     data_file_list,
                     parallel=False,
-                    engine="netcdf4",
+                    engine="h5netcdf",
                     compat="no_conflicts",
                     join="outer",
                     data_vars=None,
@@ -436,7 +436,7 @@ class CratermakerBase:
                 for data_file in tqdm(
                     data_file_list, desc="Reading in files....", unit="files", total=len(data_file_list), position=0, leave=False
                 ):
-                    with xr.open_mfdataset(data_file, engine="netcdf4", data_vars=None, combine="nested") as ds_single:
+                    with xr.open_mfdataset(data_file, engine="h5netcdf", data_vars=None, combine="nested") as ds_single:
                         ds[ds_single.interval.item()] = ds_single
                 ds = dict(sorted(ds.items()))
 
