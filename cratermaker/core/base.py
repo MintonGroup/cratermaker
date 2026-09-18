@@ -415,10 +415,10 @@ class CratermakerBase:
             |kwargs|
         """
         if interval_index is not None:
-            with xr.open_dataset(data_file_list[interval_index]) as ds:
+            with xr.open_dataset(data_file_list[interval_index], engine="h5netcdf") as ds:
                 ds.load()
         elif len(data_file_list) == 1:
-            with xr.open_dataset(data_file_list[0]) as ds:
+            with xr.open_dataset(data_file_list[0], engine="h5netcdf") as ds:
                 ds.load()
         else:
             try:

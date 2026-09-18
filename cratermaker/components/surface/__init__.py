@@ -1187,7 +1187,7 @@ class Surface(ComponentBase):
     def _is_same_grid(self):
         """Check if the existing grid matches the one defined by the current parameters and returns True if they match after regridding."""
         try:
-            with xr.open_dataset(self.grid_file) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf") as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
                 old_id = uxgrid.attrs.get("_id")
@@ -1328,7 +1328,7 @@ class Surface(ComponentBase):
         """
         _ = kwargs.pop("resampling_order", None)
         if self.uxgrid is None:
-            with xr.open_dataset(self.grid_file, **kwargs) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf", **kwargs) as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
         else:

@@ -408,7 +408,7 @@ class DataSurface(HiResLocalSurface):
             self._add_local_dem_elevation()
             self._add_global_dem_elevation()
         elif (self.output_dir / self._dem_output_file).exists():
-            with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
+            with xr.open_dataset(self.output_dir / self._dem_output_file, engine="h5netcdf") as ds:
                 elevation = np.concatenate([ds.isel(interval=0).face_elevation, ds.isel(interval=0).node_elevation])
                 self.update_elevation(elevation)
 
@@ -436,7 +436,7 @@ class DataSurface(HiResLocalSurface):
             if not (self.output_dir / self._dem_output_file).exists():
                 regrid = True
             elif self.uxgrid is not None:
-                with xr.open_dataset(self.output_dir / self._dem_output_file) as ds:
+                with xr.open_dataset(self.output_dir / self._dem_output_file, engine="h5netcdf") as ds:
                     if (
                         "face_elevation" not in ds
                         or "node_elevation" not in ds
