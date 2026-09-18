@@ -3050,7 +3050,7 @@ class LocalSurface(CratermakerBase):
         for v in uxds.variables:
             if uxds[v].dtype == np.dtype("bool"):
                 continue
-            if "n_node" in uxds[v].dims:
+            if "n_node" in uxds[v].dims and not isinstance(self.node_indices, slice) and len(uxds[v].data) > len(self.node_indices):
                 array = uxds[v].data[self.node_indices]
             else:
                 array = uxds[v].data

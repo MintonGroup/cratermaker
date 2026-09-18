@@ -374,7 +374,7 @@ class TestSurface(unittest.TestCase):
                 self.assertIn("scalar_node", uxds)
                 assert hasattr(obj, "scalar_node")
                 np.testing.assert_array_equal(
-                    uxds["scalar_node"].sel(n_node=node_indices).values,
+                    uxds["scalar_node"].data[node_indices],
                     np.full(n_node, test_value),
                 )
 
