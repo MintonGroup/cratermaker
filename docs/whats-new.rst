@@ -8,7 +8,8 @@ What's New
 :release:`v2026.9.0-alpha`
 --------------------------
 
-- Overhauled much of the morphology code in preparation for a set of much improved morphology models in the works. `David Minton`_
+- Overhauled much of the morphology code in preparation for a set of much improved morphology models in the works. :issue:`130` :pull:`132` `David Minton`_
+   - Built new profile function with controllable morphology inputs, and nesting for basins/complex craters/concentric craters.
    - Improved the models for crater morphometry initial conditions. 
    - Removed the `fit_rim` function. This is being re-written as part of the development of the improved morphology models. Removing this allows the code to be compiled without requiring an OpenBLAS library install.
    - Fixed a number of edge case bugs when fetching default datasets using the DataSurface.
