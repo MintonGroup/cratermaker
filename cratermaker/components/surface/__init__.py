@@ -4523,7 +4523,7 @@ class LocalSurface(CratermakerBase):
         """The UxDataset representation of the local surface."""
         if self.is_global:
             return self.surface.uxds
-        return self.surface.uxds.loc[{"n_face": self.face_indices}]
+        return uxr.UxDataset(self.surface.uxds.loc[{"n_face": self.face_indices}], uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
