@@ -48,7 +48,6 @@ cratermaker/_version.py
 !crates/cratermaker-py/src/scaling/
 !crates/cratermaker-py/src/surface/
 !crates/cratermaker-py/src/target/
-!crates/cratermaker-py/src/target/
 !crates/cratermaker-py/src/counting/
 !pytest.ini
 !tests/
