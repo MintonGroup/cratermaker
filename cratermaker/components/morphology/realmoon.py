@@ -369,8 +369,8 @@ class RealmoonMorphology(BasicMoonMorphology):
                 f"2D power spectral density coefficient file not found at {psd2d_coef_file}. Please provide a valid file path."
             )
 
-        self._psd1d_coef = xr.open_dataset(psd1d_coef_file)
-        self._psd2d_coef = xr.open_dataset(psd2d_coef_file)
+        self._psd1d_coef = xr.open_dataset(psd1d_coef_file, engine="h5netcdf")
+        self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 

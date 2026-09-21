@@ -1187,7 +1187,7 @@ class Surface(ComponentBase):
     def _is_same_grid(self):
         """Check if the existing grid matches the one defined by the current parameters and returns True if they match after regridding."""
         try:
-            with xr.open_dataset(self.grid_file) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf") as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
                 old_id = uxgrid.attrs.get("_id")
@@ -1328,7 +1328,7 @@ class Surface(ComponentBase):
         """
         _ = kwargs.pop("resampling_order", None)
         if self.uxgrid is None:
-            with xr.open_dataset(self.grid_file, **kwargs) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf", **kwargs) as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
         else:
@@ -3026,7 +3026,7 @@ class LocalSurface(CratermakerBase):
 
         # Warp the mesh according to node elevation if it exists
         if "node_elevation" in uxds:
-            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
+            warped_xyz = node_xyz + uxds.node_elevation.data[self.node_indices, None] * node_normals
         else:
             warped_xyz = node_xyz
 
@@ -3050,7 +3050,11 @@ class LocalSurface(CratermakerBase):
         for v in uxds.variables:
             if uxds[v].dtype == np.dtype("bool"):
                 continue
-            array = numpy_to_vtk(uxds[v].values, deep=True)
+            if "n_node" in uxds[v].dims and not isinstance(self.node_indices, slice) and len(uxds[v].data) > len(self.node_indices):
+                array = uxds[v].data[self.node_indices]
+            else:
+                array = uxds[v].data
+            array = numpy_to_vtk(array, deep=True)
             array.SetName(v)
             if "n_face" in uxds[v].dims:
                 grid.GetCellData().AddArray(array)
@@ -4140,6 +4144,10 @@ class LocalSurface(CratermakerBase):
         return self._n_node
 
     @property
+    def node_elevation(self) -> NDArray:
+        return self.surface.node_elevation[self.node_indices]
+
+    @property
     def n_nodes_per_face(self) -> NDArray:
         """The number of nodes per face in the view."""
         return self.surface.n_nodes_per_face[self.face_indices]
@@ -4428,7 +4436,7 @@ class LocalSurface(CratermakerBase):
         if self.is_local:
             uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
             if not reset:
-                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices), uxgrid=self.uxgrid)
             else:
                 return uxr.UxDataset(uxgrid=self.uxgrid)
 
@@ -4515,7 +4523,7 @@ class LocalSurface(CratermakerBase):
         """The UxDataset representation of the local surface."""
         if self.is_global:
             return self.surface.uxds
-        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+        return self.surface.uxds.loc[{"n_face": self.face_indices}]
 
     @property
     def grid_file(self):
@@ -4661,7 +4669,7 @@ class DataComposer(AbstractContextManager):
         object.__setattr__(self, "_isfacedata", None)
         object.__setattr__(self, "_overwrite", None)
         object.__setattr__(self, "_iselevation", False)
-        object.__setattr__(self, "_resampling_order", 1)
+        object.__setattr__(self, "_resampling_order", 0)
         object.__setattr__(self, "_finished", False)
         object.__setattr__(self, "_surface", surface)
         object.__setattr__(self, "_data", None)
@@ -4686,7 +4694,7 @@ class DataComposer(AbstractContextManager):
             Calls ``rasterio.open`` when necessary.
         overwrite : bool, optional, default True
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
-        resampling_order: int, optional, default 0
+        resampling_order: int, optional, default 1
             Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
         **kwargs : Any
             |kwargs|
@@ -4704,7 +4712,7 @@ class DataComposer(AbstractContextManager):
         units: str | None = None,
         isfacedata: bool = True,
         overwrite: bool = True,
-        resampling_order: int = 1,
+        resampling_order: int = 0,
         **kwargs: Any,
     ):
         """
@@ -4727,7 +4735,7 @@ class DataComposer(AbstractContextManager):
             Flag to indicate whether the data is face data or node data.
         overwrite : bool, optional, default True
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
-        resampling_order: int, optional, default 1
+        resampling_order: int, optional, default 0
             Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
         **kwargs : Any
             |kwargs|

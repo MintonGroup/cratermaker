@@ -1250,7 +1250,7 @@ class Crater(ComponentBase):
             raise FileNotFoundError(f"File {filename} does not exist.")
         extension = filename.suffix.lower().lstrip(".")
         if extension == "nc":
-            ds = xr.open_dataset(filename)
+            ds = xr.open_dataset(filename, engine="h5netcdf")
             craters = cls.from_xarray(ds, conserve_volume=conserve_volume, **kwargs)
         elif extension == "csv":
             craters = cls.from_csv_file(filename, conserve_volume=conserve_volume, **kwargs)
