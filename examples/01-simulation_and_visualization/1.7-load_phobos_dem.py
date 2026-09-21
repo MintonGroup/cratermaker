@@ -23,8 +23,9 @@ sim = Simulation(
     ask_overwrite=False,
     reset=True,
 )
+# with sim.surface.data_composer() as composer:
+#     composer.update_elevation("https://planetarymaps.usgs.gov/mosaic/Phobos_ME_HRSC_DEM_Global_2ppd.tif")
 
-with sim.surface.data_composer() as composer:
-    composer.add_data("https://planetarymaps.usgs.gov/mosaic/Phobos_ME_HRSC_DEM_Global_2ppd.tif")
+sim.surface.update_elevation("https://planetarymaps.usgs.gov/mosaic/Phobos_ME_HRSC_DEM_Global_2ppd.tif", overwrite=True)
 
 sim.show3d()

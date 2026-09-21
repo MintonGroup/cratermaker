@@ -30,7 +30,7 @@ ice_bodies = [
     "Europa",
 ]
 
-fig, ax = plt.subplots(figsize=(5, 5))
+fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
 ax.set_xscale("log")
 ax.set_yscale("log")
 ax.set_xlabel("Surface Gravity [cm/s²]")
@@ -87,5 +87,4 @@ for body in bodies:
     )
     ax.text(g_mean, y_text, body, fontsize=9, ha="center", va=va)
 
-plt.tight_layout()
 plt.show()

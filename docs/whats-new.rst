@@ -3,6 +3,26 @@
 What's New
 ==========
 
+.. _whats-new.2026.9.0-alpha:
+
+:release:`v2026.9.0-alpha`
+--------------------------
+
+- Overhauled much of the morphology code in preparation for a set of much improved morphology models in the works. `David Minton`_
+   - Improved the models for crater morphometry initial conditions. 
+   - Removed the `fit_rim` function. This is being re-written as part of the development of the improved morphology models. Removing this allows the code to be compiled without requiring an OpenBLAS library install.
+   - Fixed a number of edge case bugs when fetching default datasets using the DataSurface.
+   - Fixed problem that arose due to selecting both faces and nodes in a LocalSurface with newer versions of UxArray. Now only faces are selected.
+- Added new functionality to the `Surface.add_data()` method that allows arbitrary raster data to be applied to any mesh as an associated UxArray DataArray. `David Minton`_ and `Leo Minton`_
+
+.. _whats-new.2026.5.0-alpha:
+
+:release:`v2026.5.0-alpha`
+--------------------------
+
+- Fixed :issue:`128` :pull:`129` by ensuring that the Scaling model gets assigned to the Morphology model, and that density can be passed as an argument to the `new_projectile` method. `David Minton`_
+
+
 .. _whats-new.2026.4.4-alpha:
 
 :release:`v2026.4.4-alpha`

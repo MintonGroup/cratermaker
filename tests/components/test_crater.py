@@ -97,6 +97,14 @@ class TestCrater(unittest.TestCase):
         crater2 = crater1.maker(crater1, measured_radius=1100.0)
         self.assertEqual(crater1.id, crater2.id)
 
+    def test_projectile_override(self):
+        """
+        Test for issue #128.
+        """
+        projectile_density = 7000.0
+        meteor_crater = Crater.maker(target="Earth", diameter=1200.0, projectile_density=projectile_density)
+        self.assertAlmostEqual(meteor_crater.projectile_density, projectile_density)
+
 
 if __name__ == "__main__":
     unittest.main()

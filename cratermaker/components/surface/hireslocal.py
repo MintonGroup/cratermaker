@@ -136,11 +136,12 @@ class HiResLocalSurface(Surface):
         FloatLike
             The effective pixel size at the given distance from the local center.
         """
-        return np.where(
+        retval = np.where(
             r < self.local_radius,
             self.pix,
             self.pix + self.superdomain_function_slope * (r - self.local_radius) ** self.superdomain_function_exponent,
         )
+        return float(retval.item())
 
     def extract_region(
         self,
@@ -246,6 +247,7 @@ class HiResLocalSurface(Surface):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         interval: int | None = None,
@@ -266,6 +268,8 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -299,6 +303,7 @@ class HiResLocalSurface(Surface):
             if scalebar is None:
                 scalebar = False
             return self._full().plot(
+                filename=filename,
                 plot_style=plot_style,
                 variable_name=variable_name,
                 interval=interval,
@@ -317,6 +322,7 @@ class HiResLocalSurface(Surface):
             if scalebar is None:
                 scalebar = True
             return self.local.plot(
+                filename=filename,
                 plot_style=plot_style,
                 variable_name=variable_name,
                 interval=interval,
@@ -424,7 +430,6 @@ class HiResLocalSurface(Surface):
 
     def set_superdomain(
         self,
-        scaling: Scaling | str | None = None,
         morphology: Morphology | str | None = None,
         reset: bool = False,
         regrid: bool = False,
@@ -437,8 +442,6 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        scaling : Scaling | str | None, optional
-            The scaling model to use. If None, the default scaling model will be used.
         morphology : Morphology | str | None, optional
             The morphology model to use. If None, the default morphology model will be used.
         reset : bool, optional
@@ -452,27 +455,31 @@ class HiResLocalSurface(Surface):
 
         from cratermaker import Crater
 
-        scaling = Scaling.maker(scaling, target=self.target, **kwargs)
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
+        # Disable MC scaling so that the superdomain scaling is always the same for a given set of surface parameters.
+        monte_carlo_scaling_orig = morphology.scaling.monte_carlo_scaling
+        morphology.scaling.monte_carlo_scaling = False
+
         antipode_distance = np.pi * self.target.radius
-        projectile_velocity = scaling.projectile.mean_velocity * 10
+        projectile_velocity = morphology.scaling.projectile.mean_velocity * 10
 
         distance = 1.0
         dvals = []
         sdvals = []
         superdomain_size = distance * 0.1
+
         while distance < antipode_distance:
             for diameter in np.logspace(
                 np.log10(superdomain_size),
                 np.log10(self.target.radius * 2),
                 1000,
             ):
-                crater = Crater.maker(
+                crater = morphology.Crater.maker(
                     diameter=diameter,
                     angle=90.0,
-                    scaling=scaling,
                     projectile_velocity=projectile_velocity,
+                    conserve_volume=False,
                 )
                 rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
@@ -493,9 +500,11 @@ class HiResLocalSurface(Surface):
             print("Could not fit superdomain function, using default values.")
             self._superdomain_function_slope = 1.0
             self._superdomain_function_exponent = 1.0
-        self._superdomain_scale_factor = self.superdomain_function(antipode_distance)
+        self.superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        self._load_from_files(reset=reset, regrid=regrid, scaling=scaling, morphology=morphology, **kwargs)
+        morphology.scaling.monte_carlo_scaling = monte_carlo_scaling_orig
+
+        self._load_from_files(reset=reset, regrid=regrid, **kwargs)
         return
 
     def set_face_proj(self):
@@ -681,8 +690,8 @@ class HiResLocalSurface(Surface):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
@@ -691,9 +700,9 @@ class HiResLocalSurface(Surface):
         Parameters
         ----------
         bearings : FloatLike or ArrayLike
-            Initial bearing from the reference point to the target point or points in degrees.
+            Initial bearings from the reference point to the target point or points in degrees.
         distances : FloatLike or ArrayLike
-            Great circle distance from the reference point to the target point or points in meters.
+            Great circle distances from the reference point to the target point or points in meters.
         reference_location : PairOfFloats, optional
             Longitude and latitude of the reference point in degrees. Default is the value of `local_location`
 
@@ -705,7 +714,7 @@ class HiResLocalSurface(Surface):
         if reference_location is None:
             reference_location = self.local_location
         return super().compute_location_from_distance_bearing(
-            distance=distance, bearing=bearing, reference_location=reference_location
+            distances=distances, bearings=bearings, reference_location=reference_location
         )
 
     @property
@@ -779,7 +788,7 @@ class HiResLocalSurface(Surface):
             raise ValueError("local_radius must be less than pi * radius of the target body")
         if value < self.pix:
             raise ValueError("local_radius must be greater than or equal to pix (the approximate face size in the local region")
-        self._local_radius = value
+        self._local_radius = float(value)
 
     @parameter
     def local_location(self) -> PairOfFloats:
@@ -830,7 +839,7 @@ class HiResLocalSurface(Surface):
     def superdomain_scale_factor(self, value: FloatLike):
         if not isinstance(value, FloatLike) or np.isnan(value) or np.isinf(value) or value < 1.0:
             raise TypeError("superdomain_scale_factor must be a positive float greater than or equal to 1")
-        self._superdomain_scale_factor = value
+        self._superdomain_scale_factor = float(value)
 
     @property
     def _hashvars(self):

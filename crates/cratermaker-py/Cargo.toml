@@ -1,16 +1,17 @@
 [package]
 name = "cratermaker-py"
-version = "2026.4.4-a0"
-edition = "2021"
+version = "2026.5.0-a14+gd6d69b0bf"
+edition = "2024"
 
 [lib]
 name = "bindings"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.27", features = ["extension-module"] }
-numpy = "0.27.1"
 cratermaker-components = { path = "../cratermaker-components" }
+pyo3 = { version = "0.29", features = ["extension-module"] }
+numpy = "0.29.0"
+interp = "2.1.2"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
