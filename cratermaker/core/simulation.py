@@ -179,6 +179,9 @@ class Simulation(CratermakerBase):
             **scaling_config,
         )
 
+        # For surface types that use dem files for input, be sure not to let the input pix value override the one that is already set.
+        if "dem_file_list" in surface_config and "pix" in surface_config:
+            kwargs.pop("pix", None)
         surface_config = {
             **surface_config,
             **kwargs,
@@ -197,11 +200,12 @@ class Simulation(CratermakerBase):
         if self.surface.is_new is not None:
             self.is_new = self.surface.is_new
 
+        # In order to read in old Counting data, we need a Morphology model. But Morphology needs Counting, so we initialize a temporary Counting model without any old data in it, using reset=True, then build it again after Morphology is created if necessary
         counting_config = {**counting_config, **kwargs}
         self.counting = Counting.maker(
             self.counting,
             surface=self.surface,
-            reset=self.is_new,
+            reset=True,
             **counting_config,
         )
 
@@ -214,6 +218,8 @@ class Simulation(CratermakerBase):
             scaling=self.scaling,
             **morphology_config,
         )
+        if not self.is_new:
+            self.counting = Counting.maker(self.morphology.counting, surface=self.surface, reset=self.is_new, **counting_config)
 
         # If this is a variant of the HiResLocalSurface we need to check to see if it has a grid yet.
         # This is because when creating a new Surface object of this type, the grid generation is deferred until the Scaling and Morphology objects are initialized in order to set the superdomain properly.
@@ -1006,8 +1012,10 @@ class Simulation(CratermakerBase):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         interval: int | None = None,
         plot_style: str = "hillshade",
+        variable_name: str | None = None,
         label="default",
         show=False,
         save=True,
@@ -1028,12 +1036,16 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         include_counting : bool, optional
             If True, the counting data will be included in the plot if counting is enabled. Default is False
         interval : int, optional
             The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
         plot_style : str, optional
             The style to use for surface plots. See :py:meth:`Surface.plot` for more details. Default is 'hillshade'.
+        variable_name : str | None, optional
+            The variable to plot. If None is provided then "face_elevation" is used in "map" mode.
         cmap : str, optional
             The colormap to use for the plot. If None, a default colormap will be used ("cividis" by default and "grey" when plot_style=="hillshade" and variable=="face_elevation").
         observed_color : str | None, optional
@@ -1078,6 +1090,8 @@ class Simulation(CratermakerBase):
         plot_args = {
             "interval": interval,
             "plot_style": plot_style,
+            "variable_name": variable_name,
+            "filename": filename,
             "label": label,
             "show": show,
             "save": save,

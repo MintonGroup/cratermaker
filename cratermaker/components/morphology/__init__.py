@@ -13,9 +13,6 @@ if TYPE_CHECKING:
     from cratermaker.components.morphology import Morphology
     from cratermaker.components.surface import LocalSurface
 
-# The factor by which the crater tagging region is extended beyond the final rim.
-_RIM_BUFFER_FACTOR = 1.5
-
 
 from abc import abstractmethod
 from collections.abc import Callable
@@ -48,7 +45,52 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_ejecta_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_rings", [])
+        object.__setattr__(self, "_frac_ejrim", None)
+        frac_ejrim = kwargs.pop("frac_ejrim", None)
+        rings = kwargs.pop("rings", None)
+        if frac_ejrim is not None:
+            self.frac_ejrim = frac_ejrim
+        if rings is not None:
+            if isinstance(rings, list):
+                self._rings = rings
+            elif isinstance(rings, MorphologyCrater):
+                self._ring = [rings]
+            else:
+                raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
+
+    @property
+    def frac_ejrim(self) -> float | None:
+        """Ejecta rim thickness of the crater in meters."""
+        return self._frac_ejrim
+
+    @frac_ejrim.setter
+    def frac_ejrim(self, value: float | None):
+        if value is None:
+            self._frac_ejrim = None
+        else:
+            if value < 0.0:
+                raise ValueError("frac_ejrim must be positive.")
+            self._frac_ejrim = value
+        return
+
+    @property
+    def rings(self) -> list[MorphologyCrater]:
+        if self.nrings == 0:
+            return None
+        else:
+            return self._rings
+
+    @property
+    def nrings(self) -> int:
+        """
+        Returns the number of rings associated with this Crater.
+        """
+        if self._rings is None:
+            return 0
+        else:
+            return len(self._rings)
 
     def as_dict(self) -> dict:
         """
@@ -65,7 +107,10 @@ class MorphologyCraterVariable(CraterVariable):
             "ejecta_region",
             "crater_region",
             "emplaceable",
+            "frac_ejrim",
+            "rings",
         )
+
         for key in keys:
             dict_repr[key] = getattr(self, key)
 
@@ -179,6 +224,8 @@ class MorphologyCrater(Crater):
                 raise ValueError("Cannot provide both location and relative_location")
             if not isinstance(relative_location, dict) or "distance" not in relative_location or "bearing" not in relative_location:
                 raise TypeError("relative_location must be a dict with keys 'distance' and 'bearing'.")
+            relative_location["distances"] = relative_location.pop("distance")
+            relative_location["bearings"] = relative_location.pop("bearing")
             location = morphology.surface.compute_location_from_distance_bearing(**relative_location)
 
         crater = super().maker(
@@ -240,6 +287,8 @@ class MorphologyCrater(Crater):
             self._var._ejecta_rmax = self.morphology.rmax(
                 self, minimum_thickness=self.morphology.surface.smallest_length, feature="ejecta"
             )
+            if self._var._crater_region is not None:
+                self._var._ejecta_rmax = max(self._var._ejecta_rmax, self._var._crater_region.radius)
         return self._var._ejecta_rmax
 
     @property
@@ -264,10 +313,8 @@ class MorphologyCrater(Crater):
         This is extracted from the morphology's associated Surface object based on the location of the crater and a radius that extends by a `_RIM_BUFFER_FACTOR` constant times the crater radius. If the crater region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
         if self._var._crater_region is None and self._has_initialized_surface_data:
-            self._var._crater_region = self.morphology.surface.extract_region(
-                location=self.location,
-                region_radius=_RIM_BUFFER_FACTOR * self.radius,
-            )
+            region_radius = self.morphology.rmax(self, minimum_thickness=self.morphology.surface.smallest_length, feature="crater")
+            self._var._crater_region = self.morphology.surface.extract_region(location=self.location, region_radius=region_radius)
         return self._var._crater_region
 
     @property
@@ -314,16 +361,16 @@ class MorphologyCrater(Crater):
     def emplaceable(self) -> bool | None:
         """Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted."""
         if self._var._emplaceable is None and self._has_initialized_surface_data:
-            self._var._emplaceable = self.crater_region is not None
+            self._var._emplaceable = self.crater_region is not None or self.ejecta_region is not None
         return self._var._emplaceable
 
     @property
-    def measured_rim_elevation(self) -> float | None:
+    def measured_rim_height(self) -> float | None:
         """The measured rim height of the crater, which is determined based on the morphology model's crater shape and the surface elevation data in the crater region."""
         if self.crater_region is not None:
             self.crater_region.compute_desloped_face_elevation()
-            self._var._measured_rim_elevation = counting_bindings.measure_rim_elevation(self.crater_region, self)
-        return self._var._measured_rim_elevation
+            self._var._measured_rim_height = counting_bindings.measure_rim_height(self.crater_region, self)
+        return self._var._measured_rim_height
 
     @property
     def measured_floor_elevation(self) -> float | None:
@@ -338,13 +385,13 @@ class MorphologyCrater(Crater):
         """
         The measured depth to diameter ratio of the crater.
 
-        This is computed from `measured_rim_elevation`-`measured_floor_elevation`
+        This is computed from `measured_rim_height`-`measured_floor_elevation`
         """
         if self.crater_region is not None:
             self.crater_region._desloped_face_elevation = None
             floor_elevation = self.measured_floor_elevation
-            rim_elevation = self.measured_rim_elevation
-            return (rim_elevation - floor_elevation) / self.measured_diameter
+            rim_height = self.measured_rim_height
+            return (rim_height - floor_elevation) / self.measured_diameter
         else:
             return None
 
@@ -361,6 +408,7 @@ class Morphology(ComponentBase):
         production: Production | str | None = None,
         counting: Counting | str | None = None,
         scaling: Scaling | str | None = None,
+        conserve_volume: bool = True,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
         do_counting: bool | None = None,
@@ -379,6 +427,8 @@ class Morphology(ComponentBase):
             The name of a Counting object, or an instance of Counting, to be associated with the morphology model. This is used to record crater counts during emplacement. If None, no counting will be performed.
         scaling : str, Scaling or None, optional
             The projectile->crater size scaling model to use from the components library. The default is "montecarlo".
+        conserve_volume : bool, optional
+            When True, volume will be conserved when generating craters on a Surface using a combination of adjusting input morphometric parameters and scaling ejecta thickness such that the net change of volume of material is near zero.
         do_subpixel_degradation : bool, optional
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
@@ -398,6 +448,7 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_production", None)
         object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_scaling", None)
+        object.__setattr__(self, "_conserve_volume", None)
         object.__setattr__(self, "_do_counting", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
@@ -424,6 +475,7 @@ class Morphology(ComponentBase):
             else:
                 self.do_counting = do_counting
 
+        self.conserve_volume = conserve_volume
         self.do_subpixel_degradation = do_subpixel_degradation
         self.do_slope_collapse = do_slope_collapse
         if do_subpixel_degradation:
@@ -594,34 +646,38 @@ class Morphology(ComponentBase):
 
         # Check to make sure that the face at the crater location is not smaller than the crater area
         if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.ejecta_region)
-            crater.ejecta_region.update_elevation(elevation_change)
-            if self.do_slope_collapse:
-                crater.ejecta_region.slope_collapse()
-            self._excavated_volume = crater.ejecta_region.compute_volume(elevation_change[: crater.ejecta_region.n_face])
+            elevation_change = self.crater_shape(crater, crater.crater_region)
+            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
 
             # Remove any ejecta from the interior of the crater
             inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
             if inner_crater_region is not None:
                 inner_crater_region.add_data(
-                    "ejecta_thickness",
+                    name="ejecta_thickness",
                     long_name="ejecta thickness",
                     units="m",
                     data=0.0,
                     overwrite=True,
                 )
 
-            self.counting.emplaced.append(crater)
-            # Record the crater to the counting layerk
+            # Record the crater to the counting layer
             if self.do_counting:
                 self.counting.add(crater, **kwargs)
 
-            self.form_ejecta(crater, **kwargs)
+            ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
+            elevation_change += ejecta_thickness
+
+            # Apply the elevation change to the surface only after the ejecta formation has been run, to preven tthe crater from self-degrading
+            crater.crater_region.update_elevation(elevation_change)
+            if self.do_slope_collapse:
+                crater.crater_region.slope_collapse()
         return
 
-    def form_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
-        Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
+        Computes the ejecta blanket of the crater and returns its thickness and intensity values to be applied to the mesh later.
+
+        Ejecta burial and the diffusive degradation function are applied to the pre-existing surface.
 
         Parameters
         ----------
@@ -633,29 +689,42 @@ class Morphology(ComponentBase):
         Returns
         -------
         tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations. |
+            The computed ejecta thickness and intensity at the face and node elevations.
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self)
 
-        if not self._excavated_volume:
-            return
+        conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
+        if not isinstance(crater, MorphologyCrater):
+            crater = MorphologyCrater.maker(crater=crater, morphology=self, conserve_volume=conserve_volume)
+
+        if not self._excavated_volume or crater.ejecta_region is None:
+            return None, None
         ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
         ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
         ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
-        conservation_factor = -self._excavated_volume / ejecta_volume
+        if conserve_volume:
+            conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
+        else:
+            conservation_factor = 1.0
+        ejrim = crater.frac_ejrim * crater.rim_height
         ejecta_thickness *= conservation_factor
+        ejrim *= conservation_factor
+        crater.frac_ejrim = min(ejrim / crater.rim_height, 1.0)
+        if crater.nrings > 0:
+            for ring in crater.rings:
+                if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
+                    ejrim = ring.frac_ejrim * ring.rim_height
+                    ejrim *= conservation_factor
+                    ring.frac_ejrim = max(ejrim / ring.rim_height, 1.0)
 
         crater.ejecta_region.add_data(
-            "ejecta_thickness",
+            name="ejecta_thickness",
             long_name="ejecta thickness",
             units="m",
             data=ejecta_thickness[: crater.ejecta_region.n_face],
+            overwrite=False,
         )
-
-        crater.ejecta_region.update_elevation(ejecta_thickness)
 
         return ejecta_thickness, ejecta_intensity
 
@@ -845,6 +914,17 @@ class Morphology(ComponentBase):
         self._counting.morphology = self
 
     @parameter
+    def conserve_volume(self) -> bool:
+        """Whether to conserved volume during crater emplacement."""
+        return self._conserve_volume
+
+    @conserve_volume.setter
+    def conserve_volume(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("conserve_volume must be a boolean value")
+        self._conserve_volume = value
+
+    @parameter
     def do_subpixel_degradation(self) -> bool:
         """Whether to perform subpixel degradation during crater emplacement."""
         return self._do_subpixel_degradation
@@ -905,6 +985,8 @@ class Morphology(ComponentBase):
                 @classmethod
                 def maker(cls: type[_WrappedMorphologyCrater], **kwargs):
                     kwargs["morphology"] = self
+                    if "conserve_volume" not in kwargs:
+                        kwargs["conserve_volume"] = self.conserve_volume
                     kwargs = {**kwargs, **vars(self.common_args)}
                     return self._CraterType.maker(**kwargs)
 

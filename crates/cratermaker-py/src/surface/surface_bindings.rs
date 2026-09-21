@@ -3,7 +3,7 @@ use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
-// Mirrors the PyReadonlyLocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
+// Mirrors the LocalSurface struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyReadonlyLocalSurface<'py> {
     pub n_face: usize,
     pub pix: f64,
@@ -509,6 +509,21 @@ pub fn compute_bearings<'py>(
 }
 
 #[pyfunction]
+///
+///
+/// Computes the destination coordinates given a starting point, distance, and bearing on a spherical surface.
+///
+///
+/// # Arguments
+//// * `py` - Python GIL token.
+/// * `lon1` - Longitude of the starting point, in radians.
+/// * `lat1` - Latitude of the starting point, in radians.
+/// * `distances` - Array of distances to travel from the starting point, in meters.
+/// * `bearings` - Array of bearing angles (radians) corresponding to each distance, where 0 is north and angles increase clockwise.
+/// * `radius` - Radius of the sphere in meters.
+///
+/// # Returns
+//// A NumPy array of shape (n, 2) where each row contains the longitude and latitude (in radians) of the destination point corresponding to each distance and bearing pair.
 pub fn compute_location_from_distance_bearing<'py>(
     py: Python<'py>,
     lon1: f64,

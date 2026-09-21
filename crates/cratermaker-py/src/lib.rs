@@ -1,6 +1,6 @@
-pub mod counting_bindings;
-pub mod morphology_bindings;
-pub mod surface_bindings;
+pub mod counting;
+pub mod morphology;
+pub mod surface;
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -19,22 +19,31 @@ mod cratermaker {
     #[pymodule]
     mod counting_bindings {
         #[pymodule_export]
-        use crate::counting_bindings::{
-            fit_one_ellipse, fit_one_ellipse_fixed_center, fit_rim, measure_floor_elevation,
-            measure_rim_elevation, score_rim,
+        use crate::counting::counting_bindings::{
+            measure_floor_elevation, measure_rim_height,
         };
     }
 
     #[pymodule]
-    mod morphology_bindings {
+    mod basicmoon_bindings {
         #[pymodule_export]
-        use crate::morphology_bindings::{basicmoon_profile, ray_intensity};
+        use crate::morphology::basicmoon_bindings::{
+            basicmoon_profile, crater_profile_function, ejecta_profile_function, ray_intensity,
+        };
+    }
+
+    #[pymodule]
+    mod realmoon_bindings {
+        #[pymodule_export]
+        use crate::morphology::realmoon_bindings::{
+            get_1d_psd_from_control_points, profile_from_psd, realmoon_profile,
+        };
     }
 
     #[pymodule]
     mod surface_bindings {
         #[pymodule_export]
-        use crate::surface_bindings::{
+        use crate::surface::surface_bindings::{
             apply_diffusion, compute_bearings, compute_distances, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
             interpolate_node_elevation_from_faces, reset_radial_distances, slope_collapse,
