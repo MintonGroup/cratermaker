@@ -4,11 +4,11 @@ Plot isochrons for the Moon and Mars for 1 Ma, 1 Ga, and 4 Ga using the Neukum P
 
 .. rubric:: By Austin Blevins and David Minton
 
-In this example, we will be using the "neukum" prodcution model in Cratermaker to plot isochrons for three different age surfaces. We will also format the plots so with similar axes as Figure 2 of Neukum, Ivanov, and Hartmann (2001) [#]_, but with a handy logarithmic grid.
+In this example, we will be using the "neukum" production model in Cratermaker to plot isochrons for three different age surfaces. We will also format the plots with similar axes as Figure 2 of Neukum, Ivanov, and Hartmann (2001) [#]_, but with a handy logarithmic grid.
 
 The Neukum production function (NPF) is only defined over a limited range, from crater diameters of 0.01 km to 300 km. Because Cratermaker is intended to primarily be used for forward modeling of landscape evolution where regolith mixing by small impactors plays a significant role, we require a production function that can extend to much smaller diameters. Therefore we extrapolate the lower end of the NPF with a simple power law with a slope equal to that of the lower end.
 
-The upper range of the NPF must also be extrapolated, but for a different reason. If we truncated the NPF at 300 km, this would artificially limit the size of the largest craters that could be produced in a simulation and simulations of the ancient lunar or martian surface would contain dozens of 300 km craters. To avoid this, we extrapolate the upper end of the NPF, however we cannot simply extrapolate the upper end with its own slope, as this would result in far too many very large craters. This is similar to the issue that was discussed in Minton et al. (2015) [#]_. Therefore we steepen the slope of the upper end by shifting the exponent by -2. Futher work would be needed to determine the best fit to the upper end of the NPF.
+The upper range of the NPF must also be extrapolated, but for a different reason. If we truncated the NPF at 300 km, this would artificially limit the size of the largest craters that could be produced in a simulation and simulations of the ancient lunar or martian surface would contain dozens of 300 km craters. To avoid this, we extrapolate the upper end of the NPF, however we cannot simply extrapolate the upper end with its own slope, as this would result in far too many very large craters. This is similar to the issue that was discussed in Minton et al. (2015) [#]_. Therefore we steepen the slope of the upper end by shifting the exponent by -2. Further work would be needed to determine the best fit to the upper end of the NPF.
 
 For this example, we plot the valid range of the NPF in solid black, and the extrapolations in orange with a dash-dot line style.
 

@@ -665,7 +665,8 @@ class Morphology(ComponentBase):
                 self.counting.add(crater, **kwargs)
 
             ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
-            elevation_change += ejecta_thickness
+            if ejecta_thickness is not None:
+                elevation_change += ejecta_thickness
 
             # Apply the elevation change to the surface only after the ejecta formation has been run, to preven tthe crater from self-degrading
             crater.crater_region.update_elevation(elevation_change)
