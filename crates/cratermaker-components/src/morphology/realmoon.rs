@@ -1,5 +1,5 @@
+use crate::ArrayResult;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
-use crate::{ArrayResult, ArrayResult2D};
 use interp::{InterpMode, interp};
 use numpy::ndarray::prelude::*;
 use rand::SeedableRng;
@@ -10,6 +10,15 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
+
+/// Represents a local region of a surface mesh with various attributes accessible as array views.
+pub struct PSD1DView<'a> {
+    pub npoints: usize,
+    pub pix: f64,
+    pub wavelength: ArrayView1<'a, f64>,
+    pub power: ArrayView1<'a, f64>,
+    pub phase: ArrayView1<'a, f64>,
+}
 
 /// Defines crater dimensions for surface modification computations.
 ///
@@ -30,8 +39,8 @@ pub struct RealMoonCrater<'a> {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
-    pub rim_radius_psd: ArrayView2<'a, f64>,
-    pub floor_radius_psd: ArrayView2<'a, f64>,
+    pub rim_radius_psd: PSD1DView<'a>,
+    pub floor_radius_psd: PSD1DView<'a>,
 }
 
 // Creates a profile of the crater
@@ -97,20 +106,20 @@ pub fn realmoon_profile(
 
     // Create profile functions that will be interpolated later
     let (rimtheta, rim_profile) =
-        compute_profile_from_psd(crater.radius, crater.radius, crater.rim_radius_psd);
+        compute_profile_from_psd(crater.radius, crater.radius, &crater.rim_radius_psd);
     let (floortheta, floor_profile) =
-        compute_profile_from_psd(crater.radius, crater.floor_radius, crater.floor_radius_psd);
+        compute_profile_from_psd(crater.radius, crater.floor_radius, &crater.floor_radius_psd);
     let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
-            .map(|ring| compute_profile_from_psd(ring.radius, ring.radius, ring.rim_radius_psd))
+            .map(|ring| compute_profile_from_psd(ring.radius, ring.radius, &ring.rim_radius_psd))
             .collect()
     });
     let rings_floor_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
             .map(|ring| {
-                compute_profile_from_psd(ring.radius, ring.floor_radius, ring.floor_radius_psd)
+                compute_profile_from_psd(ring.radius, ring.floor_radius, &ring.floor_radius_psd)
             })
             .collect()
     });
@@ -208,12 +217,17 @@ fn realtobasic(
 ///  * `add_noise` - Whether to add Gaussian noise to the ln(power) values to simulate natural variability in the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
 ///
+///
+/// # Returns
+///
+/// * A tuple of Arrays containing the wavelength, power, and phase angles of the computed PSD
+///
 pub fn get_1d_psd_from_control_points(
     control_points: &HashMap<String, f64>,
     npoints: usize,
     add_noise: bool,
     rng_seed: u64,
-) -> ArrayResult2D {
+) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>), String> {
     let sn = control_points["sn"];
     let yn = control_points["yn"];
     let y1 = control_points["y1"];
@@ -230,43 +244,39 @@ pub fn get_1d_psd_from_control_points(
     let iend = npoints / 2;
     let nrows = iend.saturating_sub(1); // wavelength from bins 1..iend-1
     let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-    let mut psd = Array2::<f64>::zeros((nrows, 3));
+    let mut wavelength = Array1::<f64>::zeros(nrows);
+    let mut power = Array1::<f64>::zeros(nrows);
+    let mut phase = Array1::<f64>::zeros(nrows);
     let base = npoints as f64 * interval;
     let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
     for k in 1..iend {
         let row = k - 1;
-        psd[[row, 0]] = base / k as f64; // Wavelength
-        psd[[row, 2]] = uniform.sample(&mut rng); // Phase (randomized)
+        wavelength[row] = base / k as f64;
+        phase[row] = uniform.sample(&mut rng); // randomized phases
     }
 
-    psd[[0, 1]] = y1.exp();
-    psd[[1, 1]] = y2.exp();
-    psd[[2, 1]] = y3.exp();
-    psd[[3, 1]] = y4.exp();
-    psd[[4, 1]] = y5.exp();
+    power[0] = y1.exp();
+    power[1] = y2.exp();
+    power[2] = y3.exp();
+    power[3] = y4.exp();
+    power[4] = y5.exp();
 
-    let xn = psd[[5, 0]].ln();
+    let xn = wavelength[5].ln();
     for i in 5..nrows {
-        let log_x = psd[[i, 0]].ln();
-        psd[[i, 1]] = (yn + sn * (log_x - xn)).exp();
-    }
-
-    let mut flipped = Array2::<f64>::zeros((nrows, 3));
-    for i in 0..nrows {
-        flipped.row_mut(i).assign(&psd.row(nrows - 1 - i));
+        let log_x = wavelength[i].ln();
+        power[i] = (yn + sn * (log_x - xn)).exp();
     }
 
     // Optional Gaussian noise in log power
     if add_noise {
         let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
         for i in 0..nrows {
-            let log_power = flipped[[i, 1]].ln();
+            let log_power = power[i].ln();
             let noisy_log_power = log_power + normal.sample(&mut rng);
-            flipped[[i, 1]] = (noisy_log_power).exp();
+            power[i] = (noisy_log_power).exp();
         }
     }
-
-    Ok(flipped)
+    Ok((wavelength, power, phase))
 }
 
 ///
@@ -282,16 +292,19 @@ pub fn get_1d_psd_from_control_points(
 pub fn compute_profile_from_psd(
     crater_radius: f64,
     ymean: f64,
-    psd: ArrayView2<'_, f64>,
+    psd: &PSD1DView,
 ) -> (Vec<f64>, Vec<f64>) {
-    let nfreq = psd.nrows();
+    let wavelength = psd.wavelength;
+    let power = psd.power;
+    let phase = psd.phase;
+    let nfreq = wavelength.len();
     let mut num_points = 2 * nfreq;
     let mut planner = FftPlanner::new();
     let ifft = planner.plan_fft_inverse(num_points);
     let mut buffer: Vec<Complex<f64>> = vec![Complex { re: 0.0, im: 0.0 }; num_points];
 
     for i in 0..nfreq {
-        let freq_f64 = TAU / psd[[i, 0]];
+        let freq_f64 = TAU / wavelength[i];
         let k = freq_f64.round() as usize;
 
         // Safety check to prevent out-of-bounds if a wavenumber exceeds the Nyquist limit
@@ -299,15 +312,15 @@ pub fn compute_profile_from_psd(
             continue;
         }
 
-        let amplitude = (psd[[i, 1]] * TAU).sqrt();
-        let phase = psd[[i, 2]];
+        let amplitude_i = (power[i] * TAU).sqrt();
+        let phase_i = phase[i];
 
         if k == 0 {
             // DC Component (wavenumber 0)
-            buffer[0] = Complex::from_polar(amplitude, phase);
+            buffer[0] = Complex::from_polar(amplitude_i, phase_i);
         } else {
             // Positive frequency (index k)
-            buffer[k] = Complex::from_polar(amplitude / 2.0, phase);
+            buffer[k] = Complex::from_polar(amplitude_i / 2.0, phase_i);
             // Negative frequency (index N - k) uses the negative phase (conjugate)
             buffer[num_points - k] = buffer[k].conj();
         }

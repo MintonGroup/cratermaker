@@ -267,6 +267,7 @@ fn compute_face_slope_squared(
 /// * `region` - Reference to the local surface data structure containing mesh information.
 ///
 /// # Returns
+///
 /// A tuple representing the zonal and meridional components of the gradient vector at face `f`.
 ///
 #[inline(always)]
