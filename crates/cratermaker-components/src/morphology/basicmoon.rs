@@ -2,36 +2,54 @@ use crate::ArrayResult;
 use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
-use rand::prelude::*;
+use pyo3::FromPyObject;
 use rand::SeedableRng;
+use rand::prelude::*;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::f64::{
-    self,
+    self, EPSILON,
     consts::{PI, SQRT_2, TAU},
 };
 
-const RIMDROP: f64 = 4.20; // The exponent for the uplifted rim dropoff.
-const EJPROFILE: f64 = 3.0; // The exponent for the ejecta profile
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.90;
 
-/// Computes a crater profile elevation array from input radial distances and reference elevations.
+/// Defines crater dimensions for surface modification computations.
 ///
-/// This function applies `profile_function` to each radial distance in the input array.
-/// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
-/// on the polynomial crater profile model described in Fassett and Thomson (2014).
-///
+/// Used to parameterize the final crater size in meters.
+#[derive(FromPyObject, Clone, Copy, Debug)]
+pub struct BasicMoonCrater {
+    pub diameter: f64,
+    pub radius: f64,
+    pub floor_elevation: f64,
+    pub floor_radius: f64,
+    pub wall_curvature: f64,
+    pub floor_blend: f64,
+    pub rim_width: f64,
+    pub rim_height: f64,
+    pub frac_ejrim: f64,
+    pub ejprofile: f64,
+    pub peak_height: f64,
+    pub peak_width: f64,
+    pub peak_ring_radius: f64,
+    pub peak_center_distance: f64,
+    pub peak_center_bearing: f64,
+}
+
+// Computes a either a crater and/or ejecta 1D profile array from input radial distances and reference elevations using the model of
+// Minton et al. (2026)
+//
+//
 /// # Arguments
 ///
-/// * `r_array` - 1D array of radial distances from crater center (in meters).
+/// * `radial_distances` - 1D array of radial distances from crater center (in meters).
 /// * `reference_elevation_array` - 1D array of reference elevations corresponding to each radius.
-/// * `diameter` - Total diameter of the crater (in meters).
-/// * `floor_depth` - Depth of the crater floor below mean surface level (in meters, relative to datum).
-/// * `floor_diameter` - Diameter of the crater floor (in meters).
-/// * `rim_height` - Height of the crater rim above mean surface level (in meters, relative to datum).
-/// * `ejrim` - Rim elevation adjustment parameter for the exterior dropoff.
+/// * `crater` - BasicMoonCrater struct containing crater dimensions and morphology parameters.
+/// * `include_crater` - Whether to include the crater profile in the output (true/false).
+/// * `include_ejecta` - Whether to include the ejecta profile in the output (true/false).
 ///
 /// # Returns
 ///
@@ -39,71 +57,205 @@ const FRAYREDUCTION: f64 = 0.90;
 ///
 /// # Errors
 ///
-/// Returns a `PyValueError` if the input arrays have mismatched lengths.
-pub fn crater_profile(
+/// Errors if the input arrays have mismatched lengths.
+pub fn basicmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
-    diameter: f64,
-    floor_depth: f64,
-    floor_diameter: f64,
-    rim_height: f64,
-    ejrim: f64,
+    crater: &BasicMoonCrater,
+    rings: &Option<Vec<BasicMoonCrater>>,
+    include_crater: bool,
+    include_ejecta: bool,
 ) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
-    const A: f64 = 4.0 / 11.0;
-    const B: f64 = -32.0 / 187.0;
 
-    // Calculate the floor radius relative to the final crater radius
-    let flrad = floor_diameter / diameter;
-    let radius = diameter / 2.0;
-
-    // Use polynomial crater profile similar to that of Fassett and Thomson (2014), but the parameters are set by the crater dimensions
-    let c1 = (floor_depth - rim_height)
-        / (flrad - 1.0 + A * (flrad.powi(2) - 1.0) + B * (flrad.powi(3) - 1.0));
-    let c0 = rim_height - c1 * (1.0 + A + B);
-    let c2 = A * c1;
-    let c3 = B * c1;
-
-    let ninc = radial_distances.iter().filter(|&&x| x <= radius).count();
+    // Compute the weighted elevation profile relative to the reference plane
+    let ninc = radial_distances
+        .iter()
+        .filter(|&&x| x <= crater.radius)
+        .count();
     let meanref = if ninc == 0 {
         *radial_distances
             .iter()
             .zip(reference_elevations)
-            .min_by(|(&radius_a, _), (&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
+            .min_by(|&(&radius_a, _), &(&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
             .unwrap()
             .1
     } else {
         radial_distances
             .iter()
             .zip(reference_elevations)
-            .filter(|(&r, _)| r <= radius)
+            .filter(|&(&r, _)| r <= crater.radius)
             .map(|(_, &e)| e)
             .sum::<f64>()
             / ninc as f64
     };
-    let min_elevation = meanref + floor_depth;
+    let min_elevation = meanref + crater.floor_elevation;
 
     Ok(Array1::from_iter(
         reference_elevations
             .iter()
-            .zip(radial_distances)
-            .map(|(&elevation, &radial_distance)| {
-                let r = radial_distance / radius;
-                (
-                    crater_profile_function(r, elevation, c0, c1, c2, c3, rim_height, ejrim),
-                    radial_distance,
-                )
-            })
-            .map(|(elevation, radial_distance)| {
-                if radial_distance <= radius {
-                    elevation.max(min_elevation)
+            .zip(radial_distances.iter().copied())
+            .map(|(href, r)| {
+                let h =
+                    basicmoon_profile_one(r, *href, crater, rings, include_crater, include_ejecta);
+                if r <= crater.radius {
+                    h.max(min_elevation)
                 } else {
-                    elevation
+                    h
                 }
             }),
     ))
 }
 
+// Computes a either a crater and/or ejecta 1D profile at a single point using the model of  Minton et al. (2026)
+//
+//
+/// # Arguments
+///
+/// * `r` - Radial distance from crater center (in meters).
+/// * `href` - the reference surface at the point r (in meters)
+/// * `crater` - BasicMoonCrater struct containing crater dimensions and morphology parameters.
+/// * `include_crater` - Whether to include the crater profile in the output (true/false).
+/// * `include_ejecta` - Whether to include the ejecta profile in the output (true/false).
+///
+/// # Returns
+///
+/// * A NumPy array of modified elevations based on the crater model.
+///
+/// # Errors
+///
+/// Errors if the input arrays have mismatched lengths.
+pub fn basicmoon_profile_one(
+    r: f64,
+    href: f64,
+    crater: &BasicMoonCrater,
+    rings: &Option<Vec<BasicMoonCrater>>,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> f64 {
+    let mut hcrat = crater_profile_function(
+        r,
+        crater.radius,
+        crater.floor_elevation,
+        crater.floor_radius,
+        crater.wall_curvature,
+        crater.floor_blend,
+        crater.rim_width,
+        crater.rim_height,
+        crater.frac_ejrim,
+        crater.ejprofile,
+        crater.peak_height,
+        crater.peak_width,
+        crater.peak_ring_radius,
+    );
+    match rings {
+        Some(rings) => {
+            for (i, ring) in rings.iter().enumerate() {
+                let elevation_offset = if i == 0 {
+                    elevation_offset_func(crater, ring)
+                } else {
+                    elevation_offset_func(&rings[i - 1], ring)
+                };
+                let ring_floor_elevation = crater.floor_elevation - elevation_offset;
+                let hring = crater_profile_function(
+                    r,
+                    ring.radius,
+                    ring_floor_elevation,
+                    ring.floor_radius,
+                    ring.wall_curvature,
+                    crater.floor_blend,
+                    ring.rim_width,
+                    ring.rim_height,
+                    ring.frac_ejrim,
+                    ring.ejprofile,
+                    crater.peak_height,
+                    crater.peak_width,
+                    crater.peak_ring_radius,
+                ) + elevation_offset;
+                hcrat = hcrat.max(hring);
+            }
+        }
+        None => (),
+    }
+    let mut hej = ejecta_profile_function(
+        r,
+        crater.radius,
+        crater.frac_ejrim * crater.rim_height,
+        crater.ejprofile,
+        crater.rim_width,
+    );
+
+    match rings {
+        Some(rings) => {
+            for (i, ring) in rings.iter().enumerate() {
+                let mut hejring = ejecta_profile_function(
+                    r,
+                    ring.radius,
+                    ring.frac_ejrim * ring.rim_height,
+                    ring.ejprofile,
+                    ring.rim_width,
+                );
+                let elevation_offset = if i == 0 {
+                    elevation_offset_func(crater, ring)
+                } else {
+                    elevation_offset_func(&rings[i - 1], ring)
+                };
+                let hrel = hcrat - elevation_offset;
+                if r <= ring.radius && hrel >= 0.0 {
+                    let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
+                    hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
+                }
+                hej += hejring;
+            }
+        }
+        None => (),
+    }
+
+    // Add the upper portion of the rim to the ejecta
+    if r <= crater.radius && hcrat >= 0.0 {
+        let hup = rimfunc(
+            r,
+            crater.radius,
+            (1.0 - crater.frac_ejrim) * crater.rim_height,
+            0.0,
+            0.5 * crater.rim_width,
+        );
+        hej += (hcrat - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
+    }
+
+    if include_crater {
+        if r > crater.radius || (hcrat > 0.0 && hej > 0.0) {
+            hcrat = (hcrat - hej).max(0.0);
+        }
+    } else {
+        hcrat = 0.0;
+    }
+    if !include_ejecta {
+        hej = 0.0;
+    }
+
+    href + hcrat + hej
+}
+
+#[inline]
+fn elevation_offset_func(crater: &BasicMoonCrater, ring: &BasicMoonCrater) -> f64 {
+    // Returns the offset in elevation for the ring, which is taken to be the elevation of the crater at the ring radius.
+    crater_profile_function(
+        ring.radius,
+        crater.radius,
+        crater.floor_elevation,
+        crater.floor_radius,
+        crater.wall_curvature,
+        crater.floor_blend,
+        crater.rim_width,
+        crater.rim_height,
+        crater.frac_ejrim,
+        crater.ejprofile,
+        crater.peak_height,
+        crater.peak_width,
+        crater.peak_ring_radius,
+    )
+}
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
 /// This function applies a polynomial profile for the crater interior (r < 1.0) and a rim dropoff
@@ -119,57 +271,105 @@ pub fn crater_profile(
 ///
 /// # Arguments
 ///
-/// * `r` - Normalized radial distance (unitless, where 1.0 corresponds to the crater rim).
-/// * `elevation` - Baseline elevation before crater modification.
-/// * `c0`, `c1`, `c2`, `c3` - Polynomial coefficients for the crater profile interior.
-/// * `rim_height` - Height of the crater rim.
-/// * `ejrim` - Rim dropoff parameter.
+/// * `r` - Radial distance from crater center
+/// * `radius` - Radius of the crater rim (in meters).
+/// * `hf` - Elevation of the crater floor relative to the reference plane.
+/// * `rf` - Radius of the crater floor.
+/// * `wc` - Wall curvature parameter: 0 is straight walls, 1 is very curvy walls.
+/// * `fb` - Floor blend parameter: 0 is abrupt floor-to-wall transition, 1 is very gentle floor-to-wall transition
+/// * `rw` - Width of the crater rim
+/// * `hr` - Height of the crater rim above the reference plane.
+/// * `fe` - Fraction of the rim that is made of ejecta.
+/// * `pej` - Exponent for the ejecta dropoff function.
+/// * `hc` - Height of the central peak above the floor.
+/// * `rc` - Width of the central peak.
+/// * `ro` - Radial offset of the central peak from the crater center .
 ///
 /// # Returns
 ///
-/// * Adjusted elevation according to crater profile at distance `r`.
+/// * Elevation values at distance `r`.
 #[inline]
-fn crater_profile_function(
+pub fn crater_profile_function(
     r: f64,
-    elevation: f64,
-    c0: f64,
-    c1: f64,
-    c2: f64,
-    c3: f64,
-    rim_height: f64,
-    ejrim: f64,
+    radius: f64,
+    hf: f64,
+    rf: f64,
+    wc: f64,
+    fb: f64,
+    rw: f64,
+    hr: f64,
+    fe: f64,
+    pej: f64,
+    hc: f64,
+    rc: f64,
+    ro: f64,
 ) -> f64 {
-    if r >= 1.0 {
-        elevation + (rim_height - ejrim) * r.powf(-RIMDROP)
+    let beta = (1.0 + wc * 9.0).clamp(1.0, 10.0);
+    let he = fe * hr;
+    let rfw = if rf < 0.5 * radius { rf } else { radius - rf } * fb;
+    let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Include this to avoid sharp discontinuities
+    let mut hwall = if r > rf {
+        wallfunc(r, radius, rf, hr, hfloor, beta)
     } else {
-        elevation + c0 + c1 * r + c2 * r.powi(2) + c3 * r.powi(3)
+        hfloor
+    };
+    let hwalltofloor = walltofloorfunc(r, radius, rf, hr, hf, rfw);
+    let hwf = blend(r, hwalltofloor, hwall, rf, rfw);
+    hwall = blend(r, hfloor, hwf, rf, rfw);
+    let hej = ejecta_profile_function(r, radius, he, pej, rw);
+    let hrim = rimfunc(r, radius, hr, he, rw) + hej;
+    blend(r, hwall, hrim, radius, rw)
+}
+
+#[inline]
+fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
+    if rc > EPSILON {
+        hc * (-((r - ro) / rc).powi(2)).exp() + hf
+    } else {
+        hf
     }
 }
 
-/// Computes only the radial ejecta profile without ray modulation.
-///
-/// This is a simple power-law decay of ejecta intensity with radial distance.
-///
-/// # Arguments
-///
-/// * `radial_distance` - 1D array of radial distances from crater center.
-/// * `crater_diameter` - Diameter of the crater (meters).
-/// * `ejrim` - Profile scaling factor.
-///
-/// # Returns
-///
-/// * A NumPy array of ejecta profile values.
-pub fn ejecta_profile(
-    radial_distance: ArrayView1<'_, f64>,
-    crater_diameter: f64,
-    ejrim: f64,
-) -> ArrayResult {
-    Ok(Array1::from_vec(
-        radial_distance
-            .iter()
-            .map(|&r| ejecta_profile_function(r, crater_diameter / 2.0, ejrim))
-            .collect(),
-    ))
+#[inline]
+fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
+    if r <= radius {
+        let r0 = (r - rf) / (radius - rf);
+        let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
+        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+    } else {
+        hr
+    }
+}
+
+#[inline]
+fn walltofloorfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
+    let fw2 = hr - hf;
+    let m = fw2 / (radius - rf + rfw / 2.0);
+    (hf + m * (r - rf + rfw / 2.0)).max(hf)
+}
+
+#[inline]
+fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
+    let hmax = if r > radius { hr - he } else { hr };
+    hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
+}
+
+#[inline]
+fn smoothstep(t: f64) -> f64 {
+    if t <= 0.0 {
+        0.0
+    } else if t <= 1.0 {
+        6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3)
+    } else {
+        1.0
+    }
+}
+
+#[inline]
+fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64 {
+    let t = (r - (rtransition - rwidth)) / (2.0 * rwidth);
+    let phi = smoothstep(t);
+    (1.0 - phi) * hinner + phi * houter
 }
 
 /// Computes the ejecta profile scaling at a given radial distance.
@@ -179,18 +379,22 @@ pub fn ejecta_profile(
 ///
 /// # Arguments
 ///
-/// * `r_actual` - Radial distance from the crater center (in meters).
-/// * `crater_radius` - Radius of the crater (in meters).
+/// * `r` - Radial distance from the crater center (in meters).
+/// * `radius` - Radius of the crater (in meters).
 /// * `ejrim` - Rim elevation parameter used to scale the profile.
+/// *  `ejprofile` - Exponent for the power-law decay of the ejecta profile.
 ///
 /// # Returns
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r_actual: f64, crater_radius: f64, ejrim: f64) -> f64 {
-    if r_actual >= crater_radius {
-        let r = r_actual / crater_radius;
-        ejrim * r.powf(-EJPROFILE)
+pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, rw: f64) -> f64 {
+    if r > radius {
+        let t = (r - (radius - rw)) / (2.0 * rw);
+        let phi = smoothstep(t);
+        let hg = rimfunc(r, radius, ejrim, 0.0, rw);
+        let hp = ejrim * (r / radius).powf(ejprofile);
+        (1.0 - phi) * hg + phi * hp
     } else {
         0.0
     }
@@ -248,8 +452,8 @@ fn ray_intensity_point(
 ///
 /// # Arguments
 ///
-/// * `radial_distance` - 1D array of radial distances (meters).
-/// * `initial_bearing` - 1D array of initial bearing angles (degrees).
+/// * `radial_distances` - 1D array of radial distances (meters).
+/// * `bearings` - 1D array of initial bearing angles (radians, clockwise north).
 /// * `crater_diameter` - Crater diameter (meters).
 ///
 /// # Returns
@@ -257,11 +461,11 @@ fn ray_intensity_point(
 /// * A vector of normalized ray-modulated intensity values.
 pub fn ray_intensity(
     radial_distances: ArrayView1<'_, f64>,
-    initial_bearings: ArrayView1<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
     crater_diameter: f64,
     seed: u64,
 ) -> ArrayResult {
-    if radial_distances.len() != initial_bearings.len() {
+    if radial_distances.len() != bearings.len() {
         return Err("radial_distances and reference_elevations must have same length".into());
     }
     let crater_radius = crater_diameter / 2.0;
@@ -283,7 +487,7 @@ pub fn ray_intensity(
         .map(|i| {
             ray_intensity_point(
                 radial_distances[i],
-                initial_bearings[i],
+                bearings[i],
                 crater_radius,
                 rmin,
                 rmax,
@@ -295,13 +499,13 @@ pub fn ray_intensity(
     let max_val = intensity
         .iter()
         .zip(radial_distances.iter())
-        .filter_map(|(&val, &r)| if r >= crater_radius { Some(val) } else { None })
+        .filter_map(|(&val, &r)| if r > crater_radius { Some(val) } else { None })
         .fold(f64::MIN, |a, b| a.max(b));
     intensity = intensity
         .into_iter()
         .zip(radial_distances.iter())
         .map(|(intensity, &r)| {
-            if r >= crater_radius {
+            if r > crater_radius {
                 intensity / max_val
             } else {
                 intensity

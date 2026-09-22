@@ -60,7 +60,7 @@ class TestSimulation(unittest.TestCase):
                 / f"{sim.surface._output_file_prefix}{sim.interval:06d}.{sim.surface._output_file_extension}"
             )
             self.assertTrue(filename.exists())
-            with xr.open_dataset(filename) as ds:
+            with xr.open_dataset(filename, engine="h5netcdf") as ds:
                 ds = ds.isel(interval=-1)
                 np.testing.assert_array_equal(ds["node_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_node))
                 np.testing.assert_array_equal(ds["face_elevation"].values, np.ones(sim.surface.uxds.uxgrid.n_face))

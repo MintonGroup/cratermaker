@@ -19,11 +19,8 @@ from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
-from rasterio import DatasetReader, MemoryFile, windows
-from rasterio.enums import Resampling
-from rasterio.merge import merge
+from rasterio import DatasetReader, windows
 from rasterio.transform import rowcol
-from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
 from scipy.optimize import OptimizeWarning
 from tqdm import tqdm
@@ -34,10 +31,11 @@ from cratermaker.bindings import surface_bindings
 from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
-from cratermaker.utils.general_utils import format_large_units, validate_and_normalize_location
+from cratermaker.utils.general_utils import convert_deg2m_res, format_large_units, validate_and_normalize_location
 from cratermaker.utils.montecarlo_utils import get_random_location_on_face
 
 _N_TAG_LAYERS = 8
+LOLA_LUNAR_RADIUS = 1737400.0
 
 
 class Surface(ComponentBase):
@@ -838,6 +836,7 @@ class Surface(ComponentBase):
 
     def plot(
         self,
+        filename: str | Path | None = None,
         plot_style: Literal["map", "hillshade"] = "map",
         variable_name: str | None = None,
         interval: int | None = None,
@@ -857,6 +856,8 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
+        filename : Path | str | None, optional
+            The path to save the plot to. If None, and save is True, the plot will be saved to the default plot directory with a filename based on the interval number. Default is None.
         plot_style : str, optional
             The style of the plot. Options are "map" and "hillshade". In "map" mode, the variable is displayed as a colored map. In "hillshade" mode, a hillshade image is generated using "face_elevation" data. If a different variable is passed to `variable`, then the hillshade will be overlayed with that variable's data. Default is "map".
         variable_name : str | None, optional
@@ -894,6 +895,7 @@ class Surface(ComponentBase):
         return self._full().plot(
             variable_name=variable_name,
             plot_style=plot_style,
+            filename=filename,
             cmap=cmap,
             interval=interval,
             label=label,
@@ -1005,8 +1007,8 @@ class Surface(ComponentBase):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats,
     ) -> NDArray[np.float64]:
         """
@@ -1027,8 +1029,8 @@ class Surface(ComponentBase):
             Longitude and latitude of the target point or points in degrees.
         """
         return self._full().compute_location_from_distance_bearing(
-            distance=distance,
-            bearing=bearing,
+            distances=distances,
+            bearings=bearings,
             reference_location=reference_location,
         )
 
@@ -1167,8 +1169,9 @@ class Surface(ComponentBase):
         orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
-        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-7)
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-8)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
+
         uxgrid.attrs["_id"] = self._id
         self._write_grid_file(uxgrid=uxgrid)
 
@@ -1184,7 +1187,7 @@ class Surface(ComponentBase):
     def _is_same_grid(self):
         """Check if the existing grid matches the one defined by the current parameters and returns True if they match after regridding."""
         try:
-            with xr.open_dataset(self.grid_file) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf") as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
                 old_id = uxgrid.attrs.get("_id")
@@ -1267,9 +1270,12 @@ class Surface(ComponentBase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True, **kwargs) as temp_dir:
             data_file = self.output_dir / filename
             if data_file.exists():
-                with xr.open_mfdataset(data_file) as ds_old:
-                    ds_old = ds_old.load()
-                ds_file = ds.merge(ds_old, compat="override")
+                try:
+                    with xr.open_mfdataset(data_file) as ds_old:
+                        ds_old = ds_old.load()
+                    ds_file = ds.merge(ds_old, compat="override")
+                except Exception:
+                    ds_file = ds
             else:
                 ds_file = ds
 
@@ -1320,8 +1326,9 @@ class Surface(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
+        _ = kwargs.pop("resampling_order", None)
         if self.uxgrid is None:
-            with xr.open_dataset(self.grid_file, **kwargs) as ds:
+            with xr.open_dataset(self.grid_file, engine="h5netcdf", **kwargs) as ds:
                 ds.load()
                 uxgrid = uxr.Grid.from_dataset(ds)
         else:
@@ -1437,7 +1444,7 @@ class Surface(ComponentBase):
         The hash id of the grid. This is used for determining if the grid needs to be regridded.
         """
         combined = ":".join(str(v) for v in self._hashvars)
-        combined += "v2026.2.0"  # Add version number because of API changes
+        combined += ":v2026.2.0"  # Add version number because of API changes
         hash_object = hashlib.sha256(combined.encode())
         return hash_object.hexdigest()
 
@@ -1891,53 +1898,53 @@ class Surface(ComponentBase):
         """
         if location is None:
             wkt = (
-                f'GEOGCS["GCS_{name}_global",'
-                f'    DATUM["D_{name}",'
-                f'        ELLIPSOID["{name}",{radius:.6f},0,'
-                f'            LENGTHUNIT["metre",1]]],'
-                f'    PRIMEM["Reference_Meridian",0,'
-                f'        ANGLEUNIT["degree",0.0174532925199433]]],'
-                f"    CS[ellipsoidal,2],"
-                f'        AXIS["geodetic latitude (Lat)",north,'
-                f"            ORDER[1],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
-                f'        AXIS["geodetic longitude (Lon)",east,'
-                f"            ORDER[2],"
-                f'            ANGLEUNIT["degree",0.0174532925199433]],'
+                f'GEOGCS["GCS_{name}_global",\n'
+                f'    DATUM["D_{name}",\n'
+                f'        ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'            LENGTHUNIT["metre",1]]],\n'
+                f'    PRIMEM["Reference_Meridian",0,\n'
+                f'        ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f"    CS[ellipsoidal,2],\n"
+                f'        AXIS["geodetic latitude (Lat)",north,\n'
+                f"            ORDER[1],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
+                f'        AXIS["geodetic longitude (Lon)",east,\n'
+                f"            ORDER[2],\n"
+                f'            ANGLEUNIT["degree",0.0174532925199433]],\n'
                 f'REMARK["Created by Cratermaker"]]'
             )
         else:
             lon0, lat0 = location
             wkt = (
-                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Lambert_Azimuthal_Equal_Area",'
-                f'    BASEGEOGCRS["GCS_{name}_global",'
-                f'        DATUM["D_{name}",'
-                f'            ELLIPSOID["{name}",{radius:.6f},0,'
-                f'                LENGTHUNIT["metre",1]]],'
-                f'        PRIMEM["Reference_Meridian",0,'
-                f'            ANGLEUNIT["degree",0.0174532925199433]]],'
-                f'        CONVERSION["Lambert Azimuthal Equal Area",'
-                f'            METHOD["Lambert Azimuthal Equal Area (Spherical)",'
-                f'                ID["EPSG",1027]],'
-                f'            PARAMETER["Latitude of natural origin",{lat0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8801]],'
-                f'            PARAMETER["Longitude of natural origin",{lon0},'
-                f'                ANGLEUNIT["degree",0.0174532925199433],'
-                f'                ID["EPSG",8802]],'
-                f'            PARAMETER["False easting",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8806]],'
-                f'            PARAMETER["False northing",0,'
-                f'                LENGTHUNIT["metre",1],'
-                f'                ID["EPSG",8807]]],'
-                f"        CS[Cartesian,2],"
-                f'            AXIS["(E)",east,'
-                f"                ORDER[1],"
-                f'                LENGTHUNIT["metre",1]],'
-                f'            AXIS["(N)",north,'
-                f"                ORDER[2],"
-                f'                LENGTHUNIT["metre",1]]],'
+                f'PROJCRS["Proj_{name}_region_location_{lon0}_{lat0}_Azimuthal_Equidistant",\n'
+                f'    BASEGEOGCRS["GCS_{name}_global",\n'
+                f'        DATUM["D_{name}",\n'
+                f'            ELLIPSOID["{name}",{radius:.6f},0,\n'
+                f'                LENGTHUNIT["metre",1]]],\n'
+                f'        PRIMEM["Reference_Meridian",0,\n'
+                f'            ANGLEUNIT["degree",0.0174532925199433]]],\n'
+                f'        CONVERSION["Sphere_Azimuthal_Equidistant",\n'
+                f'            METHOD["Azimuthal Equidistant",\n'
+                f'                ID["EPSG",1125]],\n'
+                f'            PARAMETER["Latitude of natural origin",{lat0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8801]],\n'
+                f'            PARAMETER["Longitude of natural origin",{lon0},\n'
+                f'                ANGLEUNIT["degree",0.0174532925199433],\n'
+                f'                ID["EPSG",8802]],\n'
+                f'            PARAMETER["False easting",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8806]],\n'
+                f'            PARAMETER["False northing",0,\n'
+                f'                LENGTHUNIT["metre",1],\n'
+                f'                ID["EPSG",8807]]],\n'
+                f"        CS[Cartesian,2],\n"
+                f'            AXIS["(E)",east,\n'
+                f"                ORDER[1],\n"
+                f'                LENGTHUNIT["metre",1]],\n'
+                f'            AXIS["(N)",north,\n'
+                f"                ORDER[2],\n"
+                f'                LENGTHUNIT["metre",1]]],\n'
                 f'REMARK["Created by Cratermaker"]'
             )
 
@@ -2119,12 +2126,12 @@ class LocalSurface(CratermakerBase):
 
     def add_data(
         self,
-        name: str,
         data: FloatLike | NDArray,
+        name: str,
         long_name: str | None = None,
         units: str | None = None,
         isfacedata: bool = True,
-        overwrite: bool = False,
+        overwrite: bool = True,
         fill_value: float = 0.0,
         dtype=np.float64,
         positive_only: bool = False,
@@ -2135,10 +2142,10 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
-        name : str
-            Name of the data variable. This will also be used as the data file name.
         data : scalar or array-like
             Data file to be saved. If data is a scalar, then the data file will be filled with that value. If data is an array, then the data file will be filled with the array values. The data array must have the same size as the number of faces or nodes in the grid.
+        name : str
+            Name of the data variable. This will also be used as the data file name.
         long_name : str, optional
             Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
         units : str, optional
@@ -2157,6 +2164,13 @@ class LocalSurface(CratermakerBase):
             |kwargs|
 
         """
+        if isinstance(data, DatasetReader | str | os.PathLike | list):
+            with self.data_composer() as composer:
+                composer.add_data(
+                    data=data, name=name, long_name=long_name, units=units, isfacedata=isfacedata, overwrite=overwrite, **kwargs
+                )
+            return
+
         # Check if the data is a scalar or an array
         if np.isscalar(data):
             n = self.n_face if isfacedata else self.n_node
@@ -2175,10 +2189,23 @@ class LocalSurface(CratermakerBase):
             raise ValueError("data must be a scalar or an array with the same size as the number of faces or nodes in the grid")
 
         if name not in self.surface.uxds.data_vars:
-            overwrite = True
             self.surface._add_new_data(
                 name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
             )
+            overwrite = True
+        elif overwrite:
+            if long_name is not None:
+                self.surface.uxds[name].attrs["long_name"] = long_name
+            if units is not None:
+                self.surface.uxds[name].attrs["units"] = units
+
+        if np.any(np.isnan(data)):
+            if np.all(np.isnan(data)):
+                return
+            if overwrite:
+                data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
+            else:
+                data[np.isnan(data)] = 0.0
 
         if overwrite:
             self.surface.uxds[name].data[indices] = data
@@ -2213,12 +2240,16 @@ class LocalSurface(CratermakerBase):
         When passing combined data, the first part of the array will be used for face elevation and the second part for node elevation.
         """
 
-        def raise_invalid_elevation_error():
+        def raise_invalid_elevation_error(e):
             raise ValueError(
-                "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces"
-            )
+                "new_elev must be None, a scalar, or an array with the same size as the number of nodes, faces, or nodes+faces, a rasterio DatasetReader object or list of objects, or a string, pathlike, or url (or list of such types) that can be read by rasterio."
+            ) from e
 
         try:
+            if isinstance(new_elevation, DatasetReader | str | os.PathLike | list):
+                with self.data_composer() as composer:
+                    composer.update_elevation(new_elevation, **kwargs)
+                return
             new_elevation = np.asarray(new_elevation)
 
             if np.asarray(new_elevation).size == 1:
@@ -2243,9 +2274,7 @@ class LocalSurface(CratermakerBase):
                 else:
                     raise_invalid_elevation_error()
         except Exception as e:
-            raise ValueError(
-                "new_elev must be None, a scalar, or an array with the same number of elements as either the faces or nodes of the surface mesh."
-            ) from e
+            raise_invalid_elevation_error(e)
 
         if update_face:
             self.add_data(name="face_elevation", data=new_face_elev, overwrite=overwrite)
@@ -2383,7 +2412,14 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.apply_diffusion(face_kappa=kdiff, face_variable=self.face_elevation, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
+        self.add_data(
+            name="ejecta_thickness",
+            long_name="ejecta thickness",
+            units="m",
+            data=delta_face_elevation,
+            positive_only=True,
+            overwrite=False,
+        )
         return
 
     def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
@@ -2402,23 +2438,23 @@ class LocalSurface(CratermakerBase):
 
         delta_face_elevation = surface_bindings.slope_collapse(critical_slope=critical_slope, region=self)
         self.update_elevation(delta_face_elevation)
-        self.add_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=delta_face_elevation, positive_only=True)
-
-    def compute_slope(self) -> NDArray[np.float64]:
-        """
-        Compute the slope of the surface.
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The slope of all faces in degrees.
-        """
-        slope = surface_bindings.compute_slope(
-            face_elevation=self.face_elevation,
-            region=self,
+        self.add_data(
+            name="ejecta_thickness",
+            long_name="ejecta thickness",
+            units="m",
+            data=delta_face_elevation,
+            positive_only=True,
+            overwrite=False,
         )
+        return
 
-        return np.rad2deg(np.arctan(slope))
+    def compute_slope(self) -> None:
+        """
+        Compute the slope of the surface and stores it as a new variable "face_slope".
+        """
+        slope = surface_bindings.compute_slope(region=self)
+        self.add_data(name="face_slope", long_name="face slope", units="deg", data=np.rad2deg(np.arctan(slope)), overwrite=True)
+        return
 
     def apply_noise(
         self,
@@ -2584,14 +2620,14 @@ class LocalSurface(CratermakerBase):
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
-        def _find_reference_elevations(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
+        def _find_reference_coeffs(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
             """
-            Compute the mean plane that fits the points given by the projected x, projected y, and elevation array.
+            Compute the coefficients of the mean plane that fits the points given by the projected x, projected y, and elevation array.
 
             Parameters
             ----------
             region_points : NDArray
-                An array of shape (n, 3) where each row contains [x, y, elevation].
+                An array of shape (3) containing the [A,B,C] values
 
             Returns
             -------
@@ -2604,7 +2640,7 @@ class LocalSurface(CratermakerBase):
             # Solve for the coefficients of the plane (Ax + By + C = z)
             coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
 
-            return coeffs[0] * x + coeffs[1] * y + coeffs[2]
+            return coeffs
 
         if reference_radius is None:
             reference_radius = self.region_radius
@@ -2634,10 +2670,8 @@ class LocalSurface(CratermakerBase):
             x = np.concatenate([self.face_proj_x, self.node_proj_x])
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
-        reference_elevation = elevation
-        reference_elevation[points_within_region] = _find_reference_elevations(
-            x[points_within_region], y[points_within_region], z[points_within_region]
-        )
+        coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
+        reference_elevation = np.where(points_within_region, coeffs[0] * x + coeffs[1] * y + coeffs[2], elevation)
 
         return reference_elevation
 
@@ -2767,6 +2801,33 @@ class LocalSurface(CratermakerBase):
         )
 
         return radial_gradient
+
+    def compute_azimuthal_gradient(self, variable: str | NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Compute the azimuthal gradient of the local surface variable with respect to the local_location center.
+
+        Parameters
+        ----------
+        variable : str or NDArray[np.float64]
+            The variable to compute the radial gradient of. This can be a string (the name of a variable in the surface data) or an array of values the same size as the number of faces in the grid.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The azimuthal gradient of all faces in meters per meter.
+        """
+        if isinstance(variable, str):
+            if variable not in self.uxds:
+                raise ValueError(f"Variable {variable} not found in the surface data.")
+            variable = self.uxds[variable].data
+        elif variable.size != self.n_face:
+            raise ValueError("variable must be a string or an array with the same size as the number of faces in the grid")
+        azimuthal_gradient = surface_bindings.compute_radial_gradient(
+            variable=variable,
+            region=self,
+        )
+
+        return azimuthal_gradient
 
     def export(
         self,
@@ -2965,7 +3026,7 @@ class LocalSurface(CratermakerBase):
 
         # Warp the mesh according to node elevation if it exists
         if "node_elevation" in uxds:
-            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
+            warped_xyz = node_xyz + uxds.node_elevation.data[self.node_indices, None] * node_normals
         else:
             warped_xyz = node_xyz
 
@@ -2987,7 +3048,13 @@ class LocalSurface(CratermakerBase):
         grid.DeepCopy(vtk_data)
 
         for v in uxds.variables:
-            array = numpy_to_vtk(uxds[v].values, deep=True)
+            if uxds[v].dtype == np.dtype("bool"):
+                continue
+            if "n_node" in uxds[v].dims and not isinstance(self.node_indices, slice) and len(uxds[v].data) > len(self.node_indices):
+                array = uxds[v].data[self.node_indices]
+            else:
+                array = uxds[v].data
+            array = numpy_to_vtk(array, deep=True)
             array.SetName(v)
             if "n_face" in uxds[v].dims:
                 grid.GetCellData().AddArray(array)
@@ -3423,8 +3490,12 @@ class LocalSurface(CratermakerBase):
             variable_raster = ret[0]
             extent = ret[1]
             H, W = variable_raster.shape
-            vmin = kwargs.pop("vmin", np.nanmin(variable_raster))
-            vmax = kwargs.pop("vmax", np.nanmax(variable_raster))
+            vmin = kwargs.pop("vmin", None)
+            vmax = kwargs.pop("vmax", None)
+            if vmin is None:
+                vmin = np.nanmin(variable_raster) if np.any(~np.isnan(variable_raster)) else 0.0
+            if vmax is None:
+                vmax = np.nanmax(variable_raster) if np.any(~np.isnan(variable_raster)) else 1.0
             norm = Normalize(vmin=vmin, vmax=vmax)
         else:
             variable_long_name = ""
@@ -3439,8 +3510,8 @@ class LocalSurface(CratermakerBase):
             extent = ret[1]
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
             H, W = elevation.shape
-            azimuth = 300.0
-            solar_angle = 20.0
+            azimuth = kwargs.pop("azimuth", 300)
+            solar_angle = kwargs.pop("solar_angle", 20.0)
             ls = LightSource(azdeg=azimuth, altdeg=solar_angle)
             if do_overlay:
                 if cmap is None:
@@ -3448,7 +3519,8 @@ class LocalSurface(CratermakerBase):
                 cmap = plt.get_cmap(cmap)
                 variable_raster = np.clip((variable_raster - vmin) / (vmax - vmin), 0.0, 1.0)
                 rgb = cmap(variable_raster)
-                blended = ls.shade_rgb(rgb, elevation, blend_mode="overlay", **hill_args)
+                blend_mode = kwargs.pop("blend_mode", "overlay")
+                blended = ls.shade_rgb(rgb, elevation, blend_mode=blend_mode, **hill_args)
                 if np.any(np.isnan(variable_raster[~np.isnan(elevation)])):
                     hillshade = ls.hillshade(elevation, **hill_args)
                     graymap = plt.get_cmap("gray")
@@ -3545,12 +3617,14 @@ class LocalSurface(CratermakerBase):
                     file_prefix += f"_{variable_name}"
                 if interval is None:
                     uxds = self.uxds
-                    filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
+                    if filename is None:
+                        filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
                 else:
                     uxds = self.read_saved_output(interval=interval, reset=False)
                     interval = uxds.interval.values.item()
                     uxds = uxds.sel(interval=interval)
-                    filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
+                    if filename is None:
+                        filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
 
                 plt.savefig(filename, pad_inches=0, dpi=ax.figure.get_dpi())
             if show:
@@ -3713,6 +3787,8 @@ class LocalSurface(CratermakerBase):
         face_variables = []
         component_variables = []
         for v in uxds.data_vars:
+            if uxds[v].dtype is np.dtype("bool"):
+                continue
             if uxds[v].ndim > 0 and uxds[v].shape[0] == self.n_face:
                 mesh.cell_data[v] = uxds[v].data
                 face_variables.append(v)
@@ -3894,8 +3970,8 @@ class LocalSurface(CratermakerBase):
 
     def compute_location_from_distance_bearing(
         self,
-        distance: FloatLike | ArrayLike,
-        bearing: FloatLike | ArrayLike,
+        distances: FloatLike | ArrayLike,
+        bearings: FloatLike | ArrayLike,
         reference_location: PairOfFloats | None = None,
     ) -> NDArray[np.float64]:
         """
@@ -3921,14 +3997,14 @@ class LocalSurface(CratermakerBase):
             else:
                 raise ValueError("reference_location must be provided for global surfaces")
         lon1, lat1 = np.radians(validate_and_normalize_location(reference_location))
-        bearing = np.atleast_1d(np.radians(bearing))
-        distance = np.atleast_1d(distance).astype(np.float64)
-        if bearing.shape != distance.shape:
+        bearings = np.atleast_1d(np.radians(bearings))
+        distances = np.atleast_1d(distances).astype(np.float64)
+        if bearings.shape != distances.shape:
             raise ValueError("bearing and distance must have the same shape")
-        if bearing.ndim > 1:
+        if bearings.ndim > 1:
             raise ValueError("bearing and distance must have the same number of elements")
         lonlat2 = surface_bindings.compute_location_from_distance_bearing(
-            lon1=lon1, lat1=lat1, distances=distance, bearings=bearing, radius=self.surface.radius
+            lon1=lon1, lat1=lat1, distances=distances, bearings=bearings, radius=self.surface.radius
         )
         return validate_and_normalize_location(np.degrees(lonlat2))
 
@@ -4066,6 +4142,10 @@ class LocalSurface(CratermakerBase):
                 self._n_node = int(self.node_indices.size)
 
         return self._n_node
+
+    @property
+    def node_elevation(self) -> NDArray:
+        return self.surface.node_elevation[self.node_indices]
 
     @property
     def n_nodes_per_face(self) -> NDArray:
@@ -4356,7 +4436,7 @@ class LocalSurface(CratermakerBase):
         if self.is_local:
             uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
             if not reset:
-                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+                return uxr.UxDataset(uxds_global.sel(n_face=self.face_indices), uxgrid=self.uxgrid)
             else:
                 return uxr.UxDataset(uxgrid=self.uxgrid)
 
@@ -4443,7 +4523,7 @@ class LocalSurface(CratermakerBase):
         """The UxDataset representation of the local surface."""
         if self.is_global:
             return self.surface.uxds
-        return uxr.UxDataset(self.surface.uxds.sel(n_face=self.face_indices, n_node=self.node_indices), uxgrid=self.uxgrid)
+        return uxr.UxDataset(self.surface.uxds.loc[{"n_face": self.face_indices}], uxgrid=self.uxgrid)
 
     @property
     def grid_file(self):
@@ -4525,16 +4605,18 @@ class LocalSurface(CratermakerBase):
         """The projected y coordinates of the nodes relative to the LocalSurface center in meters."""
         return self._node_proj_y
 
-    @property
-    def desloped_face_elevation(self) -> NDArray:
-        """The face elevations with the mean slope of the region removed in meters."""
-        return self._desloped_face_elevation
-
     def compute_desloped_face_elevation(self):
         """Compute the face elevations with the mean slope of the region removed."""
         if self.is_local and self._desloped_face_elevation is None:
             reference_elevation = self.get_reference_surface(only_faces=True)
-            self._desloped_face_elevation = self.uxds.face_elevation.data - reference_elevation
+            self.add_data(
+                name="desloped_face_elevation",
+                long_name="face elevation (desloped)",
+                units="m",
+                data=self.face_elevation.data - reference_elevation,
+                positive_only=False,
+                overwrite=True,
+            )
         return
 
     @property
@@ -4581,13 +4663,57 @@ class DataComposer(AbstractContextManager):
         """
         **Warning:** This object should not be instantiated directly. Instead, use ``Surface.data_composer()`` or ``LocalSurface.data_composer()``.
         """
-        self._localsurface = surface
+        object.__setattr__(self, "_name", None)
+        object.__setattr__(self, "_long_name", None)
+        object.__setattr__(self, "_units", None)
+        object.__setattr__(self, "_isfacedata", None)
+        object.__setattr__(self, "_overwrite", None)
+        object.__setattr__(self, "_iselevation", False)
+        object.__setattr__(self, "_resampling_order", 0)
+        object.__setattr__(self, "_finished", False)
+        object.__setattr__(self, "_surface", surface)
+        object.__setattr__(self, "_data", None)
         self._data_list: list[DatasetReader] = []
-        self._finished = False
+
+    def update_elevation(
+        self,
+        data: DatasetReader | str | list[DatasetReader | str],
+        overwrite: bool = True,
+        resampling_order: int = 1,
+        **kwargs: Any,
+    ):
+        """
+        Adds elevation data to eventually be applied to the surface.
+
+        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+
+        Parameters
+        ----------
+        data : DatasetReader | str | list[DatasetReader | str]
+            A single dataset or a list of multiple datasets to be merged.
+            Calls ``rasterio.open`` when necessary.
+        overwrite : bool, optional, default True
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        resampling_order: int, optional, default 1
+            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
+        **kwargs : Any
+            |kwargs|
+        """
+        self._iselevation = True
+        return self.add_data(
+            data=data, name="elevation", long_name=None, units="m", overwrite=overwrite, resampling_order=resampling_order, **kwargs
+        )
 
     def add_data(
         self,
         data: DatasetReader | str | list[DatasetReader | str],
+        name: str,
+        long_name: str | None = None,
+        units: str | None = None,
+        isfacedata: bool = True,
+        overwrite: bool = True,
+        resampling_order: int = 0,
+        **kwargs: Any,
     ):
         """
         Adds data to eventually be applied to the surface.
@@ -4596,21 +4722,47 @@ class DataComposer(AbstractContextManager):
 
         Parameters
         ----------
-        dataset : DatasetReader | str | list[DatasetReader | str]
+        data : DatasetReader | str | list[DatasetReader | str]
             A single dataset or a list of multiple datasets to be merged.
             Calls ``rasterio.open`` when necessary.
+        name: str
+            Name of the data variable to store the added data on the surface.
+        long_name : str, optional
+            Long name of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        units : str, optional
+            Units of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
+        isfacedata : bool, optional, default True
+            Flag to indicate whether the data is face data or node data.
+        overwrite : bool, optional, default True
+            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        resampling_order: int, optional, default 0
+            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
+        **kwargs : Any
+            |kwargs|
         """
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
 
+        self.name = name
+        self.long_name = long_name
+        if self.name is None and units is None:
+            self.units = "m"
+        else:
+            self.units = units
+        self.isfacedata = isfacedata
+        self.overwrite = overwrite
+        self.resampling_order = resampling_order
+
         if not isinstance(data, list):
-            data = [data]
+            self._data = [data].copy()
+        else:
+            self._data = data.copy()
 
-        for i, src in enumerate(data):
+        for i, src in enumerate(self._data):
             if not isinstance(src, DatasetReader):
-                data[i] = rasterio.open(src)
+                self._data[i] = rasterio.open(src)
 
-            self._data_list.append(data[i])
+            self._data_list.append(self._data[i])
 
     def cancel(self):
         """
@@ -4625,103 +4777,137 @@ class DataComposer(AbstractContextManager):
         """
         Apply all the datasets to the mesh and close them. This is implicitly called when exiting a with context.
         """
+        import os
+
+        import scipy.ndimage
+
+        os.environ["PROJ_IGNORE_CELESTIAL_BODY"] = "YES"
+
         if self._finished:
             raise ValueError(f"{type(self).__name__} is already finished or cancelled.")
 
-        def _orderable_distance(lon1, lat1, lon2, lat2):
-            _nnon1 = np.deg2rad(lon1)
-            lat1 = np.deg2rad(lat1)
-            lon2 = np.deg2rad(lon2)
-            lat2 = np.deg2rad(lat2)
-
-            dlon = (lon2 - lon1 + np.pi) % (2 * np.pi)
-            dlat = lat2 - lat1
-            return np.pow(np.sin(dlat / 2), 2) + np.cos(lat1) * np.cos(lat2) * np.pow(np.sin(dlon / 2), 2)
-
         def _read(dataset: DatasetReader, window: Window | None = None) -> tuple[NDArray, Window]:
-            block_windows = []
-            for _, block in dataset.block_windows(1):
-                if window is None or windows.intersect(window, block):
-                    block_windows.append(block)
-
-            res_window: Window = windows.union(block_windows)
+            # Constrain the requested window to the actual dataset bounds
+            full_window = Window(0, 0, dataset.width, dataset.height)
+            if window is None:
+                res_window = full_window
+            else:
+                res_window = window.intersection(full_window).round_offsets().round_lengths()
 
             print(f"    Reading {dataset.name} ({res_window.width}x{res_window.height}px of {dataset.width}x{dataset.height}px)")
 
-            res = np.empty((res_window.height, res_window.width))
+            res = np.empty((res_window.height, res_window.width), dtype=dataset.dtypes[0])
 
-            for block in tqdm(block_windows):
-                out = res[
-                    block.row_off - res_window.row_off : block.row_off - res_window.row_off + block.height,
-                    block.col_off - res_window.col_off : block.col_off - res_window.col_off + block.width,
-                ]
-                dataset.read(1, window=block, out=out)
+            chunk_size = 1000
+            for chunk_row_start in tqdm(range(0, res_window.height, chunk_size), desc="Reading data...", unit="chunks"):
+                chunk_height = min(chunk_size, res_window.height - chunk_row_start)
+
+                # Define the sub-window on the remote dataset
+                read_window = Window(
+                    col_off=res_window.col_off,
+                    row_off=res_window.row_off + chunk_row_start,
+                    width=res_window.width,
+                    height=chunk_height,
+                )
+
+                # Read the chunk and place it into our pre-allocated array
+                res[chunk_row_start : chunk_row_start + chunk_height, :] = dataset.read(
+                    1, window=read_window, out_dtype=np.float32, boundless=True
+                )
 
             return res, res_window
 
         print(f"Applying {len(self._data_list)} dataset{'' if len(self._data_list) == 1 else 's'} to the mesh")
+        if self._iselevation:
+            lons = np.concatenate((self._surface.face_lon, self._surface.node_lon))
+            lats = np.concatenate((self._surface.face_lat, self._surface.node_lat))
+        else:
+            lons = self._surface.face_lon
+            lats = self._surface.face_lat
 
-        lons = np.concatenate((self._localsurface.face_lon, self._localsurface.node_lon))
-        lats = np.concatenate((self._localsurface.face_lat, self._localsurface.node_lat))
-
-        read_data: list[NDArray] = []
-        data_windows: list[Window] = []
-
-        pix_dist = np.full((len(self._data_list), len(lons)), np.inf)
-        for n, dataset in enumerate(self._data_list):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
-            from_data = Transformer.from_crs(dataset.crs, self._localsurface.surface.crs)
+        datavals = np.full(lons.shape, np.nan)
+        for dataset in self._data_list:
+            to_data = Transformer.from_crs(self._surface.surface.crs, dataset.crs, always_xy=True)
 
             x_coords, y_coords = to_data.transform(lons, lats)
 
             mask1 = np.isfinite(x_coords) & np.isfinite(y_coords)
-            rows, cols = rowcol(dataset.transform, x_coords[mask1], y_coords[mask1])
-            mask2 = (cols >= 0) & (cols < dataset.width) & (rows >= 0) & (rows < dataset.height)
-            mask1[mask1] = mask2
-            rows = rows[mask2]
-            cols = cols[mask2]
 
-            if self._localsurface.is_local:
-                cmin, rmin, cmax, rmax = np.min(cols), np.min(rows), np.max(cols), np.max(rows)
-                data, window = _read(dataset, window=Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1))
+            # Transform to fractional grid location so data can be interpolated from the source to the grid
+            inv_transform = ~dataset.transform
+            cols_frac, rows_frac = inv_transform * (x_coords[mask1], y_coords[mask1])
+
+            # Filter valid indices using fractional coordinates
+            mask2 = (cols_frac >= 0) & (cols_frac < dataset.width) & (rows_frac >= 0) & (rows_frac < dataset.height)
+            mask1[mask1] = mask2
+
+            rows_frac = rows_frac[mask2]
+            cols_frac = cols_frac[mask2]
+
+            if self._surface.is_local and len(rows_frac) > 0:
+                # Create a window based on the min/max of the exact bounds
+                cmin, cmax = int(np.floor(cols_frac.min())), int(np.ceil(cols_frac.max()))
+                rmin, rmax = int(np.floor(rows_frac.min())), int(np.ceil(rows_frac.max()))
+                target_window = Window(cmin, rmin, cmax - cmin + 1, rmax - rmin + 1)
+                data, window = _read(dataset, window=target_window)
             else:
                 data, window = _read(dataset)
 
-            read_data.append(data)
-            data_windows.append(window)
+            # RESAMPLING: Map exact fractional coords to our local window grid
+            win_rows = rows_frac - window.row_off
+            win_cols = cols_frac - window.col_off
 
-            values = data[rows - window.row_off, cols - window.col_off]
-
-            print("        Calculating pixel distances")
-
-            mask3 = np.isfinite(values) & (values != dataset.nodata)
-            mask1[mask1] = mask3
-            x_pix, y_pix = from_data.transform(*dataset.xy(rows[mask3], cols[mask3]))
-            pix_dist[n, mask1] = _orderable_distance(lons[mask1], lats[mask1], x_pix, y_pix)
-
-        idx = np.argmin(pix_dist, axis=0)
-        global_mask = np.isfinite(pix_dist[idx, np.arange(len(idx))])
-        elevation = np.zeros_like(idx, dtype=np.float32)
-
-        print("    Setting elevation data")
-        for n, (dataset, data, window) in enumerate(zip(self._data_list, read_data, data_windows, strict=True)):
-            to_data = Transformer.from_crs(self._localsurface.surface.crs, dataset.crs)
-            mask = global_mask & (idx == n)
-
-            if "KILOMETER" in dataset.units:
-                scale_factor = 1000.0
+            # Identify valid data points in the source raster
+            nodata_val = dataset.nodata
+            if nodata_val is None:
+                valid_mask = np.isfinite(data)
             else:
-                scale_factor = 1.0
+                valid_mask = np.isfinite(data) & (data != nodata_val)
 
-            x_coords, y_coords = to_data.transform(lons[mask], lats[mask])
-            rows, cols = rowcol(dataset.transform, x_coords, y_coords)
-            elevation[mask] = data[rows - window.row_off, cols - window.col_off] * scale_factor
+            # Convert to float64 to prevent overflow/rounding artifacts during division
+            clean_data = np.where(valid_mask, data, 0.0).astype(np.float64)
+            weight_grid = valid_mask.astype(np.float64)
+
+            # Interpolate the values (with invalid areas filled with 0.0)
+            interpolated_values = scipy.ndimage.map_coordinates(
+                clean_data, [win_rows, win_cols], order=self.resampling_order, mode="nearest"
+            )
+
+            # Interpolate the weights using the exact same grid transform
+            interpolated_weights = scipy.ndimage.map_coordinates(
+                weight_grid, [win_rows, win_cols], order=self.resampling_order, mode="nearest"
+            )
+
+            # Divide interpolated values by weights to scale out the effect of 0.0 nodata pixels.
+            # Avoid division by zero where weights are 0.0
+            with np.errstate(invalid="ignore", divide="ignore"):
+                values = np.where(interpolated_weights > 0.0, interpolated_values / interpolated_weights, np.nan)
+
+            # Apply a strict threshold on the weights (e.g., 0.5) to define the clean boundary edge.
+            # If weight is < 0.5, the point is too close to/outside the valid boundary.
+            mask3 = np.isfinite(values) & (interpolated_weights >= 0.5)
+
+            mask1[mask1] = mask3
+
+            scale_factor = 1000.0 if self.units == "m" and "KILOMETER" in dataset.units else 1.0
+
+            datavals[mask1] = values[mask3] * scale_factor
             dataset.close()
 
-        self._localsurface.update_elevation(elevation)
+        if self._iselevation:
+            self._surface.update_elevation(datavals, overwrite=self.overwrite)
+        else:
+            self._surface.add_data(
+                name=self.name,
+                data=datavals,
+                long_name=self.long_name,
+                units=self.units,
+                isfacedata=self.isfacedata,
+                overwrite=self.overwrite,
+            )
         self._data_list = []
+        self._data = None
         self._finished = True
-        print("    Done")
 
     def __enter__(self) -> DataComposer:
         return self
@@ -4736,7 +4922,10 @@ class DataComposer(AbstractContextManager):
 
     @staticmethod
     def _get_lola_cylindrical_url_from_pds(
-        pds_file_resolution: int, location: PairOfFloats, boundary_offset: tuple[int, int] = (0, 0)
+        pds_file_resolution: int,
+        location: PairOfFloats,
+        boundary_offset: tuple[int, int] = (0, 0),
+        dem_src: Literal["sldem", "ldem"] = "sldem",
     ) -> str:
         """
         Retrieve the appropriate LOLA DEM file url for a given location and resolution from the PDS.
@@ -4749,6 +4938,8 @@ class DataComposer(AbstractContextManager):
             The longitude and latitude of the location in degrees.
         boundary_offset : tuple[int, int], optional
             Offset to apply to tile index to access neighboring tiles. Default is (0, 0). This is used when the local region crosses one or more tile boundaries.
+        dem_src : Literal["sldem","ldem]
+            Source of DEM files (Kaguya/LOLA SLDEM or LOLA-only LDEM)
 
         Returns
         -------
@@ -4767,15 +4958,25 @@ class DataComposer(AbstractContextManager):
         sldem_global_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/global/float_img/"
         sldem_tile_url = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/"
 
-        def _get_pds_file_suffix(pds_file_resolution, location, boundary_offset):
+        def _get_dem_file_suffix(pds_file_resolution, location, boundary_offset, dem_src):
             if location[0] < 0:
                 location = (location[0] + 360, location[1])
-            if pds_file_resolution == 512:
-                dlon = 45
-                dlat = 30
-            elif pds_file_resolution == 256:
-                dlon = 120
-                dlat = 60
+            if dem_src == "sldem":
+                if pds_file_resolution == 512:
+                    dlon = 45
+                    dlat = 30
+                elif pds_file_resolution == 256:
+                    dlon = 120
+                    dlat = 60
+            elif dem_src == "ldem":
+                if pds_file_resolution == 512:
+                    dlon = 90
+                    dlat = 45
+                elif pds_file_resolution == 256:
+                    dlon = 180
+                    dlat = 90
+            else:
+                raise ValueError("invalid dem_src. Must be 'sldem' or 'ldem'")
 
             latdir = "n" if location[1] + boundary_offset[1] * dlat > 0 else "s"
             latval = np.abs(location[1] / dlat) + boundary_offset[1]
@@ -4803,17 +5004,23 @@ class DataComposer(AbstractContextManager):
                 latlo = lathi
                 lathi = tmp
 
-            if pds_file_resolution == 512:
+            if pds_file_resolution == 512 or dem_src == "ldem":
                 return f"{latlo:02d}{latdir.lower()}_{lathi:02d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
             elif pds_file_resolution == 256:
                 return f"{latlo:d}{latdir.lower()}_{lathi:d}{latdir.lower()}_{lonlo:03d}_{lonhi:03d}"
 
-        if pds_file_resolution >= 256:
-            url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_pds_file_suffix(pds_file_resolution, location, boundary_offset)}_float.xml"
-        elif pds_file_resolution == 128:
-            url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        if dem_src == "sldem":
+            if pds_file_resolution >= 256:
+                url = f"{sldem_tile_url}sldem2015_{pds_file_resolution:d}_{_get_dem_file_suffix(pds_file_resolution=pds_file_resolution, location=location, boundary_offset=boundary_offset, dem_src=dem_src)}_float.xml"
+            elif pds_file_resolution == 128:
+                url = f"{sldem_global_url}sldem2015_{pds_file_resolution:d}_60s_60n_000_360_float.xml"
+        elif dem_src == "ldem":
+            if pds_file_resolution >= 256:
+                url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_{_get_dem_file_suffix(pds_file_resolution=pds_file_resolution, location=location, boundary_offset=boundary_offset, dem_src=dem_src)}_float.xml"
+            else:
+                url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
         else:
-            url = f"{lola_cylindrical_url}ldem_{pds_file_resolution:d}_float.xml"
+            raise ValueError("invalid dem_src. Must be 'sldem' or 'ldem'")
 
         return url
 
@@ -4838,27 +5045,33 @@ class DataComposer(AbstractContextManager):
         AVAILABLE_RESOLUTIONS = [4, 16, 64, 128, 256, 512]  #  pix / deg
         diffs = [abs(resolution - res) for res in AVAILABLE_RESOLUTIONS]
         pds_file_resolution = AVAILABLE_RESOLUTIONS[np.argmin(diffs)]
+        pix = convert_deg2m_res(pds_file_resolution, radius=LOLA_LUNAR_RADIUS)
 
         lat_min, lat_max = lat_range
         lon_min, lon_max = lon_range
         center = ((lon_min + lon_max) / 2.0, (lat_min + lat_max) / 2.0)
+        if pds_file_resolution >= 256 and abs(lat_min) <= 60.0 and abs(lat_max) <= 60.0:
+            dem_src = "sldem"
+        else:
+            dem_src = "ldem"
 
         # First, retrive the file for the centerpoint:
-        filelist = [DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, center)]
-        if pds_file_resolution < 256:
-            return (
-                filelist,
-                pds_file_resolution,
-            )  # These files cover the entire globe, no need to determine if boundaries are crossed
+        filelist = [
+            DataComposer._get_lola_cylindrical_url_from_pds(
+                pds_file_resolution=pds_file_resolution, location=center, dem_src=dem_src
+            )
+        ]
+        if pds_file_resolution >= 256:
+            combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
 
-        combo = [(lon_min, lat_min), (lon_min, lat_max), (lon_max, lat_min), (lon_max, lat_max)]
+            for loc in combo:
+                f = DataComposer._get_lola_cylindrical_url_from_pds(
+                    pds_file_resolution=pds_file_resolution, location=loc, dem_src=dem_src
+                )
+                if f not in filelist:
+                    filelist.append(f)
 
-        for loc in combo:
-            f = DataComposer._get_lola_cylindrical_url_from_pds(pds_file_resolution, loc)
-            if f not in filelist:
-                filelist.append(f)
-
-        return filelist, pds_file_resolution
+        return filelist, pix
 
     @staticmethod
     def get_lola_polar_files_from_pds(resolution: FloatLike, lat_range: PairOfFloats) -> tuple[list[str], int]:
@@ -4899,6 +5112,8 @@ class DataComposer(AbstractContextManager):
         diffs = [abs(resolution - res) for res in valid_resolutions]
         pds_file_resolution = valid_resolutions[np.argmin(diffs)]
         pds_lat_min = valid_min_lat[np.argmin(diffs)]
+        if pds_lat_min == 87.5:
+            pds_lat_min = 875
         filename = f"ldem_{pds_lat_min:d}{pole}_{pds_file_resolution:d}m"
         url = f"{src_url}{filename}_float.xml"
 
@@ -4922,9 +5137,9 @@ class DataComposer(AbstractContextManager):
         lon_range : PairOfFloats, optional
             The (min_lon, max_lon) in degrees of the local region.
         """
-        target_pds_resolution = np.pi / 180.0 * 1737.53e3 / pix  # The moon's radius
+        target_pds_resolution = convert_deg2m_res(pix, radius=LOLA_LUNAR_RADIUS)
         if target_pds_resolution > 10 and (
-            lat_range[0] > 60 or lat_range[1] < -60
+            (lat_range[0] < -60 and lat_range[1] < -60) or (lat_range[0] > 60 and lat_range[1] > 60)
         ):  # Use polar files high latitude, high resolution regions.
             return DataComposer.get_lola_polar_files_from_pds(pix, lat_range=lat_range)
         else:  # Use cylindrical for all other cases
@@ -4943,29 +5158,24 @@ class DataComposer(AbstractContextManager):
             Defaults to the resolution of the surface used.
         """
         if pix is None:
-            pix = self._localsurface.pix
+            pix = self._surface.pix
 
-        if self._localsurface.is_local:
-            lon_min, lon_max, lat_min, lat_max = self._localsurface.get_location_extents()
-            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0])
+        if self._surface.is_local:
+            lon_min, lon_max, lat_min, lat_max = self._surface.get_location_extents()
+            self.update_elevation(
+                DataComposer.get_lola_dem_file_list(pix, lat_range=(lat_min, lat_max), lon_range=(lon_min, lon_max))[0]
+            )
         else:
-            self.add_data(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
-            self.add_data(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
+            self.update_elevation(DataComposer.get_lola_dem_file_list(pix, lat_range=(-60, 60), lon_range=(-180, 180))[0])
+            self.update_elevation(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(60, -60))[0])
+            self.update_elevation(DataComposer.get_lola_polar_files_from_pds(pix, lat_range=(-60, 60))[0])
 
     @property
-    def localsurface(self) -> LocalSurface:
+    def surface(self) -> LocalSurface:
         """
         The ``LocalSurface`` used to create the ``DataComposer``.
         """
-        return self._localsurface
-
-    @property
-    def surface(self) -> Surface:
-        """
-        The ``Surface`` used to create the ``DataComposer``.
-        """
-        return self._localsurface.surface
+        return self._surface
 
     @property
     def finished(self):
@@ -4973,6 +5183,67 @@ class DataComposer(AbstractContextManager):
         Whether ``finish()`` or ``cancel()`` has been called or not.
         """
         return self._finished
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, str):
+            raise TypeError("name must be str type")
+        self._name = value
+
+    @property
+    def long_name(self) -> str | None:
+        return self._long_name
+
+    @long_name.setter
+    def long_name(self, value):
+        if not isinstance(value, str | None):
+            raise TypeError("long_name must be str type or None")
+        self._long_name = value
+
+    @property
+    def units(self) -> str | None:
+        return self._units
+
+    @units.setter
+    def units(self, value):
+        if not isinstance(value, str | None):
+            raise TypeError("units must be str type or None")
+        self._units = value
+
+    @property
+    def isfacedata(self) -> bool:
+        return self._isfacedata
+
+    @isfacedata.setter
+    def isfacedata(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("isfacedata must be bool type")
+        self._isfacedata = value
+
+    @property
+    def overwrite(self) -> bool:
+        return self._overwrite
+
+    @overwrite.setter
+    def overwrite(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("overwrite must be bool type")
+        self._overwrite = value
+
+    @property
+    def resampling_order(self) -> int:
+        return self._resampling_order
+
+    @resampling_order.setter
+    def resampling_order(self, value):
+        value = int(value)
+        if value < 0 or value > 5:
+            raise ValueError("resampling order must be an integer between 0 and 5")
+        self._resampling_order = value
 
 
 import_components(__name__, __path__)

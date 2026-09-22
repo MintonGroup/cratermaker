@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numba import njit
@@ -473,3 +473,146 @@ def bounded_norm(
     )
 
     return truncated_normal.rvs(size, random_state=rng)
+
+
+def sample_pikefit(
+    x: float,
+    a: float,
+    b: float,
+    errhi: float,
+    errlo: float,
+    n: int,
+    compute_nominal: bool = False,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with residual uncertainty in log-space.
+
+    This is used for reproducing the models in Pike (1977) [#]_.
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    a : float
+        The slope of the log-log fit.
+    b : float
+        The intercept of the log-log fit.
+    errhi : float
+        The standard error of the fit in log-space in the positive direction.
+    errlo : float
+        The standard error of the fit in log-space in the negative direction.
+    n : int
+        The number of data points used to compute the fit.
+    compute_nominal : bool, optional
+        Set to True to return the nominal value without the random variation. Default is False.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+    log_y = np.log(b) + a * np.log(x)
+
+    if compute_nominal:
+        var = np.zeros(np.size(x))
+    else:
+        rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        sighi = np.sqrt(n) * errhi
+        siglo = -np.sqrt(n) * errlo
+        # Average the logspace upper/lower error values
+        var = rng.normal(0, 0.5, size=np.size(x))
+        if var > 0.0:
+            var *= sighi
+        else:
+            var *= siglo
+
+    y = np.exp(log_y + var)
+
+    return y
+
+
+def sample_logfit_heteroskedastic(
+    x: float,
+    coefficients: list[float],
+    c: float,
+    alpha: float,
+    fit_scale: Literal["linear", "logx", "logy", "loglog"] = "loglog",
+    compute_nominal: bool = False,
+    rng: Generator | None = None,
+    rng_seed: int | None = None,
+    rng_state: dict | None = None,
+    **kwargs: Any,
+) -> np.float64:
+    """
+    Sample y values with variance that depends on x.
+
+    This is primarily used on morphometric fits.
+
+    Fitting y = c + alpha * x, where y is either res**2 or log(res**2) and x is either f or log(f), depending on the value of fit_scale.
+
+    Parameters
+    ----------
+    x : float
+        The x value to compute the y value for.
+    coefficients : list[float]
+        The coefficients of the log-log fit.
+    c : float
+        The intercept of the sigma vs x fit.
+    alpha : float
+        The slope of the sigma vs x fit.
+    n : int
+        The number of data points used to compute the fit.
+    compute_nominal : bool, optional
+        Set to True to return the nominal value without the random variation. Default is False.
+    rng : numpy.random.Generator | None
+        |rng|
+    rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
+        |rng_seed|
+    rng_state : dict, optional
+        |rng_state|
+    **kwargs : Any
+        |kwargs|
+
+    References
+    ----------
+    .. [#] Pike, R.J., 1977. Size-dependence in the shape of fresh impact craters on the moon. Presented at the In: Impact and explosion cratering: Planetary and terrestrial implications; Proceedings of the Symposium on Planetary Cratering Mechanics, pp. 489-509.
+    """
+
+    def polyfunc(x, *cn):
+        ans = 0.0
+        for i, c in enumerate(cn):
+            ans += c * x**i
+        return ans
+
+    if fit_scale in ["loglog", "logx"]:
+        xval = np.log(x)
+    else:
+        xval = x
+    if fit_scale in ["loglog", "logy"]:
+        log_y = polyfunc(xval, *coefficients)
+        y = np.exp(log_y)
+    else:
+        y = polyfunc(xval, *coefficients)
+
+    if compute_nominal:
+        return np.atleast_1d(y)
+    else:
+        rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        if fit_scale in ["loglog", "logy"]:
+            sigma = np.exp(c / 2) * y ** (alpha / 2)
+        else:
+            sigma = np.sqrt(max(c + alpha * y, 0.0))
+        var = rng.normal(0, sigma, size=np.size(x))
+
+    return y + var

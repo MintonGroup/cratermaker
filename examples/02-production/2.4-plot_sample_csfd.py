@@ -13,7 +13,7 @@ import numpy as np
 
 from cratermaker import Production, Target
 
-fig, axs = plt.subplots(1, 2, figsize=(8, 7))
+fig, axs = plt.subplots(1, 2, figsize=(8, 7), layout="constrained")
 axes = dict(zip(["Power Law", "NPF (Moon)"], axs))
 
 production = {
@@ -67,5 +67,4 @@ for name, ax in axes.items():
 
 plt.tick_params(axis="y", which="minor")
 
-plt.tight_layout()
 plt.show()

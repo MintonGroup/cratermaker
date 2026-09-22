@@ -100,7 +100,7 @@ class CraterVariable:
         measured_orientation: float | None = None,
         measured_location: PairOfFloats | None = None,
         measured_rim_height: float | None = None,
-        measured_floor_depth: float | None = None,
+        measured_floor_elevation: float | None = None,
         degradation_state: float | None = None,
         production_time: tuple[float, float] | float | None = None,
         production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
@@ -114,7 +114,7 @@ class CraterVariable:
         object.__setattr__(self, "_measured_orientation", None)
         object.__setattr__(self, "_measured_location", None)
         object.__setattr__(self, "_measured_rim_height", None)
-        object.__setattr__(self, "_measured_floor_depth", None)
+        object.__setattr__(self, "_measured_floor_elevation", None)
         object.__setattr__(self, "_degradation_state", None)
         object.__setattr__(self, "_production_time", None)
         object.__setattr__(self, "_production_ND", None)
@@ -135,8 +135,8 @@ class CraterVariable:
             self.measured_location = measured_location
         if measured_rim_height is not None:
             self.measured_rim_height = measured_rim_height
-        if measured_floor_depth is not None:
-            self.measured_floor_depth = measured_floor_depth
+        if measured_floor_elevation is not None:
+            self.measured_floor_elevation = measured_floor_elevation
         if degradation_state is not None:
             self.degradation_state = degradation_state
         if production_time is not None:
@@ -158,7 +158,7 @@ class CraterVariable:
             f"measured_orientation={self.measured_orientation}, "
             f"measured_location={self.measured_location}, "
             f"measured_rim_height={self.measured_rim_height}, "
-            f"measured_floor_depth={self.measured_floor_depth}, "
+            f"measured_floor_elevation={self.measured_floor_elevation}, "
             f"degradation_state={self.degradation_state}, "
             f"production_time={self.production_time}, "
             f"production_ND={self.production_ND}, "
@@ -176,7 +176,7 @@ class CraterVariable:
             "measured_orientation": self.measured_orientation,
             "measured_location": self.measured_location,
             "measured_rim_height": self.measured_rim_height,
-            "measured_floor_depth": self.measured_floor_depth,
+            "measured_floor_elevation": self.measured_floor_elevation,
             "degradation_state": self.degradation_state,
         }
         if self.measured_semimajor_axis is not None:
@@ -255,11 +255,7 @@ class CraterVariable:
             return
         if value <= 0:
             raise ValueError("measured_semimajor_axis must be positive.")
-        if self._measured_semiminor_axis is not None and value < self._measured_semiminor_axis:
-            self._measured_semimajor_axis = self._measured_semiminor_axis
-            self._measured_semiminor_axis = float(value)
-        else:
-            self._measured_semimajor_axis = float(value)
+        self._measured_semimajor_axis = float(value)
         return
 
     @property
@@ -283,11 +279,7 @@ class CraterVariable:
             return
         if value <= 0:
             raise ValueError("measured_semiminor_axis must be positive.")
-        if self._measured_semimajor_axis is not None and value > self._measured_semimajor_axis:
-            self._measured_semiminor_axis = self._measured_semimajor_axis
-            self._measured_semimajor_axis = float(value)
-        else:
-            self._measured_semiminor_axis = float(value)
+        self._measured_semiminor_axis = float(value)
         return
 
     @property
@@ -342,20 +334,20 @@ class CraterVariable:
         return
 
     @property
-    def measured_floor_depth(self) -> float | None:
+    def measured_floor_elevation(self) -> float | None:
         """
         The measured floor depth below the local reference plane of the crater in meters.
 
         This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
         """
-        return self._measured_floor_depth
+        return self._measured_floor_elevation
 
-    @measured_floor_depth.setter
-    def measured_floor_depth(self, value: float | None):
+    @measured_floor_elevation.setter
+    def measured_floor_elevation(self, value: float | None):
         if value is None:
-            self._measured_floor_depth = None
+            self._measured_floor_elevation = None
             return
-        self._measured_floor_depth = float(value)
+        self._measured_floor_elevation = float(value)
         return
 
     @property
@@ -436,7 +428,7 @@ class Crater(ComponentBase):
                 raise TypeError("crater must be an instance of Crater or None")
             fixed_fields = asdict(crater._fixed)
             for f in fields(crater._fixed):
-                if not f.init:
+                if not f.init or f.name in kwargs:
                     fixed_fields.pop(f.name)
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs
@@ -455,6 +447,9 @@ class Crater(ComponentBase):
                 fixed_fields[f.name] = kwargs.pop(f.name)
 
         var_fields.update({k: v for k, v in kwargs.items() if k not in fixed_fields})
+        location = fixed_fields.pop("location", None)
+        if location is not None:
+            fixed_fields["location"] = (float(location[0]), float(location[1]))
         self._fixed = fixed_cls(**fixed_fields)
         self._var = variable_cls(**var_fields)
         return
@@ -539,8 +534,8 @@ class Crater(ComponentBase):
             str_repr += f"Measured location (lon, lat): ({self.measured_location[0]:.4f}°, {self.measured_location[1]:.4f}°)\n"
         if self.measured_rim_height is not None and np.abs(self.measured_rim_height) < _VBIG:
             str_repr += f"Measured rim height: {format_large_units(self.measured_rim_height, quantity='length')}\n"
-        if self.measured_floor_depth is not None and np.abs(self.measured_floor_depth) < _VBIG:
-            str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_depth, quantity='length')}\n"
+        if self.measured_floor_elevation is not None and np.abs(self.measured_floor_elevation) < _VBIG:
+            str_repr += f"Measured floor depth: {format_large_units(self.measured_floor_elevation, quantity='length')}\n"
         if self.production_sequence is not None:
             str_repr += f"Production sequence: {self.production_sequence}\n"
         if self.production_ND is not None:
@@ -602,7 +597,7 @@ class Crater(ComponentBase):
         measured_radius: float | None = None,
         measured_location: PairOfFloats | None = None,
         measured_rim_height: float | None = None,
-        measured_floor_depth: float | None = None,
+        measured_floor_elevation: float | None = None,
         degradation_state: float | None = None,
         production_time: tuple[float, float] | float | None = None,
         production_ND: tuple[float, float, float] | tuple[float, float] | None = None,
@@ -687,7 +682,7 @@ class Crater(ComponentBase):
             The measured (longitude, latitude) location of the crater.
         measured_rim_height : float, optional
             The measured rim height of the crater in meters.
-        measured_floor_depth : float, optional
+        measured_floor_elevation : float, optional
             The measured floor depth of the crater in meters.
         degradation_state : float, optional
             The current degradation state of the crater in meters squared.
@@ -777,7 +772,7 @@ class Crater(ComponentBase):
                 raise ValueError("Both longitude and latitude must be passed or location must be passed.")
             if check_redundant_inputs and (location is not None or projectile_location is not None):
                 raise ValueError("location cannot be used with longitude and latitude as separate arguments")
-            location = [longitude, latitude]
+            location = (longitude, latitude)
 
         if location is None:
             location = projectile_location
@@ -873,8 +868,8 @@ class Crater(ComponentBase):
             args["measured_location"] = measured_location
         if measured_rim_height is not None:
             args["measured_rim_height"] = measured_rim_height
-        if measured_floor_depth is not None:
-            args["measured_floor_depth"] = measured_floor_depth
+        if measured_floor_elevation is not None:
+            args["measured_floor_elevation"] = measured_floor_elevation
         if degradation_state is not None:
             args["degradation_state"] = degradation_state
         if production_time is not None:
@@ -883,6 +878,8 @@ class Crater(ComponentBase):
             args["production_ND"] = production_ND
         if production_sequence is not None:
             args["production_sequence"] = production_sequence
+        if name is not None:
+            args["name"] = name
 
         n_size_inputs = sum(v is not None for v in size_inputs.values())
 
@@ -891,9 +888,9 @@ class Crater(ComponentBase):
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be a Crater object.")
             old_parameters = {}
-            for field in crater.as_dict():
-                if field in locals() and locals()[field] is None and getattr(crater, field) is not None:
-                    old_parameters[field] = getattr(crater, field)
+            for field, value in crater.as_dict(skip_complex_data=True).items():
+                if field in locals() and locals()[field] is None and value is not None:
+                    old_parameters[field] = value
             if (
                 n_size_inputs == 0
             ):  # The user has not passed any size parameters, so we will use the size parameters from the crater object
@@ -1078,6 +1075,8 @@ class Crater(ComponentBase):
             if prho < 0:
                 raise ValueError("Projectile density must be non-negative.")
 
+            name = args.pop("name", None) if name is None else name
+
         if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
         else:
@@ -1133,7 +1132,8 @@ class Crater(ComponentBase):
         args["measured_orientation"] = float(measured_orientation) if measured_orientation is not None else None
         args["id"] = _set_id(**args)
         args["name"] = str(name) if name is not None else None
-        return cls(**args, **kwargs)
+        args = {**args, **kwargs}  # Add any remaining kwargs to the arguments passed to the constructor
+        return cls(**args)
 
     def to_geoseries(
         self,
@@ -1227,7 +1227,7 @@ class Crater(ComponentBase):
         return GeoSeries([poly], crs=surface.crs)
 
     @classmethod
-    def from_file(cls, filename: str | Path, **kwargs: Any) -> list[Crater] | None:
+    def from_file(cls, filename: str | Path, conserve_volume: bool = False, **kwargs: Any) -> list[Crater] | None:
         """
         Load a list of craters from a file.
 
@@ -1235,6 +1235,8 @@ class Crater(ComponentBase):
         ----------
         filename : str | Path
             The path to the file to load from.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1248,16 +1250,16 @@ class Crater(ComponentBase):
             raise FileNotFoundError(f"File {filename} does not exist.")
         extension = filename.suffix.lower().lstrip(".")
         if extension == "nc":
-            ds = xr.open_dataset(filename)
-            craters = cls.from_xarray(ds, **kwargs)
+            ds = xr.open_dataset(filename, engine="h5netcdf")
+            craters = cls.from_xarray(ds, conserve_volume=conserve_volume, **kwargs)
         elif extension == "csv":
-            craters = cls.from_csv_file(filename, **kwargs)
+            craters = cls.from_csv_file(filename, conserve_volume=conserve_volume, **kwargs)
         elif extension == "scc":
-            craters = cls.from_scc_file(filename, **kwargs)
+            craters = cls.from_scc_file(filename, conserve_volume=conserve_volume, **kwargs)
         return craters
 
     @classmethod
-    def from_csv_file(cls, input_file: Path | str) -> list[Crater]:
+    def from_csv_file(cls, input_file: Path | str, conserve_volume: bool = False, **kwargs: Any) -> list[Crater]:
         """
         Import crater data from a CSV file.
 
@@ -1265,6 +1267,10 @@ class Crater(ComponentBase):
         ----------
         input_file : Path | str
             The path to the CSV file containing crater data.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
@@ -1273,7 +1279,8 @@ class Crater(ComponentBase):
         """
         import csv
 
-        craters = []
+        craters = {}
+        rings = []
         input_file = Path(input_file)
         if not input_file.exists():
             raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
@@ -1295,20 +1302,32 @@ class Crater(ComponentBase):
                             crater_data[key] = vnew
                         else:
                             crater_data[key] = None
-
                     else:
                         try:
                             crater_data[key] = float(value)
                         except ValueError:
-                            crater_data[key] = value
+                            continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
-                crater = cls.maker(**crater_data, check_redundant_inputs=False)
-                craters.append(crater)
+                if "morphology_type" in crater_data:
+                    crater_data["isring"] = crater_data["morphology_type"] == "ring"
+                crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+                if crater.morphology_type == "ring":
+                    rings.append(crater)
+                else:
+                    craters[crater.id] = crater
 
-        return craters
+            if len(rings) > 0:
+                # First remove any auto-generated rings
+                for ring in rings:
+                    craters[ring.parent]._rings = []
+                # Now add the input rings
+                for ring in rings:
+                    craters[ring.parent].add_ring(ring=ring)
+
+        return list(craters.values())
 
     @classmethod
-    def from_scc_file(cls, input_file: Path | str) -> list[Crater]:
+    def from_scc_file(cls, input_file: Path | str, conserve_volume: bool = False, **kwargs: Any) -> list[Crater]:
         """
         Import crater data from a Spatial Crater Count file.
 
@@ -1316,6 +1335,10 @@ class Crater(ComponentBase):
         ----------
         input_file : Path | str
             The path to the SCC file containing crater data.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs: Any
+            |kwargs|
 
         Returns
         -------
@@ -1332,13 +1355,17 @@ class Crater(ComponentBase):
             raise ValueError(f"Input file '{input_file}' is not a .scc file.")
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
-            crater = cls.maker(diameter=diam * 1e3, location=(lon, lat))
+            crater = cls.maker(
+                diameter=diam * 1e3, location=(lon, lat), conserve_volume=conserve_volume, check_redundant_inputs=False
+            )
             craters.append(crater)
 
         return craters
 
     @classmethod
-    def from_xarray(cls, dataset: xr.Dataset | dict, interval: int | None = None) -> list[Crater]:
+    def from_xarray(
+        cls, dataset: xr.Dataset | dict, interval: int | None = None, conserve_volume: bool = False, **kwargs
+    ) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
 
@@ -1346,43 +1373,66 @@ class Crater(ComponentBase):
         ----------
         dataset : xr.Dataset | dict
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+        conserve_volume : bool, optional
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        **kwargs : Any
+            |kwargs|
 
         Returns
         -------
         list[Crater]
             A list of Crater objects imported from the xarray Dataset.
         """
-        craters = []
         if type(dataset) is dict:
             if interval is None:
                 dataset = dataset[-1]
             elif interval in dataset:
                 dataset = dataset[interval]
             else:
-                return craters
+                return []
         if "interval" in dataset.coords:
             if interval is None:
                 dataset = dataset.isel(interval=-1)
             elif interval in dataset.interval:
                 dataset = dataset.sel(interval=interval)
             else:
-                return craters
+                return []
         dataset.load()
         if len(dataset) == 0:
-            return craters
-        for id in tqdm(dataset.id.data, desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False):
-            crater_data = dataset.sel(id=id).to_dict()["data_vars"]
-            crater_data = {k: v["data"] for k, v in crater_data.items()}
-            if not isinstance(crater_data["semimajor_axis"], (float, int)):
-                continue
+            return []
+        dims = dataset.dims
+        if len(dims) > 1:
+            raise ValueError(f"Dataset has more than one dimension: {dims}. Cannot convert to Crater objects.")
+        dimname = list(dims)[0]
+        craters = {}
+        rings = []
+        for i in tqdm(
+            range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
+        ):
+            crater_dict = dataset.isel(indexers={dimname: i}).to_dict()
+            crater_data = {k: v["data"] for k, v in crater_dict["data_vars"].items()}
             crater_data = _convert_tuple_vars(input_dict=crater_data, inverse=True)
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            crater = cls.maker(**crater_data, check_redundant_inputs=False)
-            craters.append(crater)
+            if "morphology_type" in crater_data:
+                crater_data["isring"] = crater_data["morphology_type"] == "ring"
+            crater_data[dimname] = crater_dict["coords"][dimname]["data"]
+            crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+            if crater.isring:
+                rings.append(crater)
+            else:
+                craters[crater.id] = crater
 
-        return craters
+        if len(rings) > 0:
+            # First remove any auto-generated rings
+            for ring in rings:
+                craters[ring.parent]._rings = []
+            # Now add the input rings
+            for ring in rings:
+                craters[ring.parent].add_ring(ring=ring)
+
+        return list(craters.values())
 
     @property
     def final_diameter(self) -> float | None:
@@ -1401,6 +1451,187 @@ class Crater(ComponentBase):
         This is useful for storing a lightweight representation, as it removes complex data types that can be recomputed from the fixed properties and the morphology model when needed. The base  Crater type does not have any complex data types, but is used by derived types that do, so this method is included here for consistency and to allow for future expansion of the base Crater type without breaking the API.
         """
         pass
+
+    @property
+    def name(self) -> str | None:
+        """Optional name of the crater, which does not need to be unique."""
+        return self._var._name
+
+    @property
+    def measured_diameter(self) -> float | None:
+        """Final diameter of the crater in meters."""
+        return self._var.measured_diameter
+
+    @property
+    def measured_radius(self) -> float | None:
+        """
+        The measured radius of the crater in meters. For a circular crater, this is equal to the measured semimajor and semiminor axes.
+
+        For a non-circular crater, this is the geometric mean of the measured semimajor and measured semiminor axes. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_radius
+
+    @property
+    def measured_semimajor_axis(self) -> float | None:
+        """
+        The measured semimajor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semiminor axis and the measured radius. For a non-circular crater, this is the longest axis of the crater. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_semimajor_axis
+
+    @property
+    def measured_semiminor_axis(self) -> float | None:
+        """
+        The measured semiminor axis of the crater in meters.
+
+        For a circular crater, this is equal to the measured semimajor axis and the measured radius. This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed semimajor axis attribute.
+        """
+        return self._var.measured_semiminor_axis
+
+    @property
+    def measured_orientation(self) -> float | None:
+        """
+        The measured orientation of the crater in degrees, measured clockwise from north.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of the fixed orientation attribute.
+        """
+        return self._var.measured_orientation
+
+    @property
+    def measured_location(self) -> tuple[float, float] | None:
+        return self._var.measured_location
+
+    @property
+    def measured_rim_height(self) -> float | None:
+        return self._var.measured_rim_height
+
+    @property
+    def measured_floor_elevation(self) -> float | None:
+        """
+        The measured floor depth below the local reference plane of the crater in meters.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
+        return self._var._measured_floor_elevation
+
+    @property
+    def degradation_state(self) -> float | None:
+        """The degradation state of the crater in m², which is a measure of how much the crater has degraded diffusively from its original state.
+
+        This is a variable attribute that can be updated as the crater degrades or as measurements are refined, and is independent of any fixed attributes.
+        """
+        return self._var._degradation_state
+
+    @property
+    def production_time(self) -> float | None:
+        """The range of ages of the crater in Myr before present, used by the quasi-monte carlo sampling method to emplace a user-defined crater within a time period."""
+        return self._var.production_time
+
+    @property
+    def production_ND(self) -> tuple[float, float, float] | tuple[float, float] | None:
+        """A tuple of diameter and cumulative number values, in the form of a (D, N), or (D, N, N_stdev) used by the quasi-monte carlo sampling method to emplace a user-defined crater within a number-diameter range."""
+        return self._var._production_ND
+
+    @property
+    def production_sequence(self) -> int | None:
+        """The production sequence number of the crater, used by the quasi-monte carlo sampling method to emplace a user-defined crater in a relative sequence order with other quasi-monte carlo sampled craters."""
+        return self._var._production_sequence
+
+    @property
+    def id(self) -> np.uint32 | None:
+        """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
+        return self._fixed.id
+
+    @property
+    def semimajor_axis(self) -> float | None:
+        """The semimajor axis of the cratermeters. For a circular crater, this is equal to the semiminor axis and the radius."""
+        return self._fixed.semimajor_axis
+
+    @property
+    def semiminor_axis(self) -> float | None:
+        """The semiminor axis of the crater in meters. For a circular crater, this is equal to the semimajor axis and the radius."""
+        return self._fixed.semiminor_axis
+
+    @property
+    def orientation(self) -> float | None:
+        """Orientation of the crater in degrees, measured clockwise from north. For a circular crater, this value is not meaningful, but will be set to the same value as `projectile_orientation`."""
+        return self._fixed.orientation
+
+    @property
+    def transient_diameter(self) -> float | None:
+        """The transient diameter of the crater in meters."""
+        return self._fixed.transient_diameter
+
+    @property
+    def projectile_diameter(self) -> float | None:
+        """The diameter of the projectile in meters."""
+        return self._fixed.projectile_diameter
+
+    @property
+    def projectile_velocity(self) -> float | None:
+        """The velocity of the projectile in meters per second."""
+        return self._fixed.projectile_velocity
+
+    @property
+    def projectile_angle(self) -> float | None:
+        """The impact angle of the projectile relative to the surfacein degrees."""
+        return self._fixed.projectile_angle
+
+    @property
+    def projectile_mass(self) -> float | None:
+        """The mass of the projectile in kg."""
+        return self._fixed.projectile_mass
+
+    @property
+    def location(self) -> PairOfFloats | None:
+        """The location of the crater center in (longitude, latitude) in degrees."""
+        return self._fixed.location
+
+    @property
+    def morphology_type(self) -> str | None:
+        """The morphology type of the crater, i.e. "simple", "complex", etc."""
+        return self._fixed.morphology_type
+
+    @property
+    def time(self) -> float | None:
+        """The time in My before present at which the crater was emplaced or observed."""
+        return self._fixed.time
+
+    @property
+    def radius(self) -> float | None:
+        """The radius of the crater in meters. For a circular crater, this is equal to the semimajor and semiminor axes. For a non-circular crater, this is the geometric mean of the semimajor and semiminor axes."""
+        return self._fixed.radius
+
+    @property
+    def diameter(self) -> float | None:
+        """The diameter of the crater in meters. For a circular crater, this is equal to twice the semimajor and semiminor axes. For a non-circular crater, this is twice the geometric mean of the semimajor and semiminor axes."""
+        return self._fixed.diameter
+
+    @property
+    def transient_radius(self) -> float | None:
+        """The transient radius of the crater in meters, which is half the transient diameter."""
+        return self._fixed.transient_radius
+
+    @property
+    def projectile_radius(self) -> float | None:
+        """The radius of the projectile in meters, which is half the projectile diameter."""
+        return self._fixed.projectile_radius
+
+    @property
+    def projectile_density(self) -> float | None:
+        """The density of the projectile in kg/m³."""
+        return self._fixed.projectile_density
+
+    @property
+    def projectile_vertical_velocity(self) -> float | None:
+        """The vertical component of the projectile velocity in meters per second."""
+        return self._fixed.projectile_vertical_velocity
+
+    @property
+    def projectile_direction(self) -> float | None:
+        """The direction of the projectile in degrees, measured clockwise from north. This is the same as `orientation`."""
+        return self._fixed.projectile_direction
 
 
 def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:
