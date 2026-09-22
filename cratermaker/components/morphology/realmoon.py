@@ -356,7 +356,8 @@ class RealMoonCrater(BasicMoonCrater):
         morphology: Morphology | None = None,
         rim_radius_psd: PSD1D | None = None,
         floor_radius_psd: PSD1D | None = None,
-        rim_height_psd: PSD1D | None = None,
+        rim_radius_control: dict[str, np.float64] | None = None,
+        floor_radius_control: dict[str, np.float64] | None = None,
         **kwargs: Any,
     ) -> RealMoonCrater:
         """
@@ -392,9 +393,9 @@ class RealMoonCrater(BasicMoonCrater):
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, RealMoonCrater):
             rim_radius_psd = crater.rim_radius_psd if rim_radius_psd is None else rim_radius_psd
+            rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
             floor_radius_psd = crater.floor_radius_psd if floor_radius_psd is None else floor_radius_psd
-            floor_radius_control = crater.floor_radius_control if floor_radius_psd is None else floor_radius_psd
-            rim_height_control = crater.rim_height_control if rim_height_psd is None else rim_height_psd
+            floor_radius_control = crater.floor_radius_control if floor_radius_control is None else floor_radius_control
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
