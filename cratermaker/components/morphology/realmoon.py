@@ -392,6 +392,7 @@ class RealMoonCrater(BasicMoonCrater):
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, RealMoonCrater):
             rim_radius_psd = crater.rim_radius_psd if rim_radius_psd is None else rim_radius_psd
+            floor_radius_psd = crater.floor_radius_psd if floor_radius_psd is None else floor_radius_psd
             floor_radius_control = crater.floor_radius_control if floor_radius_psd is None else floor_radius_psd
             rim_height_control = crater.rim_height_control if rim_height_psd is None else rim_height_psd
 
@@ -525,8 +526,7 @@ class RealMoonCrater(BasicMoonCrater):
                 rng_seed=self.floor_radius_rng_seed,
                 add_noise=self.morphology.add_noise,
             )
-        else:
-            return self._var._floor_radius_psd
+        return self._var._floor_radius_psd
 
     @property
     def rim_radius_control(self) -> np.ndarray | None:
