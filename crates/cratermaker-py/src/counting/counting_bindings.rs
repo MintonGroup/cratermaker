@@ -9,14 +9,14 @@ pub fn measure_rim_height<'py>(
     region: &Bound<'py, PyAny>,
     crater: Crater,
 ) -> PyResult<f64> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
 
-    let rim_height =
-        match cratermaker_components::counting::measure_rim_height(&region_v, &crater) {
-            Ok(v) => v,
-            Err(_) => return Ok(-f64::MAX),
-        };
+    let rim_height = match cratermaker_components::counting::measure_rim_height(&region_v, &crater)
+    {
+        Ok(v) => v,
+        Err(_) => return Ok(-f64::MAX),
+    };
 
     Ok(rim_height)
 }
@@ -27,7 +27,7 @@ pub fn measure_floor_elevation<'py>(
     region: &Bound<'py, PyAny>,
     crater: Crater,
 ) -> PyResult<f64> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
 
     let floor_elevation =
@@ -38,5 +38,3 @@ pub fn measure_floor_elevation<'py>(
 
     Ok(floor_elevation)
 }
-
-

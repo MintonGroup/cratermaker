@@ -5,8 +5,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
+// Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyPSD1D<'py> {
-    // Expose as read/write properties in Python
     pub npoints: usize,
     pub pix: f64,
     pub wavelength: PyReadonlyArray1<'py, f64>,
@@ -15,6 +15,7 @@ pub struct PyPSD1D<'py> {
 }
 
 impl<'py> PyPSD1D<'py> {
+    // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         let npoints: usize = obj.getattr("npoints")?.extract()?;
         Ok(Self {
@@ -26,6 +27,7 @@ impl<'py> PyPSD1D<'py> {
         })
     }
 
+    // Converts all of the PyArray objects inside the struct to memory views of the arrays
     pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::PSD1DView<'_> {
         cratermaker_components::morphology::realmoon::PSD1DView {
             npoints: self.npoints,
@@ -84,7 +86,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             floor_radius_psd,
         })
     }
-    /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
+    /// Convert to cratermaker-components RealMoonCrater struct with array views instead of readonly PyAarrays
     pub fn as_views(&self) -> RealMoonCrater<'_> {
         RealMoonCrater {
             diameter: self.diameter,
