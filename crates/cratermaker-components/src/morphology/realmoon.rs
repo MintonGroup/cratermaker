@@ -13,8 +13,10 @@ use std::f64::consts::TAU;
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
-    pub npoints: usize,
+    pub nprofile: usize,
+    pub npsd: usize,
     pub pix: f64,
+    pub mean: f64,
     pub wavelength: ArrayView1<'a, f64>,
     pub power: ArrayView1<'a, f64>,
     pub phase: ArrayView1<'a, f64>,
@@ -213,7 +215,7 @@ fn realtobasic(
 /// - "y3": The y-coordinate at the third breakpoint (2nd highest wavelength) in log(power).
 /// - "y4": The y-coordinate of the highest wavelength in ln(power).
 /// - "y5": The y-coordinate of the highest wavelength in ln(power).
-///  * `npoints` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
+///  * `nprofile` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
 ///  * `add_noise` - Whether to add Gaussian noise to the ln(power) values to simulate natural variability in the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
 ///
@@ -224,7 +226,7 @@ fn realtobasic(
 ///
 pub fn get_1d_psd_from_control_points(
     control_points: &HashMap<String, f64>,
-    npoints: usize,
+    nprofile: usize,
     add_noise: bool,
     rng_seed: u64,
 ) -> Result<(Array1<f64>, Array1<f64>, Array1<f64>), String> {
@@ -236,18 +238,16 @@ pub fn get_1d_psd_from_control_points(
     let y4 = control_points["y4"];
     let y5 = control_points["y5"];
 
-    let x1 = TAU.ln();
-
-    let interval = x1.exp() / npoints as f64;
+    let interval = TAU / nprofile as f64;
 
     // Equivalent to rfft sizing in Python:
-    let iend = npoints / 2;
+    let iend = nprofile / 2;
     let nrows = iend.saturating_sub(1); // wavelength from bins 1..iend-1
     let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
     let mut wavelength = Array1::<f64>::zeros(nrows);
     let mut power = Array1::<f64>::zeros(nrows);
     let mut phase = Array1::<f64>::zeros(nrows);
-    let base = npoints as f64 * interval;
+    let base = nprofile as f64 * interval;
     let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
     for k in 1..iend {
         let row = k - 1;

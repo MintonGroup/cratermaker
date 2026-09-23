@@ -34,10 +34,9 @@ class PSD1D(CratermakerBase):
         self,
         mean: FloatLike,
         pix: FloatLike,
-        npoints: int | None = None,
+        nprofile: int | None = None,
         control_points: dict[str, np.float64] | None = None,
         power: NDArray[np.float64] | None = None,
-        wavelength: NDArray[np.float64] | None = None,
         phase: NDArray[np.float64] | None = None,
         add_noise: bool = True,
         rng: Generator | None = None,
@@ -59,21 +58,20 @@ class PSD1D(CratermakerBase):
         **kwargs : Any
             |kwargs|
         """
+        # Set a unique rng seed for this object so that the same profile gets generated every time.
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         object.__setattr__(self, "_mean", None)
         object.__setattr__(self, "_pix", None)
-        object.__setattr__(self, "_npoints", None)
+        object.__setattr__(self, "_nprofile", None)
         object.__setattr__(self, "_control_points", None)
         object.__setattr__(self, "_power", None)
-        object.__setattr__(self, "_wavelength", None)
         object.__setattr__(self, "_phase", None)
         object.__setattr__(self, "_add_noise", None)
 
         self.mean = mean
         self.pix = pix
-        self.npoints = npoints
+        self.nprofile = nprofile
         self.control_points = control_points
-        self.wavelength = wavelength
         self.power = power
         self.phase = phase
         self.add_noise = add_noise
@@ -107,54 +105,44 @@ class PSD1D(CratermakerBase):
             raise ValueError("pix must be a positive number")
 
     @property
-    def npoints(self) -> int:
+    def nprofile(self) -> int:
         """
-        The number of power spectral density points in the signal.
+        The number of points in the linear profile, which is 2x the number of points in the spectral density (npsd).
         """
-        if self._npoints is None:
-            if self._wavelength is not None:
-                return len(self._wavelength)
+        if self._nprofile is None:
+            if self._power is not None:
+                return 2 * len(self._power)
             elif self.pix is not None:
                 return max(int(4 * math.pi * self.mean / self.pix), _PSD1D_MIN_POINTS)
-        return self._npoints
+        return self._nprofile
 
-    @npoints.setter
-    def npoints(self, value):
+    @nprofile.setter
+    def nprofile(self, value):
         if value is not None and (not isinstance(value, int) or value < _PSD1D_MIN_POINTS):
-            raise ValueError(f"npoints must be a positive integer larger than {_PSD1D_MIN_POINTS}")
+            raise ValueError(f"nprofile must be a positive integer larger than {_PSD1D_MIN_POINTS}")
         else:
-            self._npoints = value
+            self._nprofile = value
+
+    @property
+    def npsd(self) -> int:
+        """
+        The number of power spectra points, which is half the number of points in the profile (nprofile).
+        """
+        if self.nprofile % 2 == 0:
+            return self.nprofile // 2 - 1
+        else:
+            return self.nprofile // 2
 
     @property
     def wavelength(self) -> NDArray[np.float64]:
-        if self._wavelength is None:
-            psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
-                control_points=self.control_points,
-                npoints=self.npoints,
-                add_noise=self.add_noise,
-                rng_seed=self.rng_seed,
-            )
-            return psd_arrs[0]
-        else:
-            return self._wavelength
-
-    @wavelength.setter
-    def wavelength(self, value):
-        if value is not None:
-            value = np.asarray(value)
-            if self._npoints is None:
-                self.npoints = len(value)
-            else:
-                if len(value) != self.npoints:
-                    raise ValueError(f"Size of wavelength must be {self.npoints}")
-        self._wavelength = value
+        return 2 * np.pi / np.arange(1.0, self.npsd + 1)
 
     @property
     def power(self) -> NDArray[np.float64]:
         if self._power is None:
             psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
                 control_points=self.control_points,
-                npoints=self.npoints,
+                nprofile=self.nprofile,
                 add_noise=self.add_noise,
                 rng_seed=self.rng_seed,
             )
@@ -166,11 +154,11 @@ class PSD1D(CratermakerBase):
     def power(self, value):
         if value is not None:
             value = np.asarray(value)
-            if self._npoints is None:
-                self.npoints = len(value)
+            if self._nprofile is None:
+                self.nprofile = len(value)
             else:
-                if len(value) != self.npoints:
-                    raise ValueError(f"Size of power must be {self.npoints}")
+                if len(value) != self.nprofile:
+                    raise ValueError(f"Size of power must be {self.nprofile}")
         self._power = value
 
     @property
@@ -178,7 +166,7 @@ class PSD1D(CratermakerBase):
         if self._phase is None:
             psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
                 control_points=self.control_points,
-                npoints=self.npoints,
+                nprofile=self.nprofile,
                 add_noise=self.add_noise,
                 rng_seed=self.rng_seed,
             )
@@ -190,11 +178,11 @@ class PSD1D(CratermakerBase):
     def phase(self, value):
         if value is not None:
             value = np.asarray(value)
-            if self._npoints is None:
-                self.npoints = len(value)
+            if self._nprofile is None:
+                self.nprofile = len(value)
             else:
-                if len(value) != self.npoints:
-                    raise ValueError(f"Size of phase must be {self.npoints}")
+                if len(value) != self.nprofile:
+                    raise ValueError(f"Size of phase must be {self.nprofile}")
             self._phase = value
 
     @property
@@ -239,16 +227,10 @@ class PSD1D(CratermakerBase):
         interval = 2 * math.pi / n
         power = (2 * np.abs(dfft)) ** 2 / (interval * n)
 
-        if n % 2 == 0:
-            index_end = n // 2
-        else:
-            index_end = n // 2 + 1
-        freq = fft.fftfreq(n, interval)
-        wavelength = 1 / freq[1:index_end]
+        index_end = self.npsd + 1
         phase = np.angle(dfft[1:index_end])
 
-        self.npoints = n
-        self.wavelength = wavelength
+        self.nprofile = n
         self.power = power[1:index_end]
         self.phase = phase
         return
@@ -276,22 +258,6 @@ class PSD1D(CratermakerBase):
         if not isinstance(value, bool):
             raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
         self._add_noise = value
-
-
-@dataclass(frozen=True, slots=True)
-class RealMoonCraterFixed(BasicMoonCraterFixed):
-    rim_radius_rng_seed: int | None = None
-    """The random seed used to generate the rim radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    rim_height_rng_seed: int | None = None
-    """The random seed used to generate the rim elevation PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    floor_radius_rng_seed: int | None = None
-    """The random seed used to generate the floor radius PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    wall_texture_rng_seed: int | None = None
-    """The random seed used to generate the wall texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    ejecta_texture_rng_seed: int | None = None
-    """The random seed used to generate the ejecta texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
-    floor_texture_rng_seed: int | None = None
-    """The random seed used to generate the floor texture PSD so that they can be computed on the fly from the control points without having to store the full PSD in memory."""
 
 
 class RealMoonCraterVariable(MorphologyCraterVariable):
@@ -341,7 +307,7 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
 
 @Crater.register("realmooncrater")
 class RealMoonCrater(BasicMoonCrater):
-    def __init__(self, crater: Crater | None = None, fixed_cls=RealMoonCraterFixed, variable_cls=RealMoonCraterVariable, **kwargs):
+    def __init__(self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=RealMoonCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -400,31 +366,16 @@ class RealMoonCrater(BasicMoonCrater):
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
-        args = {}
-
-        for var in [
-            "rim_radius",
-            "floor_radius",
-            "rim_height",
-            "wall_texture",
-            "ejecta_texture",
-            "floor_texture",
-        ]:
-            argname = f"{var}_rng_seed"
-            args[argname] = morphology.rng.integers(0, 2**32 - 1)
-            argname = f"{var}_control"
-            args[argname] = input_args.get(argname)
-
         if crater.nrings > 0:
             for i, ring in enumerate(crater.rings):
-                crater.rings[i] = cls(crater=ring, morphology=morphology, isring=True, **args)
+                crater.rings[i] = cls(crater=ring, morphology=morphology, isring=True, **kwargs)
 
         return cls(
             crater=crater,
             morphology=morphology,
             rim_radius_psd=rim_radius_psd,
             floor_radius_psd=floor_radius_psd,
-            **args,
+            **kwargs,
         )
 
     def rim_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
@@ -509,8 +460,8 @@ class RealMoonCrater(BasicMoonCrater):
                 mean=self.radius,
                 pix=self.morphology.surface.pix,
                 control_points=self.rim_radius_control,
-                rng_seed=self.rim_radius_rng_seed,
                 add_noise=self.morphology.add_noise,
+                **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
             )
         return self._var._rim_radius_psd
 
@@ -524,8 +475,8 @@ class RealMoonCrater(BasicMoonCrater):
                 mean=self.floor_radius,
                 pix=self.morphology.surface.pix,
                 control_points=self.floor_radius_control,
-                rng_seed=self.floor_radius_rng_seed,
                 add_noise=self.morphology.add_noise,
+                **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
             )
         return self._var._floor_radius_psd
 
@@ -574,7 +525,7 @@ class RealmoonMorphology(BasicMoonMorphology):
     def __init__(
         self,
         crater: Crater | None = None,
-        fixed_cls=RealMoonCraterFixed,
+        fixed_cls=BasicMoonCraterFixed,
         variable_cls=RealMoonCraterVariable,
         psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,

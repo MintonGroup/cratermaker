@@ -7,8 +7,10 @@ use std::collections::HashMap;
 
 // Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyPSD1D<'py> {
-    pub npoints: usize,
+    pub nprofile: usize,
+    pub npsd: usize,
     pub pix: f64,
+    pub mean: f64,
     pub wavelength: PyReadonlyArray1<'py, f64>,
     pub power: PyReadonlyArray1<'py, f64>,
     pub phase: PyReadonlyArray1<'py, f64>,
@@ -17,10 +19,13 @@ pub struct PyPSD1D<'py> {
 impl<'py> PyPSD1D<'py> {
     // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let npoints: usize = obj.getattr("npoints")?.extract()?;
+        let nprofile: usize = obj.getattr("nprofile")?.extract()?;
+        let npsd: usize = obj.getattr("nprofile")?.extract()?;
         Ok(Self {
-            npoints,
+            nprofile,
+            npsd,
             pix: obj.getattr("pix")?.extract()?,
+            mean: obj.getattr("mean")?.extract()?,
             wavelength: obj.getattr("wavelength")?.extract()?,
             power: obj.getattr("power")?.extract()?,
             phase: obj.getattr("phase")?.extract()?,
@@ -30,8 +35,10 @@ impl<'py> PyPSD1D<'py> {
     // Converts all of the PyArray objects inside the struct to memory views of the arrays
     pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::PSD1DView<'_> {
         cratermaker_components::morphology::realmoon::PSD1DView {
-            npoints: self.npoints,
+            nprofile: self.nprofile,
+            npsd: self.npsd,
             pix: self.pix,
+            mean: self.mean,
             wavelength: self.wavelength.as_array(),
             power: self.power.as_array(),
             phase: self.phase.as_array(),
@@ -186,7 +193,7 @@ pub fn realmoon_profile<'py>(
 pub fn get_1d_psd_from_control_points<'py>(
     py: Python<'py>,
     control_points: HashMap<String, f64>,
-    npoints: usize,
+    nprofile: usize,
     add_noise: bool,
     rng_seed: u64,
 ) -> PyResult<(
@@ -197,7 +204,7 @@ pub fn get_1d_psd_from_control_points<'py>(
     let (wavelength, power, phase) =
         cratermaker_components::morphology::realmoon::get_1d_psd_from_control_points(
             &control_points,
-            npoints,
+            nprofile,
             add_noise,
             rng_seed,
         )
