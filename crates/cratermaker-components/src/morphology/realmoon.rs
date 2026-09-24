@@ -14,7 +14,7 @@ use std::f64::consts::TAU;
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
     pub nprofile: usize,
-    pub npsd: usize,
+    pub nfreq: usize,
     pub normalization_length: f64,
     pub mean: f64,
     pub pix: f64,

@@ -107,8 +107,8 @@ class PSD1D(CratermakerBase):
         self.nprofile = len(y)
         self.mean = np.mean(y)
         amplitude, phase = realmoon_bindings.psd_from_profile(y)
-        self.amplitude = amplitude[0 : self.npsd]
-        self.phase = phase[0 : self.npsd]
+        self.amplitude = amplitude[0 : self.nfreq]
+        self.phase = phase[0 : self.nfreq]
         return
 
     def to_xarray(self) -> xr.Dataset:
@@ -175,11 +175,11 @@ class PSD1D(CratermakerBase):
     @property
     def nprofile(self) -> int:
         """
-        The number of points in the linear profile, which is 2x the number of points in the spectral density (npsd).
+        The number of points in the linear profile, which is 2x the number of points in the spectral density (nfreq).
         """
         if self._nprofile is None:
             if self._amplitude is not None:
-                return 2 * len(self._amplitude)
+                return 2 * (len(self._amplitude) - 1)
             elif self.pix is not None:
                 return max(int(4 * math.pi * self.mean / self.pix), _PSD1D_MIN_POINTS)
         return self._nprofile
@@ -192,7 +192,7 @@ class PSD1D(CratermakerBase):
             self._nprofile = value
 
     @property
-    def npsd(self) -> int:
+    def nfreq(self) -> int:
         """
         The number of power spectra points, which is half the number of points in the profile (nprofile).
         """
@@ -201,7 +201,7 @@ class PSD1D(CratermakerBase):
     @property
     def wavelength(self) -> NDArray[np.float64]:
         if self._wavelength is None:
-            acvals = 2 * np.pi / np.arange(1.0, self.npsd)
+            acvals = 2 * np.pi / np.arange(1.0, self.nfreq)
             self._wavelength = np.insert(acvals, 0, np.nan)
         return self._wavelength
 
@@ -226,8 +226,8 @@ class PSD1D(CratermakerBase):
             if self._nprofile is None:
                 self.nprofile = len(value) * 2
             else:
-                if len(value) != self.npsd:
-                    raise ValueError(f"Size of amplitude must be {self.npsd}")
+                if len(value) != self.nfreq:
+                    raise ValueError(f"Size of amplitude must be {self.nfreq}")
         self._amplitude = value
 
     @property
@@ -255,8 +255,8 @@ class PSD1D(CratermakerBase):
             if self._nprofile is None:
                 self.nprofile = len(value) * 2
             else:
-                if len(value) != self.npsd:
-                    raise ValueError(f"Size of phase must be {self.npsd}")
+                if len(value) != self.nfreq:
+                    raise ValueError(f"Size of phase must be {self.nfreq}")
             self._phase = value
 
     @property
@@ -704,11 +704,9 @@ class RealmoonMorphology(BasicMoonMorphology):
 
         control_points = {}
         sigma = {}
-        if crater.morphology_type == "ring":
-            morphology_type = "complex"
-        else:
-            morphology_type = crater.morphology_type
-        coef = psd1d_coef.sel(morphology_type=morphology_type)
+        fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
+
+        coef = psd1d_coef.sel(fit_category=fit_category)
         for term in coef.term:
             c = coef.sel(term=term)
             control_points[str(term.data)] = c.sel(param="m") * diameter_km + c.sel(param="b")

@@ -9,7 +9,7 @@ use std::f64::consts::TAU;
 // Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyPSD1D<'py> {
     pub nprofile: usize,
-    pub npsd: usize,
+    pub nfreq: usize,
     pub normalization_length: f64,
     pub mean: f64,
     pub pix: f64,
@@ -22,13 +22,13 @@ impl<'py> PyPSD1D<'py> {
     // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         let nprofile: usize = obj.getattr("nprofile")?.extract()?;
-        let npsd: usize = obj.getattr("nprofile")?.extract()?;
+        let nfreq: usize = obj.getattr("nprofile")?.extract()?;
         let normalization_length: f64 = obj.getattr("normalization_length")?.extract()?;
         let mean: f64 = obj.getattr("mean")?.extract()?;
         let pix: f64 = obj.getattr("pix")?.extract()?;
         Ok(Self {
             nprofile,
-            npsd,
+            nfreq,
             normalization_length,
             mean,
             pix,
@@ -42,7 +42,7 @@ impl<'py> PyPSD1D<'py> {
     pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::PSD1DView<'_> {
         cratermaker_components::morphology::realmoon::PSD1DView {
             nprofile: self.nprofile,
-            npsd: self.npsd,
+            nfreq: self.nfreq,
             normalization_length: self.normalization_length,
             mean: self.mean,
             pix: self.pix,
