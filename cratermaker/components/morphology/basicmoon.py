@@ -201,7 +201,7 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo_scaling = morphology.scaling.monte_carlo_scaling
         compute_nominal = not monte_carlo_scaling
         rng = morphology.rng
-        min_valid_diameter = 100.0  # Cutoff where the model is constrained.
+        min_valid_diameter = 100.0  # Cutoff where the model is constrained. Smaller craters use the parameters at this cutoff value
 
         # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep)
 

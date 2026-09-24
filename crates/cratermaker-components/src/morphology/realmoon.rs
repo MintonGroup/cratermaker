@@ -15,10 +15,11 @@ use std::f64::consts::TAU;
 pub struct PSD1DView<'a> {
     pub nprofile: usize,
     pub npsd: usize,
-    pub pix: f64,
+    pub normalization_length: f64,
     pub mean: f64,
+    pub pix: f64,
     pub wavelength: ArrayView1<'a, f64>,
-    pub power: ArrayView1<'a, f64>,
+    pub amplitude: ArrayView1<'a, f64>,
     pub phase: ArrayView1<'a, f64>,
 }
 
@@ -107,22 +108,18 @@ pub fn realmoon_profile(
     let min_elevation = meanref + crater.floor_elevation;
 
     // Create profile functions that will be interpolated later
-    let (rimtheta, rim_profile) =
-        compute_profile_from_psd(crater.radius, crater.radius, &crater.rim_radius_psd);
-    let (floortheta, floor_profile) =
-        compute_profile_from_psd(crater.radius, crater.floor_radius, &crater.floor_radius_psd);
+    let (rimtheta, rim_profile) = profile_from_psd(&crater.rim_radius_psd);
+    let (floortheta, floor_profile) = profile_from_psd(&crater.floor_radius_psd);
     let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
-            .map(|ring| compute_profile_from_psd(ring.radius, ring.radius, &ring.rim_radius_psd))
+            .map(|ring| profile_from_psd(&ring.rim_radius_psd))
             .collect()
     });
     let rings_floor_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
-            .map(|ring| {
-                compute_profile_from_psd(ring.radius, ring.floor_radius, &ring.floor_radius_psd)
-            })
+            .map(|ring| profile_from_psd(&ring.floor_radius_psd))
             .collect()
     });
 
@@ -204,28 +201,29 @@ fn realtobasic(
 }
 ///
 ///
-/// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Gaussian noise added to the log power values.
+/// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Gaussian noise added to the log amplitude values.
 ///
 /// # Arguments
 /// * `control_points` - A dictionary containing the control points for the piecewise linear function. The expected keys are:
 /// - "sn": The slope of the first segment (y2-y1)/(x2-x1)
-/// - "yn": The y-coordinate of the first breakpoint in ln(power).
+/// - "yn": The y-coordinate of the first breakpoint in ln(amplitude).
 /// - "y1": The x-coordinate of the second breakpoint in ln(wavelength).
-/// - "y2": The y-coordinate of the second breakpoint in ln(power).
-/// - "y3": The y-coordinate at the third breakpoint (2nd highest wavelength) in log(power).
-/// - "y4": The y-coordinate of the highest wavelength in ln(power).
-/// - "y5": The y-coordinate of the highest wavelength in ln(power).
+/// - "y2": The y-coordinate of the second breakpoint in ln(amplitude).
+/// - "y3": The y-coordinate at the third breakpoint (2nd highest wavelength) in log(amplitude).
+/// - "y4": The y-coordinate of the highest wavelength in ln(amplitude).
+/// - "y5": The y-coordinate of the highest wavelength in ln(amplitude).
 ///  * `nprofile` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
-///  * `add_noise` - Whether to add Gaussian noise to the ln(power) values to simulate natural variability in the PSD.
+///  * `add_noise` - Whether to add Gaussian noise to the ln(amplitude) values to simulate natural variability in the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
 ///
 ///
 /// # Returns
 ///
-/// * A tuple of Arrays containing the wavelength, power, and phase angles of the computed PSD
+/// * A tuple of Arrays containing the wavelength, amplitude, and phase angles of the AC components of the signal. The DC component is left unfilled.
 ///
 pub fn get_1d_psd_from_control_points(
     control_points: &HashMap<String, f64>,
+    mean: f64,
     nprofile: usize,
     add_noise: bool,
     rng_seed: u64,
@@ -241,109 +239,123 @@ pub fn get_1d_psd_from_control_points(
     let interval = TAU / nprofile as f64;
 
     // Equivalent to rfft sizing in Python:
-    let iend = nprofile / 2;
-    let nrows = iend.saturating_sub(1); // wavelength from bins 1..iend-1
+    let nfreq = nprofile / 2 + 1;
+
     let mut rng = ChaCha12Rng::seed_from_u64(rng_seed);
-    let mut wavelength = Array1::<f64>::zeros(nrows);
-    let mut power = Array1::<f64>::zeros(nrows);
-    let mut phase = Array1::<f64>::zeros(nrows);
+    let mut wavelength = Array1::<f64>::zeros(nfreq);
+    let mut amplitude = Array1::<f64>::zeros(nfreq);
+    let mut phase = Array1::<f64>::zeros(nfreq);
     let base = nprofile as f64 * interval;
     let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
-    for k in 1..iend {
-        let row = k - 1;
-        wavelength[row] = base / k as f64;
-        phase[row] = uniform.sample(&mut rng); // randomized phases
+    for i in 1..nfreq {
+        wavelength[i] = if i == 0 { f64::NAN } else { base / i as f64 };
+        phase[i] = uniform.sample(&mut rng); // randomized phases
     }
+    amplitude[0] = mean;
+    amplitude[1] = y1.exp();
+    amplitude[2] = y2.exp();
+    amplitude[3] = y3.exp();
+    amplitude[4] = y4.exp();
+    amplitude[5] = y5.exp();
 
-    power[0] = y1.exp();
-    power[1] = y2.exp();
-    power[2] = y3.exp();
-    power[3] = y4.exp();
-    power[4] = y5.exp();
-
-    let xn = wavelength[5].ln();
-    for i in 5..nrows {
+    let xn = wavelength[6].ln();
+    for i in 6..nfreq {
         let log_x = wavelength[i].ln();
-        power[i] = (yn + sn * (log_x - xn)).exp();
+        amplitude[i] = (yn + sn * (log_x - xn)).exp();
     }
 
-    // Optional Gaussian noise in log power
+    // Optional Gaussian noise in log amplitude
     if add_noise {
         let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
-        for i in 0..nrows {
-            let log_power = power[i].ln();
-            let noisy_log_power = log_power + normal.sample(&mut rng);
-            power[i] = (noisy_log_power).exp();
+        for i in 1..nfreq {
+            let log_amplitude = amplitude[i].ln();
+            let noisy_log_amplitude = log_amplitude + normal.sample(&mut rng);
+            amplitude[i] = (noisy_log_amplitude).exp();
         }
     }
-    Ok((wavelength, power, phase))
+    Ok((wavelength, amplitude, phase))
 }
 
 ///
 /// Generates a surface profile based on a 1D power spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
 ///
 /// # Arguments
-/// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
-/// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
-/// * `psd` - A (nfreq,3) array where the first column contains wavelengths, the second column contains power values, and the third column contains the phases, which define the variability of the profile.
+/// * `psd` - The struct containing wavelength, amplitude, and phase, which define the variability of the profile.
 /// # Returns
 /// * A 1D array of values corresponding to the input signal psd, representing the linear profile generated from the PSD and phase information.
 ///
-pub fn compute_profile_from_psd(
-    crater_radius: f64,
-    ymean: f64,
-    psd: &PSD1DView,
-) -> (Vec<f64>, Vec<f64>) {
+pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
     let wavelength = psd.wavelength;
-    let power = psd.power;
+    let amplitude = psd.amplitude;
     let phase = psd.phase;
+
+    // nfreq is the number of AC components. Total components = nfreq + 1 (for DC).
     let nfreq = wavelength.len();
-    let mut num_points = 2 * nfreq;
+    let nprofile = 2 * (nfreq - 1);
+    let nyquist_limit = nprofile / 2;
+
     let mut planner = FftPlanner::new();
-    let ifft = planner.plan_fft_inverse(num_points);
-    let mut buffer: Vec<Complex<f64>> = vec![Complex { re: 0.0, im: 0.0 }; num_points];
+    let ifft = planner.plan_fft_inverse(nprofile);
+    let mut buffer: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); nprofile];
+    buffer[0] = Complex::from_polar(amplitude[0] * nprofile as f64, phase[0]);
 
-    for i in 0..nfreq {
-        let freq_f64 = TAU / wavelength[i];
-        let k = freq_f64.round() as usize;
-
-        // Safety check to prevent out-of-bounds if a wavenumber exceeds the Nyquist limit
-        if k >= num_points / 2 {
-            continue;
-        }
-
-        let amplitude_i = (power[i] * TAU).sqrt();
-        let phase_i = phase[i];
-
-        if k == 0 {
-            // DC Component (wavenumber 0)
-            buffer[0] = Complex::from_polar(amplitude_i, phase_i);
-        } else {
-            // Positive frequency (index k)
-            buffer[k] = Complex::from_polar(amplitude_i / 2.0, phase_i);
-            // Negative frequency (index N - k) uses the negative phase (conjugate)
-            buffer[num_points - k] = buffer[k].conj();
-        }
+    // The AC components
+    for k in 1..nyquist_limit {
+        let amp = amplitude[k] * nprofile as f64 / 2.0;
+        let complex_val = Complex::from_polar(amp, phase[k]);
+        buffer[k] = complex_val;
+        buffer[nprofile - k] = complex_val.conj();
     }
 
+    // The Nyquist component is at index nfreq - 1
+    if nprofile % 2 == 0 {
+        buffer[nyquist_limit] = Complex::from_polar(
+            amplitude[nyquist_limit] * nprofile as f64,
+            phase[nyquist_limit],
+        );
+    }
     ifft.process(&mut buffer);
+    let scale_factor = psd.normalization_length / nprofile as f64;
 
-    let mut out: Vec<f64> = Vec::with_capacity(num_points);
-    for val in buffer.iter() {
-        let z = val.re;
-        out.push(crater_radius * z + ymean);
+    // The mean is now part of the signal, so we just scale the result.
+    let out: Vec<f64> = buffer.iter().map(|val| val.re * scale_factor).collect();
+
+    let mut theta: Vec<f64> = Vec::with_capacity(nprofile);
+    for i in 0..nprofile {
+        theta.push(TAU * (i as f64 / nprofile as f64));
     }
-
-    let first_val = out[0];
-    let last_val = out[out.len() - 1];
-    out.insert(0, last_val);
-    out.push(first_val);
-    num_points = out.len();
-
-    let mut theta: Vec<f64> = Vec::with_capacity(num_points);
-    for i in 0..num_points {
-        theta.push(TAU * (i as f64 - 1.0) / (num_points as f64 - 2.0));
-    }
-
     (theta, out)
+}
+
+pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
+    let nprofile = profile.len();
+    let nyquist_limit = nprofile / 2;
+
+    let mut planner = FftPlanner::new();
+    let fft = planner.plan_fft_forward(nprofile);
+    let mut buffer: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); nprofile];
+
+    // Reconstruct the full spectrum. The loop now handles the DC component (k=0) naturally.
+    for k in 0..nprofile {
+        buffer[k] = profile[k].into();
+    }
+
+    fft.process(&mut buffer);
+
+    // Slice only up to the Nyquist limit (N/2 + 1) to get the standard one-sided PSD representation
+    let one_sided_len = (nprofile / 2) + 1;
+    let mut amplitude = Vec::with_capacity(one_sided_len);
+    let mut phase = Vec::with_capacity(one_sided_len);
+
+    for k in 0..one_sided_len {
+        let (amp, ph) = buffer[k].to_polar();
+        let mut scaled_amp = amp / nprofile as f64;
+        if k > 0 && k < nyquist_limit {
+            scaled_amp *= 2.0;
+        }
+        amplitude.push(scaled_amp);
+        phase.push(ph);
+    }
+
+    (amplitude, phase)
 }

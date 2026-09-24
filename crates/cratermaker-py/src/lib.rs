@@ -19,9 +19,7 @@ mod cratermaker {
     #[pymodule]
     mod counting_bindings {
         #[pymodule_export]
-        use crate::counting::counting_bindings::{
-            measure_floor_elevation, measure_rim_height,
-        };
+        use crate::counting::counting_bindings::{measure_floor_elevation, measure_rim_height};
     }
 
     #[pymodule]
@@ -36,7 +34,7 @@ mod cratermaker {
     mod realmoon_bindings {
         #[pymodule_export]
         use crate::morphology::realmoon_bindings::{
-            get_1d_psd_from_control_points, profile_from_psd, realmoon_profile,
+            get_1d_psd_from_control_points, profile_from_psd, psd_from_profile, realmoon_profile,
         };
     }
 

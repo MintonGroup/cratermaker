@@ -12,7 +12,7 @@ from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy import fft
 
-from cratermaker.bindings import basicmoon_bindings, realmoon_bindings
+from cratermaker.bindings import realmoon_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import (
@@ -22,7 +22,7 @@ from cratermaker.components.morphology.basicmoon import (
 )
 from cratermaker.constants import FloatLike
 from cratermaker.core.base import CratermakerBase
-from cratermaker.utils.general_utils import format_large_units, parameter
+from cratermaker.utils.general_utils import parameter
 
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
@@ -32,11 +32,13 @@ _PSD1D_MIN_POINTS = 64
 class PSD1D(CratermakerBase):
     def __init__(
         self,
-        mean: FloatLike,
-        pix: FloatLike,
+        normalization_length: FloatLike,
+        profile: NDArray[np.float64] | None = None,
+        mean: FloatLike | None = None,
+        pix: FloatLike | None = None,
         nprofile: int | None = None,
         control_points: dict[str, np.float64] | None = None,
-        power: NDArray[np.float64] | None = None,
+        amplitude: NDArray[np.float64] | None = None,
         phase: NDArray[np.float64] | None = None,
         add_noise: bool = True,
         rng: Generator | None = None,
@@ -60,21 +62,79 @@ class PSD1D(CratermakerBase):
         """
         # Set a unique rng seed for this object so that the same profile gets generated every time.
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        object.__setattr__(self, "_normalization_length", None)
         object.__setattr__(self, "_mean", None)
         object.__setattr__(self, "_pix", None)
         object.__setattr__(self, "_nprofile", None)
         object.__setattr__(self, "_control_points", None)
-        object.__setattr__(self, "_power", None)
+        object.__setattr__(self, "_amplitude", None)
         object.__setattr__(self, "_phase", None)
+        object.__setattr__(self, "_wavelength", None)
         object.__setattr__(self, "_add_noise", None)
 
-        self.mean = mean
-        self.pix = pix
-        self.nprofile = nprofile
-        self.control_points = control_points
-        self.power = power
-        self.phase = phase
+        self.normalization_length = normalization_length
         self.add_noise = add_noise
+        if profile is not None:
+            self.pix = np.abs(np.diff(profile)).max() / self.normalization_length
+            self.set_from_profile(profile)
+        else:
+            self.mean = mean / self.normalization_length
+            self.pix = pix / self.normalization_length
+            self.nprofile = nprofile
+            self.control_points = control_points
+            self.amplitude = amplitude
+            self.phase = phase
+
+    def set_from_profile(self, profile):
+        """
+        Sets the 1D power spectral density (PSD) of a given 1D profile.
+
+        This function will set the following properties:
+            wavelength : NDArray[np.float64]
+                An array of corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
+            amplitude : NDArray[np.float64]
+                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The PSD values are normalized by the interval and the number of points in the input signal, so amplitude is in units such that the mean=1.0. The normalization is done by multiplying the squared magnitude of the Fourier coefficients by 2 and dividing by the product of the interval and the number of points in the input signal. The factor of 2 accounts for the fact that we are using a one-sided PSD (i.e., only considering positive frequencies).
+            phases : NDArray[np.float64]
+                An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
+
+        Parameters
+        ----------
+        profile : ArrayLike
+            The input signal for which to compute the 1D PSD. This should be a 1D array of values representing the signal in the spatial domain in its original units. Normalization is done internally using the value of the normalization_length attribute.
+
+        """
+        y = np.asarray(profile, dtype=np.float64) / self.normalization_length
+        self.nprofile = len(y)
+        self.mean = np.mean(y)
+        amplitude, phase = realmoon_bindings.psd_from_profile(y)
+        self.amplitude = amplitude[0 : self.npsd]
+        self.phase = phase[0 : self.npsd]
+        return
+
+    def to_xarray(self) -> xr.Dataset:
+        return xr.Dataset(
+            coords={
+                "wavelength": self.wavelength,
+            },
+            data_vars={
+                "amplitude": ("wavelength", self.amplitude),
+                "phase": ("wavelength", self.phase),
+            },
+        )
+
+    @property
+    def normalization_length(self) -> np.float64:
+        """
+        The radius of the crater associated with this profile, which is used for unit normalization.
+        """
+        return self._normalization_length
+
+    @normalization_length.setter
+    def normalization_length(self, value: FloatLike):
+        if value > 0.0:
+            self._normalization_length = np.float64(value)
+        else:
+            raise ValueError("normalization_length must be a positive number")
 
     @property
     def mean(self) -> np.float64:
@@ -105,13 +165,21 @@ class PSD1D(CratermakerBase):
             raise ValueError("pix must be a positive number")
 
     @property
+    def profile(self) -> NDArray[np.float64]:
+        """
+        The 1D profile generated by the PSD in equal polar angle intervals from 0 to 2π.
+        """
+        theta = np.linspace(0, 2 * np.pi, self.nprofile)
+        return realmoon_bindings.profile_from_psd(self, theta)
+
+    @property
     def nprofile(self) -> int:
         """
         The number of points in the linear profile, which is 2x the number of points in the spectral density (npsd).
         """
         if self._nprofile is None:
-            if self._power is not None:
-                return 2 * len(self._power)
+            if self._amplitude is not None:
+                return 2 * len(self._amplitude)
             elif self.pix is not None:
                 return max(int(4 * math.pi * self.mean / self.pix), _PSD1D_MIN_POINTS)
         return self._nprofile
@@ -128,44 +196,50 @@ class PSD1D(CratermakerBase):
         """
         The number of power spectra points, which is half the number of points in the profile (nprofile).
         """
-        if self.nprofile % 2 == 0:
-            return self.nprofile // 2 - 1
-        else:
-            return self.nprofile // 2
+        return self.nprofile // 2 + 1
 
     @property
     def wavelength(self) -> NDArray[np.float64]:
-        return 2 * np.pi / np.arange(1.0, self.npsd + 1)
+        if self._wavelength is None:
+            acvals = 2 * np.pi / np.arange(1.0, self.npsd)
+            self._wavelength = np.insert(acvals, 0, np.nan)
+        return self._wavelength
 
     @property
-    def power(self) -> NDArray[np.float64]:
-        if self._power is None:
+    def amplitude(self) -> NDArray[np.float64]:
+        if self._amplitude is None:
             psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
                 control_points=self.control_points,
+                mean=self.mean,
                 nprofile=self.nprofile,
                 add_noise=self.add_noise,
                 rng_seed=self.rng_seed,
             )
             return psd_arrs[1]
         else:
-            return self._power
+            return self._amplitude
 
-    @power.setter
-    def power(self, value):
+    @amplitude.setter
+    def amplitude(self, value):
         if value is not None:
             value = np.asarray(value)
             if self._nprofile is None:
-                self.nprofile = len(value)
+                self.nprofile = len(value) * 2
             else:
-                if len(value) != self.nprofile:
-                    raise ValueError(f"Size of power must be {self.nprofile}")
-        self._power = value
+                if len(value) != self.npsd:
+                    raise ValueError(f"Size of amplitude must be {self.npsd}")
+        self._amplitude = value
+
+    @property
+    def power(self) -> NDArray[np.float64]:
+        return self.amplitude**2 / (2 * np.pi)
 
     @property
     def phase(self) -> NDArray[np.float64]:
         if self._phase is None:
             psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
                 control_points=self.control_points,
+                mean=self.mean,
                 nprofile=self.nprofile,
                 add_noise=self.add_noise,
                 rng_seed=self.rng_seed,
@@ -179,10 +253,10 @@ class PSD1D(CratermakerBase):
         if value is not None:
             value = np.asarray(value)
             if self._nprofile is None:
-                self.nprofile = len(value)
+                self.nprofile = len(value) * 2
             else:
-                if len(value) != self.nprofile:
-                    raise ValueError(f"Size of phase must be {self.nprofile}")
+                if len(value) != self.npsd:
+                    raise ValueError(f"Size of phase must be {self.npsd}")
             self._phase = value
 
     @property
@@ -200,51 +274,6 @@ class PSD1D(CratermakerBase):
         if any(k not in value for k in required_keys):
             raise ValueError(f"control_points must have all required keys {required_keys}")
         self._control_points = value
-
-    def set_from_profile(self, profile):
-        """
-        Sets the 1D power spectral density (PSD) of a given 1D profile.
-
-        This function will set the following properties:
-            wavelength : NDArray[np.float64]
-                An array of wavelengths corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
-            power : NDArray[np.float64]
-                An array of power spectral density values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The PSD values are normalized by the interval and the number of points in the input signal, such that they represent the power per unit wavelength. The normalization is done by multiplying the squared magnitude of the Fourier coefficients by 2 and dividing by the product of the interval and the number of points in the input signal. The factor of 2 accounts for the fact that we are using a one-sided PSD (i.e., only considering positive frequencies).
-            phases : NDArray[np.float64]
-                An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
-
-        Parameters
-        ----------
-        profile : ArrayLike
-            The input signal for which to compute the 1D PSD. This should be a 1D array of values representing the signal in the spatial domain.
-
-        """
-        y = np.asarray(profile, dtype=np.float64)
-        n = len(y)
-        ymean = np.mean(y)
-        dfft = fft.rfft(y - ymean) / n
-
-        interval = 2 * math.pi / n
-        power = (2 * np.abs(dfft)) ** 2 / (interval * n)
-
-        index_end = self.npsd + 1
-        phase = np.angle(dfft[1:index_end])
-
-        self.nprofile = n
-        self.power = power[1:index_end]
-        self.phase = phase
-        return
-
-    def to_xarray(self) -> xr.Dataset:
-        return xr.Dataset(
-            coords={
-                "wavelength": self.wavelength,
-            },
-            data_vars={
-                "power": ("wavelength", self.power),
-                "phase": ("wavelength", self.phase),
-            },
-        )
 
     @parameter
     def add_noise(self) -> bool:
@@ -351,13 +380,14 @@ class RealMoonCrater(BasicMoonCrater):
         .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. `doi: 10.1029/2024JE008357 <https://doi.org/10.1029/2024JE008357>`_
         .. [#] Du, J., Minton, D.A., Blevins, A.M., Fassett, C.I., Huang, Y.-H., 2025. Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets 130, e2024JE008890. `doi: 10.1029/2024JE008890 <https://doi.org/10.1029/2024JE008890>`_
         """
-        from cratermaker.components.morphology import Morphology
-        from cratermaker.utils.montecarlo_utils import bounded_norm, sample_logfit_heteroskedastic, sample_pikefit
-
         input_args = locals()
+
+        from cratermaker.components.morphology import Morphology
 
         # This is a copy operation, to use old values for any un-specified arguments
         if crater is not None and isinstance(crater, RealMoonCrater):
+            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
+                input_args.pop(k, None)
             rim_radius_psd = crater.rim_radius_psd if rim_radius_psd is None else rim_radius_psd
             rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
             floor_radius_psd = crater.floor_radius_psd if floor_radius_psd is None else floor_radius_psd
@@ -366,9 +396,12 @@ class RealMoonCrater(BasicMoonCrater):
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
-        if crater.nrings > 0:
-            for i, ring in enumerate(crater.rings):
-                crater.rings[i] = cls(crater=ring, morphology=morphology, isring=True, **kwargs)
+        # Make sure rings are the correct type
+        for i in range(crater.nrings):
+            ring = crater.rings[i]
+            if not isinstance(ring, cls):
+                ring = cls(crater=ring, morphology=morphology)
+                crater.rings[i] = ring
 
         return cls(
             crater=crater,
@@ -395,12 +428,11 @@ class RealMoonCrater(BasicMoonCrater):
             The computed rim radius profile at each bearing.
         """
         theta = np.radians(bearings)
-        return realmoon_bindings.profile_from_psd(
-            crater_radius=self.radius,
-            ymean=self.radius,
+        profile = realmoon_bindings.profile_from_psd(
             psd=self.rim_radius_psd,
             theta=theta,
         )
+        return profile
 
     def floor_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
         """
@@ -420,8 +452,6 @@ class RealMoonCrater(BasicMoonCrater):
         """
         theta = np.radians(bearings)
         return realmoon_bindings.profile_from_psd(
-            crater_radius=self.crater_radius,
-            ymean=self.floor_radius,
             psd=self.floor_radius_psd,
             theta=theta,
         )
@@ -444,8 +474,6 @@ class RealMoonCrater(BasicMoonCrater):
         """
         theta = np.radians(bearings)
         return realmoon_bindings.profile_from_psd(
-            crater_radius=self.radius,
-            ymean=self.rim_height,
             psd=self.rim_radius_psd,
             theta=theta,
         )
@@ -457,6 +485,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         if self._var._rim_radius_psd is None:
             self._var._rim_radius_psd = PSD1D(
+                normalization_length=self.radius,
                 mean=self.radius,
                 pix=self.morphology.surface.pix,
                 control_points=self.rim_radius_control,
@@ -472,6 +501,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         if self._var._floor_radius_psd is None:
             self._var._floor_radius_psd = PSD1D(
+                normalization_length=self.radius,
                 mean=self.floor_radius,
                 pix=self.morphology.surface.pix,
                 control_points=self.floor_radius_control,
