@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import InitVar, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -77,13 +76,15 @@ class PSD1D(CratermakerBase):
         if profile is not None:
             self.pix = np.abs(np.diff(profile)).max() / self.normalization_length
             self.set_from_profile(profile)
+        elif amplitude is not None and phase is not None:
+            self.mean = amplitude[0]
+            self.amplitude = amplitude
+            self.phase = phase
         else:
             self.mean = mean / self.normalization_length
             self.pix = pix / self.normalization_length
             self.nprofile = nprofile
             self.control_points = control_points
-            self.amplitude = amplitude
-            self.phase = phase
 
     def set_from_profile(self, profile):
         """
@@ -196,7 +197,7 @@ class PSD1D(CratermakerBase):
         """
         The number of power spectra points, which is half the number of points in the profile (nprofile).
         """
-        return self.nprofile // 2 + 1
+        return self.nprofile // 2
 
     @property
     def wavelength(self) -> NDArray[np.float64]:
@@ -252,11 +253,8 @@ class PSD1D(CratermakerBase):
     def phase(self, value):
         if value is not None:
             value = np.asarray(value)
-            if self._nprofile is None:
-                self.nprofile = len(value) * 2
-            else:
-                if len(value) != self.nfreq:
-                    raise ValueError(f"Size of phase must be {self.nfreq}")
+            if len(value) != self.nfreq:
+                raise ValueError(f"Size of phase must be {self.nfreq}")
             self._phase = value
 
     @property
@@ -338,7 +336,6 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
 class RealMoonCrater(BasicMoonCrater):
     def __init__(self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=RealMoonCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        return
 
     def __str__(self) -> str:
         str_repr = super().__str__()

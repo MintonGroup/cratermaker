@@ -428,7 +428,7 @@ class Crater(ComponentBase):
                 raise TypeError("crater must be an instance of Crater or None")
             fixed_fields = asdict(crater._fixed)
             for f in fields(crater._fixed):
-                if not f.init or f.name in kwargs:
+                if not f.init or (f.name in kwargs and kwargs[f.name] is not None):
                     fixed_fields.pop(f.name)
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs

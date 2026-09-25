@@ -170,7 +170,6 @@ class MorphologyCraterVariable(CraterVariable):
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        return
 
     def __str__(self) -> str:
         horiz_line = "-" * 40 + "\n"

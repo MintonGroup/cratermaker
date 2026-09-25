@@ -247,8 +247,10 @@ pub fn get_1d_psd_from_control_points(
     let mut phase = Array1::<f64>::zeros(nfreq);
     let base = nprofile as f64 * interval;
     let uniform = Uniform::new(0.0, TAU).expect("valid uniform distribution");
+    wavelength[0] = f64::NAN;
+    phase[0] = 0.0;
     for i in 1..nfreq {
-        wavelength[i] = if i == 0 { f64::NAN } else { base / i as f64 };
+        wavelength[i] = base / i as f64;
         phase[i] = uniform.sample(&mut rng); // randomized phases
     }
     amplitude[0] = mean;

@@ -92,7 +92,6 @@ class BasicMoonCrater(MorphologyCrater):
             isring=isring,
             **kwargs,
         )
-        return
 
     def __str__(self) -> str:
         str_repr = super().__str__()
@@ -316,13 +315,12 @@ class BasicMoonCrater(MorphologyCrater):
 
         args = {}
         diameter_m = crater.diameter if crater.diameter > min_valid_diameter else min_valid_diameter
-        diameter_km = diameter_m * 1e-3
         fcorrection = crater.diameter / diameter_m
 
         if crater.morphology_type in ["complex", "transitional", "basin", "multiring", "peakring", "ring"]:
-            morphology_type = "non-simple"
+            fit_category = "non-simple"
         else:
-            morphology_type = "simple"
+            fit_category = "simple"
 
         # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
         # ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
@@ -330,7 +328,7 @@ class BasicMoonCrater(MorphologyCrater):
         if rim_height is None:
             rim_height = (
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[fit_category]
                 )[0]
                 * fcorrection
             )
@@ -339,7 +337,7 @@ class BasicMoonCrater(MorphologyCrater):
         if rim_width is None:
             rim_width = max(
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[fit_category]
                 )[0]
                 * fcorrection,
                 0.0,
@@ -363,7 +361,7 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_elevation is None:
             floor_elevation = (
                 -sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_elevation_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_elevation_params[fit_category]
                 )[0]
                 * fcorrection
             )
@@ -373,7 +371,7 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_radius is None:
             floor_radius = max(
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[fit_category]
                 )[0]
                 * fcorrection,
                 0.0,
@@ -384,7 +382,7 @@ class BasicMoonCrater(MorphologyCrater):
             if crater.morphology_type == "complex":
                 peak_height = max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_height_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_height_params[fit_category]
                     )[0],
                     0.0,
                 )
@@ -396,7 +394,7 @@ class BasicMoonCrater(MorphologyCrater):
             if crater.morphology_type == "complex":
                 peak_width = max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_width_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_width_params[fit_category]
                     )[0],
                     0.0,
                 )
@@ -411,7 +409,7 @@ class BasicMoonCrater(MorphologyCrater):
             wall_curvature = min(
                 max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **wall_curvature_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **wall_curvature_params[fit_category]
                     )[0],
                     0.0,
                 ),
@@ -424,7 +422,7 @@ class BasicMoonCrater(MorphologyCrater):
             floor_blend = min(
                 max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_blend_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_blend_params[fit_category]
                     )[0],
                     0.0,
                 ),
