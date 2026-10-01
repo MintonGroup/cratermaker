@@ -356,6 +356,18 @@ class MorphologyCrater(Crater):
 
         return self._var._affected_node_indices
 
+    def reset(self):
+        """
+        Resets the crater by removing saved regions and lists of affected indices
+        """
+        self.remove_complex_data()
+        self._var._face_index = None
+        self._var._ejecta_rmax = None
+        self._var._emplaceable = None
+        self._var._measured_rim_height = None
+        self._var._measured_floor_elevation = None
+        return
+
     @property
     def emplaceable(self) -> bool | None:
         """Whether this crater is large enough to be emplaced on the surface mesh, which is determined based on whether the crater region could be successfully extracted."""
@@ -671,6 +683,8 @@ class Morphology(ComponentBase):
             crater.crater_region.update_elevation(elevation_change)
             if self.do_slope_collapse:
                 crater.crater_region.slope_collapse()
+        # Remove the saved regions now that the crater is emplaced
+        crater.reset()
         return
 
     def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
