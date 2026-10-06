@@ -36,7 +36,7 @@ class PowerLawProduction(Production):
         generator_type : str, optional
             The type of generator to use. This can be either "crater" or "projectile". Default is "crater".
         N1_coef : float, optional
-            The coefficient for the power law production function at 1 m diameter per 1 My.
+            The coefficient for the power law production function (value of N>1 m diameter per 1 My per m²).
             Default is 7.9.e-3 (lunar craters) or 2.2e-8 (lunar projectiles) based on fits to the NPF on the Moon.
         slope : float, optional
             The slope of the power law production function.
@@ -80,8 +80,8 @@ class PowerLawProduction(Production):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        str_repr += "N1 Coefficient: {self.N1_coef:.2e}\n"
-        str_repr += "Slope: {self.slope:.3f}\n"
+        str_repr += f"N1 Coefficient: {self.N1_coef:.2e}\n"
+        str_repr += f"Slope: {self.slope:.3f}\n"
         return str_repr
 
     def function(
@@ -198,7 +198,7 @@ class PowerLawProduction(Production):
 
     @property
     def N1_coef(self):
-        """The N1 coefficient of the power law production function."""
+        """The N1 coefficient of the power law production function (N>1 m per My per m²)."""
         return self._N1_coef
 
     @N1_coef.setter
