@@ -13,6 +13,7 @@ pyogrio
 trimesh
 datashader>=0.18.2
 geoviews>=1.15.1
+geopandas>=1.1.4
 PyYAML>=6
 astropy>=7
 pytest
