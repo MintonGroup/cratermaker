@@ -15,7 +15,6 @@ import pyvista as pv
 import rasterio
 import uxarray as uxr
 import xarray as xr
-from affine import Affine
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from pyproj import CRS, Transformer
@@ -734,7 +733,7 @@ class Surface(ComponentBase):
         return self._full().to_vector_file(driver=driver, interval=interval, **kwargs)
 
     def to_raster(
-        self, variable_name: str = "face_elevation", **kwargs: Any
+        self, variable_name: str = "face_elevation", uxda: UxDataArray | None = None, **kwargs: Any
     ) -> tuple[NDArray[np.float32], tuple[float, float, float, float], Any, CRS]:
         """
         Rasterize a face-based variable into a 2D raster using rasterio.
@@ -743,6 +742,8 @@ class Surface(ComponentBase):
         ----------
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
+        uxda : UxDataArray | None
+            The UxDataArray containing the face-based variable to rasterize. If None, the method will use currently loaded dataset. Default is None.
         **kwargs : Any
             |kwargs|
 
@@ -757,7 +758,7 @@ class Surface(ComponentBase):
         crs : CRS
             The coordinate reference system of the raster.
         """
-        return self._full().to_raster(variable_name, **kwargs)
+        return self._full().to_raster(variable_name=variable_name, uxda=uxda, **kwargs)
 
     def get_raster_dims(self):
         """
@@ -3136,13 +3137,15 @@ class LocalSurface(CratermakerBase):
         return
 
     def to_raster(
-        self, uxda: UxDataArray | None = None, **kwargs: Any
+        self, variable_name: str = "face_elevation", uxda: UxDataArray | None = None, **kwargs: Any
     ) -> tuple[NDArray[np.float32], tuple[float, float, float, float], Any, CRS]:
         """
         Rasterize a face-based variable into a 2D raster using rasterio.
 
         Parameters
         ----------
+        variable_name : str, optional
+            The name of the variable to rasterize. Default is "face_elevation".
         uxda : UxDataArray | None
             The UxDataArray containing the face-based variable to rasterize. If None, the method will use currently loaded data in the surface with "face_elevation" as the default variable. Default is None.
         **kwargs : Any
@@ -3171,7 +3174,7 @@ class LocalSurface(CratermakerBase):
             return
 
         if uxda is None:
-            uxda = self.uxds["face_elevation"].load()
+            uxda = self.uxds[variable_name].load()
 
         W, H = self.get_raster_dims()
         if self.is_global:
@@ -3484,7 +3487,7 @@ class LocalSurface(CratermakerBase):
         colorbar = colorbar and (plot_style == "map" or do_overlay)
 
         if variable_name is not None:
-            ret = self.to_raster(uxds[variable_name].load())
+            ret = self.to_raster(uxda=uxds[variable_name].load())
             variable_long_name = uxds[variable_name].attrs.get("long_name", variable_name)
             variable_units = uxds[variable_name].attrs.get("units", "")
             variable_raster = ret[0]
@@ -3505,7 +3508,7 @@ class LocalSurface(CratermakerBase):
 
         if plot_style == "hillshade":
             hill_args = {"dx": self.pix, "dy": self.pix, "fraction": 1.0}
-            ret = self.to_raster(uxds["face_elevation"].load())
+            ret = self.to_raster(uxda=uxds["face_elevation"].load())
             elevation = ret[0]
             extent = ret[1]
             elevation = gaussian_filter(elevation, sigma=2, mode="constant", cval=np.nan)
