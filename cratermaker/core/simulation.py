@@ -890,7 +890,7 @@ class Simulation(CratermakerBase):
 
         self.surface._load_from_files(interval=interval, reset=False, regrid=False, **kwargs)
         self.counting.load(interval=interval)
-        self._interval = interval
+        self.interval = interval
 
         return
 
@@ -1584,6 +1584,15 @@ class Simulation(CratermakerBase):
         if self._interval is None:
             return 0
         return self._interval
+
+    @interval.setter
+    def interval(self, value):
+        if not isinstance(value, int):
+            raise TypeError("interval must be an integer")
+        if value < 0:
+            raise ValueError("interval must be greater than or equal to zero")
+
+        self._interval = value
 
     @parameter
     def elapsed_time(self):
