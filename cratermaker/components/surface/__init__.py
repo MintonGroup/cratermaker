@@ -3027,7 +3027,7 @@ class LocalSurface(CratermakerBase):
 
         # Warp the mesh according to node elevation if it exists
         if "node_elevation" in uxds:
-            warped_xyz = node_xyz + uxds.node_elevation.data[self.node_indices, None] * node_normals
+            warped_xyz = node_xyz + uxds.node_elevation.data[:, None] * node_normals
         else:
             warped_xyz = node_xyz
 
