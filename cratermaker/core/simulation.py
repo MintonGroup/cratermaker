@@ -554,7 +554,7 @@ class Simulation(CratermakerBase):
         # If this is a fresh run, we need to set the value of the current time based on the requested starting condition.
         if self._time is None:
             self.time = time_start
-            self.interval = 0
+            self._interval = 0
 
         # If this is a restarted run, we need to distinguish between a true restart and a continuation with different parameters
         if time_start < self.time:
@@ -868,6 +868,29 @@ class Simulation(CratermakerBase):
 
         self.to_config(**kwargs)
         super().save(**save_args)
+
+        return
+
+    def load(self, interval: int, save_current_interval: bool = True, **kwargs: Any) -> None:
+        """
+        Loads data from an old interval.
+
+        Parameters
+        ----------
+        interval : int
+            The interval number to load. -1 will load the most recent interval.
+        """
+        if save_current_interval:
+            self.save(**kwargs)
+        all_interval_numbers = self.surface.get_saved_interval_numbers()[0]
+        if interval < 0:  # Go by index when negative, otherwise go by value
+            interval = all_interval_numbers[interval]
+        elif interval not in all_interval_numbers:
+            raise ValueError(f"Interval {interval} not found for this Simulation.")
+
+        self.surface._load_from_files(interval=interval, reset=False, regrid=False, **kwargs)
+        self.counting.load(interval=interval)
+        self._interval = interval
 
         return
 
@@ -1210,7 +1233,7 @@ class Simulation(CratermakerBase):
 
         class IntervalState:
             def __init__(self, interval, max_interval):
-                self.interval = interval
+                self._interval = interval
                 self.max_interval = max_interval
 
             def update(self, forward):
@@ -1222,7 +1245,7 @@ class Simulation(CratermakerBase):
                     new_interval = self.interval - 1
                     if new_interval < 0:
                         return
-                self.interval = new_interval
+                self._interval = new_interval
                 return new_interval
 
         def update_interval(plotter, istate, forward):
@@ -1561,15 +1584,6 @@ class Simulation(CratermakerBase):
         if self._interval is None:
             return 0
         return self._interval
-
-    @interval.setter
-    def interval(self, value):
-        if not isinstance(value, int):
-            raise TypeError("interval must be an integer")
-        if value < 0:
-            raise ValueError("interval must be greater than or equal to zero")
-
-        self._interval = value
 
     @parameter
     def elapsed_time(self):

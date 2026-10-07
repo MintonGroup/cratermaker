@@ -89,14 +89,8 @@ class Counting(ComponentBase):
         ]
 
         if not reset:
-            observed, emplaced = self.read_saved_output(interval=-1)
-            if observed:
-                interval = observed.interval.values[-1]
-                observed = self.Crater.from_xarray(observed, interval=interval)
-                for crater in observed:
-                    self._observed[crater.id] = crater
-                if emplaced:
-                    self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
+            self.load(interval=-1)
+
         return
 
     @classmethod
@@ -166,6 +160,25 @@ class Counting(ComponentBase):
         self._observed = {}
 
         super().reset(**kwargs)
+        return
+
+    def load(self, interval: int, **kwargs: Any) -> None:
+        """
+        Loads old crater counts from file.
+
+        Parameters
+        ----------
+        interval : int
+            The interval number to load data from
+        """
+        observed, emplaced = self.read_saved_output(interval=interval)
+        if observed:
+            interval = observed.interval.values[-1]
+            observed = self.Crater.from_xarray(observed, interval=interval)
+            for crater in observed:
+                self._observed[crater.id] = crater
+            if emplaced:
+                self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
         return
 
     def add(self, crater: MorphologyCrater, **kwargs: Any) -> MorphologyCrater:
