@@ -468,7 +468,7 @@ class BasicMoonCrater(MorphologyCrater):
                 crater.rings[i] = ring
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
-        if conserve_volume and not crater.isring:
+        if False:
 
             def _func(frac_ejrim, crater):
                 ejrim = frac_ejrim * crater.rim_height
