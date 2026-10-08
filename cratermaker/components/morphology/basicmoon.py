@@ -1302,7 +1302,8 @@ class BasicMoonMorphology(Morphology):
         include_crater: bool,
         include_ejecta: bool,
         crater_cls: type[Crater] = BasicMoonCrater,
-        profile_func: Callable = basicmoon_bindings.basicmoon_profile,
+        crater_profile_function: Callable = basicmoon_bindings.crater_profile_function,
+        ejecta_profile_function: Callable = basicmoon_bindings.ejecta_profile_function,
         **kwargs,
     ) -> np.float64:
         """
@@ -1312,16 +1313,16 @@ class BasicMoonMorphology(Morphology):
             return np.float64(0.0)
 
         def _crater_func(r):
-            h = basicmoon_bindings.crater_profile_function(crater, r)
+            h = crater_profile_function(crater, r)
             return r * h
 
         def _ejecta_func(r):
-            h = basicmoon_bindings.ejecta_profile_function(crater, r)
+            h = ejecta_profile_function(crater, r)
             return r * h
 
         def _combo_func(r):
-            hc = basicmoon_bindings.crater_profile_function(crater, r)
-            he = basicmoon_bindings.ejecta_profile_function(crater, r)
+            hc = crater_profile_function(crater, r)
+            he = ejecta_profile_function(crater, r)
             return r * (hc + he)
 
         if include_crater and not include_ejecta:
@@ -1330,7 +1331,11 @@ class BasicMoonMorphology(Morphology):
             func = _ejecta_func
         else:
             func = _combo_func
-        v = quad(func, 0.0, 20 * crater.radius, **{"limit": 100, "epsrel": 1e-2, **kwargs}, full_output=1)[0]
+        if self.ejecta_truncation is None:
+            rmax = max(crater.ejecta_rmax, 2 * crater.radius)
+        else:
+            rmax = self.ejecta_truncation * crater.radius
+        v = quad(func, 0.0, rmax, **{"limit": 10, "epsrel": 1e-2, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
 
     def degradation_function(

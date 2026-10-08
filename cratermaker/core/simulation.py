@@ -644,6 +644,7 @@ class Simulation(CratermakerBase):
         N_D_end: PairOfFloats | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
+        emplace: bool = True,
         **kwargs: Any,
     ) -> list[Crater]:
         """
@@ -667,6 +668,8 @@ class Simulation(CratermakerBase):
             A pair of numbers, (diameter, number), representing the diameter and total number of craters in the production function at the end, where diameter is in units of m and n is in number of craters.  If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         craters : list[Crater] or Crater, optional
             A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
+        emplace : bool, optional
+            If True, emplace the craters after generation. If False, the list of craters is generated and returned, but the craters are not emplaced onto the Surface.
 
         Returns
         -------
@@ -799,7 +802,10 @@ class Simulation(CratermakerBase):
                 craterlist, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
             )
         if len(craterlist) > 0:
-            return self.emplace(craterlist, **kwargs)
+            if emplace:
+                return self.emplace(craterlist, **kwargs)
+            else:
+                return craterlist
         else:
             return []
 
