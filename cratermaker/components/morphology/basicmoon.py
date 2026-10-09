@@ -98,6 +98,7 @@ class BasicMoonCrater(MorphologyCrater):
         str_repr += (
             f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
             f"Ejecta fraction of rim: {self.frac_ejrim}\n"
+            f"Ejecta profile: {self.ejprofile}\n"
             f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
             f"Floor elevation: {format_large_units(self.floor_elevation, quantity='length')}\n"
             f"Floor radius: {format_large_units(self.floor_radius, quantity='length')}\n"
@@ -468,42 +469,14 @@ class BasicMoonCrater(MorphologyCrater):
                 crater.rings[i] = ring
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
-        if False:
+        if conserve_volume and not crater.isring:
 
-            def _func(frac_ejrim, crater):
-                ejrim = frac_ejrim * crater.rim_height
-                frac_ejrim_orig = crater.frac_ejrim
-                ejrim_orig = crater.frac_ejrim * crater.rim_height
-                if ejrim_orig > 0.0:
-                    erat = max(ejrim / ejrim_orig, 0.0)
-                else:
-                    erat = 0.0
-                crater.frac_ejrim = max(ejrim / crater.rim_height, 0.0)
-                ring_frac_ejrim_orig = []
-                if crater.nrings > 0:
-                    for ring in crater.rings:
-                        if ring.frac_ejrim is not None:
-                            ring_frac_ejrim_orig.append(ring.frac_ejrim)
-                            ring_ejrim = ring.frac_ejrim * ring.rim_height
-                            ring_ejrim *= erat
-                            ring.frac_ejrim = ring_ejrim / ring.rim_height
-                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
-                ejecta_volume = morphology.estimate_volume(crater, include_crater=False, include_ejecta=True)
-                result = ejecta_volume + excavated_volume
-                crater.frac_ejrim = frac_ejrim_orig
-                if len(ring_frac_ejrim_orig) > 0:
-                    for ring, ring_frac_ejrim in zip(crater.rings, ring_frac_ejrim_orig, strict=True):
-                        ring.frac_ejrim = ring_frac_ejrim
-                return result
+            def ejvol(crater):
+                return 2 * np.pi * crater.frac_ejrim * crater.rim_height * crater.radius**2 / (-crater.ejprofile - 2)
 
             for _ in range(10):
-                lower_bracket = 0.0
-                upper_bracket = 1.0
-                lower_bound = _func(lower_bracket, crater)
-                upper_bound = _func(upper_bracket, crater)
-                if lower_bound < 0.0 and upper_bound > 0.0:
-                    break
-                while lower_bound > 0.0:
+                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                while excavated_volume > 0.0:
                     # This occurs when rim_height is too high
                     kwargs["rim_height"] *= 0.9
                     crater = cls(
@@ -511,30 +484,18 @@ class BasicMoonCrater(MorphologyCrater):
                         morphology=morphology,
                         **kwargs,
                     )
-                    lower_bound = _func(lower_bracket, crater)
+                    excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
 
-                upper_bound = _func(upper_bracket, crater)
-                while upper_bound < 0.0:
-                    # This occurs when the rim_height is too low
-                    kwargs["rim_height"] *= 1.1
-                    crater = cls(
-                        crater=crater,
-                        morphology=morphology,
-                        **kwargs,
-                    )
-                    upper_bound = _func(upper_bracket, crater)
+                conservation_factor = -ejvol(crater) / excavated_volume
 
-            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[lower_bracket, upper_bracket], method="brentq")
-            frac_ejrim = sol.root if sol.converged else crater.frac_ejrim
-            if crater.frac_ejrim > _VSMALL:
-                conservation_factor = frac_ejrim / crater.frac_ejrim
-            else:
-                conservation_factor = 1.0
-            crater._frac_ejrim *= conservation_factor
-            if crater.nrings > 0:
-                for ring in crater.rings:
-                    if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
-                        ring.frac_ejrim *= conservation_factor
+                ejprofile = -2.0 + conservation_factor * (crater.ejprofile + 2)
+                if ejprofile < -4:
+                    kwargs["rim_height"] *= 0.9
+                else:
+                    kwargs["ejprofile"] = ejprofile
+                crater = cls(crater=crater, morphology=morphology, **kwargs)
+                if ejprofile > -4:
+                    break
 
         return crater
 
@@ -1301,7 +1262,6 @@ class BasicMoonMorphology(Morphology):
         crater: BasicMoonCrater,
         include_crater: bool,
         include_ejecta: bool,
-        crater_cls: type[Crater] = BasicMoonCrater,
         crater_profile_function: Callable = basicmoon_bindings.crater_profile_function,
         ejecta_profile_function: Callable = basicmoon_bindings.ejecta_profile_function,
         **kwargs,
@@ -1313,8 +1273,10 @@ class BasicMoonMorphology(Morphology):
             return np.float64(0.0)
 
         def _crater_func(r):
-            h = crater_profile_function(crater, r)
-            return r * h
+            hc = crater_profile_function(crater, r)
+            he = ejecta_profile_function(crater, r)
+
+            return r * (hc - he)
 
         def _ejecta_func(r):
             h = ejecta_profile_function(crater, r)
@@ -1322,8 +1284,7 @@ class BasicMoonMorphology(Morphology):
 
         def _combo_func(r):
             hc = crater_profile_function(crater, r)
-            he = ejecta_profile_function(crater, r)
-            return r * (hc + he)
+            return r * hc
 
         if include_crater and not include_ejecta:
             func = _crater_func
@@ -1332,10 +1293,10 @@ class BasicMoonMorphology(Morphology):
         else:
             func = _combo_func
         if self.ejecta_truncation is None:
-            rmax = max(crater.ejecta_rmax, 2 * crater.radius)
+            rmax = 20 * crater.radius
         else:
             rmax = self.ejecta_truncation * crater.radius
-        v = quad(func, 0.0, rmax, **{"limit": 10, "epsrel": 1e-2, **kwargs}, full_output=1)[0]
+        v = quad(func, 0.0, rmax, **{"limit": 100, "epsrel": 1e-3, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
 
     def degradation_function(

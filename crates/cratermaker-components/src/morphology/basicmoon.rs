@@ -8,10 +8,7 @@ use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::f64::{
-    self, EPSILON,
-    consts::{PI, SQRT_2, TAU},
-};
+use std::f64::consts::{PI, SQRT_2, TAU};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
@@ -180,7 +177,8 @@ pub fn basicmoon_profile_one(
     let mut hej = ejecta_profile_function(
         r,
         crater.radius,
-        crater.frac_ejrim * crater.rim_height,
+        crater.frac_ejrim,
+        crater.rim_height,
         crater.ejprofile,
         crater.rim_width,
     );
@@ -191,7 +189,8 @@ pub fn basicmoon_profile_one(
                 let mut hejring = ejecta_profile_function(
                     r,
                     ring.radius,
-                    ring.frac_ejrim * ring.rim_height,
+                    ring.frac_ejrim,
+                    ring.rim_height,
                     ring.ejprofile,
                     ring.rim_width,
                 );
@@ -316,14 +315,14 @@ pub fn crater_profile_function(
     let hwalltofloor = walltofloorfunc(r, radius, rf, hr, hf, rfw);
     let hwf = blend(r, hwalltofloor, hwall, rf, rfw);
     hwall = blend(r, hfloor, hwf, rf, rfw);
-    let hej = ejecta_profile_function(r, radius, he, pej, rw);
+    let hej = ejecta_profile_function(r, radius, fe, hr, pej, rw);
     let hrim = rimfunc(r, radius, hr, he, rw) + hej;
     blend(r, hwall, hrim, radius, rw)
 }
 
 #[inline]
 fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
-    if rc > EPSILON {
+    if rc > f64::EPSILON {
         hc * (-((r - ro) / rc).powi(2)).exp() + hf
     } else {
         hf
@@ -335,7 +334,7 @@ fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
     if r <= radius {
         let r0 = (r - rf) / (radius - rf);
         let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())) + hr
     } else {
         hr
     }
@@ -388,10 +387,11 @@ fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, rw: f64) -> f64 {
+pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
     if r > radius {
         let t = (r - (radius - rw)) / (2.0 * rw);
         let phi = smoothstep(t);
+        let ejrim = fe * hr;
         let hg = rimfunc(r, radius, ejrim, 0.0, rw);
         let hp = ejrim * (r / radius).powf(ejprofile);
         (1.0 - phi) * hg + phi * hp

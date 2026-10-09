@@ -358,7 +358,7 @@ class MorphologyCrater(Crater):
 
     def reset(self):
         """
-        Resets the crater by removing saved regions and lists of affected indices
+        Resets the crater by removing saved regions and lists of affected indices.
         """
         self.remove_complex_data()
         self._var._face_index = None
