@@ -238,7 +238,6 @@ class Projectile(ComponentBase):
                 projectile = "comets"
             else:
                 projectile = "generic"
-                mean_velocity = 20.0e3 if mean_velocity is None else mean_velocity
 
         # if this is a brand new uninstantiated projectile, we need to flag it so that it its properties can be set propertly. Otherwise, it should just pass through as is.
         isfresh = (
@@ -324,18 +323,24 @@ class Projectile(ComponentBase):
         if angle is None:
             if self.monte_carlo:
                 angle = float(mc.get_random_impact_angle(rng=self.rng)[0])
+            elif self.angle is not None:
+                angle = self.angle
             else:
                 angle = 90.0
 
         if direction is None:
             if self.monte_carlo:
                 direction = float(mc.get_random_impact_direction(rng=self.rng)[0])
+            elif self.direction is not None:
+                direction = self.direction
             else:
                 direction = 0.0
 
         if location is None:
             if self.monte_carlo:
                 location = mc.get_random_location(rng=self.rng)[0]
+            elif self.location is not None:
+                location = self.location
             else:
                 location = (0, 0)
 

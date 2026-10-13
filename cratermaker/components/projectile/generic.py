@@ -61,6 +61,11 @@ class GenericProjectiles(Projectile):
         angle = 90.0 if angle is None else angle
         direction = 0.0 if direction is None else direction
         location = (0.0, 0.0) if location is None else location
+        if mean_velocity is None:
+            if monte_carlo:
+                mean_velocity = 20.0e3
+            else:
+                mean_velocity = velocity
         super().__init__(
             monte_carlo=monte_carlo,
             mean_velocity=mean_velocity,

@@ -62,13 +62,11 @@ class AsteroidProjectiles(Projectile):
         """
         density = 2250.0 if density is None else density
         kwargs.pop("mean_velocity", None)
-        kwargs.pop("velocity", None)
         self._target = Target.maker(target, **kwargs)
         mean_velocity = self._set_mean_velocity()
         super().__init__(
             monte_carlo=monte_carlo,
             mean_velocity=mean_velocity,
-            velocity=mean_velocity,
             angle=angle,
             direction=direction,
             location=location,

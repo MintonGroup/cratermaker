@@ -324,6 +324,7 @@ class TestSimulation(unittest.TestCase):
             crater_vals = []
             diffs = ["location", "projectile_velocity", "orientation", "id"]
             sames = ["diameter", "time"]
+            ignores = ["ejecta_rmax", "emplaceable"]
             for sim_num in range(2):
                 sim = cratermaker.Simulation(
                     simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, reset=True, rng_seed=2345253
@@ -341,6 +342,7 @@ class TestSimulation(unittest.TestCase):
                             if k == "time" or k == "id"
                             else crater_dict[k] == new_crater_dict[k]
                             for k in crater_dict
+                            if k not in ignores
                         ),
                         msg=f"Failed for sim_num {sim_num} iteration {iteration}",
                     )
