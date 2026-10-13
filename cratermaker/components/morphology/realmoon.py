@@ -80,6 +80,10 @@ class PSD1D(CratermakerBase):
             self.mean = amplitude[0]
             self.amplitude = amplitude
             self.phase = phase
+            if pix is None:
+                self.pix = 2 * math.pi * self.mean / self.nprofile
+            else:
+                self.pix = pix / self.normalization_length
         else:
             self.mean = mean / self.normalization_length
             self.pix = pix / self.normalization_length
