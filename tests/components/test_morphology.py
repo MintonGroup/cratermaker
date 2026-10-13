@@ -119,7 +119,7 @@ class TestMorphology(unittest.TestCase):
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
 
-                    crater = sim.Crater.maker(diameter=diameter, location=(0, 0), peak_height=0.0, rim_width=0.0)
+                    crater = sim.Crater.maker(diameter=diameter, location=(0, 0), peak_height=0.0)
                     sim.emplace(crater)
 
                     # Verify that the crater depth and rim heights are close to the expected values
