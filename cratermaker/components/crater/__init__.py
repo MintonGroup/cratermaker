@@ -607,6 +607,7 @@ class Crater(ComponentBase):
         rng_seed: str | int | None = None,
         rng_state: dict | None = None,
         check_redundant_inputs: bool = True,
+        monte_carlo: bool | None = None,
         **kwargs: Any,
     ):
         """
@@ -702,6 +703,8 @@ class Crater(ComponentBase):
             |rng_state|
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
+        monte_carlo : bool or None, optional
+            If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         **kwargs : Any
             |kwargs|
 
@@ -989,8 +992,6 @@ class Crater(ComponentBase):
                 projectile,
                 target=target,
                 **{**projectile_args, **kwargs},
-            ).new_projectile(
-                **projectile_args,
             )
 
             scaling = Scaling.maker(
@@ -999,7 +1000,16 @@ class Crater(ComponentBase):
                 projectile=projectile,
                 **kwargs,
             )
+            if monte_carlo is not None:
+                scaling_monte_carlo_orig = scaling.monte_carlo
+                projectile_monte_carlo_orig = projectile.monte_carlo
+                scaling.monte_carlo = monte_carlo
+                projectile.monte_carlo = monte_carlo
+            scaling.projectile = scaling.projectile.new_projectile(
+                **projectile_args,
+            )
             projectile = scaling.projectile
+
             scaling.recompute()
             target = scaling.target
             pv = projectile.velocity
@@ -1113,6 +1123,10 @@ class Crater(ComponentBase):
             measured_orientation = pdir if pdir is not None else None
         if measured_location is None:
             measured_location = (float(location[0]), float(location[1])) if location is not None else None
+
+        if monte_carlo is not None:
+            scaling.monte_carlo = scaling_monte_carlo_orig
+            projectile.monte_carlo = projectile_monte_carlo_orig
 
         # Assemble the final set of arguments to pass to the Crater constructor
         args["semimajor_axis"] = float(a) if a is not None else None

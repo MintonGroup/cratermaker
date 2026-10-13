@@ -48,7 +48,7 @@ class Projectile(ComponentBase):
 
     def __init__(
         self,
-        sample: bool = True,
+        monte_carlo: bool = True,
         mean_velocity: FloatLike | None = None,
         velocity: FloatLike | None = None,
         density: FloatLike | None = None,
@@ -67,18 +67,18 @@ class Projectile(ComponentBase):
 
         Parameters
         ----------
-        sample : bool
+        monte_carlo : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to True, the `mean_velocity` argument is required. If set to False, the `velocity` argument is required.
         mean_velocity : float, optional
-            The mean velocity of the projectile in m/s. Required if `sample` is True, ignored if `sample` is False.
+            The mean velocity of the projectile in m/s. Required if `monte_carlo` is True, ignored if `monte_carlo` is False.
         velocity : float | None
-            The impact velocity in m/s. If `sample` is True, this value is ignored. If `sample` is False, this value is required.
+            The impact velocity in m/s. If `monte_carlo` is True, this value is ignored. If `monte_carlo` is False, this value is required.
         density : float, optional
             The density of the projectile in kg/m³.
         angle : float, optional
-            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
         direction : float | None
-            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
         location : tuple[float, float] | None
             The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
         target : Target or str.
@@ -96,7 +96,7 @@ class Projectile(ComponentBase):
 
         super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
 
-        object.__setattr__(self, "_sample", sample)
+        object.__setattr__(self, "_monte_carlo", monte_carlo)
         object.__setattr__(self, "_mean_velocity", mean_velocity)
         object.__setattr__(self, "_velocity", velocity)
         object.__setattr__(self, "_density", density)
@@ -105,18 +105,18 @@ class Projectile(ComponentBase):
         object.__setattr__(self, "_location", location)
         object.__setattr__(self, "_target", Target.maker(target, **kwargs))
 
-        if self.sample:
+        if self.monte_carlo:
             if self.mean_velocity is None:
-                raise ValueError("mean_velocity must be provided when sample is True")
+                raise ValueError("mean_velocity must be provided when monte_carlo is True")
         else:
             if self.velocity is None:
-                raise ValueError("velocity must be provided when sample is False")
+                raise ValueError("velocity must be provided when monte_carlo is False")
             if self.angle is None:
-                raise ValueError("angle must be provided when sample is False")
+                raise ValueError("angle must be provided when monte_carlo is False")
             if self.direction is None:
-                raise ValueError("direction must be provided when sample is False")
+                raise ValueError("direction must be provided when monte_carlo is False")
             if self.location is None:
-                raise ValueError("location must be provided when sample is False")
+                raise ValueError("location must be provided when monte_carlo is False")
 
         if self.density is None:
             raise ValueError("density must be provided")
@@ -124,8 +124,8 @@ class Projectile(ComponentBase):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        if self.sample:
-            str_repr += f"Sample from distributions: {self.sample}\n"
+        if self.monte_carlo:
+            str_repr += f"Sample from distributions: {self.monte_carlo}\n"
             str_repr += f"Mean Velocity: {format_large_units(self.mean_velocity, quantity='velocity')}\n"
         else:
             str_repr += f"Velocity: {format_large_units(self.velocity, quantity='velocity')}\n"
@@ -171,7 +171,7 @@ class Projectile(ComponentBase):
         projectile: Projectile | str | None = None,
         mean_velocity: FloatLike | None = None,
         density: FloatLike | None = None,
-        sample: bool = True,
+        monte_carlo: bool = True,
         angle: FloatLike | None = None,
         velocity: FloatLike | None = None,
         direction: FloatLike | None = None,
@@ -193,7 +193,7 @@ class Projectile(ComponentBase):
             The mean velocity of the projectile in m/s.
         density : float
             The density of the projectile in kg/m³.
-        sample : bool
+        monte_carlo : bool
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
         angle : float
             The impact angle in degrees.
@@ -202,7 +202,7 @@ class Projectile(ComponentBase):
         direction : float | None
             The impact direction in degrees. If None, the direction will be sampled from a distribution.
         location : tuple[float, float]
-            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location willb e sampled from a distribution
+            The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : numpy.random.Generator | None
@@ -254,7 +254,7 @@ class Projectile(ComponentBase):
             component=projectile,
             mean_velocity=mean_velocity,
             density=density,
-            sample=sample,
+            monte_carlo=monte_carlo,
             angle=angle,
             velocity=velocity,
             direction=direction,
@@ -292,11 +292,11 @@ class Projectile(ComponentBase):
         Parameters
         ----------
         velocity : float | None
-            The impact velocity in m/s. If None, the velocity will be sampled from a distribution if `sample` is True, otherwise it will be set to the value of `mean_velocity`.
+            The impact velocity in m/s. If None, the velocity will be sampled from a distribution if `monte_carlo` is True, otherwise it will be set to the value of `mean_velocity`.
         angle : float, optional
-            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False.
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `monte_carlo` is False.
         direction : float | None
-            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False.
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `monte_carlo` is False.
         location : tuple[float, float] | None
             The location of the projectile on the target body in (lon, lat) coordinates. If None, the location will be sampled from a distribution.
         density : float | None
@@ -309,51 +309,54 @@ class Projectile(ComponentBase):
         Projectile
             A new Projectile instance with updated properties.
         """
-        import copy
+        if velocity is None:
+            if self.monte_carlo:
+                velocity = float(
+                    mc.get_random_velocity(
+                        vmean=self.mean_velocity,
+                        vescape=self.target.escape_velocity,
+                        rng=self.rng,
+                    )[0]
+                )
+            else:
+                velocity = self.mean_velocity
 
-        new_obj = copy.copy(self)
+        if angle is None:
+            if self.monte_carlo:
+                angle = float(mc.get_random_impact_angle(rng=self.rng)[0])
+            else:
+                angle = 90.0
 
-        if velocity is not None:
-            new_obj.velocity = velocity
-        elif new_obj.sample:
-            new_obj._velocity = float(
-                mc.get_random_velocity(
-                    vmean=new_obj.mean_velocity,
-                    vescape=new_obj.target.escape_velocity,
-                    rng=new_obj.rng,
-                )[0]
-            )
-        elif new_obj._velocity is None:
-            new_obj._velocity = new_obj.mean_velocity
+        if direction is None:
+            if self.monte_carlo:
+                direction = float(mc.get_random_impact_direction(rng=self.rng)[0])
+            else:
+                direction = 0.0
 
-        if angle is not None:
-            new_obj.angle = angle
-        elif new_obj.sample:
-            new_obj._angle = float(mc.get_random_impact_angle(rng=new_obj.rng)[0])
-        elif new_obj._angle is None:
-            new_obj._angle = 90.0
+        if location is None:
+            if self.monte_carlo:
+                location = mc.get_random_location(rng=self.rng)[0]
+            else:
+                location = (0, 0)
 
-        if direction is not None:
-            new_obj.direction = direction
-        elif new_obj.sample:
-            new_obj._direction = float(mc.get_random_impact_direction(rng=new_obj.rng)[0])
-        elif new_obj._direction is None:
-            new_obj._direction = 0.0
+        if density is None:
+            density = self.density
 
-        if location is not None:
-            new_obj.location = location
-        elif new_obj.sample:
-            new_obj._location = mc.get_random_location(rng=new_obj.rng)[0]
-        elif new_obj._location is None:
-            new_obj._location = (0, 0)
-
-        if density is not None:
-            new_obj.density = density
-
-        return new_obj
+        return self.__class__(
+            velocity=velocity,
+            angle=angle,
+            direction=direction,
+            location=location,
+            density=density,
+            mean_velocity=self.mean_velocity,
+            monte_carlo=self.monte_carlo,
+            target=self.target,
+            rng=self.rng,
+            **kwargs,
+        )
 
     @parameter
-    def sample(self):
+    def monte_carlo(self):
         """
         Flag that determines whether to sample velocities, angles, and directions from distributions. If set to False, impact velocities will be set to the mean velocity, impact angles will be set to 90 degrees (vertical impact), and directions will be 0.
 
@@ -361,13 +364,13 @@ class Projectile(ComponentBase):
         -------
         bool
         """
-        return self._sample
+        return self._monte_carlo
 
-    @sample.setter
-    def sample(self, value):
+    @monte_carlo.setter
+    def monte_carlo(self, value):
         if not isinstance(value, bool):
-            raise TypeError("sample must be a boolean value")
-        self._sample = value
+            raise TypeError("monte_carlo must be a boolean value")
+        self._monte_carlo = value
         return
 
     @parameter

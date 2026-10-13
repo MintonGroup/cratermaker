@@ -457,8 +457,8 @@ class HiResLocalSurface(Surface):
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
         # Disable MC scaling so that the superdomain scaling is always the same for a given set of surface parameters.
-        monte_carlo_scaling_orig = morphology.scaling.monte_carlo_scaling
-        morphology.scaling.monte_carlo_scaling = False
+        monte_carlo_orig = morphology.scaling.monte_carlo
+        morphology.scaling.monte_carlo = False
 
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = morphology.scaling.projectile.mean_velocity * 10
@@ -501,7 +501,7 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self.superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        morphology.scaling.monte_carlo_scaling = monte_carlo_scaling_orig
+        morphology.scaling.monte_carlo = monte_carlo_orig
 
         self._load_from_files(reset=reset, regrid=regrid, **kwargs)
         return

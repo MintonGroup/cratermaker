@@ -70,7 +70,7 @@ class CometProjectiles(Projectile):
 
     def __init__(
         self,
-        sample: bool = True,
+        monte_carlo: bool = True,
         density: FloatLike | None = None,
         angle: FloatLike | None = None,
         direction: FloatLike | None = None,
@@ -86,16 +86,16 @@ class CometProjectiles(Projectile):
 
         Parameters
         ----------
-        sample : bool, default True
+        monte_carlo : bool, default True
             Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
         density : float
             The density of the projectile in kg/m³. Default is 500.0 kg/m³.
         angle : float, optional
-            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `sample` is False. If `sample` is True, this value is ignored.
+            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
         direction : float | None
-            The impact direction in degrees. Default is 0.0 degrees (due North) if `sample` is False. If `sample` is True, this value is ignored.`
+            The impact direction in degrees. Default is 0.0 degrees (due North) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.`
         location : tuple[float, float] | None
-            The impact location as a tuple of (longitude, latitude) in degrees. Default is (0.0, 0.0) (the equator and prime meridian) if `sample` is False. If `sample` is True, this value is ignored.
+            The impact location as a tuple of (longitude, latitude) in degrees. Default is (0.0, 0.0) (the equator and prime meridian) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : Generator | None
@@ -124,7 +124,7 @@ class CometProjectiles(Projectile):
         self._target = Target.maker(target, **kwargs)
         mean_velocity = self._set_mean_velocity()
         super().__init__(
-            sample=sample,
+            monte_carlo=monte_carlo,
             mean_velocity=mean_velocity,
             velocity=mean_velocity,
             angle=angle,

@@ -129,6 +129,7 @@ class BasicMoonCrater(MorphologyCrater):
         peak_center_distance: float | None = None,
         peak_center_bearing: float | None = None,
         conserve_volume: bool = True,
+        monte_carlo: bool | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -166,6 +167,8 @@ class BasicMoonCrater(MorphologyCrater):
             Bearing angle of central peak/peak ring in degrees.
         conserve_volume: bool, optional
             If True, then the value of frac_ejrim will be adjusted in order to attempt to conserve volume between excavation and deposition. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
+        monte_carlo : bool or None, optional
+            If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -197,9 +200,9 @@ class BasicMoonCrater(MorphologyCrater):
             peak_center_bearing = crater.peak_center_bearing if peak_center_bearing is None else peak_center_bearing
 
         morphology = Morphology.maker(morphology, **kwargs)
-        crater = super().maker(crater=crater, morphology=morphology, **kwargs)
-        monte_carlo_scaling = morphology.scaling.monte_carlo_scaling
-        compute_nominal = not monte_carlo_scaling
+        crater = super().maker(crater=crater, morphology=morphology, monte_carlo=monte_carlo, **kwargs)
+        monte_carlo = monte_carlo if monte_carlo is not None else morphology.scaling.monte_carlo
+        compute_nominal = not monte_carlo
         rng = morphology.rng
         min_valid_diameter = 100.0  # Cutoff where the model is constrained. Smaller craters use the parameters at this cutoff value
 
@@ -351,7 +354,7 @@ class BasicMoonCrater(MorphologyCrater):
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if frac_ejrim is None:
             if rim_height > 0.0:
-                if monte_carlo_scaling:
+                if monte_carlo:
                     frac_ejrim = rng.uniform(low=0.3, high=0.7, size=1)[0]  # Temporary until a morphometric analysis ic complete
                 else:
                     frac_ejrim = 0.5
@@ -443,7 +446,7 @@ class BasicMoonCrater(MorphologyCrater):
         if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
             num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
             for i in range(num_rings):
-                if monte_carlo_scaling:
+                if monte_carlo:
                     rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
                 else:
                     rnd_factor = np.ones(4)
@@ -747,7 +750,7 @@ class BasicMoonMorphology(Morphology):
             The list of BasicMoonCrater objects that were emplaced.
         """
         if craters is None:
-            craters = [BasicMoonCrater.maker(morphology=self, **kwargs)]
+            craters = [self.Crater.maker(morphology=self, **kwargs)]
         elif isinstance(craters, (list | tuple)) and len(craters) > 0:
             processed_craters = []
             for c in tqdm(
