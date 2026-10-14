@@ -294,22 +294,22 @@ class PSD1D(CratermakerBase):
 class RealMoonCraterVariable(MorphologyCraterVariable):
     def __init__(
         self,
-        rim_radius_control: np.ndarray | None = None,
+        radius_control: np.ndarray | None = None,
         rim_height_control: np.ndarray | None = None,
         floor_radius_control: np.ndarray | None = None,
         wall_texture_control: np.ndarray | None = None,
         ejecta_texture_control: np.ndarray | None = None,
-        rim_radius_psd: PSD1D | None = None,
+        radius_psd: PSD1D | None = None,
         floor_radius_psd: PSD1D | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        object.__setattr__(self, "_rim_radius_control", rim_radius_control)
+        object.__setattr__(self, "_radius_control", radius_control)
         object.__setattr__(self, "_rim_height_control", rim_height_control)
         object.__setattr__(self, "_floor_radius_control", floor_radius_control)
         object.__setattr__(self, "_wall_texture_control", wall_texture_control)
         object.__setattr__(self, "_ejecta_texture_control", ejecta_texture_control)
-        object.__setattr__(self, "_rim_radius_psd", rim_radius_psd)
+        object.__setattr__(self, "_radius_psd", radius_psd)
         object.__setattr__(self, "_floor_radius_psd", floor_radius_psd)
         return
 
@@ -328,8 +328,8 @@ class RealMoonCraterVariable(MorphologyCraterVariable):
         return self._ejecta_texture_control
 
     @property
-    def rim_radius_psd(self) -> PSD1D:
-        return self._rim_radius_psd
+    def radius_psd(self) -> PSD1D:
+        return self._radius_psd
 
     @property
     def floor_radius_psd(self) -> PSD1D:
@@ -350,9 +350,9 @@ class RealMoonCrater(BasicMoonCrater):
         cls,
         crater: Crater | None = None,
         morphology: Morphology | None = None,
-        rim_radius_psd: PSD1D | None = None,
+        radius_psd: PSD1D | None = None,
         floor_radius_psd: PSD1D | None = None,
-        rim_radius_control: dict[str, np.float64] | None = None,
+        radius_control: dict[str, np.float64] | None = None,
         floor_radius_control: dict[str, np.float64] | None = None,
         **kwargs: Any,
     ) -> RealMoonCrater:
@@ -367,7 +367,7 @@ class RealMoonCrater(BasicMoonCrater):
             The crater object to be converted into a BasicMoonCrater. If None, then a new crater is created using the provided parameters.
         morphology : Morphology, optional
             The morphology model to use for generating morphology parameters.
-        rim_radius_psd : PSD1D, optional
+        radius_psd : PSD1D, optional
             Rim radius PSD. If None, then it will be computed from control points.
         floor_radius_psd : PSD1D, optional
             Floor radius PSD. If None, then it will be computed from control points.
@@ -389,8 +389,8 @@ class RealMoonCrater(BasicMoonCrater):
         if crater is not None and isinstance(crater, RealMoonCrater):
             for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
                 input_args.pop(k, None)
-            rim_radius_psd = crater.rim_radius_psd if rim_radius_psd is None else rim_radius_psd
-            rim_radius_control = crater.rim_radius_control if rim_radius_control is None else rim_radius_control
+            radius_psd = crater.radius_psd if radius_psd is None else radius_psd
+            radius_control = crater.radius_control if radius_control is None else radius_control
             floor_radius_psd = crater.floor_radius_psd if floor_radius_psd is None else floor_radius_psd
             floor_radius_control = crater.floor_radius_control if floor_radius_control is None else floor_radius_control
 
@@ -407,12 +407,12 @@ class RealMoonCrater(BasicMoonCrater):
         return cls(
             crater=crater,
             morphology=morphology,
-            rim_radius_psd=rim_radius_psd,
+            radius_psd=radius_psd,
             floor_radius_psd=floor_radius_psd,
             **kwargs,
         )
 
-    def rim_radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
+    def radius_profile(self, bearings: ArrayLike) -> NDArray[np.float64]:
         """
         Compute the rim radius profile of the crater based on the rim radius PSD.
 
@@ -425,12 +425,12 @@ class RealMoonCrater(BasicMoonCrater):
 
         Returns
         -------
-        rim_radius_profile : NDArray[np.float64]
+        radius_profile : NDArray[np.float64]
             The computed rim radius profile at each bearing.
         """
         theta = np.radians(bearings)
         profile = realmoon_bindings.profile_from_psd(
-            psd=self.rim_radius_psd,
+            psd=self.radius_psd,
             theta=theta,
         )
         return profile
@@ -475,25 +475,25 @@ class RealMoonCrater(BasicMoonCrater):
         """
         theta = np.radians(bearings)
         return realmoon_bindings.profile_from_psd(
-            psd=self.rim_radius_psd,
+            psd=self.radius_psd,
             theta=theta,
         )
 
     @property
-    def rim_radius_psd(self) -> dict[str, NDArray]:
+    def radius_psd(self) -> dict[str, NDArray]:
         """
         The power spectral density distribution of the rim radius outline.
         """
-        if self._var._rim_radius_psd is None:
-            self._var._rim_radius_psd = PSD1D(
+        if self._var._radius_psd is None:
+            self._var._radius_psd = PSD1D(
                 normalization_length=self.radius,
                 mean=self.radius,
                 pix=self.morphology.surface.pix,
-                control_points=self.rim_radius_control,
+                control_points=self.radius_control,
                 add_noise=self.morphology.add_noise,
                 **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
             )
-        return self._var._rim_radius_psd
+        return self._var._radius_psd
 
     @property
     def floor_radius_psd(self) -> dict[str, NDArray]:
@@ -512,12 +512,12 @@ class RealMoonCrater(BasicMoonCrater):
         return self._var._floor_radius_psd
 
     @property
-    def rim_radius_control(self) -> np.ndarray | None:
-        if self._var._rim_radius_control is None:
-            self._var._rim_radius_control = self.morphology.get_control_points(
+    def radius_control(self) -> np.ndarray | None:
+        if self._var._radius_control is None:
+            self._var._radius_control = self.morphology.get_control_points(
                 crater=self, psd1d_coef=self.morphology.psd1d_coef["rim"]
             )
-        return self._var._rim_radius_control
+        return self._var._radius_control
 
     @property
     def floor_radius_control(self) -> np.ndarray | None:

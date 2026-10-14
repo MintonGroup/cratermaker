@@ -42,7 +42,7 @@ pub struct RealMoonCrater<'a> {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
-    pub rim_radius_psd: PSD1DView<'a>,
+    pub radius_psd: PSD1DView<'a>,
     pub floor_radius_psd: PSD1DView<'a>,
 }
 
@@ -108,12 +108,12 @@ pub fn realmoon_profile(
     let min_elevation = meanref + crater.floor_elevation;
 
     // Create profile functions that will be interpolated later
-    let (rimtheta, rim_profile) = profile_from_psd(&crater.rim_radius_psd);
+    let (rimtheta, rim_profile) = profile_from_psd(&crater.radius_psd);
     let (floortheta, floor_profile) = profile_from_psd(&crater.floor_radius_psd);
     let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
-            .map(|ring| profile_from_psd(&ring.rim_radius_psd))
+            .map(|ring| profile_from_psd(&ring.radius_psd))
             .collect()
     });
     let rings_floor_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {

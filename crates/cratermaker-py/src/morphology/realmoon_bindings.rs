@@ -69,16 +69,16 @@ pub struct PyReadonlyRealMoonCrater<'py> {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
-    pub rim_radius_psd: PyPSD1D<'py>,
+    pub radius_psd: PyPSD1D<'py>,
     pub floor_radius_psd: PyPSD1D<'py>,
 }
 impl<'py> PyReadonlyRealMoonCrater<'py> {
     /// Build from a Python PyReadonlyCrater object
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let rim_psd_any = obj.getattr("rim_radius_psd")?;
+        let rim_psd_any = obj.getattr("radius_psd")?;
         let floor_psd_any = obj.getattr("floor_radius_psd")?;
 
-        let rim_radius_psd = PyPSD1D::from_py(&rim_psd_any)?;
+        let radius_psd = PyPSD1D::from_py(&rim_psd_any)?;
         let floor_radius_psd = PyPSD1D::from_py(&floor_psd_any)?;
         Ok(Self {
             diameter: obj.getattr("diameter")?.extract()?,
@@ -96,7 +96,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_ring_radius: obj.getattr("peak_ring_radius")?.extract()?,
             peak_center_distance: obj.getattr("peak_center_distance")?.extract()?,
             peak_center_bearing: obj.getattr("peak_center_bearing")?.extract()?,
-            rim_radius_psd,
+            radius_psd,
             floor_radius_psd,
         })
     }
@@ -118,7 +118,7 @@ impl<'py> PyReadonlyRealMoonCrater<'py> {
             peak_ring_radius: self.peak_ring_radius,
             peak_center_distance: self.peak_center_distance,
             peak_center_bearing: self.peak_center_bearing,
-            rim_radius_psd: self.rim_radius_psd.as_views(),
+            radius_psd: self.radius_psd.as_views(),
             floor_radius_psd: self.floor_radius_psd.as_views(),
         }
     }
