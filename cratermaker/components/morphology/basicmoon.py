@@ -975,9 +975,9 @@ class BasicMoonMorphology(Morphology):
         Returns
         -------
         thickness : NDArray[np.float64]
-            The computed ejecta thickness for each (r, theta) pair.
+            The computed ejecta thickness for each (radial_distance, bearing) pair.
         ray_intensity : NDArray[np.float64]
-            The computed ray intensity for each (r, theta) pair.
+            The computed ray intensity for each (radial_distance, bearing) pair.
 
         Notes
         -----
@@ -985,7 +985,6 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, self._CraterType):
             crater = self.Crater.maker(crater=crater)
-        # flatten r and theta to 1D arrays
         thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
         radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
@@ -998,7 +997,6 @@ class BasicMoonMorphology(Morphology):
         thickness = np.array(thickness, dtype=np.float64)
         intensity = np.array(intensity, dtype=np.float64)
         thickness *= intensity
-        # reshape thickness to match the shape of r and theta
         return np.reshape(thickness, radial_distances.shape), np.reshape(intensity, radial_distances.shape)
 
     def ray_intensity(self, crater: BasicMoonCrater, radial_distances: ArrayLike, bearings: ArrayLike) -> NDArray[np.float64]:
@@ -1025,7 +1023,6 @@ class BasicMoonMorphology(Morphology):
         """
         if not isinstance(crater, self._CraterType):
             crater = self.Crater.maker(crater=crater)
-        # flatten r and theta to 1D arrays
         radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
         intensity = basicmoon_bindings.ray_intensity(
@@ -1035,7 +1032,6 @@ class BasicMoonMorphology(Morphology):
             seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
-        # reshape intensity to match the shape of r and theta
         intensity = np.reshape(intensity, radial_distances.shape)
         return intensity
 

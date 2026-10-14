@@ -230,42 +230,42 @@ pub fn get_1d_psd_from_control_points<'py>(
 ///
 /// # Arguments
 /// * `psd` - The PSD struct containing wavelength, amplitude, phase, and mean values.
-/// * `theta` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
+/// * `bearing` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
 ///
 /// # Returns
 ///
-/// * A 1D array of values corresponding to the input theta angles, representing the linear profile generated from the PSD.
+/// * A 1D array of values corresponding to the input bearing angles, representing the linear profile generated from the PSD.
 ///
 #[pyfunction]
 pub fn profile_from_psd<'py>(
     py: Python<'py>,
     psd: Bound<'py, PyAny>,
-    theta: PyReadonlyArray1<'py, f64>,
+    bearing: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let psd_py = PyPSD1D::from_py(&psd)?;
     let psd_v = psd_py.as_views();
-    let theta_v = theta.as_array();
+    let bearing_v = bearing.as_array();
 
-    let (psd_theta, profile) =
+    let (psd_bearing, profile) =
         cratermaker_components::morphology::realmoon::profile_from_psd(&psd_v);
-    let n = psd_theta.len();
+    let n = psd_bearing.len();
     if n == 0 {
         return Ok(PyArray1::from_vec(py, Vec::new()));
     }
 
-    let mut padded_theta = Vec::with_capacity(n + 2);
+    let mut padded_bearing = Vec::with_capacity(n + 2);
     let mut padded_profile = Vec::with_capacity(n + 2);
-    padded_theta.push(psd_theta[n - 1] - TAU);
+    padded_bearing.push(psd_bearing[n - 1] - TAU);
     padded_profile.push(profile[n - 1]);
-    padded_theta.extend_from_slice(&psd_theta);
+    padded_bearing.extend_from_slice(&psd_bearing);
     padded_profile.extend_from_slice(&profile);
-    padded_theta.push(psd_theta[0] + TAU);
+    padded_bearing.push(psd_bearing[0] + TAU);
     padded_profile.push(profile[0]);
 
     let result = interp_slice(
-        &padded_theta,
+        &padded_bearing,
         &padded_profile,
-        &theta_v.to_vec(),
+        &bearing_v.to_vec(),
         &InterpMode::default(),
     );
     Ok(PyArray1::from_vec(py, result))

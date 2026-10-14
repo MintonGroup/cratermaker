@@ -108,8 +108,8 @@ pub fn realmoon_profile(
     let min_elevation = meanref + crater.floor_elevation;
 
     // Create profile functions that will be interpolated later
-    let (rimtheta, rim_profile) = profile_from_psd(&crater.radius_psd);
-    let (floortheta, floor_profile) = profile_from_psd(&crater.floor_radius_psd);
+    let (rim_bearing, rim_profile) = profile_from_psd(&crater.radius_psd);
+    let (floor_bearing, floor_profile) = profile_from_psd(&crater.floor_radius_psd);
     let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
         rings_vec
             .iter()
@@ -128,9 +128,9 @@ pub fn realmoon_profile(
         .map(|i| {
             let r = radial_distances[i];
             let href = reference_elevations[i];
-            let theta = bearings[i];
-            let rim_r = interp(&rimtheta, &rim_profile, theta, &InterpMode::default());
-            let floor_r = interp(&floortheta, &floor_profile, theta, &InterpMode::default());
+            let bearing = bearings[i];
+            let rim_r = interp(&rim_bearing, &rim_profile, bearing, &InterpMode::default());
+            let floor_r = interp(&floor_bearing, &floor_profile, bearing, &InterpMode::default());
             let rim_elev =
                 crater.rim_height * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
             let icrater = realtobasic(crater, rim_r, floor_r, rim_elev);
@@ -143,13 +143,13 @@ pub fn realmoon_profile(
                         .zip(rim_profiles.iter())
                         .zip(floor_profiles.iter())
                         .map(
-                            |((ring, (irimtheta, irimprofile)), (ifloortheta, ifloorprofile))| {
+                            |((ring, (irim_bearing, irimprofile)), (ifloor_bearing, ifloorprofile))| {
                                 let iring_rim_r =
-                                    interp(irimtheta, irimprofile, theta, &InterpMode::default());
+                                    interp(irim_bearing, irimprofile, bearing, &InterpMode::default());
                                 let iring_floor_r = interp(
-                                    ifloortheta,
+                                    ifloor_bearing,
                                     ifloorprofile,
-                                    theta,
+                                    bearing,
                                     &InterpMode::default(),
                                 );
 
@@ -322,11 +322,11 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
     // The mean is now part of the signal, so we just scale the result.
     let out: Vec<f64> = buffer.iter().map(|val| val.re * scale_factor).collect();
 
-    let mut theta: Vec<f64> = Vec::with_capacity(nprofile);
+    let mut bearing: Vec<f64> = Vec::with_capacity(nprofile);
     for i in 0..nprofile {
-        theta.push(TAU * (i as f64 / nprofile as f64));
+        bearing.push(TAU * (i as f64 / nprofile as f64));
     }
-    (theta, out)
+    (bearing, out)
 }
 
 pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {

@@ -405,11 +405,11 @@ pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile:
 /// # Arguments
 ///
 /// * `r` - Radial distance from the crater center (in meters).
-/// * `theta0` - Initial bearing angle (radians).
+/// * `bearing0` - Initial bearing angle (radians).
 /// * `crater_radius` - Radius of the crater (in meters).
 /// * `rmin` - Minimum normalized radial distance.
 /// * `rmax` - Maximum normalized radial distance.
-/// * `thetari` - Precomputed ray azimuth angles (in radians).
+/// * `ray_center_bearingi` - Precomputed ray azimuth angles (in radians).
 /// * `random_numbers` - Set of random numbers used for pattern variation.
 ///
 /// # Returns
@@ -417,11 +417,11 @@ pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile:
 /// * Computed ray intensity value for this point.
 fn ray_intensity_point(
     r: f64,
-    theta0: f64,
+    bearing0: f64,
     crater_radius: f64,
     rmin: f64,
     rmax: f64,
-    thetari: &[f64],
+    ray_center_bearingi: &[f64],
     random_numbers: &[f64],
 ) -> f64 {
     if r < crater_radius {
@@ -430,15 +430,15 @@ fn ray_intensity_point(
     let mut sum = 0.0;
     for j in 0..NPATT as usize {
         let rn = random_numbers[j];
-        let theta = (theta0 + rn * TAU) % TAU;
+        let bearing = (bearing0 + rn * TAU) % TAU;
         let r_pattern = r / crater_radius - rn;
         sum += FRAYREDUCTION.powi(j as i32 - 1)
             * ray_intensity_func(
                 r_pattern,
-                theta,
+                bearing,
                 rmin,
                 rmax,
-                thetari,
+                ray_center_bearingi,
                 2.348 * crater_radius.powf(0.006),
             );
     }
@@ -475,10 +475,10 @@ pub fn ray_intensity(
     let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
     // Distribute ray patterns evenly around the crater
-    let mut thetari = (0..NRAYMAX)
+    let mut ray_center_bearingi = (0..NRAYMAX)
         .map(|i| PI * 2.0 * (i + 1) as f64 / NRAYMAX as f64)
         .collect_vec();
-    thetari.shuffle(&mut rng);
+    ray_center_bearingi.shuffle(&mut rng);
 
     let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
 
@@ -491,7 +491,7 @@ pub fn ray_intensity(
                 crater_radius,
                 rmin,
                 rmax,
-                &thetari,
+                &ray_center_bearingi,
                 &random_numbers,
             )
         })
@@ -523,10 +523,10 @@ pub fn ray_intensity(
 /// # Arguments
 ///
 /// * `r` - Normalized radial distance (unitless).
-/// * `theta` - Angle from crater center (radians).
+/// * `bearing` - Angle from crater center (radians).
 /// * `rmin` - Minimum normalized radius.
 /// * `rmax` - Maximum normalized radius (truncation).
-/// * `thetari` - Ray azimuth directions.
+/// * `ray_center_bearingi` - Ray azimuth directions.
 /// * `minray` - Minimum ejecta blanket radius (scaling for ray length).
 ///
 /// # Returns
@@ -534,10 +534,10 @@ pub fn ray_intensity(
 /// * Total ray intensity contribution at the point.
 fn ray_intensity_func(
     r: f64,
-    theta: f64,
+    bearing: f64,
     rmin: f64,
     rmax: f64,
-    thetari: &[f64],
+    ray_center_bearingi: &[f64],
     minray: f64,
 ) -> f64 {
     const RAYP: f64 = 4.0; // Power law exponent for ray number decay
@@ -575,7 +575,7 @@ fn ray_intensity_func(
                         * (rmin / r)
                         * (1.0
                             - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
-                    ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
+                    ejecta_ray_func(bearing, ray_center_bearingi[i as usize], r, n, rw)
                 }
             })
             .sum()
@@ -584,13 +584,13 @@ fn ray_intensity_func(
 
 /// Computes the contribution of a single ray to the ejecta field using a Gaussian profile.
 ///
-/// The ray is centered at `thetar` with angular width `w`, evaluated at angle `theta`.
+/// The ray is centered at `ray_center_bearing` with angular width `w`, evaluated at angle `bearing`.
 /// The function ensures normalization across rays and returns zero for values below machine epsilon.
 ///
 /// # Arguments
 ///
-/// * `theta` - Sample angle (radians).
-/// * `thetar` - Ray center angle (radians).
+/// * `bearing` - Sample angle (radians).
+/// * `ray_center_bearing` - Ray center angle (radians).
 /// * `r` - Radial distance (meters).
 /// * `n` - Number of rays contributing at this distance.
 /// * `w` - Angular width of the ray.
@@ -598,11 +598,11 @@ fn ray_intensity_func(
 /// # Returns
 ///
 /// * Ray intensity value at the specified angle and distance.
-fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
+fn ejecta_ray_func(bearing: f64, ray_center_bearing: f64, r: f64, n: i32, w: f64) -> f64 {
     let c = w / r;
-    let b = thetar;
-    let dtheta = f64::min(2.0 * PI - (theta - b).abs(), (theta - b).abs());
-    let logval = -dtheta.powi(2) / (2.0 * c.powi(2));
+    let b = ray_center_bearing;
+    let dbearing = f64::min(2.0 * PI - (bearing - b).abs(), (bearing - b).abs());
+    let logval = -dbearing.powi(2) / (2.0 * c.powi(2));
     if logval < crate::VSMALL.ln() {
         0.0
     } else {
