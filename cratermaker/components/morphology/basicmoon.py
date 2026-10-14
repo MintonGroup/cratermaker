@@ -731,70 +731,6 @@ class BasicMoonMorphology(Morphology):
         str_repr += f"Ejecta Rays: {self.dorays}\n"
         return str_repr
 
-    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[BasicMoonCrater]:
-        """
-        Convenience method to immediately emplace a crater onto the surface.
-
-        Initializes and uses the queue system behind the scenes.
-
-        Parameters
-        ----------
-        crater : Crater | list[Crater] | None
-            The crater or list of craters to be emplaced. If None, then a crater will be created using the provided parameters in kwargs and emplaced.
-        kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        list[BasicMoonCrater]
-            The list of BasicMoonCrater objects that were emplaced.
-        """
-        if craters is None:
-            craters = [self.Crater.maker(morphology=self, **kwargs)]
-        elif isinstance(craters, (list | tuple)) and len(craters) > 0:
-            processed_craters = []
-            for c in tqdm(
-                craters,
-                total=len(craters),
-                desc="Preparing craters for emplacement",
-                unit="crater",
-                position=0,
-                leave=False,
-            ):
-                if isinstance(c, BasicMoonCrater):
-                    processed_craters.append(c)
-                else:
-                    processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
-            craters = processed_craters
-        elif isinstance(craters, BasicMoonCrater):
-            craters = [craters]
-        elif isinstance(craters, Crater):
-            craters = [BasicMoonCrater.maker(craters, morphology=self, **kwargs)]
-        else:
-            raise ValueError(
-                "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
-            )
-
-        return super().emplace(craters, **kwargs)
-
-    def form_crater(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> None:
-        """
-        Form a crater or list of craters on the surface.
-
-        Parameters
-        ----------
-        crater : BasicMoonCrater
-            The crater object to be formed.
-        kwargs : Any
-            |kwargs|
-        """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
-
-        if crater.emplaceable:
-            super().form_crater(crater, **kwargs)
-        return
-
     def compute_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
@@ -811,8 +747,8 @@ class BasicMoonMorphology(Morphology):
         tuple[NDArray[np.float64], NDArray[np.float64]]
             The computed ejecta thickness and intensity at the face and node elevations.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         ejecta_thickness, ejecta_intensity = super().compute_ejecta(crater, **kwargs)
         if ejecta_thickness is None or ejecta_intensity is None:
             return None, None
@@ -841,8 +777,8 @@ class BasicMoonMorphology(Morphology):
         NDArray[np.float64]
             The computed crater shape at the face and node elevations.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         reference_elevation = region.get_reference_surface(reference_radius=crater.diameter)
 
         # Combine distances and references for nodes and faces
@@ -959,8 +895,8 @@ class BasicMoonMorphology(Morphology):
         NDArray[np.float64]
             The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
 
         radial_distances = np.concatenate([region.face_distance, region.node_distance])
         bearings = np.concatenate([region.face_bearing, region.node_bearing])
@@ -1047,8 +983,8 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         # flatten r and theta to 1D arrays
         thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
         radial_distances = np.ravel(radial_distances)
@@ -1087,8 +1023,8 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         # flatten r and theta to 1D arrays
         radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
@@ -1226,8 +1162,8 @@ class BasicMoonMorphology(Morphology):
         float
             The maximum extent of the crater or ejecta blanket in meters.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
 
         def _invert_ejecta(r):
             return self._profile_invert_ejecta(r, crater, minimum_thickness)

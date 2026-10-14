@@ -54,7 +54,7 @@ class MorphologyCraterVariable(CraterVariable):
         if rings is not None:
             if isinstance(rings, list):
                 self._rings = rings
-            elif isinstance(rings, MorphologyCrater):
+            elif isinstance(rings, self._CraterType):
                 self._ring = [rings]
             else:
                 raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
@@ -610,17 +610,36 @@ class Morphology(ComponentBase):
             craters = [Crater.maker(diameter=20.0e3), Crater.maker(diameter=20.0e3)]
             morphology.emplace(craters)
         """
-        if self._queue_manager is None:
-            self._init_queue_manager()
-
         if craters is None:
-            craters = [MorphologyCrater.maker(morphology=self, **kwargs)]
-        elif isinstance(craters, MorphologyCrater):
+            craters = [self.Crater.maker(**kwargs)]
+        elif isinstance(craters, (list | tuple)) and len(craters) > 0:
+            processed_craters = []
+            for c in tqdm(
+                craters,
+                total=len(craters),
+                desc="Preparing craters for emplacement",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
+                if isinstance(c, self._CraterType):
+                    processed_craters.append(c)
+                else:
+                    processed_craters.append(self.Crater.maker(crater=c, **kwargs))
+            craters = processed_craters
+        elif isinstance(craters, self._CraterType):
             craters = [craters]
         elif isinstance(craters, Crater):
-            craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
+            craters = [self.Crater.maker(crater=craters, **kwargs)]
+        else:
+            raise ValueError(
+                "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
+            )
 
         if isinstance(craters, list) and len(craters) > 0:
+            if self._queue_manager is None:
+                self._init_queue_manager()
+
             for c in tqdm(
                 craters,
                 total=len(craters),
@@ -648,8 +667,8 @@ class Morphology(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater, **kwargs)
         if not crater.emplaceable:
             return
 
@@ -709,8 +728,8 @@ class Morphology(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
-        if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self, conserve_volume=conserve_volume)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater, conserve_volume=conserve_volume)
 
         if not self._excavated_volume or crater.ejecta_region is None:
             return None, None

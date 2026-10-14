@@ -914,7 +914,7 @@ class Production(ComponentBase):
                 time_end=time_end,
             )
             for c, t in zip(untimed_craters, time_vals, strict=True):
-                rnglist.append(self.Crater.maker(c, time=t))
+                rnglist.append(self.Crater.maker(crater=c, time=t))
 
             rnglist.sort(key=lambda c: c.diameter, reverse=False)
 

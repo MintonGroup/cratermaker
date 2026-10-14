@@ -199,7 +199,7 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, MorphologyCrater):
+        if not isinstance(crater, self.morphology._CraterType):
             crater = self.morphology.Crater.maker(crater=crater)
 
         if self.surface.uxds is None:
