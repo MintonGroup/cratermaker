@@ -98,7 +98,7 @@ define_crater_structs! {
         peak_height, peak_width, peak_ring_radius, peak_center_distance,
         peak_center_bearing
     ],
-    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+    psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
 

@@ -29,12 +29,8 @@ _PSD1D_MIN_POINTS = 64
 _PSD1D_PARAMETERS = (
     "radius",
     "floor_radius",
-    "wall_curvature",
-    "floor_blend",
     "rim_width",
     "rim_height",
-    "frac_ejrim",
-    "ejprofile",
 )
 
 
@@ -43,13 +39,12 @@ class PSD1D(CratermakerBase):
         self,
         normalization_length: FloatLike,
         profile: NDArray[np.float64] | None = None,
-        mean: FloatLike | None = None,
-        pix: FloatLike | None = None,
-        nprofile: int | None = None,
         control_points: dict[str, np.float64] | None = None,
         amplitude: NDArray[np.float64] | None = None,
         phase: NDArray[np.float64] | None = None,
-        add_noise: bool = True,
+        mean: FloatLike | None = None,
+        pix: FloatLike | None = None,
+        nprofile: int | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -60,6 +55,22 @@ class PSD1D(CratermakerBase):
 
         Parameters
         ----------
+        normalization_length : FloatLike
+            The normalization factor used when defining the profile units (typically this is crater radius)
+        profile : NDArray[np.float64], optional
+            If set, then the PSD model will be generated using the provided linear profile.
+        control_points: dict[str, np.float64], optional
+            If set, then the PSD model will be generated using a control point model. Dict must contain the following keys: "sn", "yn", "y1", "y2", "y3", "y4", "y5", where "sn" is the log slope of the PSD from yn to y5 and y1...y5, yn are the power values of the first 5 points and the nth (resolution limit) point
+        amplitude: NDArray[np.float64], optional
+            If set, then the PSD model will ne generated using the provided amplitude values directly. Reuires phase to also be set.
+        phase : NDArray[np.float64], optional
+            If set, then the PSD model will ne generated using the provided phase values directly. Reuires amplitude to also be set.
+        mean : FloaLike, optional
+            A mean value of the signal. This is only used for contol points models and will be ignored if either a profile, or amplitude and phase is provided.
+        pix : FloatLike, optional
+            Defines the limiting resolution of the signal. Ignored when profile input is used.
+        nprofile : int, optional
+            Defines the number of profile points to define the PSD. Only used for control_points method
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -82,11 +93,12 @@ class PSD1D(CratermakerBase):
         object.__setattr__(self, "_add_noise", None)
 
         self.normalization_length = normalization_length
-        self.add_noise = add_noise
         if profile is not None:
             min_pix = 2 * math.pi * np.abs(profile.mean().item()) / len(profile)
             self.pix = max(np.abs(np.diff(profile)).max() / self.normalization_length, min_pix)
             self.set_from_profile(profile)
+        elif (amplitude is not None and phase is None) or (amplitude is None and phase is not None):
+            raise ValueError("Both amplitude and phase must be set to use this method of constructing a PSD")
         elif amplitude is not None and phase is not None:
             self.mean = amplitude[0]
             self.amplitude = amplitude
@@ -295,6 +307,8 @@ class PSD1D(CratermakerBase):
         """
         Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits, both in the control points and in the PSD itself.
         """
+        if self._add_noise is None:
+            return False
         return self._add_noise
 
     @add_noise.setter

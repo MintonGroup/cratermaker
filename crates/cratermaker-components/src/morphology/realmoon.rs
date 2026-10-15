@@ -50,7 +50,7 @@ define_crater_structs! {
         peak_height, peak_width, peak_ring_radius, peak_center_distance,
         peak_center_bearing
     ],
-    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+    psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
 
@@ -103,18 +103,18 @@ macro_rules! define_evaluator_bundle {
                         radius: radius_val,
                         floor_radius: floor_radius_val,
                         rim_height: rim_height_val,
-                        wall_curvature: wall_curvature_val,
-                        floor_blend: floor_blend_val,
                         rim_width: rim_width_val,
-                        frac_ejrim: frac_ejrim_val,
-                        ejprofile: ejprofile_val,
                         // Static non-PSD fields
+                        frac_ejrim: base_crater.frac_ejrim,
+                        ejprofile: base_crater.ejprofile,
                         floor_elevation: base_crater.floor_elevation,
                         peak_height: base_crater.peak_height,
                         peak_width: base_crater.peak_width,
                         peak_ring_radius: base_crater.peak_ring_radius,
                         peak_center_distance: base_crater.peak_center_distance,
                         peak_center_bearing: base_crater.peak_center_bearing,
+                        wall_curvature: base_crater.wall_curvature,
+                        floor_blend: base_crater.floor_blend,
                     }
                 }
             }
@@ -122,9 +122,9 @@ macro_rules! define_evaluator_bundle {
     };
 }
 
-// Generate the dynamic bundle automatically for all 8 parameters!
+// Generate the dynamic bundle automatically for all psd-controlled parameters
 define_evaluator_bundle! {
-    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+    psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
 
@@ -332,6 +332,7 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
     // The mean is now part of the signal, so we just scale the result.
     let out: Vec<f64> = buffer.iter().map(|val| val.re * scale_factor).collect();
 
+    // Generate the corresponding bearing values for this profile
     let mut bearing: Vec<f64> = Vec::with_capacity(nprofile);
     for i in 0..nprofile {
         bearing.push(TAU * (i as f64 / nprofile as f64));
@@ -371,3 +372,4 @@ pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
 
     (amplitude, phase)
 }
+
