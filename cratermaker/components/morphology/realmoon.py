@@ -474,7 +474,7 @@ class RealmoonMorphology(BasicMoonMorphology):
         object.__setattr__(self, "_add_noise", None)
         object.__setattr__(self, "_psd1d_coef", None)
         object.__setattr__(self, "_psd2d_coef", None)
-        self.add_noise = kwargs.pop("add_noise", True)  # Can be disabled for testing
+        self.add_noise = kwargs.pop("add_noise", False)  # Can be disabled for testing
 
         psd1d_coef_file = Path(psd1d_coef_file)
         if not psd1d_coef_file.exists():
