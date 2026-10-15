@@ -5,6 +5,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::TAU;
+use paste::paste;
 
 // Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
 pub struct PyPSD1D<'py> {
@@ -22,7 +23,7 @@ impl<'py> PyPSD1D<'py> {
     // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         let nprofile: usize = obj.getattr("nprofile")?.extract()?;
-        let nfreq: usize = obj.getattr("nprofile")?.extract()?;
+        let nfreq: usize = obj.getattr("nfreq")?.extract()?;
         let normalization_length: f64 = obj.getattr("normalization_length")?.extract()?;
         let mean: f64 = obj.getattr("mean")?.extract()?;
         let pix: f64 = obj.getattr("pix")?.extract()?;
@@ -52,77 +53,55 @@ impl<'py> PyPSD1D<'py> {
         }
     }
 }
-// Mirrors the RealMoonCrater struct in cratermaker-components and provides read-only access to its fields from Python.
-pub struct PyReadonlyRealMoonCrater<'py> {
-    pub diameter: f64,
-    pub radius: f64,
-    pub floor_elevation: f64,
-    pub floor_radius: f64,
-    pub wall_curvature: f64,
-    pub floor_blend: f64,
-    pub rim_width: f64,
-    pub rim_height: f64,
-    pub frac_ejrim: f64,
-    pub ejprofile: f64,
-    pub peak_height: f64,
-    pub peak_width: f64,
-    pub peak_ring_radius: f64,
-    pub peak_center_distance: f64,
-    pub peak_center_bearing: f64,
-    pub radius_psd: PyPSD1D<'py>,
-    pub floor_radius_psd: PyPSD1D<'py>,
-}
-impl<'py> PyReadonlyRealMoonCrater<'py> {
-    /// Build from a Python PyReadonlyCrater object
-    pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let rim_psd_any = obj.getattr("radius_psd")?;
-        let floor_psd_any = obj.getattr("floor_radius_psd")?;
 
-        let radius_psd = PyPSD1D::from_py(&rim_psd_any)?;
-        let floor_radius_psd = PyPSD1D::from_py(&floor_psd_any)?;
-        Ok(Self {
-            diameter: obj.getattr("diameter")?.extract()?,
-            radius: obj.getattr("radius")?.extract()?,
-            floor_elevation: obj.getattr("floor_elevation")?.extract()?,
-            floor_radius: obj.getattr("floor_radius")?.extract()?,
-            wall_curvature: obj.getattr("wall_curvature")?.extract()?,
-            floor_blend: obj.getattr("floor_blend")?.extract()?,
-            rim_width: obj.getattr("rim_width")?.extract()?,
-            rim_height: obj.getattr("rim_height")?.extract()?,
-            frac_ejrim: obj.getattr("frac_ejrim")?.extract()?,
-            ejprofile: obj.getattr("ejprofile")?.extract()?,
-            peak_height: obj.getattr("peak_height")?.extract()?,
-            peak_width: obj.getattr("peak_width")?.extract()?,
-            peak_ring_radius: obj.getattr("peak_ring_radius")?.extract()?,
-            peak_center_distance: obj.getattr("peak_center_distance")?.extract()?,
-            peak_center_bearing: obj.getattr("peak_center_bearing")?.extract()?,
-            radius_psd,
-            floor_radius_psd,
-        })
-    }
-    /// Convert to cratermaker-components RealMoonCrater struct with array views instead of readonly PyAarrays
-    pub fn as_views(&self) -> RealMoonCrater<'_> {
-        RealMoonCrater {
-            diameter: self.diameter,
-            radius: self.radius,
-            floor_elevation: self.floor_elevation,
-            floor_radius: self.floor_radius,
-            wall_curvature: self.wall_curvature,
-            floor_blend: self.floor_blend,
-            rim_width: self.rim_width,
-            rim_height: self.rim_height,
-            frac_ejrim: self.frac_ejrim,
-            ejprofile: self.ejprofile,
-            peak_height: self.peak_height,
-            peak_width: self.peak_width,
-            peak_ring_radius: self.peak_ring_radius,
-            peak_center_distance: self.peak_center_distance,
-            peak_center_bearing: self.peak_center_bearing,
-            radius_psd: self.radius_psd.as_views(),
-            floor_radius_psd: self.floor_radius_psd.as_views(),
+// This will build a boilerplate struct that contains the PSD objects for all of the Python crater object properties with the pattern [name]_psd.
+macro_rules! define_crater_structs {
+    (
+        floats: [ $($float_field:ident),* ],
+        psds: [ $($psd_field:ident),* ]
+    ) => {
+        paste! {
+            pub struct PyReadonlyRealMoonCrater<'py> {
+                $( pub $float_field: f64, )*
+                $( pub [<$psd_field _psd>]: PyPSD1D<'py>, )*
+            } 
+
+            impl<'py> PyReadonlyRealMoonCrater<'py> {
+                pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+                    Ok(Self {
+                        $( $float_field: obj.getattr(stringify!($float_field))?.extract()?, )*
+                        $(
+                            [<$psd_field _psd>]: PyPSD1D::from_py(
+                                &obj.getattr(stringify!([<$psd_field _psd>]))?
+                            )?,
+                        )*
+                    })
+                }
+
+                pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::RealMoonCrater<'_> {
+                    cratermaker_components::morphology::realmoon::RealMoonCrater {
+                        $( $float_field: self.$float_field, )*
+                        $(
+                            [<$psd_field _psd>]: self.[<$psd_field _psd>].as_views(),
+                        )*
+                    }
+                }
+            }
         }
-    }
+    };
 }
+
+define_crater_structs! {
+    floats: [
+        diameter, radius, floor_elevation, floor_radius, wall_curvature,
+        floor_blend, rim_width, rim_height, frac_ejrim, ejprofile,
+        peak_height, peak_width, peak_ring_radius, peak_center_distance,
+        peak_center_bearing
+    ],
+    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+}
+
+
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations using the realistic moon model of Du et al. (2024a,b).
 ///

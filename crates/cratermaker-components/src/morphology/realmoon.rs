@@ -10,6 +10,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
+use paste::paste;
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
@@ -23,28 +24,111 @@ pub struct PSD1DView<'a> {
     pub phase: ArrayView1<'a, f64>,
 }
 
-/// Defines crater dimensions for surface modification computations.
-///
-/// Used to parameterize the final crater size in meters.
-pub struct RealMoonCrater<'a> {
-    pub diameter: f64,
-    pub radius: f64,
-    pub floor_elevation: f64,
-    pub floor_radius: f64,
-    pub wall_curvature: f64,
-    pub floor_blend: f64,
-    pub rim_width: f64,
-    pub rim_height: f64,
-    pub frac_ejrim: f64,
-    pub ejprofile: f64,
-    pub peak_height: f64,
-    pub peak_width: f64,
-    pub peak_ring_radius: f64,
-    pub peak_center_distance: f64,
-    pub peak_center_bearing: f64,
-    pub radius_psd: PSD1DView<'a>,
-    pub floor_radius_psd: PSD1DView<'a>,
+
+// This will build a boilerplate struct that contains the PSD objects for all of the crater object properties with the pattern [name]_psd.
+macro_rules! define_crater_structs {
+    (
+        // List the base float fields
+        floats: [ $($float_field:ident),* ],
+        // List the PSD features (e.g., radius, floor_radius, wall_texture)
+        psds: [ $($psd_field:ident),* ]
+    ) => {
+        // 1. Generate PyReadonlyRealMoonCrater
+        paste! {
+            pub struct RealMoonCrater<'a> {
+                $( pub $float_field: f64, )*
+                $( pub [<$psd_field _psd>]: PSD1DView<'a>, )*
+            }
+        }
+    };
 }
+
+define_crater_structs! {
+    floats: [
+        diameter, radius, floor_elevation, floor_radius, wall_curvature,
+        floor_blend, rim_width, rim_height, frac_ejrim, ejprofile,
+        peak_height, peak_width, peak_ring_radius, peak_center_distance,
+        peak_center_bearing
+    ],
+    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+}
+
+
+/// Holds pre-computed bearing profiles for a parameter to avoid nested tuples
+pub struct ProfileEvaluator {
+    pub bearing_grid: Vec<f64>,
+    pub profile_values: Vec<f64>,
+}
+
+impl ProfileEvaluator {
+    pub fn new(psd: &PSD1DView) -> Self {
+        let (bearing_grid, profile_values) = profile_from_psd(psd);
+        Self { bearing_grid, profile_values }
+    }
+
+    #[inline(always)]
+    pub fn eval(&self, bearing: f64) -> f64 {
+        interp(&self.bearing_grid, &self.profile_values, bearing, &InterpMode::default())
+    }
+}
+
+macro_rules! define_evaluator_bundle {
+    (
+        psds: [ $($psd_field:ident),* ]
+    ) => {
+        paste::paste! {
+            /// Bundles the interpolated spatial profiles for all dynamic PSD fields
+            pub struct CraterProfileEvaluators {
+                $( pub [<$psd_field _eval>]: ProfileEvaluator, )*
+            }
+
+            impl CraterProfileEvaluators {
+                pub fn new(crater: &RealMoonCrater) -> Self {
+                    Self {
+                        $( [<$psd_field _eval>]: ProfileEvaluator::new(&crater.[<$psd_field _psd>]), )*
+                    }
+                }
+
+                /// Evaluates all dynamic properties at a given bearing, returning
+                /// a customized BasicMoonCrater mapping to this slice of the profile.
+                #[inline]
+                pub fn eval_to_basic(&self, base_crater: &RealMoonCrater, bearing: f64) -> BasicMoonCrater {
+                    // Evaluate all dynamic PSD profiles
+                    $(
+                        let [<$psd_field _val>] = self.[<$psd_field _eval>].eval(bearing);
+                    )*
+                    let diameter_val = 2.0 * radius_val;
+                    BasicMoonCrater {
+                        diameter: diameter_val,
+                        radius: radius_val,
+                        floor_radius: floor_radius_val,
+                        rim_height: rim_height_val,
+                        wall_curvature: wall_curvature_val,
+                        floor_blend: floor_blend_val,
+                        rim_width: rim_width_val,
+                        frac_ejrim: frac_ejrim_val,
+                        ejprofile: ejprofile_val,
+                        // Static non-PSD fields
+                        floor_elevation: base_crater.floor_elevation,
+                        peak_height: base_crater.peak_height,
+                        peak_width: base_crater.peak_width,
+                        peak_ring_radius: base_crater.peak_ring_radius,
+                        peak_center_distance: base_crater.peak_center_distance,
+                        peak_center_bearing: base_crater.peak_center_bearing,
+                    }
+                }
+            }
+        }
+    };
+}
+
+// Generate the dynamic bundle automatically for all 8 parameters!
+define_evaluator_bundle! {
+    psds: [ radius, floor_radius, wall_curvature, floor_blend, rim_width, rim_height, frac_ejrim, ejprofile ]
+}
+
+
+
 
 // Creates a profile of the crater
 //
@@ -73,54 +157,27 @@ pub fn realmoon_profile(
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
-    assert_eq!(
-        radial_distances.len(),
-        reference_elevations.len(),
-        "Input arrays must have the same length"
-    );
-    assert_eq!(
-        radial_distances.len(),
-        bearings.len(),
-        "Input arrays must have the same length"
-    );
+    assert_eq!(radial_distances.len(), reference_elevations.len(), "Input arrays must have same length");
+    assert_eq!(radial_distances.len(), bearings.len(), "Input arrays must have same length");
+
     let n_points = radial_distances.len();
-    // Compute the weighted elevation profile relative to the reference plane
-    let ninc = radial_distances
-        .iter()
-        .filter(|&&x| x <= crater.radius)
-        .count();
+
+    // 0. Compute boundary thresholds
+    let ninc = radial_distances.iter().filter(|&&x| x <= crater.radius).count();
     let meanref = if ninc == 0 {
-        *radial_distances
-            .iter()
-            .zip(reference_elevations)
-            .min_by(|&(&radius_a, _), &(&radius_b, _)| radius_a.partial_cmp(&radius_b).unwrap())
-            .unwrap()
-            .1
+        *radial_distances.iter().zip(reference_elevations)
+            .min_by(|&(&ra, _), &(&rb, _)| ra.partial_cmp(&rb).unwrap()).unwrap().1
     } else {
-        radial_distances
-            .iter()
-            .zip(reference_elevations)
+        radial_distances.iter().zip(reference_elevations)
             .filter(|&(&r, _)| r <= crater.radius)
-            .map(|(_, &e)| e)
-            .sum::<f64>()
-            / ninc as f64
+            .map(|(_, &e)| e).sum::<f64>() / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
 
-    // Create profile functions that will be interpolated later
-    let (rim_bearing, rim_profile) = profile_from_psd(&crater.radius_psd);
-    let (floor_bearing, floor_profile) = profile_from_psd(&crater.floor_radius_psd);
-    let rings_rim_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
-        rings_vec
-            .iter()
-            .map(|ring| profile_from_psd(&ring.radius_psd))
-            .collect()
-    });
-    let rings_floor_profile: Option<Vec<(Vec<f64>, Vec<f64>)>> = rings.as_ref().map(|rings_vec| {
-        rings_vec
-            .iter()
-            .map(|ring| profile_from_psd(&ring.floor_radius_psd))
-            .collect()
+    let main_evaluators = CraterProfileEvaluators::new(crater);
+    
+    let rings_evaluators: Option<Vec<(CraterProfileEvaluators, &RealMoonCrater)>> = rings.as_ref().map(|rings_vec| {
+        rings_vec.iter().map(|ring| (CraterProfileEvaluators::new(ring), ring)).collect()
     });
 
     let out: Vec<f64> = (0..n_points)
@@ -129,76 +186,29 @@ pub fn realmoon_profile(
             let r = radial_distances[i];
             let href = reference_elevations[i];
             let bearing = bearings[i];
-            let rim_r = interp(&rim_bearing, &rim_profile, bearing, &InterpMode::default());
-            let floor_r = interp(&floor_bearing, &floor_profile, bearing, &InterpMode::default());
-            let rim_elev =
-                crater.rim_height * (rim_r / crater.radius) * (crater.floor_radius / floor_r);
-            let icrater = realtobasic(crater, rim_r, floor_r, rim_elev);
-            let irings: Option<Vec<BasicMoonCrater>> =
-                if let (Some(rings_vec), Some(rim_profiles), Some(floor_profiles)) =
-                    (&rings, &rings_rim_profile, &rings_floor_profile)
-                {
-                    let new_rings = rings_vec
-                        .iter()
-                        .zip(rim_profiles.iter())
-                        .zip(floor_profiles.iter())
-                        .map(
-                            |((ring, (irim_bearing, irimprofile)), (ifloor_bearing, ifloorprofile))| {
-                                let iring_rim_r =
-                                    interp(irim_bearing, irimprofile, bearing, &InterpMode::default());
-                                let iring_floor_r = interp(
-                                    ifloor_bearing,
-                                    ifloorprofile,
-                                    bearing,
-                                    &InterpMode::default(),
-                                );
 
-                                let irim_elev = ring.rim_height
-                                    * (iring_rim_r / ring.radius)
-                                    * (ring.floor_radius / iring_floor_r);
+            // Generate the Basic representation dynamically at this local bearing
+            let icrater = main_evaluators.eval_to_basic(crater, bearing);
 
-                                realtobasic(&ring, iring_rim_r, iring_floor_r, irim_elev)
-                            },
-                        )
-                        .collect();
-                    Some(new_rings)
-                } else {
-                    None
-                };
+            // Generate Basic representations for all sub-rings at this bearing
+            let irings: Option<Vec<BasicMoonCrater>> = rings_evaluators.as_ref().map(|evals_vec| {
+                evals_vec.iter().map(|(evaluator, ring)| {
+                    evaluator.eval_to_basic(ring, bearing)
+                }).collect()
+            });
 
-            let h =
-                basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
-            if r <= rim_r { h.max(min_elevation) } else { h }
+            // Compute the profile using the basic profile function using the values at this bearing value
+            let h = basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
+
+            // Enforce minimum crater floor constraint 
+            if r <= icrater.radius { h.max(min_elevation) } else { h }
         })
         .collect();
 
     Ok(Array1::from_vec(out))
 }
 
-fn realtobasic(
-    crater: &RealMoonCrater,
-    radius: f64,
-    floor_radius: f64,
-    rim_height: f64,
-) -> BasicMoonCrater {
-    BasicMoonCrater {
-        diameter: 2.0 * radius,
-        radius: radius,
-        floor_radius: floor_radius,
-        rim_height: rim_height,
-        floor_elevation: crater.floor_elevation,
-        wall_curvature: crater.wall_curvature,
-        floor_blend: crater.floor_blend,
-        rim_width: crater.rim_width,
-        frac_ejrim: crater.frac_ejrim,
-        ejprofile: crater.ejprofile,
-        peak_height: crater.peak_height,
-        peak_width: crater.peak_width,
-        peak_ring_radius: crater.peak_ring_radius,
-        peak_center_distance: crater.peak_center_distance,
-        peak_center_bearing: crater.peak_center_bearing,
-    }
-}
+
 ///
 ///
 /// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Gaussian noise added to the log amplitude values.
