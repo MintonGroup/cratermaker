@@ -131,20 +131,38 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
+
+    // Prevent invalid values of parameters
+    let radius = crater.radius.max(1e-8); 
+    let floor_elevation = crater.floor_elevation.min(-1e-8); 
+    let floor_radius = crater.floor_radius.max(1e-8); 
+    let peak_height = crater.peak_height.max(0.0);
+    let peak_width = crater.peak_width.max(0.0);
+    let peak_ring_radius = crater.peak_ring_radius.max(0.0);
+
+    // Guard against NaN in inputs by falling back to safe defaults
+    let wall_curvature = if crater.wall_curvature.is_nan() { 0.5 } else { crater.wall_curvature.max(0.0).min(1.0) };
+    let floor_blend = if crater.floor_blend.is_nan() { 0.5 } else { crater.floor_blend.max(0.0).min(1.0) };
+    let rim_width = if crater.rim_width.is_nan() { radius * 0.1 } else { crater.rim_width.max(radius * 1e-3) };
+    let rim_height = if crater.rim_height.is_nan() { 0.0 } else { crater.rim_height.max(0.0) };
+    let frac_ejrim = if crater.frac_ejrim.is_nan() { 0.5 } else { crater.frac_ejrim.max(0.0).min(1.0) };
+    let ejprofile = if crater.ejprofile.is_nan() { -3.0 } else { crater.ejprofile.max(-6.0).min(-0.25) };
+
+
     let mut hcrat = crater_profile_function(
         r,
-        crater.radius,
-        crater.floor_elevation,
-        crater.floor_radius,
-        crater.wall_curvature,
-        crater.floor_blend,
-        crater.rim_width,
-        crater.rim_height,
-        crater.frac_ejrim,
-        crater.ejprofile,
-        crater.peak_height,
-        crater.peak_width,
-        crater.peak_ring_radius,
+        radius,
+        floor_elevation,
+        floor_radius,
+        wall_curvature,
+        floor_blend,
+        rim_width,
+        rim_height,
+        frac_ejrim,
+        ejprofile,
+        peak_height,
+        peak_width,
+        peak_ring_radius,
     );
     match rings {
         Some(rings) => {
@@ -154,21 +172,32 @@ pub fn basicmoon_profile_one(
                 } else {
                     elevation_offset_func(&rings[i - 1], ring)
                 };
-                let ring_floor_elevation = crater.floor_elevation - elevation_offset;
+                let mut ring_floor_elevation = crater.floor_elevation - elevation_offset;
+                ring_floor_elevation = ring_floor_elevation.min(-1e-8); 
+
+                let ring_radius = ring.radius.max(1e-8); 
+                let ring_floor_radius = ring.floor_radius.max(1e-8); 
+                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0); 
+                // Guard against NaN in inputs by falling back to safe defaults
+                let ring_wall_curvature = if ring.wall_curvature.is_nan() { 0.5 } else { ring.wall_curvature.max(0.0).min(1.0) };
+                let ring_frac_ejrim = if ring.frac_ejrim.is_nan() { 0.5 } else { ring.frac_ejrim.max(0.0).min(1.0) };
+                let ring_ejprofile = if ring.ejprofile.is_nan() { -3.0 } else { ring.ejprofile.max(-6.0).min(-0.25) };
+
                 let hring = crater_profile_function(
                     r,
-                    ring.radius,
+                    ring_radius,
                     ring_floor_elevation,
-                    ring.floor_radius,
-                    ring.wall_curvature,
-                    crater.floor_blend,
-                    ring.rim_width,
-                    ring.rim_height,
-                    ring.frac_ejrim,
-                    ring.ejprofile,
-                    crater.peak_height,
-                    crater.peak_width,
-                    crater.peak_ring_radius,
+                    ring_floor_radius,
+                    ring_wall_curvature,
+                    floor_blend,
+                    ring_rim_width,
+                    ring_rim_height,
+                    ring_frac_ejrim,
+                    ring_ejprofile,
+                    peak_height,
+                    peak_width,
+                    peak_ring_radius,
                 ) + elevation_offset;
                 hcrat = hcrat.max(hring);
             }
@@ -177,23 +206,31 @@ pub fn basicmoon_profile_one(
     }
     let mut hej = ejecta_profile_function(
         r,
-        crater.radius,
-        crater.frac_ejrim,
-        crater.rim_height,
-        crater.ejprofile,
-        crater.rim_width,
+        radius,
+        frac_ejrim,
+        rim_height,
+        ejprofile,
+        rim_width,
     );
 
     match rings {
         Some(rings) => {
             for (i, ring) in rings.iter().enumerate() {
+
+                let ring_radius = ring.radius.max(1e-8); 
+                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0); 
+                let ring_frac_ejrim = ring.frac_ejrim.max(0.0).min(1.0);
+                let ring_ejprofile = ring.ejprofile.max(-6.0).min(-0.25);
+
+
                 let mut hejring = ejecta_profile_function(
                     r,
-                    ring.radius,
-                    ring.frac_ejrim,
-                    ring.rim_height,
-                    ring.ejprofile,
-                    ring.rim_width,
+                    ring_radius,
+                    ring_frac_ejrim,
+                    ring_rim_height,
+                    ring_ejprofile,
+                    ring_rim_width,
                 );
                 let elevation_offset = if i == 0 {
                     elevation_offset_func(crater, ring)
@@ -203,7 +240,10 @@ pub fn basicmoon_profile_one(
                 let hrel = hcrat - elevation_offset;
                 if r <= ring.radius && hrel >= 0.0 {
                     let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
-                    hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
+                    let max_clamp = (ring_frac_ejrim * ring_rim_height).max(0.0);
+                    if !hup.is_nan() && !max_clamp.is_nan() {
+                        hejring += (hrel - hup).clamp(0.0, max_clamp);
+                    }
                 }
                 hej += hejring;
             }
@@ -220,7 +260,10 @@ pub fn basicmoon_profile_one(
             0.0,
             0.5 * crater.rim_width,
         );
-        hej += (hcrat - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
+        let max_clamp = (frac_ejrim * rim_height).max(0.0);
+        if !hup.is_nan() && !max_clamp.is_nan() {
+            hej += (hcrat - hup).clamp(0.0, max_clamp);
+        }
     }
 
     if include_crater {
@@ -234,7 +277,8 @@ pub fn basicmoon_profile_one(
         hej = 0.0;
     }
 
-    href + hcrat + hej
+    let final_val = href + hcrat + hej;
+    if final_val.is_nan() { href } else { final_val }
 }
 
 #[inline]
@@ -378,8 +422,15 @@ pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile:
         let phi = smootherstep(t);
         let ejrim = fe * hr;
         let hg = rimfunc(r, radius, ejrim, 0.0, rw);
-        let hp = ejrim * (r / radius).powf(ejprofile);
-        (1.0 - phi) * hg + phi * hp
+
+        // Guard division by zero or exceptionally small numbers close to center
+        let r_ratio = (r / radius).max(1e-12);
+        let hp = ejrim * r_ratio.powf(ejprofile);
+
+        // Safeguard against Infinity and NaN propagation
+        let hp_safe = if hp.is_finite() { hp } else { 0.0 };
+
+        (1.0 - phi) * hg + phi * hp_safe
     } else {
         0.0
     }
