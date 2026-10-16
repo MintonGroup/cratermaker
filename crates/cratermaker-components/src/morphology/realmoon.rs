@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::f64::consts::TAU;
 use paste::paste;
 
-const BLEND_WIDTH_FRACTION: f64 = 0.05; // Relative width of the blending region between PSD-derived parameter values and their means
+const BLEND_WIDTH_FRACTION: f64 = 0.15; // Relative width of the blending region between PSD-derived parameter values and their means
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
@@ -103,15 +103,15 @@ macro_rules! define_evaluator_bundle {
                     
                     // Blend PSD-derived parameters with their means when the radius value is far from its boundary
                     // This smooths out the sharp radial features in the full crater profile
-                    let rtrans_rim = base_crater.radius;
+                    let rtrans_rim = radius_raw;
                     let rwidth_rim = BLEND_WIDTH_FRACTION * rtrans_rim;
-                    let rtrans_floor = base_crater.floor_radius;
-                    let rwidth_floor = BLEND_WIDTH_FRACTION * rtrans_floor;
+                    let rtrans_floor = floor_radius_raw;
+                    let rwidth_floor = 2.0 * BLEND_WIDTH_FRACTION * rtrans_floor;
 
                     let radius_val = blend_band(r, radius_raw, base_crater.radius, rtrans_rim, rwidth_rim);
                     let rim_width_val = blend_band(r, rim_width_raw, base_crater.rim_width, rtrans_rim, rwidth_rim);
                     let rim_height_val = blend_band(r, rim_height_raw, base_crater.rim_height, rtrans_rim, rwidth_rim);
-                    let floor_radius_val = blend_band(r, base_crater.floor_radius, floor_radius_raw, rtrans_floor, rwidth_floor);
+                    let floor_radius_val = blend_band(r, floor_radius_raw, base_crater.floor_radius, rtrans_floor, rwidth_floor);
 
 
                     let diameter_val = 2.0 * radius_val;
