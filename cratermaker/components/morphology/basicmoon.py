@@ -459,10 +459,7 @@ class BasicMoonCrater(MorphologyCrater):
                     rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
                 else:
                     rnd_factor = np.ones(4)
-                if crater.morphology_type == "multiring":
-                    radius_ratio = np.sqrt(2.0) ** (i + 1)
-                else:
-                    radius_ratio = 1.1 ** (i + 1)
+                radius_ratio = np.sqrt(2.0) ** (i + 1)
                 radius = crater.radius * rnd_factor[0] / radius_ratio
                 floor_radius = crater.floor_radius * rnd_factor[1] / radius_ratio
                 rim_height = rnd_factor[3] * crater.rim_height * (0.4) ** (i + 1)

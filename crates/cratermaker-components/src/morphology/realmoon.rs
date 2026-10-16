@@ -113,7 +113,6 @@ macro_rules! define_evaluator_bundle {
                     let rim_height_val = blend_band(r, rim_height_raw, base_crater.rim_height, rtrans_rim, rwidth_rim);
                     let floor_radius_val = blend_band(r, floor_radius_raw, base_crater.floor_radius, rtrans_floor, rwidth_floor);
 
-
                     let diameter_val = 2.0 * radius_val;
                     BasicMoonCrater {
                         diameter: diameter_val,
