@@ -1000,11 +1000,12 @@ class Crater(ComponentBase):
                 projectile=projectile,
                 **kwargs,
             )
-            if monte_carlo is not None:
+            if monte_carlo is not None:  # Override the built-in monte_carlo flags
                 scaling_monte_carlo_orig = scaling.monte_carlo
                 projectile_monte_carlo_orig = projectile.monte_carlo
                 scaling.monte_carlo = monte_carlo
                 projectile.monte_carlo = monte_carlo
+
             scaling.projectile = scaling.projectile.new_projectile(
                 **projectile_args,
             )
@@ -1087,6 +1088,10 @@ class Crater(ComponentBase):
 
             name = args.pop("name", None) if name is None else name
 
+            if monte_carlo is not None:
+                scaling.monte_carlo = scaling_monte_carlo_orig
+                projectile.monte_carlo = projectile_monte_carlo_orig
+
         if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
         else:
@@ -1123,10 +1128,6 @@ class Crater(ComponentBase):
             measured_orientation = pdir if pdir is not None else None
         if measured_location is None:
             measured_location = (float(location[0]), float(location[1])) if location is not None else None
-
-        if monte_carlo is not None:
-            scaling.monte_carlo = scaling_monte_carlo_orig
-            projectile.monte_carlo = projectile_monte_carlo_orig
 
         # Assemble the final set of arguments to pass to the Crater constructor
         args["semimajor_axis"] = float(a) if a is not None else None
@@ -1378,7 +1379,12 @@ class Crater(ComponentBase):
 
     @classmethod
     def from_xarray(
-        cls, dataset: xr.Dataset | dict, interval: int | None = None, conserve_volume: bool = False, **kwargs
+        cls,
+        dataset: xr.Dataset | dict,
+        interval: int | None = None,
+        conserve_volume: bool = False,
+        make_rings: bool = False,
+        **kwargs,
     ) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
@@ -1389,6 +1395,8 @@ class Crater(ComponentBase):
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
         conserve_volume : bool, optional
             Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        make_rings : bool, optional
+            Indicate whether to generate new rings for complex and multiring craters that don't have one explicitly defined in the Dataset. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1432,7 +1440,13 @@ class Crater(ComponentBase):
             if "morphology_type" in crater_data:
                 crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
-            crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+            crater = cls.maker(
+                **crater_data,
+                conserve_volume=conserve_volume,
+                make_rings=make_rings,
+                monte_carlo=False,
+                check_redundant_inputs=False,
+            )
             if crater.isring:
                 rings.append(crater)
             else:

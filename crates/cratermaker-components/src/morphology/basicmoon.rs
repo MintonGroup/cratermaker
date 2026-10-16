@@ -1,4 +1,5 @@
 use crate::ArrayResult;
+use crate::morphology::{smootherstep,blend_step};
 use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
@@ -313,11 +314,11 @@ pub fn crater_profile_function(
         hfloor
     };
     let hwalltofloor = walltofloorfunc(r, radius, rf, hr, hf, rfw);
-    let hwf = blend(r, hwalltofloor, hwall, rf, rfw);
-    hwall = blend(r, hfloor, hwf, rf, rfw);
+    let hwf = blend_step(r, hwalltofloor, hwall, rf, rfw);
+    hwall = blend_step(r, hfloor, hwf, rf, rfw);
     let hej = ejecta_profile_function(r, radius, fe, hr, pej, rw);
     let hrim = rimfunc(r, radius, hr, he, rw) + hej;
-    blend(r, hwall, hrim, radius, rw)
+    blend_step(r, hwall, hrim, radius, rw)
 }
 
 #[inline]
@@ -353,23 +354,7 @@ fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
     hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
-#[inline]
-fn smoothstep(t: f64) -> f64 {
-    if t <= 0.0 {
-        0.0
-    } else if t <= 1.0 {
-        6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3)
-    } else {
-        1.0
-    }
-}
 
-#[inline]
-fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64 {
-    let t = (r - (rtransition - rwidth)) / (2.0 * rwidth);
-    let phi = smoothstep(t);
-    (1.0 - phi) * hinner + phi * houter
-}
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -390,7 +375,7 @@ fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64
 pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
     if r > radius {
         let t = (r - (radius - rw)) / (2.0 * rw);
-        let phi = smoothstep(t);
+        let phi = smootherstep(t);
         let ejrim = fe * hr;
         let hg = rimfunc(r, radius, ejrim, 0.0, rw);
         let hp = ejrim * (r / radius).powf(ejprofile);

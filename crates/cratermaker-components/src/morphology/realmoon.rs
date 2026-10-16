@@ -1,4 +1,5 @@
 use crate::ArrayResult;
+use crate::morphology::blend_band;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
 use interp::{InterpMode, interp};
 use numpy::ndarray::prelude::*;
@@ -11,6 +12,8 @@ use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
 use paste::paste;
+
+const BLEND_WIDTH_FRACTION: f64 = 0.05; // Relative width of the blending region between PSD-derived parameter values and their means
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
@@ -76,7 +79,7 @@ macro_rules! define_evaluator_bundle {
     (
         psds: [ $($psd_field:ident),* ]
     ) => {
-        paste::paste! {
+        paste! {
             /// Bundles the interpolated spatial profiles for all dynamic PSD fields
             pub struct CraterProfileEvaluators {
                 $( pub [<$psd_field _eval>]: ProfileEvaluator, )*
@@ -92,11 +95,25 @@ macro_rules! define_evaluator_bundle {
                 /// Evaluates all dynamic properties at a given bearing, returning
                 /// a customized BasicMoonCrater mapping to this slice of the profile.
                 #[inline]
-                pub fn eval_to_basic(&self, base_crater: &RealMoonCrater, bearing: f64) -> BasicMoonCrater {
+                pub fn eval_to_basic(&self, base_crater: &RealMoonCrater, r: f64, bearing: f64) -> BasicMoonCrater {
                     // Evaluate all dynamic PSD profiles
                     $(
-                        let [<$psd_field _val>] = self.[<$psd_field _eval>].eval(bearing);
+                        let [<$psd_field _raw>] = self.[<$psd_field _eval>].eval(bearing);
                     )*
+                    
+                    // Blend PSD-derived parameters with their means when the radius value is far from its boundary
+                    // This smooths out the sharp radial features in the full crater profile
+                    let rtrans_rim = base_crater.radius;
+                    let rwidth_rim = BLEND_WIDTH_FRACTION * rtrans_rim;
+                    let rtrans_floor = base_crater.floor_radius;
+                    let rwidth_floor = BLEND_WIDTH_FRACTION * rtrans_floor;
+
+                    let radius_val = blend_band(r, radius_raw, base_crater.radius, rtrans_rim, rwidth_rim);
+                    let rim_width_val = blend_band(r, rim_width_raw, base_crater.rim_width, rtrans_rim, rwidth_rim);
+                    let rim_height_val = blend_band(r, rim_height_raw, base_crater.rim_height, rtrans_rim, rwidth_rim);
+                    let floor_radius_val = blend_band(r, base_crater.floor_radius, floor_radius_raw, rtrans_floor, rwidth_floor);
+
+
                     let diameter_val = 2.0 * radius_val;
                     BasicMoonCrater {
                         diameter: diameter_val,
@@ -188,12 +205,12 @@ pub fn realmoon_profile(
             let bearing = bearings[i];
 
             // Generate the Basic representation dynamically at this local bearing
-            let icrater = main_evaluators.eval_to_basic(crater, bearing);
+            let icrater = main_evaluators.eval_to_basic(crater, r, bearing);
 
             // Generate Basic representations for all sub-rings at this bearing
             let irings: Option<Vec<BasicMoonCrater>> = rings_evaluators.as_ref().map(|evals_vec| {
                 evals_vec.iter().map(|(evaluator, ring)| {
-                    evaluator.eval_to_basic(ring, bearing)
+                    evaluator.eval_to_basic(ring, r, bearing)
                 }).collect()
             });
 

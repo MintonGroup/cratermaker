@@ -130,6 +130,7 @@ class BasicMoonCrater(MorphologyCrater):
         peak_center_bearing: float | None = None,
         conserve_volume: bool = True,
         monte_carlo: bool | None = None,
+        make_rings: bool = True,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -169,6 +170,8 @@ class BasicMoonCrater(MorphologyCrater):
             If True, then the value of frac_ejrim will be adjusted in order to attempt to conserve volume between excavation and deposition. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
         monte_carlo : bool or None, optional
             If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
+        make_rings : bool, optional
+            If True, then rings will be generated for complex and multiring craters. Default is True.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -443,15 +446,25 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
-        if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
-            num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
-            for i in range(num_rings):
+        num_new_rings = 0
+        if make_rings and not crater.isring and crater.nrings == 0:
+            if crater.morphology_type == "complex":
+                num_new_rings = 1
+            elif crater.morphology_type == "multiring":
+                num_new_rings = 3
+
+        if num_new_rings > 0:
+            for i in range(num_new_rings):
                 if monte_carlo:
                     rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
                 else:
                     rnd_factor = np.ones(4)
-                radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
-                floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
+                if crater.morphology_type == "multiring":
+                    radius_ratio = np.sqrt(2.0) ** (i + 1)
+                else:
+                    radius_ratio = 1.1 ** (i + 1)
+                radius = crater.radius * rnd_factor[0] / radius_ratio
+                floor_radius = crater.floor_radius * rnd_factor[1] / radius_ratio
                 rim_height = rnd_factor[3] * crater.rim_height * (0.4) ** (i + 1)
                 if i == 0:
                     frac_ejrim = crater.frac_ejrim * rim_height / crater.rim_height
@@ -463,13 +476,13 @@ class BasicMoonCrater(MorphologyCrater):
                     rim_height=rim_height,
                     frac_ejrim=frac_ejrim,
                 )
-
-        # Make sure rings are the correct type
-        for i in range(crater.nrings):
-            ring = crater.rings[i]
-            if not isinstance(ring, cls):
-                ring = cls(crater=ring, morphology=morphology)
-                crater.rings[i] = ring
+        elif crater.nrings > 0:
+            # Make sure rings are the correct type
+            for i in range(crater.nrings):
+                ring = crater.rings[i]
+                if not isinstance(ring, cls):
+                    ring = cls(crater=ring, morphology=morphology)
+                    crater.rings[i] = ring
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
         if conserve_volume and not crater.isring:

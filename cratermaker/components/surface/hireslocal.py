@@ -475,10 +475,7 @@ class HiResLocalSurface(Surface):
                 1000,
             ):
                 crater = morphology.Crater.maker(
-                    diameter=diameter,
-                    angle=90.0,
-                    projectile_velocity=projectile_velocity,
-                    conserve_volume=False,
+                    diameter=diameter, angle=90.0, projectile_velocity=projectile_velocity, conserve_volume=False, make_rings=False
                 )
                 rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
