@@ -184,7 +184,7 @@ class BasicMoonCrater(MorphologyCrater):
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic
 
         if crater is not None and isinstance(crater, BasicMoonCrater):
-            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
+            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls", "make_rings"]:
                 input_args.pop(k, None)
             conserve_volume = conserve_volume and any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments

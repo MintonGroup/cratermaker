@@ -336,15 +336,17 @@ class TestSimulation(unittest.TestCase):
                     crater_dict = crater.as_dict()
                     crater_vals.append(crater_dict)
                     new_crater_dict = new_crater.as_dict()
+                    test_dict = {
+                        k: crater_dict[k] != new_crater_dict[k]
+                        if k == "time" or k == "id"
+                        else crater_dict[k] == new_crater_dict[k]
+                        for k in crater_dict
+                        if k not in ignores
+                    }
+                    mismatch = {k: v for k, v in test_dict.items() if not v}
                     self.assertTrue(
-                        all(
-                            crater_dict[k] != new_crater_dict[k]
-                            if k == "time" or k == "id"
-                            else crater_dict[k] == new_crater_dict[k]
-                            for k in crater_dict
-                            if k not in ignores
-                        ),
-                        msg=f"Failed for sim_num {sim_num} iteration {iteration}",
+                        all(test_dict.values()),
+                        msg=f"Failed for sim_num {sim_num} iteration {iteration}. Mismatched keys: {mismatch.keys()}",
                     )
 
                 self.assertTrue(
