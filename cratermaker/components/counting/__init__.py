@@ -815,7 +815,7 @@ class Counting(ComponentBase):
 
         """
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.visualization_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _draw_craters(craters, crater_color, name, crater_style, use_measured_properties, **kwargs):
             add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}

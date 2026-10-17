@@ -914,7 +914,7 @@ class Surface(ComponentBase):
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
         interval: int | None = None,
-        theme: str | None = None,
+        theme: str | None = "cratermaker",
         transparent_background: bool | None = None,
         plotter: pv.Plotter | None = None,
         enable_interactive: bool = True,
@@ -932,7 +932,7 @@ class Surface(ComponentBase):
         interval : int | None, optional
             The interval number of the surface to show. If None, the currently loaded surface data will be displayed. Default is None.
         theme : str, optional
-            The PyVista theme to use for the plot. If None, the default PyVista theme will be used.
+            The PyVista theme to use for the plot. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is False.
         plotter : pv.Plotter, optional
@@ -3641,7 +3641,7 @@ class LocalSurface(CratermakerBase):
         variable_name: str | None = None,
         variable: ArrayLike | None = None,
         interval: int | None = None,
-        theme: str | None = None,
+        theme: str | None = "cratermaker",
         transparent_background: bool | None = None,
         plotter: pv.Plotter | None = None,
         enable_interactive: bool = True,
@@ -3659,7 +3659,7 @@ class LocalSurface(CratermakerBase):
         interval : int | None, optional
             The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
-            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         plotter : pyvista.Plotter, optional
@@ -3675,7 +3675,7 @@ class LocalSurface(CratermakerBase):
             The PyVista Plotter object for further customization.
         """
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.visualization_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _set_title(uxds, variable_name):
             if variable_name in uxds and "long_name" in uxds[variable_name].attrs:

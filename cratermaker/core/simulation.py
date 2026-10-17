@@ -1235,7 +1235,7 @@ class Simulation(CratermakerBase):
         pyvista.Plotter
             A PyVista Plotter object created by the surface pyvista_plotter method.
         """
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.visualization_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         class IntervalState:
             def __init__(self, interval, max_interval):
