@@ -10,7 +10,7 @@ import numpy as np
 import xarray as xr
 from geopandas import GeoSeries
 from numpy.random import Generator
-from shapely.ops import transform
+from shapely import transform
 from tqdm import tqdm
 from vtk import vtkPolyData
 

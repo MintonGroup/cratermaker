@@ -130,7 +130,7 @@ class BasicMoonCrater(MorphologyCrater):
         peak_center_bearing: float | None = None,
         conserve_volume: bool = True,
         monte_carlo: bool | None = None,
-        make_rings: bool = True,
+        make_rings: bool | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -171,7 +171,7 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo : bool or None, optional
             If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         make_rings : bool, optional
-            If True, then rings will be generated for complex and multiring craters. Default is True.
+            If True, then rings will be generated for complex and multiring craters. Default is True for new craters and False for copied craters unless a parameter was changed.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -187,6 +187,8 @@ class BasicMoonCrater(MorphologyCrater):
             for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls", "make_rings"]:
                 input_args.pop(k, None)
             conserve_volume = conserve_volume and any(list(input_args.values()))
+            if make_rings is None:
+                make_rings = any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
@@ -201,6 +203,8 @@ class BasicMoonCrater(MorphologyCrater):
             peak_ring_radius = crater.peak_ring_radius if peak_ring_radius is None else peak_ring_radius
             peak_center_distance = crater.peak_center_distance if peak_center_distance is None else peak_center_distance
             peak_center_bearing = crater.peak_center_bearing if peak_center_bearing is None else peak_center_bearing
+        elif make_rings is None:
+            make_rings = True
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, monte_carlo=monte_carlo, **kwargs)
