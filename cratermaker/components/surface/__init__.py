@@ -3774,8 +3774,13 @@ class LocalSurface(CratermakerBase):
 
         new_plotter = plotter is None
         if new_plotter:
-            plotter = pv.Plotter()
-            plotter.enable_hidden_line_removal()
+            if theme == "cratermaker":
+                plotter = pv.Plotter(lighting="none")
+                plotter.add_light(pv.Light(position=(1, 1, 1), light_type="camera light"))
+                plotter.add_light(pv.Light(position=(-1, -1, 0), intensity=0.1, light_type="camera light"))
+                plotter.enable_hidden_line_removal()
+            else:
+                plotter = pv.Plotter()
 
         if interval is None:
             uxds = self.uxds
@@ -3832,6 +3837,7 @@ class LocalSurface(CratermakerBase):
             "show_scalar_bar": False,
             "color": "grey",
             "pbr": True,
+            "smooth_shading": True,
             **add_mesh_kwargs,
         }
         mesh_actor = plotter.add_mesh(mesh, scalars=scalars, component=component, cmap=cmap, **add_mesh_kwargs)

@@ -1194,6 +1194,8 @@ class Simulation(CratermakerBase):
         label: str = "default",
         plotter: pyvista.Plotter | None = None,
         enable_interactive: bool = True,
+        theme: str | None = "cratermaker",
+        transparent_background: bool | None = None,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -1216,7 +1218,7 @@ class Simulation(CratermakerBase):
         interval : int | None, optional
             The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
-            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         superdomain : bool, optional
@@ -1257,7 +1259,14 @@ class Simulation(CratermakerBase):
         def update_interval(plotter, istate, forward):
             interval = istate.update(forward)
             plotter.clear_actors()
-            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs)
+            plotter = self.pyvista_plotter(
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
+            )
             plotter.update()
             return
 
@@ -1269,11 +1278,21 @@ class Simulation(CratermakerBase):
 
         if self.counting is not None:
             plotter = self.counting.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
             )
         else:
             plotter = self.surface.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
             )
 
         if label is not None:
