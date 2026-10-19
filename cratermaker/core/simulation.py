@@ -554,7 +554,7 @@ class Simulation(CratermakerBase):
         # If this is a fresh run, we need to set the value of the current time based on the requested starting condition.
         if self._time is None:
             self.time = time_start
-            self.interval = 0
+            self._interval = 0
 
         # If this is a restarted run, we need to distinguish between a true restart and a continuation with different parameters
         if time_start < self.time:
@@ -644,6 +644,7 @@ class Simulation(CratermakerBase):
         N_D_end: PairOfFloats | None = None,
         diameter_number: PairOfFloats | None = None,
         diameter_number_end: PairOfFloats | None = None,
+        emplace: bool = True,
         **kwargs: Any,
     ) -> list[Crater]:
         """
@@ -667,6 +668,8 @@ class Simulation(CratermakerBase):
             A pair of numbers, (diameter, number), representing the diameter and total number of craters in the production function at the end, where diameter is in units of m and n is in number of craters.  If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         craters : list[Crater] or Crater, optional
             A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
+        emplace : bool, optional
+            If True, emplace the craters after generation. If False, the list of craters is generated and returned, but the craters are not emplaced onto the Surface.
 
         Returns
         -------
@@ -799,7 +802,10 @@ class Simulation(CratermakerBase):
                 craterlist, time_start=time_start, time_end=time_end, N_D=N_D, N_D_end=N_D_end, **kwargs
             )
         if len(craterlist) > 0:
-            return self.emplace(craterlist, **kwargs)
+            if emplace:
+                return self.emplace(craterlist, **kwargs)
+            else:
+                return craterlist
         else:
             return []
 
@@ -868,6 +874,29 @@ class Simulation(CratermakerBase):
 
         self.to_config(**kwargs)
         super().save(**save_args)
+
+        return
+
+    def load(self, interval: int, save_current_interval: bool = True, **kwargs: Any) -> None:
+        """
+        Loads data from an old interval.
+
+        Parameters
+        ----------
+        interval : int
+            The interval number to load. -1 will load the most recent interval.
+        """
+        if save_current_interval:
+            self.save(**kwargs)
+        all_interval_numbers = self.surface.get_saved_interval_numbers()[0]
+        if interval < 0:  # Go by index when negative, otherwise go by value
+            interval = all_interval_numbers[interval]
+        elif interval not in all_interval_numbers:
+            raise ValueError(f"Interval {interval} not found for this Simulation.")
+
+        self.surface._load_from_files(interval=interval, reset=False, regrid=False, **kwargs)
+        self.counting.load(interval=interval)
+        self.interval = interval
 
         return
 
@@ -1165,6 +1194,8 @@ class Simulation(CratermakerBase):
         label: str = "default",
         plotter: pyvista.Plotter | None = None,
         enable_interactive: bool = True,
+        theme: str | None = "cratermaker",
+        transparent_background: bool | None = None,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -1187,7 +1218,7 @@ class Simulation(CratermakerBase):
         interval : int | None, optional
             The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
         theme : str, optional
-            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         superdomain : bool, optional
@@ -1206,11 +1237,11 @@ class Simulation(CratermakerBase):
         pyvista.Plotter
             A PyVista Plotter object created by the surface pyvista_plotter method.
         """
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.visualization_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         class IntervalState:
             def __init__(self, interval, max_interval):
-                self.interval = interval
+                self._interval = interval
                 self.max_interval = max_interval
 
             def update(self, forward):
@@ -1222,13 +1253,20 @@ class Simulation(CratermakerBase):
                     new_interval = self.interval - 1
                     if new_interval < 0:
                         return
-                self.interval = new_interval
+                self._interval = new_interval
                 return new_interval
 
         def update_interval(plotter, istate, forward):
             interval = istate.update(forward)
             plotter.clear_actors()
-            plotter = self.pyvista_plotter(interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs)
+            plotter = self.pyvista_plotter(
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
+            )
             plotter.update()
             return
 
@@ -1240,11 +1278,21 @@ class Simulation(CratermakerBase):
 
         if self.counting is not None:
             plotter = self.counting.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
             )
         else:
             plotter = self.surface.pyvista_plotter(
-                interval=interval, plotter=plotter, enable_interactive=enable_interactive, **kwargs
+                interval=interval,
+                plotter=plotter,
+                enable_interactive=enable_interactive,
+                theme=theme,
+                transparent_background=transparent_background,
+                **kwargs,
             )
 
         if label is not None:
