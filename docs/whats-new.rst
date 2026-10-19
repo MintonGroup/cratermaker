@@ -3,6 +3,61 @@
 What's New
 ==========
 
+.. _whats-new.2026.10.0-alpha:
+
+:release:`v2026.10.0-alpha`
+---------------------------
+
+- First draft of the RealisticMoonMorphology (accessible via morphology="realmoon" argument) is not available for preview and testing. :issue:`18` :pull:`134` `David Minton`_
+   - Implemented all 1D PSD-based parameters: `radius`, `rim_height`, `rim_width`, and `floor_radius`. 
+   - Made improvements to stability of crater profile function to avoid NaN values.
+   - Improved aesthetics of the pyvista_plotter defaults, including adding a new PyVista theme called "cratermaker".
+   - Increased the size of the region used to compute the reference surface for emplacing craters, but only use the portion inside the rim radius in order to prevent issues of small region producing anomolously large slopes.
+   - Turn off volume conservation when reading in craters from file
+   - Allow conserve_volume=False argument to be respected when a modified copy of a Crater is made
+   - Switched to a linear rim uplift model with fewer free parameters. Fixed issue where rng was not being passed to the sampling functions when making craters.
+   - Updated morphology of rims to use a gaussian rim uplift and now define ejecta thickness at rim as a fraction of the rim height. Switched to using relative elevation for rim as rim_height instead of absolute rim_elevation
+   - Overhauled profile functions again and fixed issue that was causing old datasurface to not be recognized as the same when parameters were called the same. This was done by turning off Monte Carlo scaling when setting the superdomain values so that they are deterministicly computed.
+   - Fixed problem that was causing reloads of datasurface to revert to the default resolution because it did not save the dem_file_list argument. The _user_defined argument list gets reset when calling super().__init__() functions inside of __init__, so any arguments set before calling the base class must be restored to this list.
+   - Rearranged code for extracting pix values so that you don't have to fetch it from the source if you are reading in an old run where it's already defined.
+   - Fixed inconsistency in the definition of pix when using DataComposer to retrieve cylindrical LOLA data. The returned value should be m/px not px/deg.
+   0 Fixed issue that was causing parameters to not be saved to file in DataSurface, so old surfaces were not being recognized even though they were the same.
+   - Fixed issues fetching high resolution data and polar data above 87.5 degrees
+   - Fixed issue with selecting PDS files for polar data when a feature straddles a +/-60 deg latitude line
+   - Removed old macos-14 from build, test, and deploy actions
+   - Removed ubuntu arm from testing due to dependency issue
+   - Removed intel mac and arm64 ubuntu from action matrix
+   - Improved the parallel efficiency of the apply_diffusion function
+   - Removed the interpolated fill function as it causes issues near boundaries of NAC DTMs. Allow hillshade parameters azimuth, solar_angle, and blend_mode to be passied in as kwargs in the plot method.
+   - Generalized the basic update_elevation and add_data methods to be able to use raster datasets, rather than needing a separate data_composer context manager. This allows any type of arbitrary dataset data to be added to any surface.
+   - Fixed problem causing restarted runs to fail due to Counting not being able to read in all of the data because the Morphology component has to be initialized after Counting.
+   - When applying a dataset to a surface, only update the surface with values that are not NaN
+   - Fixed problem that occurs when passing overwrite=True to add_data when the dataset is new and there are NaN values in  the data. Dataset has to be created first before mask is made
+   - Switched from positional arguments to keyword arguments for calls to add_data
+   - Fixed problem where the input data source was altered when passed to the DataComposer.
+   - Fixed issue that occurs when trying to use an SLDEM tile that goes past the SLDEM latitude boundaries of +/-60.
+   - Allow the Counting plotter to accept custom surfaces
+   - Fixed issue causing failure of datasurface for low resolution mid latitude locations because sldem is only available for 256 and 512 pix/deg
+   - Fixed problem that was causing 429 errors when trying to download large datasets from the PDS line-by-line. Lines are now chunked into increments of 1000
+   - Fixed problem fetching LOLA dems because unlike all of the other datasets, only sldem256 does not use zero-padded integers for the latitude range in the file name.
+   - Restructured the code to move the elevation change step to the end of form_crater so that all of diffusion steps are applied to the pre-existing surface before drawing the main crater shape.
+   - Added new azimuthal gradient calculator function
+   - Simplified the hash variable for datasurface to avoid regridding when not necessary
+   - Removed the fit_rim function and the dependence on OpenBLAS
+   - Removed rim fitting example
+   - Fixed issue where sometimes the ejecta_region was smaller than the crater_region. The ejecta_region radius is now adjusted to be no smaller than crater_region
+   - Updated morphometric coefficients.
+   - Fixed incompatabilities with newer versions of UxArray that don't allow calling .sel() using both n_face and n_node
+   - Fixed issues getting correct indices for nodes due to changes in UxArray
+   - Swapped out netcdf4 for h5netcdf engine for open_mfdataset
+   - Added a reset method to the MorphologyCrater that is called after forming, which allows crater objects to be re-used in different contexts
+   - Added a new load method that will load a particular interval of saved data into a Simulation
+   - Reduced the time taken to get a volume estimation for small craters.
+   - Fixed a bunch of issues related to getting an estimated initial volume
+   - Made the monte_carlo flag more consistent throughout the components. Added ability to disable monte carlo sampling for a single Crater instance via an argument.
+   - Lifted the restriction on Python 3.14
+
+
 .. _whats-new.2026.9.0-alpha:
 
 :release:`v2026.9.0-alpha`
