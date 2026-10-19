@@ -1232,7 +1232,7 @@ class Crater(ComponentBase):
             new_geoms = []
             for p in poly.geoms:
                 if np.abs(p.centroid.x) > 180.0:
-                    p = transform(lon_flip, p)
+                    p = transform(p, lon_flip, interleaved=False)
                 new_geoms.append(p)
             poly = GeometryCollection(new_geoms)
 
