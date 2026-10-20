@@ -489,7 +489,7 @@ class BasicMoonCrater(MorphologyCrater):
                 else:
                     radius_outer = crater.ring[i - 1].radius
                     floor_radius_outer = crater.ring[i - 1].floor_radius
-                radius = max(
+                radius = min(
                     sample_logfit_heteroskedastic(
                         diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_radius_params[fit_category]
                     )[0]
