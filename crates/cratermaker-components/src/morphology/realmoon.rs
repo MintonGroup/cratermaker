@@ -1,8 +1,9 @@
 use crate::ArrayResult;
-use crate::morphology::blend_band;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
+use crate::morphology::blend_band;
 use interp::{InterpMode, interp};
 use numpy::ndarray::prelude::*;
+use paste::paste;
 use rand::SeedableRng;
 use rand::prelude::*;
 use rand_chacha::ChaCha12Rng;
@@ -11,9 +12,8 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
-use paste::paste;
 
-const BLEND_WIDTH_FRACTION: f64 = 0.15; // Relative width of the blending region between PSD-derived parameter values and their means
+const BLEND_WIDTH_FRACTION: f64 = 0.10; // Relative width of the blending region between PSD-derived parameter values and their means
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
@@ -26,7 +26,6 @@ pub struct PSD1DView<'a> {
     pub amplitude: ArrayView1<'a, f64>,
     pub phase: ArrayView1<'a, f64>,
 }
-
 
 // This will build a boilerplate struct that contains the PSD objects for all of the crater object properties with the pattern [name]_psd.
 macro_rules! define_crater_structs {
@@ -56,7 +55,6 @@ define_crater_structs! {
     psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
-
 /// Holds pre-computed bearing profiles for a parameter to avoid nested tuples
 pub struct ProfileEvaluator {
     pub bearing_grid: Vec<f64>,
@@ -66,12 +64,20 @@ pub struct ProfileEvaluator {
 impl ProfileEvaluator {
     pub fn new(psd: &PSD1DView) -> Self {
         let (bearing_grid, profile_values) = profile_from_psd(psd);
-        Self { bearing_grid, profile_values }
+        Self {
+            bearing_grid,
+            profile_values,
+        }
     }
 
     #[inline(always)]
     pub fn eval(&self, bearing: f64) -> f64 {
-        interp(&self.bearing_grid, &self.profile_values, bearing, &InterpMode::default())
+        interp(
+            &self.bearing_grid,
+            &self.profile_values,
+            bearing,
+            &InterpMode::default(),
+        )
     }
 }
 
@@ -100,7 +106,7 @@ macro_rules! define_evaluator_bundle {
                     $(
                         let [<$psd_field _raw>] = self.[<$psd_field _eval>].eval(bearing);
                     )*
-                    
+
                     // Blend PSD-derived parameters with their means when the radius value is far from its boundary
                     // This smooths out the sharp radial features in the full crater profile
                     let rtrans_rim = radius_raw;
@@ -143,9 +149,6 @@ define_evaluator_bundle! {
     psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
-
-
-
 // Creates a profile of the crater
 //
 /// # Arguments
@@ -173,28 +176,51 @@ pub fn realmoon_profile(
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
-    assert_eq!(radial_distances.len(), reference_elevations.len(), "Input arrays must have same length");
-    assert_eq!(radial_distances.len(), bearings.len(), "Input arrays must have same length");
+    assert_eq!(
+        radial_distances.len(),
+        reference_elevations.len(),
+        "Input arrays must have same length"
+    );
+    assert_eq!(
+        radial_distances.len(),
+        bearings.len(),
+        "Input arrays must have same length"
+    );
 
     let n_points = radial_distances.len();
 
     // 0. Compute boundary thresholds
-    let ninc = radial_distances.iter().filter(|&&x| x <= crater.radius).count();
+    let ninc = radial_distances
+        .iter()
+        .filter(|&&x| x <= crater.radius)
+        .count();
     let meanref = if ninc == 0 {
-        *radial_distances.iter().zip(reference_elevations)
-            .min_by(|&(&ra, _), &(&rb, _)| ra.partial_cmp(&rb).unwrap()).unwrap().1
+        *radial_distances
+            .iter()
+            .zip(reference_elevations)
+            .min_by(|&(&ra, _), &(&rb, _)| ra.partial_cmp(&rb).unwrap())
+            .unwrap()
+            .1
     } else {
-        radial_distances.iter().zip(reference_elevations)
+        radial_distances
+            .iter()
+            .zip(reference_elevations)
             .filter(|&(&r, _)| r <= crater.radius)
-            .map(|(_, &e)| e).sum::<f64>() / ninc as f64
+            .map(|(_, &e)| e)
+            .sum::<f64>()
+            / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
 
     let main_evaluators = CraterProfileEvaluators::new(crater);
-    
-    let rings_evaluators: Option<Vec<(CraterProfileEvaluators, &RealMoonCrater)>> = rings.as_ref().map(|rings_vec| {
-        rings_vec.iter().map(|ring| (CraterProfileEvaluators::new(ring), ring)).collect()
-    });
+
+    let rings_evaluators: Option<Vec<(CraterProfileEvaluators, &RealMoonCrater)>> =
+        rings.as_ref().map(|rings_vec| {
+            rings_vec
+                .iter()
+                .map(|ring| (CraterProfileEvaluators::new(ring), ring))
+                .collect()
+        });
 
     let out: Vec<f64> = (0..n_points)
         .into_par_iter()
@@ -208,22 +234,27 @@ pub fn realmoon_profile(
 
             // Generate Basic representations for all sub-rings at this bearing
             let irings: Option<Vec<BasicMoonCrater>> = rings_evaluators.as_ref().map(|evals_vec| {
-                evals_vec.iter().map(|(evaluator, ring)| {
-                    evaluator.eval_to_basic(ring, r, bearing)
-                }).collect()
+                evals_vec
+                    .iter()
+                    .map(|(evaluator, ring)| evaluator.eval_to_basic(ring, r, bearing))
+                    .collect()
             });
 
             // Compute the profile using the basic profile function using the values at this bearing value
-            let h = basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
+            let h =
+                basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
 
-            // Enforce minimum crater floor constraint 
-            if r <= icrater.radius { h.max(min_elevation) } else { h }
+            // Enforce minimum crater floor constraint
+            if r <= icrater.radius {
+                h.max(min_elevation)
+            } else {
+                h
+            }
         })
         .collect();
 
     Ok(Array1::from_vec(out))
 }
-
 
 ///
 ///
@@ -388,4 +419,3 @@ pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
 
     (amplitude, phase)
 }
-
