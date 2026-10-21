@@ -3,6 +3,12 @@
 What's New
 ==========
 
+.. _whats-new.2026.10.1-alpha:
+
+- Added ability to pass callable functions as save_actions. :issue:`136` :pull:`137` `David Minton`_
+- Updated ring generator for complex craters.
+
+
 .. _whats-new.2026.10.0-alpha:
 
 :release:`v2026.10.0-alpha`
