@@ -170,15 +170,17 @@ class CratermakerBase:
 
         for entry in self.save_actions:
             for action, action_kwargs in entry.items():
-                if hasattr(self, action):
+                if callable(action):
+                    action_method = action
+                elif hasattr(self, action):
                     action_method = getattr(self, action)
-                    if callable(action_method):
-                        args = {**action_kwargs, **kwargs, "interval": interval}
-                        action_method(**args)
-                    else:
-                        raise ValueError(f"{action} is not a valid action for {self.name}")
                 else:
                     raise ValueError(f"{action} is not a valid action for {self.name}")
+                if callable(action_method):
+                    args = {**action_kwargs, **kwargs, "interval": interval}
+                    action_method(**args)
+                else:
+                    raise TypeError(f"{action} is not a valid action for {self.name}")
         return
 
     def export(self, **kwargs: Any) -> None:
@@ -535,12 +537,14 @@ class CratermakerBase:
                 "action must be a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
             )
         for action_name, args in action.items():
-            if hasattr(self, action_name):
+            if callable(action_name):
+                action_method = action_name
+            elif hasattr(self, action_name):
                 action_method = getattr(self, action_name)
-                if not callable(action_method):
-                    raise ValueError(f"{action_name} is not a valid action for {self.name}")
             else:
                 raise ValueError(f"{action_name} is not a valid action for {self.name}")
+            if not callable(action_method):
+                raise TypeError(f"{action_name} is not a valid action for {self.name}")
             if not isinstance(args, dict):
                 raise TypeError(
                     f"Arguments for action {action_name} must be a dictionary of keyword arguments to be passed to the {self.name}.{action_name}() method."
@@ -548,7 +552,7 @@ class CratermakerBase:
         self._save_actions.append(action)
         return
 
-    @parameter
+    @property
     def save_actions(self) -> list[dict[str, dict]]:
         """
         A dictionary where the keys are the names of actions that can be performed on this component (e.g. "plot") when calling the save function and the values are the arguments that should be passed to that action when it is called by the save function.
@@ -570,12 +574,14 @@ class CratermakerBase:
                     "save_actions must be a list where each entry is a dictionary containing a key with a valid action for this component (e.g. 'plot') and the values are the arguments"
                 )
             for action, args in entry.items():
-                if hasattr(self, action):
+                if callable(action):
+                    action_method = action
+                elif hasattr(self, action):
                     action_method = getattr(self, action)
-                    if not callable(action_method):
-                        raise ValueError(f"{action} is not a valid action for {self.name}")
                 else:
                     raise ValueError(f"{action} is not a valid action for {self.name}")
+                if not callable(action_method):
+                    raise TypeError(f"{action} is not a valid action for {self.name}")
                 if not isinstance(args, dict):
                     raise TypeError(
                         f"Arguments for action {action} must be a dictionary of keyword arguments to be passed to the {self.name}.{action}() method."
