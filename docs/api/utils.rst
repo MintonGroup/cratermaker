@@ -35,6 +35,7 @@ General utilities
     general_utils.cleanup
 
 
+.. _api-utils-visualization:
 
 Visualization utilities
 =======================

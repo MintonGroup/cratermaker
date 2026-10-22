@@ -475,7 +475,7 @@ class RealMoonCrater(BasicMoonCrater):
 
 
 @Morphology.register("realmoon")
-class RealmoonMorphology(BasicMoonMorphology):
+class RealMoonMorphology(BasicMoonMorphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
 
@@ -668,14 +668,14 @@ class RealmoonMorphology(BasicMoonMorphology):
     @property
     def psd1d_coef(self) -> xr.Dataset:
         """
-        The coefficients for the 1D PSD models used in the RealmoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
+        The coefficients for the 1D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
         """
         return self._psd1d_coef
 
     @property
     def psd2d_coef(self) -> xr.Dataset:
         """
-        The coefficients for the 2D PSD models used in the RealmoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
+        The coefficients for the 2D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
         """
         return self._psd2d_coef
 
