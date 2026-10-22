@@ -42,10 +42,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Projectile
-    asteroids = Projectile.maker("asteroids")
+    from cratermaker import Simulation
+    sim = Simulation(projectile="asteroids")
+    print(sim.projectile)
 
 
 .. currentmodule:: cratermaker.components.projectile.comets
@@ -65,10 +65,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Projectile
-    comets = Projectile.maker("comets")
+    from cratermaker import Simulation
+    sim = Simulation(projectile="comets")
+    print(sim.projectile)
 
 
 
@@ -89,8 +89,8 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Projectile
-    generic = Projectile.maker("generic", sample=True, mean_velocity=20e3, density=1500.0)
+    from cratermaker import Simulation
+    sim = Simulation(projectile="generic", sample=True, mean_velocity=20e3, density=1500.0)
+    print(sim.projectile)
 

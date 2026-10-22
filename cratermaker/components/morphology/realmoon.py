@@ -687,7 +687,7 @@ class RealMoonMorphology(BasicMoonMorphology):
     @property
     def psd_pix(self) -> float:
         if self._psd_pix is None:
-            return self.morphology.surface.pix
+            return self.surface.pix
         else:
             return self._psd_pix
 

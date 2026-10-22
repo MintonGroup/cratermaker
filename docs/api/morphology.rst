@@ -60,10 +60,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
     from cratermaker import Simulation
     sim = Simulation(morphology="basicmoon")
+    print(sim.morphology)
 
 
 
@@ -93,7 +93,7 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
     from cratermaker import Simulation
     sim = Simulation(morphology="realmoon")
+    print(sim.morphology)

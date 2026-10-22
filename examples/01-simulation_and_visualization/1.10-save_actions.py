@@ -38,9 +38,13 @@ def plot_sfd(interval, **kwargs):
     ax.set_ylabel("$\\mathregular{N_{>D}}$")
     ax.set_xlabel("Diameter (km)")
     ax.set_title(f"Time: {sim.time:.0f} My bp")
+    ax.set_xlim(1, 20.0)
+    ax.set_ylim(0.1, 40)
     ds = sim.counting.to_xarray(sim.observed)
     ds = ds.sortby(-ds.diameter)
-    ax.plot(ds.diameter * 1e-3, np.arange(1, len(ds.diameter) + 1), label="Observed")
+    n = np.arange(1, len(ds.diameter) + 1)
+    nsig = np.sqrt(n)
+    ax.errorbar(ds.diameter * 1e-3, n, yerr=nsig, label="Observed")
     ax.legend(loc="lower left")
     # plt.savefig(f"sfd{interval:02d}.pdf")
     plt.show()
@@ -49,4 +53,4 @@ def plot_sfd(interval, **kwargs):
 
 sim.add_save_action({plot_sfd: {}})
 
-sim.run(age=3500, ninterval=5)
+sim.run(age=3800, ninterval=5)

@@ -71,10 +71,10 @@ class CometProjectiles(Projectile):
     def __init__(
         self,
         monte_carlo: bool = True,
-        density: FloatLike | None = None,
-        angle: FloatLike | None = None,
-        direction: FloatLike | None = None,
-        location: tuple[FloatLike, FloatLike] | None = None,
+        projectile_density: FloatLike | None = None,
+        projectile_angle: FloatLike | None = None,
+        projectile_direction: FloatLike | None = None,
+        projectile_location: tuple[FloatLike, FloatLike] | None = None,
         target: Target | str | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
@@ -87,15 +87,15 @@ class CometProjectiles(Projectile):
         Parameters
         ----------
         monte_carlo : bool, default True
-            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile velocity will be the mean velocity for the given target body.
-        density : float
-            The density of the projectile in kg/m³. Default is 500.0 kg/m³.
-        angle : float, optional
-            The impact angle in degrees. Default is 90.0 degrees (vertical impact) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
-        direction : float | None
-            The impact direction in degrees. Default is 0.0 degrees (due North) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.`
-        location : tuple[float, float] | None
-            The impact location as a tuple of (longitude, latitude) in degrees. Default is (0.0, 0.0) (the equator and prime meridian) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
+            Flag that determines whether to sample impact velocities, angles, and directions from distributions. If set to False, the projectile projectile_velocity will be the mean projectile_velocity for the given target body.
+        projectile_density : float
+            The projectile_density of the projectile in kg/m³. Default is 500.0 kg/m³.
+        projectile_angle : float, optional
+            The impact projectile_angle in degrees. Default is 90.0 degrees (vertical impact) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
+        projectile_direction : float | None
+            The impact projectile_direction in degrees. Default is 0.0 degrees (due North) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.`
+        projectile_location : tuple[float, float] | None
+            The impact projectile_location as a tuple of (longitude, latitude) in degrees. Default is (0.0, 0.0) (the equator and prime meridian) if `monte_carlo` is False. If `monte_carlo` is True, this value is ignored.
         target : Target or str.
             The name of the target body for the impact. Default is "Moon"
         rng : Generator | None
@@ -118,19 +118,19 @@ class CometProjectiles(Projectile):
         **kwargs : Any
             |kwargs|
         """
-        density = 500.0 if density is None else density
-        kwargs.pop("mean_velocity", None)
-        kwargs.pop("velocity", None)
+        projectile_density = 500.0 if projectile_density is None else projectile_density
+        kwargs.pop("projectile_mean_velocity", None)
+        kwargs.pop("projectile_velocity", None)
         self._target = Target.maker(target, **kwargs)
-        mean_velocity = self._set_mean_velocity()
+        projectile_mean_velocity = self._set_mean_velocity()
         super().__init__(
             monte_carlo=monte_carlo,
-            mean_velocity=mean_velocity,
-            velocity=mean_velocity,
-            angle=angle,
-            direction=direction,
-            location=location,
-            density=density,
+            projectile_mean_velocity=projectile_mean_velocity,
+            projectile_velocity=projectile_mean_velocity,
+            projectile_angle=projectile_angle,
+            projectile_direction=projectile_direction,
+            projectile_location=projectile_location,
+            projectile_density=projectile_density,
             target=target,
             rng=rng,
             rng_seed=rng_seed,
@@ -145,7 +145,7 @@ class CometProjectiles(Projectile):
 
     def _set_mean_velocity(self):
         """
-        Sets the mean velocity of the projectile in m/s based on the target body.
+        Sets the mean projectile_velocity of the projectile in m/s based on the target body.
 
         Returns
         -------

@@ -21,6 +21,6 @@ Currently, there is only one implementation of Target. Passing the name of the t
 .. ipython:: python
     :okwarning:
 
-    from cratermaker import Target 
-    target = Target.maker("Ceres")
-    print(target)
+    from cratermaker import Simulation
+    sim = Simulation(target="Titan")
+    print(sim.target)

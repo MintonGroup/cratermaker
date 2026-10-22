@@ -34,7 +34,7 @@ All other parameters are optional, and if not specified, will be determined by t
 
 .. ipython:: python
 
-    from cratermaker import Crater
+    from cratermaker import Simulation
 
     crater = Crater.maker(diameter=100.0)
     print(crater)

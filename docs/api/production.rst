@@ -41,10 +41,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
     from cratermaker import Simulation
-    production = Simulation(production="neukum", version="projectile")
+    sim = Simulation(production="neukum", version="projectile")
+    print(sim.production)
 
 
 .. _api-PowerLawProduction:
@@ -66,8 +66,8 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Production
-    production = Production.maker("powerlaw", slope=-4.0, N1_coef=1.0e-6)
+    from cratermaker import Simulation
+    sim = Simulation(production="powerlaw", slope=-4.0, N1_coef=1.0e-6)
+    print(sim.production)
 

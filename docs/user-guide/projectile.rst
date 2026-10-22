@@ -29,17 +29,10 @@ Creating a Projectile
 
 .. ipython:: python
 
-    from cratermaker import Projectile
-    from cratermaker import Target
+    from cratermaker import Simulation
 
-    # First define the target
-    target = Target.maker("Moon")
-
-    #The projectile is determined based on the target by default
-    projectile = Projectile.maker(target=target)
-
-    # Print projectile properties
-    print(f"cratermaker projectile: {projectile}")
+    sim = Simulation(target="Io", gridlevel=4, ask_overwrite=False, reset=True)
+    print(sim.projectile)
 
 If no projectile parameters are specified, Cratermaker will use a default asteroid population suitable for the specified target.
 
@@ -49,16 +42,18 @@ You can specify projectile properties manually using keyword arguments.
 
 .. ipython:: python
 
-    projectile_userdefined = Projectile.maker(
+    sim = Simulation(projectile="generic", 
         projectile="generic",
         sample=False,
-        velocity=22000.0,   # meters/second
-        angle=45.0,         # degrees
-        direction=90.0,     
-        density=3000.0,     # kg/m³
-        target="Moon"
+        projectile_velocity=22000.0,   # meters/second
+        projectile_angle=45.0,         # degrees
+        projectile_direction=90.0,     
+        projectile_density=3000.0,     # kg/m³
+        target="Moon",
+        ask_overwrite=False, 
+        reset=True
     )
-    print("Projectile defined by user:", projectile_userdefined)
+    print(sim.projectile
 
 In this case, the user specifies the projectile velocity, impact angle, trajectory direction, and material density. The target is still required to complete the projectile's initialization.
 
