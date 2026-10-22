@@ -17,9 +17,10 @@ Currently, there is only one implementation of Target. Passing the name of the t
    :undoc-members:
    :no-index-entry:
 
+Usage example
+=============
 
-.. ipython:: python
-    :okwarning:
+.. code-block:: python
 
     from cratermaker import Simulation
     sim = Simulation(target="Titan")

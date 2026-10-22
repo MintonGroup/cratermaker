@@ -104,9 +104,9 @@ Crater on a Custom Target
 The following example uses a custom-defined :ref:`Target <ug-target>` object. Here we will create a 300 km diameter body in the Kuiper belt with a mass of 10\ :sup:`19` kg (about 700 kg/m\ :sup:`3` bulk density). It will use both the ice model for its surface material and simple-to-complex scaling model. 
 
 .. ipython:: python
+    :okwarning:
 
     from cratermaker import Simulation
-
     sim = Simulation(
         target="KBO-1",
         target_diameter=300e3,                
@@ -116,13 +116,13 @@ The following example uses a custom-defined :ref:`Target <ug-target>` object. He
         ask_overwrite=False,
         rest=True,
         gridlevel=0, # Setting this to 0 makes a very lightweight Surface object for situations when we aren't modeling topography explicitly
-
     )
     print(sim.target)
 
 Next we will use the |Crater.maker| method associated with the Simulation to create a crater on our custom target. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
 
 .. ipython:: python
+    :okwarning:
 
     crater = sim.Crater.maker(
         projectile_density=2800,       

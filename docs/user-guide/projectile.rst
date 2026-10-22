@@ -42,7 +42,7 @@ You can specify projectile properties manually using keyword arguments.
 
 .. ipython:: python
 
-    sim = Simulation(projectile="generic", 
+    sim = Simulation(
         projectile="generic",
         sample=False,
         projectile_velocity=22000.0,   # meters/second
@@ -53,7 +53,7 @@ You can specify projectile properties manually using keyword arguments.
         ask_overwrite=False, 
         reset=True
     )
-    print(sim.projectile
+    print(sim.projectile)
 
 In this case, the user specifies the projectile velocity, impact angle, trajectory direction, and material density. The target is still required to complete the projectile's initialization.
 
