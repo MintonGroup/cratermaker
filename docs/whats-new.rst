@@ -15,6 +15,7 @@ What's New
 ---------------------------
 
 - First draft of the RealisticMoonMorphology (accessible via morphology="realmoon" argument) is not available for preview and testing. :issue:`18` :pull:`134` `David Minton`_
+
    - Implemented all 1D PSD-based parameters: `radius`, `rim_height`, `rim_width`, and `floor_radius`. 
    - Made improvements to stability of crater profile function to avoid NaN values.
    - Improved aesthetics of the pyvista_plotter defaults, including adding a new PyVista theme called "cratermaker".
@@ -61,7 +62,7 @@ What's New
    - Reduced the time taken to get a volume estimation for small craters.
    - Fixed a bunch of issues related to getting an estimated initial volume
    - Made the monte_carlo flag more consistent throughout the components. Added ability to disable monte carlo sampling for a single Crater instance via an argument.
-   - Lifted the restriction on Python 3.14
+   - Lifted the restriction on Python 3.14.
 
 
 .. _whats-new.2026.9.0-alpha:

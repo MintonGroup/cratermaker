@@ -375,7 +375,7 @@ def register_psd1d_parameters(*features: str):
                         val = PSD1D(
                             normalization_length=self.radius,
                             mean=getattr(self, feat_name),
-                            pix=self.morphology.surface.pix,
+                            pix=self.morphology.psd_pix,
                             control_points=getattr(self, f"{feat_name}_control"),
                             add_noise=self.morphology.add_noise,
                             **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
@@ -493,6 +493,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
     psd2d_coef_file : str or Path, optional
         The file path for the 2D power spectral density coefficients. If None, then it defaults to the default internal file.
+    psd_pix : float, optional
+        Pixel size value used for generating PSDs. If None, then the pix value of the associated morphology.surface object will be used. Default is None.
     **kwargs : Any
         |kwargs|
 
@@ -505,11 +507,13 @@ class RealMoonMorphology(BasicMoonMorphology):
         variable_cls=MorphologyCraterVariable,
         psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
         psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,
+        psd_pix: float | None = None,
         **kwargs,
     ):
         object.__setattr__(self, "_add_noise", None)
         object.__setattr__(self, "_psd1d_coef", None)
         object.__setattr__(self, "_psd2d_coef", None)
+        object.__setattr__(self, "_psd_pix", None)
         self.add_noise = kwargs.pop("add_noise", False)  # Can be disabled for testing
 
         psd1d_coef_file = Path(psd1d_coef_file)
@@ -525,6 +529,7 @@ class RealMoonMorphology(BasicMoonMorphology):
 
         self._psd1d_coef = xr.open_dataset(psd1d_coef_file, engine="h5netcdf")
         self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
+        self.psd_pix = psd_pix
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
         return
 
@@ -678,6 +683,19 @@ class RealMoonMorphology(BasicMoonMorphology):
         The coefficients for the 2D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
         """
         return self._psd2d_coef
+
+    @property
+    def psd_pix(self) -> float:
+        if self._psd_pix is None:
+            return self.morphology.surface.pix
+        else:
+            return self._psd_pix
+
+    @psd_pix.setter
+    def psd_pix(self, value):
+        if not isinstance(value, FloatLike | None):
+            raise TypeError(f"psd_pix must be a a float or None. Got {value} of type {type(value)}.")
+        self._psd_pix = value
 
     @property
     def _CraterType(self) -> type[RealMoonCrater]:
