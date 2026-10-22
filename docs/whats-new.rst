@@ -3,7 +3,18 @@
 What's New
 ==========
 
+:release:`v2026.10.2-alpha`
+---------------------------
+.. _whats-new.2026.10.2-alpha:
+
+- Improved documentation and added a new save_action example. :issue:`138` :pull:`139` `David Minton`_
+- Changed ambiguous arguments: `density` is now either `target_density` or `projectile_density`, likewise for `mass`, and other projectile parameters.
+
 .. _whats-new.2026.10.1-alpha:
+
+:release:`v2026.10.1-alpha`
+---------------------------
+
 
 - Added ability to pass callable functions as save_actions. :issue:`136` :pull:`137` `David Minton`_
 - Updated ring generator for complex craters.
@@ -197,7 +208,7 @@ What's New
    - For long-running examples that use DataSurface, it will now just display a pre-rendered image instead of running the script so that the documentation can be built within the Readthdocs time limit.
    - Improved the way that components are imported in the top level of the project.
    - Improved the consistency of docstrings for class properties.
-   - Added the missing Target API page.
+   - Added the missing earget API page.
    - Improved the organization of the API pages. 
 
 .. _whats-new.2026.3.0-alpha:
