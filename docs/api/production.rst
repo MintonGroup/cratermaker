@@ -43,8 +43,8 @@ Usage example
 .. code-block:: python
    :linenos:
 
-    from cratermaker import Production
-    production = Production.maker("neukum", version="projectile")
+    from cratermaker import Simulation
+    production = Simulation(production="neukum", version="projectile")
 
 
 .. _api-PowerLawProduction:

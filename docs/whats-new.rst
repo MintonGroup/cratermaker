@@ -28,7 +28,7 @@ What's New
    - Fixed problem that was causing reloads of datasurface to revert to the default resolution because it did not save the dem_file_list argument. The _user_defined argument list gets reset when calling super().__init__() functions inside of __init__, so any arguments set before calling the base class must be restored to this list.
    - Rearranged code for extracting pix values so that you don't have to fetch it from the source if you are reading in an old run where it's already defined.
    - Fixed inconsistency in the definition of pix when using DataComposer to retrieve cylindrical LOLA data. The returned value should be m/px not px/deg.
-   0 Fixed issue that was causing parameters to not be saved to file in DataSurface, so old surfaces were not being recognized even though they were the same.
+   - Fixed issue that was causing parameters to not be saved to file in DataSurface, so old surfaces were not being recognized even though they were the same.
    - Fixed issues fetching high resolution data and polar data above 87.5 degrees
    - Fixed issue with selecting PDS files for polar data when a feature straddles a +/-60 deg latitude line
    - Removed old macos-14 from build, test, and deploy actions
