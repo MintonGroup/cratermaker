@@ -73,7 +73,7 @@ class CTEMScaling(MonteCarloScaling):
             density=density,
             **kwargs,
         )
-        object.__setattr__(self, "_montecarlo_scaling", False)
+        object.__setattr__(self, "_monte_carlo", False)
         self.recompute()  # Recreate this with MC turned off
 
     def recompute(self):

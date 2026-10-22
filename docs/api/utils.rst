@@ -32,8 +32,19 @@ General utilities
     general_utils.normalize_coords
     general_utils.validate_and_normalize_location
     general_utils.format_large_units
-    general_utils.toggle_pyvista_actor
-    general_utils.update_pyvista_help_message
     general_utils.cleanup
+
+
+.. _api-utils-visualization:
+
+Visualization utilities
+=======================
+
+.. autosummary::
+    :toctree: generated/
+
+    visualization_utils.CratermakerTheme
+    visualization_utils.toggle_pyvista_actor
+    visualization_utils.update_pyvista_help_message
 
 

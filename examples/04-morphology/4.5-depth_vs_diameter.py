@@ -50,7 +50,7 @@ ymin, ymax = 0.0, 0.30
 
 
 # Compute depth-to-diameter for 1000 craters in Cratermaker across the size range of interest
-sim = Simulation(simdir=simdir, gridlevel=0, ask_overwrite=False)
+sim = Simulation(simdir=simdir, gridlevel=0, ask_overwrite=False, reset=True)
 cm_diameter = np.exp(sim.rng.uniform(low=np.log(xmin), high=np.log(xmax), size=1000))
 cm_dD = []
 for diameter in cm_diameter * 1e3:

@@ -3,7 +3,19 @@
 What's New
 ==========
 
+:release:`v2026.10.2-alpha`
+---------------------------
+
+.. _whats-new.2026.10.2-alpha:
+
+- Improved documentation and added a new save_action example. :issue:`138` :pull:`139` `David Minton`_
+- Changed ambiguous arguments: `density` is now either `target_density` or `projectile_density`, likewise for `mass`, and other projectile parameters.
+
 .. _whats-new.2026.10.1-alpha:
+
+:release:`v2026.10.1-alpha`
+---------------------------
+
 
 - Added ability to pass callable functions as save_actions. :issue:`136` :pull:`137` `David Minton`_
 - Updated ring generator for complex craters.
@@ -15,6 +27,7 @@ What's New
 ---------------------------
 
 - First draft of the RealisticMoonMorphology (accessible via morphology="realmoon" argument) is not available for preview and testing. :issue:`18` :pull:`134` `David Minton`_
+
    - Implemented all 1D PSD-based parameters: `radius`, `rim_height`, `rim_width`, and `floor_radius`. 
    - Made improvements to stability of crater profile function to avoid NaN values.
    - Improved aesthetics of the pyvista_plotter defaults, including adding a new PyVista theme called "cratermaker".
@@ -27,7 +40,7 @@ What's New
    - Fixed problem that was causing reloads of datasurface to revert to the default resolution because it did not save the dem_file_list argument. The _user_defined argument list gets reset when calling super().__init__() functions inside of __init__, so any arguments set before calling the base class must be restored to this list.
    - Rearranged code for extracting pix values so that you don't have to fetch it from the source if you are reading in an old run where it's already defined.
    - Fixed inconsistency in the definition of pix when using DataComposer to retrieve cylindrical LOLA data. The returned value should be m/px not px/deg.
-   0 Fixed issue that was causing parameters to not be saved to file in DataSurface, so old surfaces were not being recognized even though they were the same.
+   - Fixed issue that was causing parameters to not be saved to file in DataSurface, so old surfaces were not being recognized even though they were the same.
    - Fixed issues fetching high resolution data and polar data above 87.5 degrees
    - Fixed issue with selecting PDS files for polar data when a feature straddles a +/-60 deg latitude line
    - Removed old macos-14 from build, test, and deploy actions
@@ -61,7 +74,7 @@ What's New
    - Reduced the time taken to get a volume estimation for small craters.
    - Fixed a bunch of issues related to getting an estimated initial volume
    - Made the monte_carlo flag more consistent throughout the components. Added ability to disable monte carlo sampling for a single Crater instance via an argument.
-   - Lifted the restriction on Python 3.14
+   - Lifted the restriction on Python 3.14.
 
 
 .. _whats-new.2026.9.0-alpha:
@@ -196,7 +209,7 @@ What's New
    - For long-running examples that use DataSurface, it will now just display a pre-rendered image instead of running the script so that the documentation can be built within the Readthdocs time limit.
    - Improved the way that components are imported in the top level of the project.
    - Improved the consistency of docstrings for class properties.
-   - Added the missing Target API page.
+   - Added the missing earget API page.
    - Improved the organization of the API pages. 
 
 .. _whats-new.2026.3.0-alpha:

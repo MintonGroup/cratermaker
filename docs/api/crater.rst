@@ -18,6 +18,16 @@ The ``Crater`` class is the base class for all crater objects in the simulation.
     :undoc-members:
     :no-index-entry:
 
+Usage example
+=============
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+    sim = Simulation()
+    crater = sim.Crater.maker(diameter=100e3)
+    print(crater)
+
 ***********
 CraterFixed
 ***********

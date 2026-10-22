@@ -14,6 +14,7 @@ Available Implementations
 | Class       | Argument name  | Example Usage                               |
 +=============+================+=============================================+
 | |BasicMoon| | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
+| |RealMoon|  | "realmoon"     | morphology = Morphology.maker("realmoon")   |
 +-------------+----------------+---------------------------------------------+
 
 .. autoclass:: cratermaker.components.morphology.Morphology
@@ -59,7 +60,40 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Morphology
-    morphology = Morphology.maker("basicmoon")
+    from cratermaker import Simulation
+    sim = Simulation(morphology="basicmoon")
+    print(sim.morphology)
+
+
+
+******************
+RealMoonMorphology
+******************
+
+See `Morphology`_ for inherited methods and attributes.
+
+.. autoclass:: cratermaker.components.morphology.realmoon.RealMoonMorphology
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+
+.. autoclass:: cratermaker.components.morphology.realmoon.RealMoonCrater
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+.. autoclass:: cratermaker.components.morphology.realmoon.PSD1D
+   :members:
+   :undoc-members:
+   :no-index-entry:
+
+Usage example
+=============
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+    sim = Simulation(morphology="realmoon")
+    print(sim.morphology)

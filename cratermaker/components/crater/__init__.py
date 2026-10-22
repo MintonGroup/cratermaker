@@ -981,12 +981,12 @@ class Crater(ComponentBase):
             target = Target.maker(target, **kwargs)
 
             projectile_args = {
-                "velocity": args["projectile_velocity"],
-                "mass": args["projectile_mass"],
-                "angle": args["projectile_angle"],
-                "direction": args["orientation"],
-                "location": args["location"],
-                "density": args["projectile_density"],
+                "projectile_velocity": args["projectile_velocity"],
+                "projectile_mass": args["projectile_mass"],
+                "projectile_angle": args["projectile_angle"],
+                "projectile_direction": args["orientation"],
+                "projectile_location": args["location"],
+                "projectile_density": args["projectile_density"],
             }
             projectile = Projectile.maker(
                 projectile,
