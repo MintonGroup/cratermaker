@@ -10,15 +10,15 @@ The Projectile class is an operations class defining the interface for generatin
 Available Implementations
 *************************
 
-+------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
-| Class                                                                        | Argument name     | Example Usage                                                                       |
-+==============================================================================+===================+=====================================================================================+
-| :py:class:`~cratermaker.components.projectile.asteroids.AsteroidProjectiles` | "asteroids"       | asteroids = Projectile.maker("asteroids")                                           |
-+------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
-| :py:class:`~cratermaker.components.projectile.comets.CometProjectiles`       | "comets"          | comets = Projectile.maker("comets")                                                 |
-+------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
-| :py:class:`~cratermaker.components.projectile.generic.GenericProjectiles`    | "generic"         | generic = Projectile.maker("generic",sample=True,mean_velocity=20e3,density=1500.0) |
-+------------------------------------------------------------------------------+-------------------+-------------------------------------------------------------------------------------+
++------------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------------------------------------------+
+| Class                                                                        | Argument name     | Example Usage                                                                                             |
++==============================================================================+===================+===========================================================================================================+
+| :py:class:`~cratermaker.components.projectile.asteroids.AsteroidProjectiles` | "asteroids"       | asteroids = Projectile.maker("asteroids")                                                                 |
++------------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.projectile.comets.CometProjectiles`       | "comets"          | comets = Projectile.maker("comets")                                                                       |
++------------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------------------------------------------+
+| :py:class:`~cratermaker.components.projectile.generic.GenericProjectiles`    | "generic"         | generic = Projectile.maker("generic",sample=True,projectile_mean_velocity=20e3,projectile_density=1500.0) |
++------------------------------------------------------------------------------+-------------------+-----------------------------------------------------------------------------------------------------------+
 
 .. autoclass:: cratermaker.components.projectile.Projectile
    :members:
@@ -91,6 +91,6 @@ Usage example
 .. code-block:: python
 
     from cratermaker import Simulation
-    sim = Simulation(projectile="generic", sample=True, mean_velocity=20e3, density=1500.0)
+    sim = Simulation(projectile="generic", sample=True, projectile_mean_velocity=20e3, projectile_density=1500.0)
     print(sim.projectile)
 

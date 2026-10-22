@@ -30,8 +30,8 @@ Usage example
                      local_location=(58.2,25.4), 
                      projectile="generic", 
                      sample=True, 
-                     mean_velocity=5e3, 
-                     density=1500.0,
+                     projectile_mean_velocity=5e3, 
+                     projectile_density=1500.0,
                      ask_overwrite=False,
                      reset=True,
                      )

@@ -14,7 +14,7 @@ import numpy as np
 from cratermaker import Projectile
 
 # Sample data generation
-proj = Projectile(mean_velocity=5000, density=3000)
+proj = Projectile.maker(projectile_mean_velocity=5000, projectile_density=3000)
 size = 10000
 angles = np.array([proj.new_projectile().angle for _ in range(size)])
 
