@@ -217,110 +217,134 @@ class BasicMoonCrater(MorphologyCrater):
 
         floor_elevation_params = {
             "simple": {
-                "coefficients": [-4.160507429490705, 1.599249151144964, -0.03745250192819334],
-                "c": -2.562012826163061,
-                "alpha": 1.5045604523266551,
+                "coefficients": [-4.167687018033455, 1.6001202454523342, -0.03747552110388699],
+                "c": -2.274464155672326,
+                "alpha": 1.455516197513936,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [5.482403997477929, 0.23572558115334963, -0.0024268728066466697],
-                "c": -3.055177445505947,
-                "alpha": 1.7793410243827403,
+                "coefficients": [5.4915689253420545, 0.23298682432901896, -0.0022430661802085037],
+                "c": -3.7362261125113427,
+                "alpha": 1.866447443526078,
                 "fit_scale": "loglog",
             },
         }
         rim_height_params = {
             "simple": {
-                "coefficients": [-4.421427362629697, 1.2534012882562882, -0.010753563211135434],
-                "c": -4.288644222049674,
-                "alpha": 1.7342616764166658,
+                "coefficients": [-4.461857399058903, 1.2645885691929473, -0.011531387005605066],
+                "c": -4.218604205452387,
+                "alpha": 1.72797341370465,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-3.4556548162513887, 1.593585978612741, -0.05721388510727012],
-                "c": -6.220025412184776,
-                "alpha": 2.13358754440677,
+                "coefficients": [-5.10327300754197, 1.8991299658269363, -0.0711637556510648],
+                "c": -6.080795135614891,
+                "alpha": 2.0966521781546383,
                 "fit_scale": "loglog",
             },
         }
         rim_width_params = {
             "simple": {
-                "coefficients": [-3.045847003837332, 1.4539660040002333, -0.037807277145014945],
-                "c": -5.620913910182216,
-                "alpha": 2.1728440150059303,
+                "coefficients": [-3.0877789815769905, 1.4473834897759599, -0.036680803391976054],
+                "c": -5.504615471104058,
+                "alpha": 2.1143223655406027,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-8.725006081822205, 2.3310469870402106, -0.06989196343460678],
-                "c": -10.567475045514044,
-                "alpha": 2.830895656122375,
+                "coefficients": [-0.13959296561846923, 0.6920030607817031, 0.006073402057851526],
+                "c": -6.197739434603876,
+                "alpha": 2.3569121813546987,
                 "fit_scale": "loglog",
             },
         }
         floor_radius_params = {
             "simple": {
-                "coefficients": [-0.4662064569771807, 0.33817410631973205, 0.05355193127425717],
-                "c": 0.38559823495611667,
-                "alpha": 1.3445532112030967,
+                "coefficients": [-0.900242255950584, 0.455179909117242, 0.04575920054549337],
+                "c": -0.3616562884185268,
+                "alpha": 1.4684589969693498,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-9.101728576301015, 2.252588400381715, -0.048532444778273884],
-                "c": -3.088910918010094,
-                "alpha": 1.7883665714388237,
+                "coefficients": [-12.34730111609687, 2.8374446646267857, -0.07447326061389413],
+                "c": -2.377257077688099,
+                "alpha": 1.752512234751084,
                 "fit_scale": "loglog",
             },
         }
         wall_curvature_params = {
             "simple": {
-                "coefficients": [-0.2710507092156919, 0.17550018816052823, -0.014831405246080233],
-                "c": -0.008988707089111259,
-                "alpha": 0.11947458965992919,
+                "coefficients": [-0.25824388040970825, 0.17625334392925013, -0.014915775447250382],
+                "c": -0.008556260200970858,
+                "alpha": 0.10594060062350721,
                 "fit_scale": "logx",
             },
             "non-simple": {
-                "coefficients": [-0.7876287640925922, 0.08245429872428245, 0.0006996419420246415],
-                "c": 0.0009420263972111931,
-                "alpha": 0.06566274358913382,
+                "coefficients": [0.18987288872317, -0.08418984102324649, 0.007551647630654395],
+                "c": 0.001958457521099688,
+                "alpha": 0.04951276138707961,
                 "fit_scale": "logx",
             },
         }
         floor_blend_params = {
             "simple": {
-                "coefficients": [1.2270182757841783, -0.16136511656116356, 0.010525680946288323],
-                "c": 0.121956381369341,
-                "alpha": -0.13929136505343548,
+                "coefficients": [1.059340070020194, -0.13182446192525693, 0.00902946332988967],
+                "c": 0.1404880414615158,
+                "alpha": -0.17880038251603678,
                 "fit_scale": "logx",
             },
             "non-simple": {
-                "coefficients": [-2.311906938392897, 0.5934958331816245, -0.029935961000999642],
-                "c": -0.020032323223586834,
-                "alpha": 0.08071381958065849,
+                "coefficients": [0.5808979959114502, 0.03860715120274549, -0.0037083300328609988],
+                "c": -0.05625078483323789,
+                "alpha": 0.13327426573917356,
                 "fit_scale": "logx",
             },
         }
         peak_height_params = {
             "non-simple": {
-                "coefficients": [7023.854421953942, -1572.4795726336295, 90.70887127243718],
-                "c": 28642.654291270857,
-                "alpha": 125.58861203977838,
+                "coefficients": [3446.114633388009, -888.9879125470408, 58.43540553673689],
+                "c": 49177.29323139237,
+                "alpha": 108.72351648253827,
                 "fit_scale": "logx",
             },
         }
         peak_width_params = {
             "non-simple": {
-                "coefficients": [314657.30041930533, -62713.95967874097, 3134.148693476538],
-                "c": 2419292.561764227,
-                "alpha": 966.9394773005791,
+                "coefficients": [370074.37674616196, -73224.92406382009, 3630.2460325568773],
+                "c": 3843578.4915611,
+                "alpha": 252.2461102371035,
                 "fit_scale": "logx",
             },
         }
-        peak_ring_radius_params = {
+        ring_radius_params = {
             "non-simple": {
-                "coefficients": [1588874.0652091801, -307941.727633419, 14909.538899936193],
-                "c": 52381591.38441385,
-                "alpha": 1977.5905295863345,
-                "fit_scale": "logx",
+                "coefficients": [-6.613689951394371, 1.976602153637156, -0.042115405413714696],
+                "c": -3.610867824558726,
+                "alpha": 1.7741307984706642,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_rim_height_params = {
+            "non-simple": {
+                "coefficients": [-31.93167277655391, 5.496001921151941, -0.19131828795098776],
+                "c": -0.3766269768654428,
+                "alpha": 1.7427748575666637,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_floor_radius_params = {
+            "non-simple": {
+                "coefficients": [-5.551393952731496, 1.6979145956073238, -0.029252203610892827],
+                "c": -6.467424320735284,
+                "alpha": 2.139551688327142,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_rim_width_params = {
+            "non-simple": {
+                "coefficients": [-15.962694436765481, 3.2135115326621557, -0.08918699188536301],
+                "c": -1.0673993551823213,
+                "alpha": 1.7610723251290876,
+                "fit_scale": "loglog",
             },
         }
 
@@ -459,14 +483,34 @@ class BasicMoonCrater(MorphologyCrater):
 
         if num_new_rings > 0:
             for i in range(num_new_rings):
-                if monte_carlo:
-                    rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
+                if i == 0:
+                    radius_outer = crater.radius
+                    floor_radius_outer = crater.floor_radius
                 else:
-                    rnd_factor = np.ones(4)
-                radius_ratio = np.sqrt(2.0) ** (i + 1)
-                radius = crater.radius * rnd_factor[0] / radius_ratio
-                floor_radius = crater.floor_radius * rnd_factor[1] / radius_ratio
-                rim_height = rnd_factor[3] * crater.rim_height * (0.4) ** (i + 1)
+                    radius_outer = crater.rings[i - 1].radius
+                    floor_radius_outer = crater.rings[i - 1].floor_radius
+                radius = min(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_radius_params[fit_category]
+                    )[0]
+                    * radius_outer
+                    / crater.radius,
+                    radius_outer,
+                )
+                floor_radius = min(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_floor_radius_params[fit_category]
+                    )[0]
+                    * floor_radius_outer
+                    / crater.floor_radius,
+                    floor_radius_outer,
+                )
+                rim_height = max(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_rim_height_params[fit_category]
+                    )[0],
+                    0.0,
+                )
                 if i == 0:
                     frac_ejrim = crater.frac_ejrim * rim_height / crater.rim_height
                 else:
