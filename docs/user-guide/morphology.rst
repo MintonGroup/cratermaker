@@ -30,9 +30,9 @@ The Morphology component is used to alter the topography of a :ref:`Surface <ug-
 
 .. ipython:: python
 
-    from cratermaker import Morphology
-    morphology = Morphology.maker("basicmoon")
-    print(morphology)
+    from cratermaker import Simulation
+    sim = Simulation(gridsize=4, morphology="basicmoon", ask_overwrite=False, reset=True)
+    print(sim.morphology)
 
 Crater Emplacement
 ------------------
@@ -41,9 +41,9 @@ The main purpose of a Morphology model is to emplace craters on a surface. This 
 
 .. ipython:: python
 
-    from cratermaker import Crater
-    crater = Crater.maker(diameter=25e3)
-    morphology.emplace(crater)
+
+    crater = sim.Crater.maker(diameter=25e3)
+    sim.emplace(crater)
 
 Internally, a morphology model maintains a queue of craters that can be processed in parallel batches, provided they do not affect overlapping regions of the surface mesh. This allows for physically plausible yet efficient crater emplacement across geologic timescales.
 
@@ -54,8 +54,8 @@ You can enqueue multiple craters using :py:meth:`~cratermaker.components.morphol
 
 .. ipython:: python
 
-    craters = [Crater.maker(diameter=d) for d in (5e3, 10e3, 15e3)]
-    morphology.emplace(craters)
+    craters = [sim.Crater.maker(diameter=d) for d in (5e3, 10e3, 15e3)]
+    sim.emplace(craters)
 
 More Morphology Examples
 ------------------------
