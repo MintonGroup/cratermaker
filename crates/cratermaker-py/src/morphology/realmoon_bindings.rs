@@ -1,76 +1,107 @@
 use cratermaker_components::morphology::realmoon::RealMoonCrater;
 use interp::{InterpMode, interp_slice};
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
+use std::f64::consts::TAU;
+use paste::paste;
 
-// Mirrors the RealMoonCrater struct in cratermaker-components and provides read-only access to its fields from Python.
-pub struct PyReadonlyRealMoonCrater<'py> {
-    pub diameter: f64,
-    pub radius: f64,
-    pub floor_elevation: f64,
-    pub floor_radius: f64,
-    pub wall_curvature: f64,
-    pub floor_blend: f64,
-    pub rim_width: f64,
-    pub rim_height: f64,
-    pub frac_ejrim: f64,
-    pub ejprofile: f64,
-    pub peak_height: f64,
-    pub peak_width: f64,
-    pub peak_ring_radius: f64,
-    pub peak_center_distance: f64,
-    pub peak_center_bearing: f64,
-    pub rim_radius_psd: PyReadonlyArray2<'py, f64>,
-    pub floor_radius_psd: PyReadonlyArray2<'py, f64>,
+// Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
+pub struct PyPSD1D<'py> {
+    pub nprofile: usize,
+    pub nfreq: usize,
+    pub normalization_length: f64,
+    pub mean: f64,
+    pub pix: f64,
+    pub wavelength: PyReadonlyArray1<'py, f64>,
+    pub amplitude: PyReadonlyArray1<'py, f64>,
+    pub phase: PyReadonlyArray1<'py, f64>,
 }
-impl<'py> PyReadonlyRealMoonCrater<'py> {
-    /// Build from a Python PyReadonlyCrater object
+
+impl<'py> PyPSD1D<'py> {
+    // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let nprofile: usize = obj.getattr("nprofile")?.extract()?;
+        let nfreq: usize = obj.getattr("nfreq")?.extract()?;
+        let normalization_length: f64 = obj.getattr("normalization_length")?.extract()?;
+        let mean: f64 = obj.getattr("mean")?.extract()?;
+        let pix: f64 = obj.getattr("pix")?.extract()?;
         Ok(Self {
-            diameter: obj.getattr("diameter")?.extract()?,
-            radius: obj.getattr("radius")?.extract()?,
-            floor_elevation: obj.getattr("floor_elevation")?.extract()?,
-            floor_radius: obj.getattr("floor_radius")?.extract()?,
-            wall_curvature: obj.getattr("wall_curvature")?.extract()?,
-            floor_blend: obj.getattr("floor_blend")?.extract()?,
-            rim_width: obj.getattr("rim_width")?.extract()?,
-            rim_height: obj.getattr("rim_height")?.extract()?,
-            frac_ejrim: obj.getattr("frac_ejrim")?.extract()?,
-            ejprofile: obj.getattr("ejprofile")?.extract()?,
-            peak_height: obj.getattr("peak_height")?.extract()?,
-            peak_width: obj.getattr("peak_width")?.extract()?,
-            peak_ring_radius: obj.getattr("peak_ring_radius")?.extract()?,
-            peak_center_distance: obj.getattr("peak_center_distance")?.extract()?,
-            peak_center_bearing: obj.getattr("peak_center_bearing")?.extract()?,
-            rim_radius_psd: obj.getattr("rim_radius_psd")?.extract()?,
-            floor_radius_psd: obj.getattr("floor_radius_psd")?.extract()?,
+            nprofile,
+            nfreq,
+            normalization_length,
+            mean,
+            pix,
+            wavelength: obj.getattr("wavelength")?.extract()?,
+            amplitude: obj.getattr("amplitude")?.extract()?,
+            phase: obj.getattr("phase")?.extract()?,
         })
     }
-    /// Convert to cratermaker-components PyReadonlyLocalSurface with array views
-    pub fn as_views(&self) -> RealMoonCrater<'_> {
-        RealMoonCrater {
-            diameter: self.diameter,
-            radius: self.radius,
-            floor_elevation: self.floor_elevation,
-            floor_radius: self.floor_radius,
-            wall_curvature: self.wall_curvature,
-            floor_blend: self.floor_blend,
-            rim_width: self.rim_width,
-            rim_height: self.rim_height,
-            frac_ejrim: self.frac_ejrim,
-            ejprofile: self.ejprofile,
-            peak_height: self.peak_height,
-            peak_width: self.peak_width,
-            peak_ring_radius: self.peak_ring_radius,
-            peak_center_distance: self.peak_center_distance,
-            peak_center_bearing: self.peak_center_bearing,
-            rim_radius_psd: self.rim_radius_psd.as_array(),
-            floor_radius_psd: self.floor_radius_psd.as_array(),
+
+    // Converts all of the PyArray objects inside the struct to memory views of the arrays
+    pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::PSD1DView<'_> {
+        cratermaker_components::morphology::realmoon::PSD1DView {
+            nprofile: self.nprofile,
+            nfreq: self.nfreq,
+            normalization_length: self.normalization_length,
+            mean: self.mean,
+            pix: self.pix,
+            wavelength: self.wavelength.as_array(),
+            amplitude: self.amplitude.as_array(),
+            phase: self.phase.as_array(),
         }
     }
 }
+
+// This will build a boilerplate struct that contains the PSD objects for all of the Python crater object properties with the pattern [name]_psd.
+macro_rules! define_crater_structs {
+    (
+        floats: [ $($float_field:ident),* ],
+        psds: [ $($psd_field:ident),* ]
+    ) => {
+        paste! {
+            pub struct PyReadonlyRealMoonCrater<'py> {
+                $( pub $float_field: f64, )*
+                $( pub [<$psd_field _psd>]: PyPSD1D<'py>, )*
+            } 
+
+            impl<'py> PyReadonlyRealMoonCrater<'py> {
+                pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+                    Ok(Self {
+                        $( $float_field: obj.getattr(stringify!($float_field))?.extract()?, )*
+                        $(
+                            [<$psd_field _psd>]: PyPSD1D::from_py(
+                                &obj.getattr(stringify!([<$psd_field _psd>]))?
+                            )?,
+                        )*
+                    })
+                }
+
+                pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::RealMoonCrater<'_> {
+                    cratermaker_components::morphology::realmoon::RealMoonCrater {
+                        $( $float_field: self.$float_field, )*
+                        $(
+                            [<$psd_field _psd>]: self.[<$psd_field _psd>].as_views(),
+                        )*
+                    }
+                }
+            }
+        }
+    };
+}
+
+define_crater_structs! {
+    floats: [
+        diameter, radius, floor_elevation, floor_radius, wall_curvature,
+        floor_blend, rim_width, rim_height, frac_ejrim, ejprofile,
+        peak_height, peak_width, peak_ring_radius, peak_center_distance,
+        peak_center_bearing
+    ],
+    psds: [ radius, floor_radius, rim_width, rim_height]
+}
+
+
 
 /// Computes a crater profile elevation array from input radial distances and reference elevations using the realistic moon model of Du et al. (2024a,b).
 ///
@@ -148,56 +179,89 @@ pub fn realmoon_profile<'py>(
 pub fn get_1d_psd_from_control_points<'py>(
     py: Python<'py>,
     control_points: HashMap<String, f64>,
-    npoints: usize,
+    mean: f64,
+    nprofile: usize,
     add_noise: bool,
     rng_seed: u64,
-) -> PyResult<Bound<'py, PyArray2<f64>>> {
-    let result = cratermaker_components::morphology::realmoon::get_1d_psd_from_control_points(
-        &control_points,
-        npoints,
-        add_noise,
-        rng_seed,
-    )
-    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    Ok(PyArray2::from_owned_array(py, result))
+) -> PyResult<(
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<f64>>,
+)> {
+    let (wavelength, amplitude, phase) =
+        cratermaker_components::morphology::realmoon::get_1d_psd_from_control_points(
+            &control_points,
+            mean,
+            nprofile,
+            add_noise,
+            rng_seed,
+        )
+        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    let wavelength = PyArray1::from_owned_array(py, wavelength);
+    let amplitude = PyArray1::from_owned_array(py, amplitude);
+    let phase = PyArray1::from_owned_array(py, phase);
+
+    Ok((wavelength, amplitude, phase))
 }
 
 ///
-/// Generates a surface profile based on a 1D power spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
+/// Generates a surface profile based on a 1D amplitude spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
 ///
 /// # Arguments
-/// * `crater_radius` - The radius of the crater (in meters), which scales the amplitude
-/// * `ymean` - The mean elevation of the surface (in meters), which serves as a baseline for the profile.
-/// * `psd` - A 2D array where the first column contains wavelengths and the second column contains power values, defining the roughness characteristics of the surface.
-/// * `theta` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
-/// * `phases` - An optional 1D array of phase values (in radians) corresponding to each frequency in the PSD. If not provided, random phases will be generated.
-/// * `rng_seed` - The random seed for reproducibility when generating random phases if `phases` is not provided.
+/// * `psd` - The PSD struct containing wavelength, amplitude, phase, and mean values.
+/// * `bearing` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
+///
 /// # Returns
-/// * A 1D array of values corresponding to the input bearings, representing the linear profile generated from the PSD and phase information.
+///
+/// * A 1D array of values corresponding to the input bearing angles, representing the linear profile generated from the PSD.
 ///
 #[pyfunction]
 pub fn profile_from_psd<'py>(
     py: Python<'py>,
-    crater_radius: f64,
-    ymean: f64,
-    psd: PyReadonlyArray2<'py, f64>,
-    theta: PyReadonlyArray1<'py, f64>,
+    psd: Bound<'py, PyAny>,
+    bearing: PyReadonlyArray1<'py, f64>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let psd_v = psd.as_array();
-    let theta_v = theta.as_array();
+    let psd_py = PyPSD1D::from_py(&psd)?;
+    let psd_v = psd_py.as_views();
+    let bearing_v = bearing.as_array();
 
-    let (profile, psd_theta) =
-        cratermaker_components::morphology::realmoon::compute_profile_from_psd(
-            crater_radius,
-            ymean,
-            psd_v,
-        );
+    let (psd_bearing, profile) =
+        cratermaker_components::morphology::realmoon::profile_from_psd(&psd_v);
+    let n = psd_bearing.len();
+    if n == 0 {
+        return Ok(PyArray1::from_vec(py, Vec::new()));
+    }
+
+    let mut padded_bearing = Vec::with_capacity(n + 2);
+    let mut padded_profile = Vec::with_capacity(n + 2);
+    padded_bearing.push(psd_bearing[n - 1] - TAU);
+    padded_profile.push(profile[n - 1]);
+    padded_bearing.extend_from_slice(&psd_bearing);
+    padded_profile.extend_from_slice(&profile);
+    padded_bearing.push(psd_bearing[0] + TAU);
+    padded_profile.push(profile[0]);
 
     let result = interp_slice(
-        &psd_theta,
-        &profile,
-        &theta_v.to_vec(),
+        &padded_bearing,
+        &padded_profile,
+        &bearing_v.to_vec(),
         &InterpMode::default(),
     );
     Ok(PyArray1::from_vec(py, result))
+}
+
+#[pyfunction]
+pub fn psd_from_profile<'py>(
+    py: Python<'py>,
+    profile: PyReadonlyArray1<'py, f64>,
+) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
+    let profile_v = profile.as_array();
+
+    let (amplitude, phase) =
+        cratermaker_components::morphology::realmoon::psd_from_profile(&profile_v);
+
+    Ok((
+        PyArray1::from_vec(py, amplitude),
+        PyArray1::from_vec(py, phase),
+    ))
 }

@@ -205,6 +205,7 @@ rst_prolog = """
 .. |Morphology| replace:: :py:class:`~cratermaker.components.morphology.Morphology`
 .. |morphology.Crater| replace:: :py:attr:`~cratermaker.components.morphology.Morphology.Crater`
 .. |BasicMoon| replace:: :py:class:`~cratermaker.components.morphology.basicmoon.BasicMoonMorphology`
+.. |RealMoon| replace:: :py:class:`~cratermaker.components.morphology.basicmoon.RealMoonMorphology`
 .. |Counting| replace:: :py:class:`~cratermaker.components.counting.Counting`
 .. |Projectile| replace:: :py:class:`~cratermaker.components.projectile.Projectile`
 .. |Scaling| replace:: :py:class:`~cratermaker.components.scaling.Scaling`

@@ -34,22 +34,13 @@ All other parameters are optional, and if not specified, will be determined by t
 
 .. ipython:: python
 
-    from cratermaker import Crater
-
-    crater = Crater.maker(diameter=100.0)
+    from cratermaker import Simulation
+    sim = Simulation(gridlevel=0, ask_overwrite=False, reset=True)
+    crater = sim.Crater.maker(diameter=100.0)
     print(crater)
 
 As we can see, the Crater object contains values for the transient crater diameter, projectile properties, including size, mass, and impact velocity, angle and direction. It also contains a set of location coordinates on the target body, and a string value of the morphology type indicating that this is a simple crater. 
 
-Because we didn't specify them, the :ref:`default values <ug-defaults>` of :ref:`Target <ug-target>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` were used. Therefore the above is quivalent to:
-
-.. ipython:: python
-
-    crater = Crater.maker(diameter=100.0, 
-                          target="Moon", 
-                          projectile="asteroids", 
-                          scaling="montecarlo")
-    print(crater)
 
 Crater from Projectile
 ----------------------
@@ -58,7 +49,9 @@ You can also create a crater by specifying the projectile size, which will then 
 
 .. ipython:: python
 
-    crater = Crater.maker(target="Europa", projectile_diameter=1500)
+    from cratermaker import Simulation
+    sim = Simulation(target="Europa", gridlevel=0, ask_overwrite=False, reset=True) 
+    crater = sim.Crater.maker(projectile_diameter=1500)
     print(crater)
 
 Because we chose Europa as a target, the default projectile population is "comets" instead of "asteroids."
@@ -84,8 +77,7 @@ Suppose we wish to create a crater with a 10km transient diameter on Europa, but
 
 .. ipython:: python
 
-    crater = Crater.maker(
-        target="Europa",
+    crater = sim.Crater.maker(
         transient_diameter=10e3,
         projectile_density=900,        
         projectile_velocity=30e3,
@@ -98,8 +90,8 @@ We can specify the projectile angle from a combination of the vertical velocity 
 
 .. ipython:: python
 
-    crater = Crater.maker(
-        target="Mercury",
+    sim = Simulation(target="Mercury", gridlevel=0, ask_overwrite=False, reset=True) 
+    crater = sim.Crater.maker(
         projectile_diameter=3000.0,
         projectile_velocity=35.0e3,
         projectile_vertical_velocity=20e3,
@@ -112,24 +104,27 @@ Crater on a Custom Target
 The following example uses a custom-defined :ref:`Target <ug-target>` object. Here we will create a 300 km diameter body in the Kuiper belt with a mass of 10\ :sup:`19` kg (about 700 kg/m\ :sup:`3` bulk density). It will use both the ice model for its surface material and simple-to-complex scaling model. 
 
 .. ipython:: python
+    :okwarning:
 
-    from cratermaker import Crater, Target
-
-    kuip_belt_obj = Target(
-        name="KBO-1",
-        diameter=300e3,                
-        mass=1e19,                     
-        material="Ice",
-        transition_scale_type="ice"
+    from cratermaker import Simulation
+    sim = Simulation(
+        target="KBO-1",
+        target_diameter=300e3,                
+        target_mass=1e19,                     
+        target_material="Ice",
+        transition_scale_type="ice",
+        ask_overwrite=False,
+        rest=True,
+        gridlevel=0, # Setting this to 0 makes a very lightweight Surface object for situations when we aren't modeling topography explicitly
     )
-    print(kuip_belt_obj)
+    print(sim.target)
 
-Next we will feed our custom target body to the |Crater.maker| method to create a crater on it. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
+Next we will use the |Crater.maker| method associated with the Simulation to create a crater on our custom target. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
 
 .. ipython:: python
+    :okwarning:
 
-    crater = Crater.maker(
-        target=kuip_belt_obj,
+    crater = sim.Crater.maker(
         projectile_density=2800,       
         projectile_diameter=500,       
         projectile_velocity=5000,     

@@ -20,6 +20,7 @@ from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.components.target import Target
 from cratermaker.core.simulation import Simulation
 from cratermaker.utils.general_utils import cleanup
+from cratermaker.utils.visualization_utils import CratermakerTheme
 
 _COMPONENT_NAMES = ["crater", "counting", "morphology", "production", "projectile", "scaling", "surface", "target", "layers"]
 

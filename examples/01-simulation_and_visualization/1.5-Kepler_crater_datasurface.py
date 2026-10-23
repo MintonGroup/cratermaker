@@ -8,8 +8,6 @@ This example demonstrates how to use the DataSurface to fetch real DEM data for 
 
 """
 
-import os
-
 simdir = "simdata-1_5"
 from cratermaker import Surface
 

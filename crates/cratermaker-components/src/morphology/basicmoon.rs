@@ -1,4 +1,5 @@
 use crate::ArrayResult;
+use crate::morphology::{smootherstep,blend_step};
 use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
@@ -8,10 +9,7 @@ use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::f64::{
-    self, EPSILON,
-    consts::{PI, SQRT_2, TAU},
-};
+use std::f64::consts::{PI, SQRT_2, TAU};
 
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
@@ -133,20 +131,38 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
+
+    // Prevent invalid values of parameters
+    let radius = crater.radius.max(1e-8); 
+    let floor_elevation = crater.floor_elevation.min(-1e-8); 
+    let floor_radius = crater.floor_radius.max(1e-8); 
+    let peak_height = crater.peak_height.max(0.0);
+    let peak_width = crater.peak_width.max(0.0);
+    let peak_ring_radius = crater.peak_ring_radius.max(0.0);
+
+    // Guard against NaN in inputs by falling back to safe defaults
+    let wall_curvature = if crater.wall_curvature.is_nan() { 0.5 } else { crater.wall_curvature.max(0.0).min(1.0) };
+    let floor_blend = if crater.floor_blend.is_nan() { 0.5 } else { crater.floor_blend.max(0.0).min(1.0) };
+    let rim_width = if crater.rim_width.is_nan() { radius * 0.1 } else { crater.rim_width.max(radius * 1e-3) };
+    let rim_height = if crater.rim_height.is_nan() { 0.0 } else { crater.rim_height.max(0.0) };
+    let frac_ejrim = if crater.frac_ejrim.is_nan() { 0.5 } else { crater.frac_ejrim.max(0.0).min(1.0) };
+    let ejprofile = if crater.ejprofile.is_nan() { -3.0 } else { crater.ejprofile.max(-6.0).min(-0.25) };
+
+
     let mut hcrat = crater_profile_function(
         r,
-        crater.radius,
-        crater.floor_elevation,
-        crater.floor_radius,
-        crater.wall_curvature,
-        crater.floor_blend,
-        crater.rim_width,
-        crater.rim_height,
-        crater.frac_ejrim,
-        crater.ejprofile,
-        crater.peak_height,
-        crater.peak_width,
-        crater.peak_ring_radius,
+        radius,
+        floor_elevation,
+        floor_radius,
+        wall_curvature,
+        floor_blend,
+        rim_width,
+        rim_height,
+        frac_ejrim,
+        ejprofile,
+        peak_height,
+        peak_width,
+        peak_ring_radius,
     );
     match rings {
         Some(rings) => {
@@ -156,21 +172,32 @@ pub fn basicmoon_profile_one(
                 } else {
                     elevation_offset_func(&rings[i - 1], ring)
                 };
-                let ring_floor_elevation = crater.floor_elevation - elevation_offset;
+                let mut ring_floor_elevation = crater.floor_elevation - elevation_offset;
+                ring_floor_elevation = ring_floor_elevation.min(-1e-8); 
+
+                let ring_radius = ring.radius.max(1e-8); 
+                let ring_floor_radius = ring.floor_radius.max(1e-8); 
+                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0); 
+                // Guard against NaN in inputs by falling back to safe defaults
+                let ring_wall_curvature = if ring.wall_curvature.is_nan() { 0.5 } else { ring.wall_curvature.max(0.0).min(1.0) };
+                let ring_frac_ejrim = if ring.frac_ejrim.is_nan() { 0.5 } else { ring.frac_ejrim.max(0.0).min(1.0) };
+                let ring_ejprofile = if ring.ejprofile.is_nan() { -3.0 } else { ring.ejprofile.max(-6.0).min(-0.25) };
+
                 let hring = crater_profile_function(
                     r,
-                    ring.radius,
+                    ring_radius,
                     ring_floor_elevation,
-                    ring.floor_radius,
-                    ring.wall_curvature,
-                    crater.floor_blend,
-                    ring.rim_width,
-                    ring.rim_height,
-                    ring.frac_ejrim,
-                    ring.ejprofile,
-                    crater.peak_height,
-                    crater.peak_width,
-                    crater.peak_ring_radius,
+                    ring_floor_radius,
+                    ring_wall_curvature,
+                    floor_blend,
+                    ring_rim_width,
+                    ring_rim_height,
+                    ring_frac_ejrim,
+                    ring_ejprofile,
+                    peak_height,
+                    peak_width,
+                    peak_ring_radius,
                 ) + elevation_offset;
                 hcrat = hcrat.max(hring);
             }
@@ -179,21 +206,31 @@ pub fn basicmoon_profile_one(
     }
     let mut hej = ejecta_profile_function(
         r,
-        crater.radius,
-        crater.frac_ejrim * crater.rim_height,
-        crater.ejprofile,
-        crater.rim_width,
+        radius,
+        frac_ejrim,
+        rim_height,
+        ejprofile,
+        rim_width,
     );
 
     match rings {
         Some(rings) => {
             for (i, ring) in rings.iter().enumerate() {
+
+                let ring_radius = ring.radius.max(1e-8); 
+                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0); 
+                let ring_frac_ejrim = ring.frac_ejrim.max(0.0).min(1.0);
+                let ring_ejprofile = ring.ejprofile.max(-6.0).min(-0.25);
+
+
                 let mut hejring = ejecta_profile_function(
                     r,
-                    ring.radius,
-                    ring.frac_ejrim * ring.rim_height,
-                    ring.ejprofile,
-                    ring.rim_width,
+                    ring_radius,
+                    ring_frac_ejrim,
+                    ring_rim_height,
+                    ring_ejprofile,
+                    ring_rim_width,
                 );
                 let elevation_offset = if i == 0 {
                     elevation_offset_func(crater, ring)
@@ -203,7 +240,10 @@ pub fn basicmoon_profile_one(
                 let hrel = hcrat - elevation_offset;
                 if r <= ring.radius && hrel >= 0.0 {
                     let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
-                    hejring += (hrel - hup).clamp(0.0, ring.frac_ejrim * ring.rim_height);
+                    let max_clamp = (ring_frac_ejrim * ring_rim_height).max(0.0);
+                    if !hup.is_nan() && !max_clamp.is_nan() {
+                        hejring += (hrel - hup).clamp(0.0, max_clamp);
+                    }
                 }
                 hej += hejring;
             }
@@ -220,7 +260,10 @@ pub fn basicmoon_profile_one(
             0.0,
             0.5 * crater.rim_width,
         );
-        hej += (hcrat - hup).clamp(0.0, crater.frac_ejrim * crater.rim_height);
+        let max_clamp = (frac_ejrim * rim_height).max(0.0);
+        if !hup.is_nan() && !max_clamp.is_nan() {
+            hej += (hcrat - hup).clamp(0.0, max_clamp);
+        }
     }
 
     if include_crater {
@@ -234,7 +277,8 @@ pub fn basicmoon_profile_one(
         hej = 0.0;
     }
 
-    href + hcrat + hej
+    let final_val = href + hcrat + hej;
+    if final_val.is_nan() { href } else { final_val }
 }
 
 #[inline]
@@ -314,16 +358,16 @@ pub fn crater_profile_function(
         hfloor
     };
     let hwalltofloor = walltofloorfunc(r, radius, rf, hr, hf, rfw);
-    let hwf = blend(r, hwalltofloor, hwall, rf, rfw);
-    hwall = blend(r, hfloor, hwf, rf, rfw);
-    let hej = ejecta_profile_function(r, radius, he, pej, rw);
+    let hwf = blend_step(r, hwalltofloor, hwall, rf, rfw);
+    hwall = blend_step(r, hfloor, hwf, rf, rfw);
+    let hej = ejecta_profile_function(r, radius, fe, hr, pej, rw);
     let hrim = rimfunc(r, radius, hr, he, rw) + hej;
-    blend(r, hwall, hrim, radius, rw)
+    blend_step(r, hwall, hrim, radius, rw)
 }
 
 #[inline]
 fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
-    if rc > EPSILON {
+    if rc > f64::EPSILON {
         hc * (-((r - ro) / rc).powi(2)).exp() + hf
     } else {
         hf
@@ -335,7 +379,7 @@ fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
     if r <= radius {
         let r0 = (r - rf) / (radius - rf);
         let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())).min(0.0) + hr
+        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())) + hr
     } else {
         hr
     }
@@ -354,23 +398,7 @@ fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
     hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
-#[inline]
-fn smoothstep(t: f64) -> f64 {
-    if t <= 0.0 {
-        0.0
-    } else if t <= 1.0 {
-        6.0 * t.powi(5) - 15.0 * t.powi(4) + 10.0 * t.powi(3)
-    } else {
-        1.0
-    }
-}
 
-#[inline]
-fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64 {
-    let t = (r - (rtransition - rwidth)) / (2.0 * rwidth);
-    let phi = smoothstep(t);
-    (1.0 - phi) * hinner + phi * houter
-}
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -388,13 +416,21 @@ fn blend(r: f64, hinner: f64, houter: f64, rtransition: f64, rwidth: f64) -> f64
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, rw: f64) -> f64 {
+pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
     if r > radius {
         let t = (r - (radius - rw)) / (2.0 * rw);
-        let phi = smoothstep(t);
+        let phi = smootherstep(t);
+        let ejrim = fe * hr;
         let hg = rimfunc(r, radius, ejrim, 0.0, rw);
-        let hp = ejrim * (r / radius).powf(ejprofile);
-        (1.0 - phi) * hg + phi * hp
+
+        // Guard division by zero or exceptionally small numbers close to center
+        let r_ratio = (r / radius).max(1e-12);
+        let hp = ejrim * r_ratio.powf(ejprofile);
+
+        // Safeguard against Infinity and NaN propagation
+        let hp_safe = if hp.is_finite() { hp } else { 0.0 };
+
+        (1.0 - phi) * hg + phi * hp_safe
     } else {
         0.0
     }
@@ -405,11 +441,11 @@ pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, 
 /// # Arguments
 ///
 /// * `r` - Radial distance from the crater center (in meters).
-/// * `theta0` - Initial bearing angle (radians).
+/// * `bearing0` - Initial bearing angle (radians).
 /// * `crater_radius` - Radius of the crater (in meters).
 /// * `rmin` - Minimum normalized radial distance.
 /// * `rmax` - Maximum normalized radial distance.
-/// * `thetari` - Precomputed ray azimuth angles (in radians).
+/// * `ray_center_bearingi` - Precomputed ray azimuth angles (in radians).
 /// * `random_numbers` - Set of random numbers used for pattern variation.
 ///
 /// # Returns
@@ -417,11 +453,11 @@ pub fn ejecta_profile_function(r: f64, radius: f64, ejrim: f64, ejprofile: f64, 
 /// * Computed ray intensity value for this point.
 fn ray_intensity_point(
     r: f64,
-    theta0: f64,
+    bearing0: f64,
     crater_radius: f64,
     rmin: f64,
     rmax: f64,
-    thetari: &[f64],
+    ray_center_bearingi: &[f64],
     random_numbers: &[f64],
 ) -> f64 {
     if r < crater_radius {
@@ -430,15 +466,15 @@ fn ray_intensity_point(
     let mut sum = 0.0;
     for j in 0..NPATT as usize {
         let rn = random_numbers[j];
-        let theta = (theta0 + rn * TAU) % TAU;
+        let bearing = (bearing0 + rn * TAU) % TAU;
         let r_pattern = r / crater_radius - rn;
         sum += FRAYREDUCTION.powi(j as i32 - 1)
             * ray_intensity_func(
                 r_pattern,
-                theta,
+                bearing,
                 rmin,
                 rmax,
-                thetari,
+                ray_center_bearingi,
                 2.348 * crater_radius.powf(0.006),
             );
     }
@@ -475,10 +511,10 @@ pub fn ray_intensity(
     let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
     // Distribute ray patterns evenly around the crater
-    let mut thetari = (0..NRAYMAX)
+    let mut ray_center_bearingi = (0..NRAYMAX)
         .map(|i| PI * 2.0 * (i + 1) as f64 / NRAYMAX as f64)
         .collect_vec();
-    thetari.shuffle(&mut rng);
+    ray_center_bearingi.shuffle(&mut rng);
 
     let random_numbers: Vec<f64> = rng.random_iter().take(NPATT as usize).collect_vec();
 
@@ -491,7 +527,7 @@ pub fn ray_intensity(
                 crater_radius,
                 rmin,
                 rmax,
-                &thetari,
+                &ray_center_bearingi,
                 &random_numbers,
             )
         })
@@ -523,10 +559,10 @@ pub fn ray_intensity(
 /// # Arguments
 ///
 /// * `r` - Normalized radial distance (unitless).
-/// * `theta` - Angle from crater center (radians).
+/// * `bearing` - Angle from crater center (radians).
 /// * `rmin` - Minimum normalized radius.
 /// * `rmax` - Maximum normalized radius (truncation).
-/// * `thetari` - Ray azimuth directions.
+/// * `ray_center_bearingi` - Ray azimuth directions.
 /// * `minray` - Minimum ejecta blanket radius (scaling for ray length).
 ///
 /// # Returns
@@ -534,10 +570,10 @@ pub fn ray_intensity(
 /// * Total ray intensity contribution at the point.
 fn ray_intensity_func(
     r: f64,
-    theta: f64,
+    bearing: f64,
     rmin: f64,
     rmax: f64,
-    thetari: &[f64],
+    ray_center_bearingi: &[f64],
     minray: f64,
 ) -> f64 {
     const RAYP: f64 = 4.0; // Power law exponent for ray number decay
@@ -575,7 +611,7 @@ fn ray_intensity_func(
                         * (rmin / r)
                         * (1.0
                             - (1.0 - w / rmin) * (1.0 - (r / rmin).powf(RAY_WIDTH_EXPONENT)).exp());
-                    ejecta_ray_func(theta, thetari[i as usize], r, n, rw)
+                    ejecta_ray_func(bearing, ray_center_bearingi[i as usize], r, n, rw)
                 }
             })
             .sum()
@@ -584,13 +620,13 @@ fn ray_intensity_func(
 
 /// Computes the contribution of a single ray to the ejecta field using a Gaussian profile.
 ///
-/// The ray is centered at `thetar` with angular width `w`, evaluated at angle `theta`.
+/// The ray is centered at `ray_center_bearing` with angular width `w`, evaluated at angle `bearing`.
 /// The function ensures normalization across rays and returns zero for values below machine epsilon.
 ///
 /// # Arguments
 ///
-/// * `theta` - Sample angle (radians).
-/// * `thetar` - Ray center angle (radians).
+/// * `bearing` - Sample angle (radians).
+/// * `ray_center_bearing` - Ray center angle (radians).
 /// * `r` - Radial distance (meters).
 /// * `n` - Number of rays contributing at this distance.
 /// * `w` - Angular width of the ray.
@@ -598,11 +634,11 @@ fn ray_intensity_func(
 /// # Returns
 ///
 /// * Ray intensity value at the specified angle and distance.
-fn ejecta_ray_func(theta: f64, thetar: f64, r: f64, n: i32, w: f64) -> f64 {
+fn ejecta_ray_func(bearing: f64, ray_center_bearing: f64, r: f64, n: i32, w: f64) -> f64 {
     let c = w / r;
-    let b = thetar;
-    let dtheta = f64::min(2.0 * PI - (theta - b).abs(), (theta - b).abs());
-    let logval = -dtheta.powi(2) / (2.0 * c.powi(2));
+    let b = ray_center_bearing;
+    let dbearing = f64::min(2.0 * PI - (bearing - b).abs(), (bearing - b).abs());
+    let logval = -dbearing.powi(2) / (2.0 * c.powi(2));
     if logval < crate::VSMALL.ln() {
         0.0
     } else {

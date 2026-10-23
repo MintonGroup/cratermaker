@@ -36,3 +36,14 @@ See `Counting`_ for inherited methods and attributes.
    :members:
    :undoc-members:
    :no-index-entry:
+
+
+Usage example
+=============
+
+.. code-block:: python
+
+    from cratermaker import Simulation
+    sim = Simulation(counting="depthcount")
+    print(sim.counting)
+

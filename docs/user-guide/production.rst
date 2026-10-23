@@ -25,9 +25,9 @@ Cratermaker's production module provides a robust way to compute the production 
 .. ipython:: python
    :okwarning:
 
-   from cratermaker import Production
-   production = Production.maker()
-   print(production)
+   from cratermaker import Simulation
+   sim = Simulation(gridlevel=5, ask_overwrite=False, reset=True)
+   print(sim.production)
 
 The output shows that by default, the production function is the Neukum model for the Moon, which is described in Neukum, Ivanov, and Hartmann (2001) [#]_. It also reports that the "Generator type" is "crater." A production model can either a crater generator or a projectile generator, which means that the diameter values that are returned from the production function represent either the crater or projectile. The other crater-based model is the Mars version, which is based on the work of Ivanov (2001) [#]_. The projectile model is based on the work of Ivanov, Neukum, and Wagner (2001) [#]_.
 
@@ -53,11 +53,10 @@ For this example, we are going to use |production.function| to find the cumulati
 .. ipython:: python
    :okwarning:
 
-   from cratermaker import Production 
-   production = Production.maker("powerlaw",slope=-2.0) 
+   sim = Simulation(production="powerlaw",slope=-2.0,gridlevel=5, ask_overwrite=False, reset=True) 
    diameter = 1000.0 
    age = 3000.0  
-   n = production.function(diameter=diameter,age=age)  
+   n = sim.production.function(diameter=diameter,age=age)  
    print(f"{n*1e6:.2f} D>{diameter*1e-3:.0f} km craters per km² in {age*1e-3:.0f} Gy")
 
 Example: Plot a power law production function with a slope of -3 for craters 1 m to 100 km over 1 Ga
@@ -67,7 +66,7 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
 .. ipython:: python
    :okwarning:
 
-   from cratermaker import Production
+   from cratermaker import Simulation
    import matplotlib.pyplot as plt
    import numpy as np
 
@@ -75,9 +74,10 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
    ax.set_xlabel('D (m)')
    ax.set_ylabel('$\\mathregular{N_{>D}}$')
 
-   production = Production.maker("powerlaw", slope=-3.0)
+   sim = Simulation(proedution="powerlaw",slope=-3.0,gridlevel=5, ask_overwrite=False, reset=True)  
+
    diameters = np.arange(1, 1e6)
-   pf = production.function(diameter=diameters, age=1000.0)
+   pf = sim.production.function(diameter=diameters, age=1000.0)
 
    ax.loglog(diameters, pf)
    @savefig PowerLawExample.png width=4in
@@ -102,10 +102,10 @@ For this example, we are going to use |production.age_from_D_N| to plot the age 
    import matplotlib.pyplot as plt
    import numpy as np
 
-   production = Production.maker("powerlaw", slope=-2.5)
+   sim = Simulation(proedution="powerlaw",slope=-2.5,gridlevel=5, ask_overwrite=False, reset=True)  
    diameters = np.logspace(0, 3)
    cumulative_number_density = np.full_like(diameters, 1e-6)
-   age = production.age_from_D_N(diameter=diameters, cumulative_number_density=cumulative_number_density)
+   age = sim.production.age_from_D_N(diameter=diameters, cumulative_number_density=cumulative_number_density)
 
    def plot_inv(diameter, age):
       fig, ax = plt.subplots()

@@ -7,16 +7,12 @@ from cratermaker.utils.general_utils import _create_catalogue
 
 
 class TestProjectile(unittest.TestCase):
-    def test_sample_true_requires_mean_velocity(self):
-        with self.assertRaises(ValueError):
-            Projectile.maker("generic", sample=True)
-
     def test_sample_false_requires_velocity(self):
         with self.assertRaises(ValueError):
-            Projectile.maker("generic", sample=False)
+            Projectile.maker("generic", monte_carlo=False)
 
     def test_sample_false_defaults(self):
-        projectile = Projectile.maker("generic", sample=False, velocity=15e3)
+        projectile = Projectile.maker("generic", monte_carlo=False, projectile_velocity=15e3)
         self.assertEqual(projectile.velocity, 15e3)
         self.assertEqual(projectile.angle, 90.0)
         self.assertEqual(projectile.direction, 0.0)
@@ -32,11 +28,11 @@ class TestProjectile(unittest.TestCase):
     def test_sample_false_custom_angle_direction(self):
         projectile = Projectile.maker(
             "generic",
-            sample=False,
-            velocity=15e3,
-            angle=45.0,
-            direction=180.0,
-            location=(120.0, -50.0),
+            monte_carlo=False,
+            projectile_velocity=15e3,
+            projectile_angle=45.0,
+            projectile_direction=180.0,
+            projectile_location=(120.0, -50.0),
         )
         self.assertEqual(projectile.angle, 45.0)
         self.assertEqual(projectile.direction, 180.0)
@@ -50,11 +46,9 @@ class TestProjectile(unittest.TestCase):
         self.assertEqual(projectile.location, (120.0, -50.0))
 
     def test_density_default_and_override(self):
-        default = Projectile.maker("generic", sample=False, velocity=10e3)
+        default = Projectile.maker("generic", monte_carlo=False, projectile_velocity=10e3)
         self.assertEqual(default.density, 1000.0)
-        projectile = Projectile.maker(
-            "generic", sample=False, velocity=10e3, density=3000.0
-        )
+        projectile = Projectile.maker("generic", monte_carlo=False, projectile_velocity=10e3, projectile_density=3000.0)
         self.assertEqual(projectile.density, 3000.0)
 
         projectile = projectile.new_projectile()
@@ -66,7 +60,7 @@ class TestProjectile(unittest.TestCase):
     def test_sampled_vals(self):
         popnames = ["generic", "asteroids", "comets"]
         for popname in popnames:
-            projectile = Projectile.maker(popname, sample=True, mean_velocity=20e3)
+            projectile = Projectile.maker(popname, monte_carlo=True, projectile_mean_velocity=20e3)
 
             velocities = []
             angles = []

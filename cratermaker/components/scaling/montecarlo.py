@@ -41,7 +41,7 @@ class MonteCarloScaling(Scaling):
         The strength of the target material, (Pa)
     density : FloatLike, optional
         Volumentric density of target material, (kg/m³)
-    monte_carlo_scaling : bool, default=True
+    monte_carlo : bool, default=True
         If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically.
     rng : numpy.random.Generator | None
         |rng|
@@ -81,7 +81,7 @@ class MonteCarloScaling(Scaling):
         mu: FloatLike | None = None,
         Ybar: FloatLike | None = None,
         density: FloatLike | None = None,
-        monte_carlo_scaling: bool = True,
+        monte_carlo: bool = True,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -105,7 +105,7 @@ class MonteCarloScaling(Scaling):
         object.__setattr__(self, "_simple_enlargement_factor", None)
         object.__setattr__(self, "_final_exp", None)
         object.__setattr__(self, "_material_catalogue", None)
-        object.__setattr__(self, "_montecarlo_scaling", monte_carlo_scaling)
+        object.__setattr__(self, "_monte_carlo", monte_carlo)
         object.__setattr__(self, "_multiring_transition", None)
 
         if material is None:
@@ -149,7 +149,7 @@ class MonteCarloScaling(Scaling):
         str_repr += (
             f"Nominal simple-complex transition diameter: {format_large_units(self.transition_nominal, quantity='length')}\n"
         )
-        str_repr += f"Monte Carlo Scaling: {self._montecarlo_scaling}\n"
+        str_repr += f"Monte Carlo Scaling: {self._monte_carlo}\n"
         return str_repr
 
     def _get_morphology_type(self, diameter: FloatLike | None = None, **kwargs: Any) -> str:
@@ -179,7 +179,7 @@ class MonteCarloScaling(Scaling):
         elif diameter > transition_range[1]:
             morphology_type = "complex"
         else:
-            if self._montecarlo_scaling:
+            if self.monte_carlo:
                 # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
                 if diameter < self.transition_nominal:
                     p = (self.transition_nominal - diameter) / (self.transition_nominal - transition_range[0])
@@ -298,7 +298,7 @@ class MonteCarloScaling(Scaling):
                     sind = 1
                     cind = 0
 
-                if self._montecarlo_scaling:
+                if self.monte_carlo:
                     # Randomly draw a morphology based on weighting by whichever option is closest to the transition
                     p = self.rng.random()
                 else:
@@ -314,7 +314,7 @@ class MonteCarloScaling(Scaling):
                     morphology_type = morphology_options[cind]
             else:
                 final_diameter = final_diameter_complex
-                if self._montecarlo_scaling:
+                if self.monte_carlo:
                     morphology_type = self.rng.choice(morphology_options)
                 else:
                     morphology_type = "transitional"
@@ -462,7 +462,7 @@ class MonteCarloScaling(Scaling):
         self._transition_nominal = 10 ** (simple_complex_A * np.log10(self.target.gravity) + simple_complex_B)
 
         # Draw from a truncated normal distribution for each component of the model
-        if self._montecarlo_scaling:
+        if self.monte_carlo:
             simple_enlargement_factor = 1.0 / mc.bounded_norm(simple_enlargement_mean, simple_enlargement_std, rng=self.rng)[0]
             final_exp = mc.bounded_norm(final_exp_mean, final_exp_std, rng=self.rng)[0]
             transition_diameter = _sample_transition_diameter(
@@ -579,12 +579,12 @@ class MonteCarloScaling(Scaling):
             self.target.density = self.material_catalogue[self._material]["density"]
 
     @parameter
-    def monte_carlo_scaling(self):
+    def monte_carlo(self):
         """If True, the scaling laws will be applied using monte carlo methods to account for the uncertainty in the scaling laws. If False, the scaling laws will be applied deterministically."""
-        return self._montecarlo_scaling
+        return self._monte_carlo
 
-    @monte_carlo_scaling.setter
-    def monte_carlo_scaling(self, value):
+    @monte_carlo.setter
+    def monte_carlo(self, value):
         if not isinstance(value, bool):
-            raise TypeError("monte_carlo_scaling must be a boolean")
-        self._montecarlo_scaling = value
+            raise TypeError("monte_carlo must be a boolean")
+        self._monte_carlo = value

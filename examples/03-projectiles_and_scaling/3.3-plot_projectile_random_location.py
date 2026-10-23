@@ -14,7 +14,7 @@ import numpy as np
 from cratermaker import Projectile
 
 # Create a projectile
-proj = Projectile(mean_velocity=5000, density=3000)
+proj = Projectile.maker(projectile_mean_velocity=5000, projectile_density=3000)
 
 # Using projectile for sampling data
 size = 10000

@@ -29,7 +29,7 @@ fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex="col", sharey="row", layou
 
 for col, vmean in enumerate(vmean_values):
     # Initialize projectiles with and without escape velocity
-    proj = Projectile(mean_velocity=vmean, density=3000)
+    proj = Projectile.maker(projectile_mean_velocity=vmean, projectile_density=3000)
 
     velocities = np.array([proj.new_projectile().velocity for _ in range(size)])
 

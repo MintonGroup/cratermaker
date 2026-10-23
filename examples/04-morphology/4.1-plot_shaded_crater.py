@@ -6,17 +6,13 @@ Create a shaded topographic representation of a crater
 
 This example showcases how to create a crater and ejecta profile using the "basicmoon" morphology model from the Cratermaker and visual its topography. This will mimic how CTEM generates a test crater, though it is much simpler to run than that venerable old Fortran-based beast of a code!. The crater is created with a radius of 1 km. The hill shade uses the same settings that CTEM uses.
 
-Note, that this example is rather more complex than it really needs to be. In practice, the Morphology object is always associated with a Surface object, which contains its own set of methods for visualizing the surface morphology. For this example, we are bypassing the Surface object functionality entirely and generating our own grid for illustration purposes. Example 1.1-visualize_one_crater.py demonstrates a more "typical" approach.
+Note, that this example is rather more complex than it really needs to be. In practice, the Morphology object is always associated with a Surface object, which contains its own set of methods for visualizing the surface morphology. For this example, we are bypassing the Surface object and its unstructured mesh functionality entirely and generating our own flat grid.  Example 1.1-visualize_one_crater.py demonstrates a more "typical" approach.
 
 """
 
 import numpy as np
 
-from cratermaker import Crater, Morphology
-
-# Because we are not explicitly passing a Surface object, the Morphology constructor will generate a default surface. We pass the "simdir" and "gridlevel" arguments to control the Surface generation, even though we don't make use of it directly here.
-morphology = Morphology.maker("basicmoon", simdir="simdata-4_1", gridlevel=4)
-crater = Crater.maker(radius=1.0e3)
+from cratermaker import Simulation
 
 # Generate 1000x1000 grid centered at (0, 0)
 gridsize = 1000
@@ -26,15 +22,19 @@ x = np.linspace(-extent, extent, gridsize)
 y = np.linspace(-extent, extent, gridsize)
 xx, yy = np.meshgrid(x, y)
 
-# Compute radial distance from center
-r = np.sqrt(xx**2 + yy**2)
+radial_distances = np.sqrt(xx**2 + yy**2)
+bearings = (
+    np.degrees(np.arctan2(xx, yy)) + 180
+)  # Bearing angles aren't strictly necessary for the basicmoon morphology craters, but we include them here anyway to show you how to define them for a custom grid.
+
+# Because we are not going to be using the Surface object, we will initialize it with a minimum icosphere surface so that we aren't generating a lot of output data we don't need.
+sim = Simulation(simdir="simdata-4_1", gridlevel=0, morphology="basicmoon", ask_overwrite=False, reset=True)
+crater = sim.Crater.maker(radius=1.0e3)
 
 # Compute crater and ejecta profiles
-crater_elevation = morphology.crater_profile(crater, r)
-ejecta_elevation = morphology.ejecta_profile(crater, r)
-
-# Combine into a total DEM
-dem = crater_elevation + ejecta_elevation
+dem = sim.morphology.crater_profile(
+    crater=crater, radial_distances=radial_distances, bearings=bearings, include_crater=True, include_ejecta=True
+)
 
 
 def plot(dem, pix):

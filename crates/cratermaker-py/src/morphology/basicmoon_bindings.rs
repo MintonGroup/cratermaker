@@ -117,7 +117,8 @@ pub fn ejecta_profile_function<'py>(
     let result = cratermaker_components::morphology::basicmoon::ejecta_profile_function(
         r,
         crater.radius,
-        crater.frac_ejrim * crater.rim_height,
+        crater.frac_ejrim,
+        crater.rim_height,
         crater.ejprofile,
         crater.rim_width,
     );

@@ -54,7 +54,7 @@ class MorphologyCraterVariable(CraterVariable):
         if rings is not None:
             if isinstance(rings, list):
                 self._rings = rings
-            elif isinstance(rings, MorphologyCrater):
+            elif isinstance(rings, self._CraterType):
                 self._ring = [rings]
             else:
                 raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
@@ -170,7 +170,6 @@ class MorphologyCraterVariable(CraterVariable):
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        return
 
     def __str__(self) -> str:
         horiz_line = "-" * 40 + "\n"
@@ -356,6 +355,18 @@ class MorphologyCrater(Crater):
                 self._var._affected_node_indices = set()
 
         return self._var._affected_node_indices
+
+    def reset(self):
+        """
+        Resets the crater by removing saved regions and lists of affected indices.
+        """
+        self.remove_complex_data()
+        self._var._face_index = None
+        self._var._ejecta_rmax = None
+        self._var._emplaceable = None
+        self._var._measured_rim_height = None
+        self._var._measured_floor_elevation = None
+        return
 
     @property
     def emplaceable(self) -> bool | None:
@@ -599,17 +610,36 @@ class Morphology(ComponentBase):
             craters = [Crater.maker(diameter=20.0e3), Crater.maker(diameter=20.0e3)]
             morphology.emplace(craters)
         """
-        if self._queue_manager is None:
-            self._init_queue_manager()
-
         if craters is None:
-            craters = [MorphologyCrater.maker(morphology=self, **kwargs)]
-        elif isinstance(craters, MorphologyCrater):
+            craters = [self.Crater.maker(**kwargs)]
+        elif isinstance(craters, (list | tuple)) and len(craters) > 0:
+            processed_craters = []
+            for c in tqdm(
+                craters,
+                total=len(craters),
+                desc="Preparing craters for emplacement",
+                unit="crater",
+                position=0,
+                leave=False,
+            ):
+                if isinstance(c, self._CraterType):
+                    processed_craters.append(c)
+                else:
+                    processed_craters.append(self.Crater.maker(crater=c, **kwargs))
+            craters = processed_craters
+        elif isinstance(craters, self._CraterType):
             craters = [craters]
         elif isinstance(craters, Crater):
-            craters = [MorphologyCrater.maker(crater=craters, morphology=self)]
+            craters = [self.Crater.maker(crater=craters, **kwargs)]
+        else:
+            raise ValueError(
+                "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
+            )
 
         if isinstance(craters, list) and len(craters) > 0:
+            if self._queue_manager is None:
+                self._init_queue_manager()
+
             for c in tqdm(
                 craters,
                 total=len(craters),
@@ -637,8 +667,8 @@ class Morphology(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater, **kwargs)
         if not crater.emplaceable:
             return
 
@@ -672,6 +702,8 @@ class Morphology(ComponentBase):
             crater.crater_region.update_elevation(elevation_change)
             if self.do_slope_collapse:
                 crater.crater_region.slope_collapse()
+        # Remove the saved regions now that the crater is emplaced
+        crater.reset()
         return
 
     def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -696,8 +728,8 @@ class Morphology(ComponentBase):
             raise TypeError("crater must be an instance of Crater")
 
         conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
-        if not isinstance(crater, MorphologyCrater):
-            crater = MorphologyCrater.maker(crater=crater, morphology=self, conserve_volume=conserve_volume)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater, conserve_volume=conserve_volume)
 
         if not self._excavated_volume or crater.ejecta_region is None:
             return None, None

@@ -208,6 +208,29 @@ You can also can have multiple save actions that use the same method, but with d
     sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(age=3540.0, time_interval=10.0)
 
+
+You can also define custom callable functions to use as a save action. The function call signature must be defined such that it can accept the integer keyword argument "interval", the keyword arguments that are passed to the save method, and any other custom keyword arguments you wish to pass. Adding the custom function as a save action works the same way as with methods, except that you set the key value to be the function itself rather than the name of the method. 
+
+.. code-block:: python
+
+    def func(interval, custom_arg, **kwargs):
+        ...
+
+    sim.add_save_action({func:{"custom_arg":"some value"}})
+
+
+If you don't need to pass additional arguments to your custom function, you still need to define it such that it can receive them and set the arguments in the save action dict to be an empty dict.
+
+.. code-block:: python
+
+    def func_without_args(**kwargs):
+        ...
+
+    sim.add_save_action({func_without_args:{}})
+
+
+
+
 .. _ug-simulation-examples: 
 
 More Examples
