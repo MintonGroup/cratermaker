@@ -26,13 +26,7 @@ References
 
 
 
-Depth vs diameter measurement files
------------------------------------
 
-  :download:`Hoover2024Table2.csv </_static/Hoover2024Table2.csv>`
-  :download:`Pike1974-Mare.csv </_static/Pike1974-Mare.csv>`
-  :download:`Pike1974-Highlands.csv </_static/Pike1974-Highlands.csv>`
-  :download:`S2-Stopar et al. Simple Craters.csv </_static/S2-Stopar_et_al._Simple_Craters.csv>`
 
 
 """
@@ -50,7 +44,7 @@ ymin, ymax = 0.0, 0.30
 
 
 # Compute depth-to-diameter for 1000 craters in Cratermaker across the size range of interest
-sim = Simulation(simdir=simdir, gridlevel=0, ask_overwrite=False)
+sim = Simulation(simdir=simdir, gridlevel=0, ask_overwrite=False, reset=True)
 cm_diameter = np.exp(sim.rng.uniform(low=np.log(xmin), high=np.log(xmax), size=1000))
 cm_dD = []
 for diameter in cm_diameter * 1e3:
@@ -169,3 +163,14 @@ ax.scatter(
 
 ax.legend(loc="lower right")
 plt.show()
+
+
+###############################################################################
+# Depth vs diameter measurement files
+# -----------------------------------
+#
+#  :download:`Hoover2024Table2.csv </_static/Hoover2024Table2.csv>`
+#  :download:`Pike1974-Mare.csv </_static/Pike1974-Mare.csv>`
+#  :download:`Pike1974-Highlands.csv </_static/Pike1974-Highlands.csv>`
+#  :download:`S2-Stopar et al. Simple Craters.csv </_static/S2-Stopar_et_al._Simple_Craters.csv>`
+#

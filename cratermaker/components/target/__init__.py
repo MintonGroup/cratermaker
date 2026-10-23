@@ -166,12 +166,12 @@ class Target(ComponentBase):
     def maker(
         cls: type[Target],
         target: Target | str = "Moon",
-        radius: FloatLike | None = None,
-        diameter: FloatLike | None = None,
-        mass: FloatLike | None = None,
+        target_radius: FloatLike | None = None,
+        target_diameter: FloatLike | None = None,
+        target_mass: FloatLike | None = None,
         transition_scale_type: str | None = None,
-        material: str | None = None,
-        density: FloatLike | None = None,
+        target_material: str | None = None,
+        target_density: FloatLike | None = None,
         **kwargs: Any,
     ) -> Target:
         """
@@ -181,17 +181,17 @@ class Target(ComponentBase):
         ----------
         target : str, Target, or None
             Name of the target body or a Target object.
-        radius : FloatLike or None
+        target_radius : FloatLike or None
             Radius of the target body in km.
-        diameter : FloatLike or None
+        target_diameter : FloatLike or None
             Diameter of the target body in km.
-        mass : FloatLike or None
+        target_mass : FloatLike or None
             Mass of the target body in kg.
         transition_scale_type : str or None
             Simple-to-complex transition scaling to use for the surface (either "silicate" or "ice").
-        material : str or None
+        target_material : str or None
             Name of the material composition of the target body.
-        density : FloatLike or None
+        target_density : FloatLike or None
             Volumetric density of the surface of the target body in kg/m³.
         **kwargs : Any
             |kwargs|
@@ -205,12 +205,12 @@ class Target(ComponentBase):
             try:
                 target = cls(
                     name="Moon",
-                    radius=radius,
-                    diameter=diameter,
-                    mass=mass,
+                    radius=target_radius,
+                    diameter=target_diameter,
+                    mass=target_mass,
                     transition_scale_type=transition_scale_type,
-                    material=material,
-                    density=density,
+                    material=target_material,
+                    density=target_density,
                     **kwargs,
                 )
             except Exception as e:
@@ -219,12 +219,12 @@ class Target(ComponentBase):
             try:
                 target = cls(
                     name=target,
-                    radius=radius,
-                    diameter=diameter,
-                    mass=mass,
+                    radius=target_radius,
+                    diameter=target_diameter,
+                    mass=target_mass,
                     transition_scale_type=transition_scale_type,
-                    material=material,
-                    density=density,
+                    material=target_material,
+                    density=target_density,
                     **kwargs,
                 )
             except KeyError as e:
@@ -236,6 +236,11 @@ class Target(ComponentBase):
         return target
 
     @parameter
+    def target_radius(self) -> float | None:
+        """The radius of the target body in meters."""
+        return self._radius
+
+    @property
     def radius(self) -> float | None:
         """The radius of the target body in meters."""
         return self._radius
@@ -270,6 +275,11 @@ class Target(ComponentBase):
         if self.radius is not None:
             return 2 * np.pi * self.radius
 
+    @parameter
+    def target_mass(self) -> float:
+        """The mass of the target body in kilograms."""
+        return self._mass
+
     @property
     def mass(self) -> float | None:
         """The mass of the target body in kilograms."""
@@ -293,6 +303,11 @@ class Target(ComponentBase):
         self._name = value
 
     @parameter
+    def target_material(self):
+        """The name of the material composition of the target body's surface, which is used for crater scaling."""
+        return self._material
+
+    @property
     def material(self):
         """The name of the material composition of the target body's surface, which is used for crater scaling."""
         return self._material
@@ -304,6 +319,11 @@ class Target(ComponentBase):
         self._material = value
 
     @parameter
+    def target_density(self):
+        """The volumetric density of the surface of the target body in kg/m³."""
+        return self._density
+
+    @property
     def density(self):
         """The volumetric density of the surface of the target body in kg/m³."""
         return self._density
@@ -335,9 +355,9 @@ class Target(ComponentBase):
         for name, entry in self.__class__._catalogue.items():
             line = ""
             for k, v in entry.items():
-                if k == "radius":
+                if k == "target_radius":
                     val = format_large_units(v, quantity="length")
-                elif k == "mass":
+                elif k == "target_mass":
                     val = f"{v:.2e} kg"
                 else:
                     val = v

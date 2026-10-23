@@ -174,7 +174,8 @@ class Production(ComponentBase):
                             version = "projectile"
                 else:
                     production = "powerlaw"
-
+        else:
+            version = kwargs.pop("version", None)
         return super().maker(
             component=production,
             version=version,
