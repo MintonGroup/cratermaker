@@ -53,4 +53,4 @@ def plot_sfd(interval, **kwargs):
 
 sim.add_save_action({plot_sfd: {}})
 
-sim.run(age=3800, ninterval=5)
+sim.run(age=3700, ninterval=5)
