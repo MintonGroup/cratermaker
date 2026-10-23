@@ -25,7 +25,7 @@
 Scaling
 =======
 
-Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and |Target| properties (material type, surface gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
+Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and |Target| properties (material type, target gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
 
 Setting up a Scaling object
 ---------------------------
@@ -74,7 +74,7 @@ You are not limited to using pre-defined materials. For instance, you can specif
 .. ipython:: python
     :okwarning:
     
-    print(Scaling.maker(material="Flubber", K1=3.8, mu=0.1, Ybar=1e7, density=1500.0))
+    print(Scaling.maker(material="Flubber", K1=3.8, mu=0.1, Ybar=1e7, target_density=1500.0))
 
 Using the Scaling object
 ------------------------

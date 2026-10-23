@@ -44,10 +44,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Scaling
-    scaling_model = Scaling.maker("montecarlo", target="Mars", projectile="asteroids")
+    from cratermaker import Simulation
+    sim = Simulation(scaling="montecarlo")
+    print(sim.scaling)
 
 .. _api-CTEMScaling:
 
@@ -68,8 +68,8 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Scaling
-    scaling_model = Scaling.maker("ctem", target="Mars", projectile="asteroids")
+    from cratermaker import Simulation
+    sim = Simulation(scaling="ctem")
+    print(sim.scaling)
 

@@ -57,10 +57,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Surface
-    surface = Surface.maker("icosphere",gridlevel=7)
+    from cratermaker import Simulation
+    sim = Simulation(surface="icosphere",gridlevel=7)
+    print(sim.surface)
 
 .. _api-ArbitraryResolutionSurface:
 
@@ -81,10 +81,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Surface
-    surface = Surface.maker("arbitrary_resolution",pix=100)
+    from cratermaker import Simulation
+    sim= Simulation(surface="arbitrary_resolution",pix=100)
+    print(sim.surface)
 
 .. _api-HiResLocalSurface:
 
@@ -108,10 +108,10 @@ Usage example
 =============
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Surface
-    surface = Surface.maker("hireslocal", pix=50, local_radius=1e3, local_location=(0,9))
+    from cratermaker import Simulation
+    sim = Simulation(surface="hireslocal", pix=50, local_radius=1e3, local_location=(0,9))
+    print(sim.surface)
 
 .. _api-DataSurface:
 
@@ -134,7 +134,7 @@ Usage example
 This creates a DataSurface with a local region containing Kepler crater. The resolution of the local surface will be approxiamtely half of what it would be if ``pix`` was not set.
 
 .. code-block:: python
-   :linenos:
 
-    from cratermaker import Surface
-    surface = Surface.maker("datasurface", pix=200.0, local_location=(321.9913, 8.121), local_radius=50.0e3)
+    from cratermaker import Simulation
+    sim = Simulation(surface="datasurface", pix=200.0, local_location=(321.9913, 8.121), local_radius=50.0e3)
+    print(sim.surface)

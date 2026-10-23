@@ -123,7 +123,7 @@ where
 
 impl<'py> PyReadonlyLocalSurface<'py> {
     /// Build from a Python PyReadonlyLocalSurface object
-    pub fn from_local_surface(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+    pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = obj.py();
 
         let n_face: usize = obj.getattr("n_face")?.extract()?;
@@ -251,7 +251,7 @@ pub fn apply_diffusion<'py>(
     face_variable: PyReadonlyArray1<'py, f64>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
     let face_kappa_v = face_kappa.as_array();
     let face_variable_v = face_variable.as_array();
@@ -283,7 +283,7 @@ pub fn compute_radial_gradient<'py>(
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let variable_v = variable.as_array();
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_components::surface::compute_radial_gradient(variable_v, &region_v)
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -311,7 +311,7 @@ pub fn compute_slope<'py>(
     py: Python<'py>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_components::surface::compute_slope(&region_v)
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -338,7 +338,7 @@ pub fn slope_collapse<'py>(
     critical_slope: f64,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_components::surface::slope_collapse(critical_slope, &region_v)
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
@@ -360,7 +360,7 @@ pub fn interpolate_node_elevation_from_faces<'py>(
     py: Python<'py>,
     region: Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let region_py = PyReadonlyLocalSurface::from_local_surface(&region)?;
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
     let region_v = region_py.as_views();
     let result = cratermaker_components::surface::interpolate_node_elevation_from_faces(&region_v)
         .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;

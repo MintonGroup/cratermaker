@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import tempfile
-import warnings
 from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
-import uxarray as uxr
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from scipy.spatial.transform import Rotation
+from uxarray import UxDataArray
 
 from cratermaker.components.morphology import Morphology
-from cratermaker.components.scaling import Scaling
 from cratermaker.components.surface import LocalSurface, Surface
 from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
@@ -93,7 +90,7 @@ class HiResLocalSurface(Surface):
         pix_max = format_large_units(self.pix_max, quantity="length")
         local_radius = format_large_units(self.local_radius, quantity="length")
         str_repr += (
-            f"Local pixel size: {pix}"
+            f"Local pixel size: {pix}\n"
             f"Local Radius: {local_radius}\n"
             f"Local Location: ({self.local_location[0]:.2f}°, {self.local_location[1]:.2f}°)\n"
             f"Minimum effective pixel size: {pix_min}\n"
@@ -338,7 +335,9 @@ class HiResLocalSurface(Surface):
                 **kwargs,
             )
 
-    def to_raster(self, variable_name: str = "face_elevation", superdomain: bool = False, **kwargs: Any):
+    def to_raster(
+        self, variable_name: str = "face_elevation", uxda: UxDataArray | None = None, superdomain: bool = False, **kwargs: Any
+    ):
         """
         Rasterize a face-based variable into a 2D raster using rasterio.
 
@@ -361,9 +360,9 @@ class HiResLocalSurface(Surface):
             The coordinate reference system of the raster.
         """
         if superdomain:
-            return self._full().to_raster(variable_name, **kwargs)
+            return self._full().to_raster(variable_name=variable_name, uxda=uxda, **kwargs)
         else:
-            return self.local.to_raster(variable_name, **kwargs)
+            return self.local.to_raster(variable_name=variable_name, uxda=uxda, **kwargs)
 
     def to_geotiff_file(
         self,
@@ -458,8 +457,8 @@ class HiResLocalSurface(Surface):
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
 
         # Disable MC scaling so that the superdomain scaling is always the same for a given set of surface parameters.
-        monte_carlo_scaling_orig = morphology.scaling.monte_carlo_scaling
-        morphology.scaling.monte_carlo_scaling = False
+        monte_carlo_orig = morphology.scaling.monte_carlo
+        morphology.scaling.monte_carlo = False
 
         antipode_distance = np.pi * self.target.radius
         projectile_velocity = morphology.scaling.projectile.mean_velocity * 10
@@ -476,10 +475,7 @@ class HiResLocalSurface(Surface):
                 1000,
             ):
                 crater = morphology.Crater.maker(
-                    diameter=diameter,
-                    angle=90.0,
-                    projectile_velocity=projectile_velocity,
-                    conserve_volume=False,
+                    diameter=diameter, angle=90.0, projectile_velocity=projectile_velocity, conserve_volume=False, make_rings=False
                 )
                 rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
@@ -502,7 +498,7 @@ class HiResLocalSurface(Surface):
             self._superdomain_function_exponent = 1.0
         self.superdomain_scale_factor = self.superdomain_function(antipode_distance)
 
-        morphology.scaling.monte_carlo_scaling = monte_carlo_scaling_orig
+        morphology.scaling.monte_carlo = monte_carlo_orig
 
         self._load_from_files(reset=reset, regrid=regrid, **kwargs)
         return

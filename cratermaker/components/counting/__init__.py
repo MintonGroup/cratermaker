@@ -89,14 +89,8 @@ class Counting(ComponentBase):
         ]
 
         if not reset:
-            observed, emplaced = self.read_saved_output(interval=-1)
-            if observed:
-                interval = observed.interval.values[-1]
-                observed = self.Crater.from_xarray(observed, interval=interval)
-                for crater in observed:
-                    self._observed[crater.id] = crater
-                if emplaced:
-                    self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
+            self.load(interval=-1)
+
         return
 
     @classmethod
@@ -168,6 +162,25 @@ class Counting(ComponentBase):
         super().reset(**kwargs)
         return
 
+    def load(self, interval: int, **kwargs: Any) -> None:
+        """
+        Loads old crater counts from file.
+
+        Parameters
+        ----------
+        interval : int
+            The interval number to load data from
+        """
+        observed, emplaced = self.read_saved_output(interval=interval)
+        if observed:
+            interval = observed.interval.values[-1]
+            observed = self.Crater.from_xarray(observed, interval=interval)
+            for crater in observed:
+                self._observed[crater.id] = crater
+            if emplaced:
+                self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
+        return
+
     def add(self, crater: MorphologyCrater, **kwargs: Any) -> MorphologyCrater:
         """
         Add a crater to the surface.
@@ -186,7 +199,7 @@ class Counting(ComponentBase):
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, MorphologyCrater):
+        if not isinstance(crater, self.morphology._CraterType):
             crater = self.morphology.Crater.maker(crater=crater)
 
         if self.surface.uxds is None:
@@ -766,6 +779,8 @@ class Counting(ComponentBase):
         crater_style: Literal["rings", "points", "impacts", "spheres"] = "rings",
         surface: Surface | LocalSurface | None = None,
         plotter: pyvista.Plotter | None = None,
+        theme: str | None = "cratermaker",
+        transparent_background: bool | None = None,
         crater_size_scale_factor: FloatLike = 1.0,
         **kwargs: Any,
     ) -> pyvista.Plotter:
@@ -790,6 +805,10 @@ class Counting(ComponentBase):
             The surface or local surface view to be displayed. If None, uses the associated surface property
         plotter : pyvista.Plotter, optional
             An existing pyvista Plotter to add the crater counts to. If None, a new Plotter will be created by the surface pyvista_plotter method. Default is None.
+        theme : str, optional
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
+        transparent_background : bool, optional
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
         **kwargs : Any
@@ -802,7 +821,7 @@ class Counting(ComponentBase):
 
         """
         from cratermaker.constants import PYVISTA_ADD_MESH_KWARGS
-        from cratermaker.utils.general_utils import toggle_pyvista_actor, update_pyvista_help_message
+        from cratermaker.utils.visualization_utils import toggle_pyvista_actor, update_pyvista_help_message
 
         def _draw_craters(craters, crater_color, name, crater_style, use_measured_properties, **kwargs):
             add_mesh_kwargs = {k: v for k, v in kwargs.items() if k in PYVISTA_ADD_MESH_KWARGS}
@@ -859,7 +878,14 @@ class Counting(ComponentBase):
 
         new_plotter = plotter is None
         surface = self.surface
-        plotter = surface.pyvista_plotter(enable_interactive=enable_interactive, plotter=plotter, interval=interval, **kwargs)
+        plotter = surface.pyvista_plotter(
+            enable_interactive=enable_interactive,
+            plotter=plotter,
+            interval=interval,
+            theme=theme,
+            transparent_background=transparent_background,
+            **kwargs,
+        )
         valid_crater_styles = ["rings", "points", "impacts", "spheres"]
         if not enable_interactive:
             crater_style = crater_style.lower()

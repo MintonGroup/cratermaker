@@ -92,13 +92,13 @@ class BasicMoonCrater(MorphologyCrater):
             isring=isring,
             **kwargs,
         )
-        return
 
     def __str__(self) -> str:
         str_repr = super().__str__()
         str_repr += (
             f"Rim height: {format_large_units(self.rim_height, quantity='length')}\n"
             f"Ejecta fraction of rim: {self.frac_ejrim}\n"
+            f"Ejecta profile: {self.ejprofile}\n"
             f"Rim width: {format_large_units(self.rim_width, quantity='length')}\n"
             f"Floor elevation: {format_large_units(self.floor_elevation, quantity='length')}\n"
             f"Floor radius: {format_large_units(self.floor_radius, quantity='length')}\n"
@@ -129,6 +129,8 @@ class BasicMoonCrater(MorphologyCrater):
         peak_center_distance: float | None = None,
         peak_center_bearing: float | None = None,
         conserve_volume: bool = True,
+        monte_carlo: bool | None = None,
+        make_rings: bool | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -166,6 +168,10 @@ class BasicMoonCrater(MorphologyCrater):
             Bearing angle of central peak/peak ring in degrees.
         conserve_volume: bool, optional
             If True, then the value of frac_ejrim will be adjusted in order to attempt to conserve volume between excavation and deposition. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
+        monte_carlo : bool or None, optional
+            If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
+        make_rings : bool, optional
+            If True, then rings will be generated for complex and multiring craters. Default is True for new craters and False for copied craters unless a parameter was changed.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -178,9 +184,11 @@ class BasicMoonCrater(MorphologyCrater):
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic
 
         if crater is not None and isinstance(crater, BasicMoonCrater):
-            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
+            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls", "make_rings"]:
                 input_args.pop(k, None)
             conserve_volume = conserve_volume and any(list(input_args.values()))
+            if make_rings is None:
+                make_rings = any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
@@ -195,134 +203,159 @@ class BasicMoonCrater(MorphologyCrater):
             peak_ring_radius = crater.peak_ring_radius if peak_ring_radius is None else peak_ring_radius
             peak_center_distance = crater.peak_center_distance if peak_center_distance is None else peak_center_distance
             peak_center_bearing = crater.peak_center_bearing if peak_center_bearing is None else peak_center_bearing
+        elif make_rings is None:
+            make_rings = True
 
         morphology = Morphology.maker(morphology, **kwargs)
-        crater = super().maker(crater=crater, morphology=morphology, **kwargs)
-        monte_carlo_scaling = morphology.scaling.monte_carlo_scaling
-        compute_nominal = not monte_carlo_scaling
+        crater = super().maker(crater=crater, morphology=morphology, monte_carlo=monte_carlo, **kwargs)
+        monte_carlo = monte_carlo if monte_carlo is not None else morphology.scaling.monte_carlo
+        compute_nominal = not monte_carlo
         rng = morphology.rng
-        min_valid_diameter = 100.0  # Cutoff where the model is constrained.
+        min_valid_diameter = 100.0  # Cutoff where the model is constrained. Smaller craters use the parameters at this cutoff value
 
         # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep)
 
         floor_elevation_params = {
             "simple": {
-                "coefficients": [-4.160507429490705, 1.599249151144964, -0.03745250192819334],
-                "c": -2.562012826163061,
-                "alpha": 1.5045604523266551,
+                "coefficients": [-4.167687018033455, 1.6001202454523342, -0.03747552110388699],
+                "c": -2.274464155672326,
+                "alpha": 1.455516197513936,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [5.482403997477929, 0.23572558115334963, -0.0024268728066466697],
-                "c": -3.055177445505947,
-                "alpha": 1.7793410243827403,
+                "coefficients": [5.4915689253420545, 0.23298682432901896, -0.0022430661802085037],
+                "c": -3.7362261125113427,
+                "alpha": 1.866447443526078,
                 "fit_scale": "loglog",
             },
         }
         rim_height_params = {
             "simple": {
-                "coefficients": [-4.421427362629697, 1.2534012882562882, -0.010753563211135434],
-                "c": -4.288644222049674,
-                "alpha": 1.7342616764166658,
+                "coefficients": [-4.461857399058903, 1.2645885691929473, -0.011531387005605066],
+                "c": -4.218604205452387,
+                "alpha": 1.72797341370465,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-3.4556548162513887, 1.593585978612741, -0.05721388510727012],
-                "c": -6.220025412184776,
-                "alpha": 2.13358754440677,
+                "coefficients": [-5.10327300754197, 1.8991299658269363, -0.0711637556510648],
+                "c": -6.080795135614891,
+                "alpha": 2.0966521781546383,
                 "fit_scale": "loglog",
             },
         }
         rim_width_params = {
             "simple": {
-                "coefficients": [-3.045847003837332, 1.4539660040002333, -0.037807277145014945],
-                "c": -5.620913910182216,
-                "alpha": 2.1728440150059303,
+                "coefficients": [-3.0877789815769905, 1.4473834897759599, -0.036680803391976054],
+                "c": -5.504615471104058,
+                "alpha": 2.1143223655406027,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-8.725006081822205, 2.3310469870402106, -0.06989196343460678],
-                "c": -10.567475045514044,
-                "alpha": 2.830895656122375,
+                "coefficients": [-0.13959296561846923, 0.6920030607817031, 0.006073402057851526],
+                "c": -6.197739434603876,
+                "alpha": 2.3569121813546987,
                 "fit_scale": "loglog",
             },
         }
         floor_radius_params = {
             "simple": {
-                "coefficients": [-0.4662064569771807, 0.33817410631973205, 0.05355193127425717],
-                "c": 0.38559823495611667,
-                "alpha": 1.3445532112030967,
+                "coefficients": [-0.900242255950584, 0.455179909117242, 0.04575920054549337],
+                "c": -0.3616562884185268,
+                "alpha": 1.4684589969693498,
                 "fit_scale": "loglog",
             },
             "non-simple": {
-                "coefficients": [-9.101728576301015, 2.252588400381715, -0.048532444778273884],
-                "c": -3.088910918010094,
-                "alpha": 1.7883665714388237,
+                "coefficients": [-12.34730111609687, 2.8374446646267857, -0.07447326061389413],
+                "c": -2.377257077688099,
+                "alpha": 1.752512234751084,
                 "fit_scale": "loglog",
             },
         }
         wall_curvature_params = {
             "simple": {
-                "coefficients": [-0.2710507092156919, 0.17550018816052823, -0.014831405246080233],
-                "c": -0.008988707089111259,
-                "alpha": 0.11947458965992919,
+                "coefficients": [-0.25824388040970825, 0.17625334392925013, -0.014915775447250382],
+                "c": -0.008556260200970858,
+                "alpha": 0.10594060062350721,
                 "fit_scale": "logx",
             },
             "non-simple": {
-                "coefficients": [-0.7876287640925922, 0.08245429872428245, 0.0006996419420246415],
-                "c": 0.0009420263972111931,
-                "alpha": 0.06566274358913382,
+                "coefficients": [0.18987288872317, -0.08418984102324649, 0.007551647630654395],
+                "c": 0.001958457521099688,
+                "alpha": 0.04951276138707961,
                 "fit_scale": "logx",
             },
         }
         floor_blend_params = {
             "simple": {
-                "coefficients": [1.2270182757841783, -0.16136511656116356, 0.010525680946288323],
-                "c": 0.121956381369341,
-                "alpha": -0.13929136505343548,
+                "coefficients": [1.059340070020194, -0.13182446192525693, 0.00902946332988967],
+                "c": 0.1404880414615158,
+                "alpha": -0.17880038251603678,
                 "fit_scale": "logx",
             },
             "non-simple": {
-                "coefficients": [-2.311906938392897, 0.5934958331816245, -0.029935961000999642],
-                "c": -0.020032323223586834,
-                "alpha": 0.08071381958065849,
+                "coefficients": [0.5808979959114502, 0.03860715120274549, -0.0037083300328609988],
+                "c": -0.05625078483323789,
+                "alpha": 0.13327426573917356,
                 "fit_scale": "logx",
             },
         }
         peak_height_params = {
             "non-simple": {
-                "coefficients": [7023.854421953942, -1572.4795726336295, 90.70887127243718],
-                "c": 28642.654291270857,
-                "alpha": 125.58861203977838,
+                "coefficients": [3446.114633388009, -888.9879125470408, 58.43540553673689],
+                "c": 49177.29323139237,
+                "alpha": 108.72351648253827,
                 "fit_scale": "logx",
             },
         }
         peak_width_params = {
             "non-simple": {
-                "coefficients": [314657.30041930533, -62713.95967874097, 3134.148693476538],
-                "c": 2419292.561764227,
-                "alpha": 966.9394773005791,
+                "coefficients": [370074.37674616196, -73224.92406382009, 3630.2460325568773],
+                "c": 3843578.4915611,
+                "alpha": 252.2461102371035,
                 "fit_scale": "logx",
             },
         }
-        peak_ring_radius_params = {
+        ring_radius_params = {
             "non-simple": {
-                "coefficients": [1588874.0652091801, -307941.727633419, 14909.538899936193],
-                "c": 52381591.38441385,
-                "alpha": 1977.5905295863345,
-                "fit_scale": "logx",
+                "coefficients": [-6.613689951394371, 1.976602153637156, -0.042115405413714696],
+                "c": -3.610867824558726,
+                "alpha": 1.7741307984706642,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_rim_height_params = {
+            "non-simple": {
+                "coefficients": [-31.93167277655391, 5.496001921151941, -0.19131828795098776],
+                "c": -0.3766269768654428,
+                "alpha": 1.7427748575666637,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_floor_radius_params = {
+            "non-simple": {
+                "coefficients": [-5.551393952731496, 1.6979145956073238, -0.029252203610892827],
+                "c": -6.467424320735284,
+                "alpha": 2.139551688327142,
+                "fit_scale": "loglog",
+            },
+        }
+        ring_rim_width_params = {
+            "non-simple": {
+                "coefficients": [-15.962694436765481, 3.2135115326621557, -0.08918699188536301],
+                "c": -1.0673993551823213,
+                "alpha": 1.7610723251290876,
+                "fit_scale": "loglog",
             },
         }
 
         args = {}
         diameter_m = crater.diameter if crater.diameter > min_valid_diameter else min_valid_diameter
-        diameter_km = diameter_m * 1e-3
         fcorrection = crater.diameter / diameter_m
 
         if crater.morphology_type in ["complex", "transitional", "basin", "multiring", "peakring", "ring"]:
-            morphology_type = "non-simple"
+            fit_category = "non-simple"
         else:
-            morphology_type = "simple"
+            fit_category = "simple"
 
         # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
         # ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
@@ -330,7 +363,7 @@ class BasicMoonCrater(MorphologyCrater):
         if rim_height is None:
             rim_height = (
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[fit_category]
                 )[0]
                 * fcorrection
             )
@@ -339,7 +372,7 @@ class BasicMoonCrater(MorphologyCrater):
         if rim_width is None:
             rim_width = max(
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[fit_category]
                 )[0]
                 * fcorrection,
                 0.0,
@@ -352,7 +385,7 @@ class BasicMoonCrater(MorphologyCrater):
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
         if frac_ejrim is None:
             if rim_height > 0.0:
-                if monte_carlo_scaling:
+                if monte_carlo:
                     frac_ejrim = rng.uniform(low=0.3, high=0.7, size=1)[0]  # Temporary until a morphometric analysis ic complete
                 else:
                     frac_ejrim = 0.5
@@ -363,7 +396,7 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_elevation is None:
             floor_elevation = (
                 -sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_elevation_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_elevation_params[fit_category]
                 )[0]
                 * fcorrection
             )
@@ -373,7 +406,7 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_radius is None:
             floor_radius = max(
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[morphology_type]
+                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[fit_category]
                 )[0]
                 * fcorrection,
                 0.0,
@@ -384,7 +417,7 @@ class BasicMoonCrater(MorphologyCrater):
             if crater.morphology_type == "complex":
                 peak_height = max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_height_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_height_params[fit_category]
                     )[0],
                     0.0,
                 )
@@ -396,7 +429,7 @@ class BasicMoonCrater(MorphologyCrater):
             if crater.morphology_type == "complex":
                 peak_width = max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_width_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_width_params[fit_category]
                     )[0],
                     0.0,
                 )
@@ -411,7 +444,7 @@ class BasicMoonCrater(MorphologyCrater):
             wall_curvature = min(
                 max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **wall_curvature_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **wall_curvature_params[fit_category]
                     )[0],
                     0.0,
                 ),
@@ -424,7 +457,7 @@ class BasicMoonCrater(MorphologyCrater):
             floor_blend = min(
                 max(
                     sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_blend_params[morphology_type]
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_blend_params[fit_category]
                     )[0],
                     0.0,
                 ),
@@ -441,16 +474,43 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
-        if crater.morphology_type == "multiring" and crater.nrings == 0 and not crater.isring:
-            num_rings = 3  # kwargs.pop("num_rings", rng.integers(low=2, high=4))
-            for i in range(num_rings):
-                if monte_carlo_scaling:
-                    rnd_factor = bounded_norm(loc=1.0, scale=0.1, size=4, lower_bound=0.0, upper_bound=1.0, rng=rng)
+        num_new_rings = 0
+        if make_rings and not crater.isring and crater.nrings == 0:
+            if crater.morphology_type == "complex":
+                num_new_rings = 1
+            elif crater.morphology_type == "multiring":
+                num_new_rings = 3
+
+        if num_new_rings > 0:
+            for i in range(num_new_rings):
+                if i == 0:
+                    radius_outer = crater.radius
+                    floor_radius_outer = crater.floor_radius
                 else:
-                    rnd_factor = np.ones(4)
-                radius = crater.radius * rnd_factor[0] / np.sqrt(2.0) ** (i + 1)
-                floor_radius = crater.floor_radius * rnd_factor[1] / np.sqrt(2.0) ** (i + 1)
-                rim_height = rnd_factor[3] * crater.rim_height * (0.4) ** (i + 1)
+                    radius_outer = crater.rings[i - 1].radius
+                    floor_radius_outer = crater.rings[i - 1].floor_radius
+                radius = min(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_radius_params[fit_category]
+                    )[0]
+                    * radius_outer
+                    / crater.radius,
+                    radius_outer,
+                )
+                floor_radius = min(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_floor_radius_params[fit_category]
+                    )[0]
+                    * floor_radius_outer
+                    / crater.floor_radius,
+                    floor_radius_outer,
+                )
+                rim_height = max(
+                    sample_logfit_heteroskedastic(
+                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_rim_height_params[fit_category]
+                    )[0],
+                    0.0,
+                )
                 if i == 0:
                     frac_ejrim = crater.frac_ejrim * rim_height / crater.rim_height
                 else:
@@ -461,51 +521,23 @@ class BasicMoonCrater(MorphologyCrater):
                     rim_height=rim_height,
                     frac_ejrim=frac_ejrim,
                 )
-
-        # Make sure rings are the correct type
-        for i in range(crater.nrings):
-            ring = crater.rings[i]
-            if not isinstance(ring, cls):
-                ring = cls(crater=ring, morphology=morphology)
-                crater.rings[i] = ring
+        elif crater.nrings > 0:
+            # Make sure rings are the correct type
+            for i in range(crater.nrings):
+                ring = crater.rings[i]
+                if not isinstance(ring, cls):
+                    ring = cls(crater=ring, morphology=morphology)
+                    crater.rings[i] = ring
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
         if conserve_volume and not crater.isring:
 
-            def _func(frac_ejrim, crater):
-                ejrim = frac_ejrim * crater.rim_height
-                frac_ejrim_orig = crater.frac_ejrim
-                ejrim_orig = crater.frac_ejrim * crater.rim_height
-                if ejrim_orig > 0.0:
-                    erat = max(ejrim / ejrim_orig, 0.0)
-                else:
-                    erat = 0.0
-                crater.frac_ejrim = max(ejrim / crater.rim_height, 0.0)
-                ring_frac_ejrim_orig = []
-                if crater.nrings > 0:
-                    for ring in crater.rings:
-                        if ring.frac_ejrim is not None:
-                            ring_frac_ejrim_orig.append(ring.frac_ejrim)
-                            ring_ejrim = ring.frac_ejrim * ring.rim_height
-                            ring_ejrim *= erat
-                            ring.frac_ejrim = ring_ejrim / ring.rim_height
-                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
-                ejecta_volume = morphology.estimate_volume(crater, include_crater=False, include_ejecta=True)
-                result = ejecta_volume + excavated_volume
-                crater.frac_ejrim = frac_ejrim_orig
-                if len(ring_frac_ejrim_orig) > 0:
-                    for ring, ring_frac_ejrim in zip(crater.rings, ring_frac_ejrim_orig, strict=True):
-                        ring.frac_ejrim = ring_frac_ejrim
-                return result
+            def ejvol(crater):
+                return 2 * np.pi * crater.frac_ejrim * crater.rim_height * crater.radius**2 / (-crater.ejprofile - 2)
 
             for _ in range(10):
-                lower_bracket = 0.0
-                upper_bracket = 1.0
-                lower_bound = _func(lower_bracket, crater)
-                upper_bound = _func(upper_bracket, crater)
-                if lower_bound < 0.0 and upper_bound > 0.0:
-                    break
-                while lower_bound > 0.0:
+                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                while excavated_volume > 0.0:
                     # This occurs when rim_height is too high
                     kwargs["rim_height"] *= 0.9
                     crater = cls(
@@ -513,30 +545,18 @@ class BasicMoonCrater(MorphologyCrater):
                         morphology=morphology,
                         **kwargs,
                     )
-                    lower_bound = _func(lower_bracket, crater)
+                    excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
 
-                upper_bound = _func(upper_bracket, crater)
-                while upper_bound < 0.0:
-                    # This occurs when the rim_height is too low
-                    kwargs["rim_height"] *= 1.1
-                    crater = cls(
-                        crater=crater,
-                        morphology=morphology,
-                        **kwargs,
-                    )
-                    upper_bound = _func(upper_bracket, crater)
+                conservation_factor = -ejvol(crater) / excavated_volume
 
-            sol = root_scalar(lambda x, crater=crater: _func(x, crater), bracket=[lower_bracket, upper_bracket], method="brentq")
-            frac_ejrim = sol.root if sol.converged else crater.frac_ejrim
-            if crater.frac_ejrim > _VSMALL:
-                conservation_factor = frac_ejrim / crater.frac_ejrim
-            else:
-                conservation_factor = 1.0
-            crater._frac_ejrim *= conservation_factor
-            if crater.nrings > 0:
-                for ring in crater.rings:
-                    if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
-                        ring.frac_ejrim *= conservation_factor
+                ejprofile = -2.0 + conservation_factor * (crater.ejprofile + 2)
+                if ejprofile < -4:
+                    kwargs["rim_height"] *= 0.9
+                else:
+                    kwargs["ejprofile"] = ejprofile
+                crater = cls(crater=crater, morphology=morphology, **kwargs)
+                if ejprofile > -4:
+                    break
 
         return crater
 
@@ -769,70 +789,6 @@ class BasicMoonMorphology(Morphology):
         str_repr += f"Ejecta Rays: {self.dorays}\n"
         return str_repr
 
-    def emplace(self, craters: Crater | list[Crater] | None = None, **kwargs: Any) -> list[BasicMoonCrater]:
-        """
-        Convenience method to immediately emplace a crater onto the surface.
-
-        Initializes and uses the queue system behind the scenes.
-
-        Parameters
-        ----------
-        crater : Crater | list[Crater] | None
-            The crater or list of craters to be emplaced. If None, then a crater will be created using the provided parameters in kwargs and emplaced.
-        kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        list[BasicMoonCrater]
-            The list of BasicMoonCrater objects that were emplaced.
-        """
-        if craters is None:
-            craters = [BasicMoonCrater.maker(morphology=self, **kwargs)]
-        elif isinstance(craters, (list | tuple)) and len(craters) > 0:
-            processed_craters = []
-            for c in tqdm(
-                craters,
-                total=len(craters),
-                desc="Preparing craters for emplacement",
-                unit="crater",
-                position=0,
-                leave=False,
-            ):
-                if isinstance(c, BasicMoonCrater):
-                    processed_craters.append(c)
-                else:
-                    processed_craters.append(BasicMoonCrater.maker(c, morphology=self, **kwargs))
-            craters = processed_craters
-        elif isinstance(craters, BasicMoonCrater):
-            craters = [craters]
-        elif isinstance(craters, Crater):
-            craters = [BasicMoonCrater.maker(craters, morphology=self, **kwargs)]
-        else:
-            raise ValueError(
-                "Invalid input for crater emplacement. Must be a Crater object, a list of Crater objects, or None with additional arguments for Crater.maker()."
-            )
-
-        return super().emplace(craters, **kwargs)
-
-    def form_crater(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> None:
-        """
-        Form a crater or list of craters on the surface.
-
-        Parameters
-        ----------
-        crater : BasicMoonCrater
-            The crater object to be formed.
-        kwargs : Any
-            |kwargs|
-        """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
-
-        if crater.emplaceable:
-            super().form_crater(crater, **kwargs)
-        return
-
     def compute_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
@@ -849,8 +805,8 @@ class BasicMoonMorphology(Morphology):
         tuple[NDArray[np.float64], NDArray[np.float64]]
             The computed ejecta thickness and intensity at the face and node elevations.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         ejecta_thickness, ejecta_intensity = super().compute_ejecta(crater, **kwargs)
         if ejecta_thickness is None or ejecta_intensity is None:
             return None, None
@@ -879,8 +835,8 @@ class BasicMoonMorphology(Morphology):
         NDArray[np.float64]
             The computed crater shape at the face and node elevations.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         reference_elevation = region.get_reference_surface(reference_radius=crater.diameter)
 
         # Combine distances and references for nodes and faces
@@ -997,8 +953,8 @@ class BasicMoonMorphology(Morphology):
         NDArray[np.float64]
             The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
 
         radial_distances = np.concatenate([region.face_distance, region.node_distance])
         bearings = np.concatenate([region.face_bearing, region.node_bearing])
@@ -1077,17 +1033,16 @@ class BasicMoonMorphology(Morphology):
         Returns
         -------
         thickness : NDArray[np.float64]
-            The computed ejecta thickness for each (r, theta) pair.
+            The computed ejecta thickness for each (radial_distance, bearing) pair.
         ray_intensity : NDArray[np.float64]
-            The computed ray intensity for each (r, theta) pair.
+            The computed ray intensity for each (radial_distance, bearing) pair.
 
         Notes
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
-        # flatten r and theta to 1D arrays
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         thickness = self.ejecta_profile(crater, radial_distances, bearings=bearings)
         radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
@@ -1100,7 +1055,6 @@ class BasicMoonMorphology(Morphology):
         thickness = np.array(thickness, dtype=np.float64)
         intensity = np.array(intensity, dtype=np.float64)
         thickness *= intensity
-        # reshape thickness to match the shape of r and theta
         return np.reshape(thickness, radial_distances.shape), np.reshape(intensity, radial_distances.shape)
 
     def ray_intensity(self, crater: BasicMoonCrater, radial_distances: ArrayLike, bearings: ArrayLike) -> NDArray[np.float64]:
@@ -1125,9 +1079,8 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
-        # flatten r and theta to 1D arrays
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
         radial_distances = np.ravel(radial_distances)
         bearings = np.ravel(np.radians(bearings))
         intensity = basicmoon_bindings.ray_intensity(
@@ -1137,7 +1090,6 @@ class BasicMoonMorphology(Morphology):
             seed=self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
-        # reshape intensity to match the shape of r and theta
         intensity = np.reshape(intensity, radial_distances.shape)
         return intensity
 
@@ -1264,8 +1216,8 @@ class BasicMoonMorphology(Morphology):
         float
             The maximum extent of the crater or ejecta blanket in meters.
         """
-        if not isinstance(crater, BasicMoonCrater):
-            crater = BasicMoonCrater.maker(crater, morphology=self)
+        if not isinstance(crater, self._CraterType):
+            crater = self.Crater.maker(crater=crater)
 
         def _invert_ejecta(r):
             return self._profile_invert_ejecta(r, crater, minimum_thickness)
@@ -1303,8 +1255,8 @@ class BasicMoonMorphology(Morphology):
         crater: BasicMoonCrater,
         include_crater: bool,
         include_ejecta: bool,
-        crater_cls: type[Crater] = BasicMoonCrater,
-        profile_func: Callable = basicmoon_bindings.basicmoon_profile,
+        crater_profile_function: Callable = basicmoon_bindings.crater_profile_function,
+        ejecta_profile_function: Callable = basicmoon_bindings.ejecta_profile_function,
         **kwargs,
     ) -> np.float64:
         """
@@ -1314,17 +1266,18 @@ class BasicMoonMorphology(Morphology):
             return np.float64(0.0)
 
         def _crater_func(r):
-            h = basicmoon_bindings.crater_profile_function(crater, r)
-            return r * h
+            hc = crater_profile_function(crater, r)
+            he = ejecta_profile_function(crater, r)
+
+            return r * (hc - he)
 
         def _ejecta_func(r):
-            h = basicmoon_bindings.ejecta_profile_function(crater, r)
+            h = ejecta_profile_function(crater, r)
             return r * h
 
         def _combo_func(r):
-            hc = basicmoon_bindings.crater_profile_function(crater, r)
-            he = basicmoon_bindings.ejecta_profile_function(crater, r)
-            return r * (hc + he)
+            hc = crater_profile_function(crater, r)
+            return r * hc
 
         if include_crater and not include_ejecta:
             func = _crater_func
@@ -1332,7 +1285,11 @@ class BasicMoonMorphology(Morphology):
             func = _ejecta_func
         else:
             func = _combo_func
-        v = quad(func, 0.0, 20 * crater.radius, **{"limit": 100, "epsrel": 1e-2, **kwargs}, full_output=1)[0]
+        if self.ejecta_truncation is None:
+            rmax = 20 * crater.radius
+        else:
+            rmax = self.ejecta_truncation * crater.radius
+        v = quad(func, 0.0, rmax, **{"limit": 100, "epsrel": 1e-3, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
 
     def degradation_function(

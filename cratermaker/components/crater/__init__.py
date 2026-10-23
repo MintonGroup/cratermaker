@@ -10,7 +10,7 @@ import numpy as np
 import xarray as xr
 from geopandas import GeoSeries
 from numpy.random import Generator
-from shapely.ops import transform
+from shapely import transform
 from tqdm import tqdm
 from vtk import vtkPolyData
 
@@ -428,7 +428,7 @@ class Crater(ComponentBase):
                 raise TypeError("crater must be an instance of Crater or None")
             fixed_fields = asdict(crater._fixed)
             for f in fields(crater._fixed):
-                if not f.init or f.name in kwargs:
+                if not f.init or (f.name in kwargs and kwargs[f.name] is not None):
                     fixed_fields.pop(f.name)
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs
@@ -607,6 +607,7 @@ class Crater(ComponentBase):
         rng_seed: str | int | None = None,
         rng_state: dict | None = None,
         check_redundant_inputs: bool = True,
+        monte_carlo: bool | None = None,
         **kwargs: Any,
     ):
         """
@@ -702,6 +703,8 @@ class Crater(ComponentBase):
             |rng_state|
         check_redundant_inputs : bool, optional
             If True, check for redundant inputs such as providing both diameter and radius. Default is True.
+        monte_carlo : bool or None, optional
+            If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         **kwargs : Any
             |kwargs|
 
@@ -978,19 +981,17 @@ class Crater(ComponentBase):
             target = Target.maker(target, **kwargs)
 
             projectile_args = {
-                "velocity": args["projectile_velocity"],
-                "mass": args["projectile_mass"],
-                "angle": args["projectile_angle"],
-                "direction": args["orientation"],
-                "location": args["location"],
-                "density": args["projectile_density"],
+                "projectile_velocity": args["projectile_velocity"],
+                "projectile_mass": args["projectile_mass"],
+                "projectile_angle": args["projectile_angle"],
+                "projectile_direction": args["orientation"],
+                "projectile_location": args["location"],
+                "projectile_density": args["projectile_density"],
             }
             projectile = Projectile.maker(
                 projectile,
                 target=target,
                 **{**projectile_args, **kwargs},
-            ).new_projectile(
-                **projectile_args,
             )
 
             scaling = Scaling.maker(
@@ -999,7 +1000,17 @@ class Crater(ComponentBase):
                 projectile=projectile,
                 **kwargs,
             )
+            if monte_carlo is not None:  # Override the built-in monte_carlo flags
+                scaling_monte_carlo_orig = scaling.monte_carlo
+                projectile_monte_carlo_orig = projectile.monte_carlo
+                scaling.monte_carlo = monte_carlo
+                projectile.monte_carlo = monte_carlo
+
+            scaling.projectile = scaling.projectile.new_projectile(
+                **projectile_args,
+            )
             projectile = scaling.projectile
+
             scaling.recompute()
             target = scaling.target
             pv = projectile.velocity
@@ -1076,6 +1087,10 @@ class Crater(ComponentBase):
                 raise ValueError("Projectile density must be non-negative.")
 
             name = args.pop("name", None) if name is None else name
+
+            if monte_carlo is not None:
+                scaling.monte_carlo = scaling_monte_carlo_orig
+                projectile.monte_carlo = projectile_monte_carlo_orig
 
         if check_redundant_inputs and measured_radius is not None and measured_diameter is not None:
             raise ValueError("Only one of measured_diameter or measured_radius may be set.")
@@ -1217,7 +1232,7 @@ class Crater(ComponentBase):
             new_geoms = []
             for p in poly.geoms:
                 if np.abs(p.centroid.x) > 180.0:
-                    p = transform(lon_flip, p)
+                    p = transform(p, lon_flip, interleaved=False)
                 new_geoms.append(p)
             poly = GeometryCollection(new_geoms)
 
@@ -1364,7 +1379,12 @@ class Crater(ComponentBase):
 
     @classmethod
     def from_xarray(
-        cls, dataset: xr.Dataset | dict, interval: int | None = None, conserve_volume: bool = False, **kwargs
+        cls,
+        dataset: xr.Dataset | dict,
+        interval: int | None = None,
+        conserve_volume: bool = False,
+        make_rings: bool = False,
+        **kwargs,
     ) -> list[Crater]:
         """
         Import crater data from an xarray Dataset.
@@ -1375,6 +1395,8 @@ class Crater(ComponentBase):
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
         conserve_volume : bool, optional
             Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+        make_rings : bool, optional
+            Indicate whether to generate new rings for complex and multiring craters that don't have one explicitly defined in the Dataset. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1418,7 +1440,13 @@ class Crater(ComponentBase):
             if "morphology_type" in crater_data:
                 crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
-            crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+            crater = cls.maker(
+                **crater_data,
+                conserve_volume=conserve_volume,
+                make_rings=make_rings,
+                monte_carlo=False,
+                check_redundant_inputs=False,
+            )
             if crater.isring:
                 rings.append(crater)
             else:
