@@ -527,7 +527,22 @@ class RealMoonMorphology(BasicMoonMorphology):
                 f"2D power spectral density coefficient file not found at {psd2d_coef_file}. Please provide a valid file path."
             )
 
-        self._psd1d_coef = xr.open_dataset(psd1d_coef_file, engine="h5netcdf")
+        ds = xr.open_dataset(psd1d_coef_file, engine="h5netcdf")
+        fit_categories = [str(f) for f in ds.fit_category.data]
+        terms = [str(t) for t in ds.term.data]
+        params = [str(p) for p in ds.param.data]
+        self._psd1d_coef = {}
+        for var in ds.data_vars:
+            self._psd1d_coef[var] = {}
+            for fit_category in fit_categories:
+                self._psd1d_coef[var][fit_category] = {}
+                for term in terms:
+                    self._psd1d_coef[var][fit_category][term] = {}
+                    for param in params:
+                        self._psd1d_coef[var][fit_category][term][param] = (
+                            ds[var].sel(fit_category=fit_category, term=term, param=param).data.item()
+                        )
+
         self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
         self.psd_pix = psd_pix
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
@@ -638,7 +653,7 @@ class RealMoonMorphology(BasicMoonMorphology):
             raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
         self._add_noise = value
 
-    def get_control_points(self, crater: Crater, psd1d_coef: xr.DataArray):
+    def get_control_points(self, crater: Crater, psd1d_coef: dict):
         """
         Get the control points for the PSD model based on the crater diameter and the provided coefficient and sigma values.
 
@@ -646,39 +661,36 @@ class RealMoonMorphology(BasicMoonMorphology):
         ----------
         crater : Crater
             The crater for which to compute the control points.
-        psd1d_coef : xr.DataArray
-            A DataArray containing the coefficients and sigma values for the control points. The expected dimensions are "index" and "term", where "index" corresponds to the different coefficients (e.g., mean and sigma for the control points) and "term" corresponds to the different control points (e.g., "s12", "x2", "y2", etc.).
+        psd1d_coef : dict
+            A nested dict containing the coefficients and sigma values for the control points. The expected structure is psd1d_coef[fit_category][term][param], where fit_category is "simple" or "non-simple", term is ["y1","y2","y3","y4","y5","yn","sn"], and param is ["m","b","sigma"] (e.g., mean and sigma for the control points).
         add_noise : bool
             Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
         """
-        diameter_km = crater.diameter * 1e-3
-
         control_points = {}
         sigma = {}
         fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
 
-        coef = psd1d_coef.sel(fit_category=fit_category)
-        for term in coef.term:
-            c = coef.sel(term=term)
-            control_points[str(term.data)] = c.sel(param="m") * diameter_km + c.sel(param="b")
+        coef = psd1d_coef[fit_category]
+        for term, c in coef.items():
+            control_points[term] = c["m"] * crater.radius + c["b"]
             if self.add_noise:
                 sigma = (
-                    c.sel(param="sigma") / len(coef.term)
+                    c["sigma"] / len(coef[term])
                 )  # There are too many correlations in the breakpoints for the control points to be random. Dividing by the number of terms suppresses the noise in the control points a bit so that the PSDs don't become extreme
-                cmid = control_points[str(term.data)]
-                control_points[str(term.data)] = self.rng.normal(cmid, sigma)
+                cmid = control_points[term]
+                control_points[term] = self.rng.normal(cmid, sigma)
 
         return control_points
 
     @property
-    def psd1d_coef(self) -> xr.Dataset:
+    def psd1d_coef(self) -> dict:
         """
         The coefficients for the 1D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
         """
         return self._psd1d_coef
 
     @property
-    def psd2d_coef(self) -> xr.Dataset:
+    def psd2d_coef(self) -> dict:
         """
         The coefficients for the 2D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
         """
