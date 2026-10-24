@@ -157,7 +157,7 @@ Mix pre-determined impacts with random ones using :ref:`Quasi Monte-Carlo <ug-pr
 Save Actions
 ------------
 
-The |Simulation| class has a |save_actions| parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial condiations, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
+The |Simulation| class has a |save_actions| parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial conditions, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
 
 .. ipython:: python
     :okwarning:
@@ -168,7 +168,7 @@ The |Simulation| class has a |save_actions| parameter that can be set by any com
 .. ipython:: python
     :okwarning:
 
-    sim = Simulation(gridlevel=4)
+    sim = Simulation(gridlevel=0)
     print(sim.save_actions)
 
 If you wanted to automatically export the crater count data to Spatial Crater Count (SCC) format that can be read in by Craterstats, you can use |add_save_action| to add an export command to the |Counting| component's save actions, like this:
@@ -183,11 +183,6 @@ If you wanted to automatically export the crater count data to Spatial Crater Co
 
 You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:
 
-.. ipython:: python
-    :okwarning:
-    :suppress:
-
-    cleanup()
 
 .. code-block:: python
 
@@ -207,6 +202,9 @@ You can also can have multiple save actions that use the same method, but with d
     # Also export the craters in SCC format at the end of each interval as part of the Counting object's save_actions.
     sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(age=3540.0, time_interval=10.0)
+
+Custom callable functions as save actions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 You can also define custom callable functions to use as a save action. The function call signature must be defined such that it can accept the integer keyword argument "interval", the keyword arguments that are passed to the save method, and any other custom keyword arguments you wish to pass. Adding the custom function as a save action works the same way as with methods, except that you set the key value to be the function itself rather than the name of the method. 
@@ -228,7 +226,14 @@ If you don't need to pass additional arguments to your custom function, you stil
 
     sim.add_save_action({func_without_args:{}})
 
+Disable save actions
+^^^^^^^^^^^^^^^^^^^^
 
+The defaults save actions for a |Simulation| object is to plot the surface. However, processing the raster data to generate a plot of the surface can be time consuming and is not always needed. To disable the save actions, simply override the default value with an argument. Passing an empty list will disable all save actions:
+
+.. code-block:: python
+
+    sim = Simulation(save_actions=[])
 
 
 .. _ug-simulation-examples: 
