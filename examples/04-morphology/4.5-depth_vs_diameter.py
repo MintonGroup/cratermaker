@@ -26,13 +26,7 @@ References
 
 
 
-Depth vs diameter measurement files
------------------------------------
 
-  :download:`Hoover2024Table2.csv </_static/Hoover2024Table2.csv>`
-  :download:`Pike1974-Mare.csv </_static/Pike1974-Mare.csv>`
-  :download:`Pike1974-Highlands.csv </_static/Pike1974-Highlands.csv>`
-  :download:`S2-Stopar et al. Simple Craters.csv </_static/S2-Stopar_et_al._Simple_Craters.csv>`
 
 
 """
@@ -169,3 +163,14 @@ ax.scatter(
 
 ax.legend(loc="lower right")
 plt.show()
+
+
+###############################################################################
+# Depth vs diameter measurement files
+# -----------------------------------
+#
+#  :download:`Hoover2024Table2.csv </_static/Hoover2024Table2.csv>`
+#  :download:`Pike1974-Mare.csv </_static/Pike1974-Mare.csv>`
+#  :download:`Pike1974-Highlands.csv </_static/Pike1974-Highlands.csv>`
+#  :download:`S2-Stopar et al. Simple Craters.csv </_static/S2-Stopar_et_al._Simple_Craters.csv>`
+#
