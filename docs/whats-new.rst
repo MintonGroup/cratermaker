@@ -3,6 +3,14 @@
 What's New
 ==========
 
+:release:`v2026.10.3-alpha`
+---------------------------
+
+.. _whats-new.2026.10.3-alpha:
+
+- Improved performance of experimental "realmoon" morphology model. :issue:`140` :pull:`141` `David Minton`_
+
+
 :release:`v2026.10.2-alpha`
 ---------------------------
 
