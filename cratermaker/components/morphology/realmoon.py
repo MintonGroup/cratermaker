@@ -86,6 +86,7 @@ class PSD1D(CratermakerBase):
         object.__setattr__(self, "_mean", None)
         object.__setattr__(self, "_pix", None)
         object.__setattr__(self, "_nprofile", None)
+        object.__setattr__(self, "_nfreq", None)
         object.__setattr__(self, "_control_points", None)
         object.__setattr__(self, "_amplitude", None)
         object.__setattr__(self, "_phase", None)
@@ -236,7 +237,17 @@ class PSD1D(CratermakerBase):
         """
         The number of power spectra points, which is half the number of points in the profile (nprofile).
         """
-        return self.nprofile // 2 + 1
+        if self._nfreq is None:
+            return self.nprofile // 2 + 1
+        else:
+            return self._nfreq
+
+    @nfreq.setter
+    def nfreq(self, value):
+        if value is not None and (not isinstance(value, int) or value < _PSD1D_MIN_POINTS // 2):
+            raise ValueError("nfreq must be a positive integer larger than {_PSD1D_MIN_POINTS // 2}")
+        else:
+            self._nfreq = value
 
     @property
     def wavelength(self) -> NDArray[np.float64]:
@@ -269,8 +280,8 @@ class PSD1D(CratermakerBase):
         """
         if value is not None:
             value = np.asarray(value)
-            if self._nprofile is None:
-                self.nprofile = len(value) * 2
+            if self._nfreq is None:
+                self._nfreq = len(value)
             else:
                 if len(value) != self.nfreq:
                     raise ValueError(f"Size of amplitude must be {self.nfreq}")
@@ -304,8 +315,11 @@ class PSD1D(CratermakerBase):
     def phase(self, value):
         if value is not None:
             value = np.asarray(value)
-            if len(value) != self.nfreq:
-                raise ValueError(f"Size of phase must be {self.nfreq}")
+            if self._nfreq is None:
+                self._nfreq = len(value)
+            else:
+                if len(value) != self.nfreq:
+                    raise ValueError(f"Size of amplitude must be {self.nfreq}")
             self._phase = value
 
     @property
