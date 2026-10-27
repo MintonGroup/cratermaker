@@ -1196,6 +1196,7 @@ class Simulation(CratermakerBase):
         enable_interactive: bool = True,
         theme: str | None = "cratermaker",
         transparent_background: bool | None = None,
+        include_counting: bool | None = None,
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -1223,6 +1224,8 @@ class Simulation(CratermakerBase):
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         superdomain : bool, optional
             If True, show the full surface including the superdomain (|HiResLocalSurface| variants only). If False, show only the local region. Default is False.
+        include_counting : bool, optional
+            If True, use the Counting version of pyvista_plotter that includes a representation of the craters. If False, use the Surface version of pyvista_plotter. Default is True if the counting attribute is initialized, and False if not.
         crater_type: Literal["observed","emplaced","both"] | list[Crater].
             This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
         crater_color: str | tuple[str] = ("white", "yellow")
@@ -1276,7 +1279,9 @@ class Simulation(CratermakerBase):
             self.save(**kwargs, skip_actions=True)
             interval = self.interval
 
-        if self.counting is not None:
+        if include_counting is None:
+            include_counting = self.counting is not None
+        if include_counting:
             plotter = self.counting.pyvista_plotter(
                 interval=interval,
                 plotter=plotter,
