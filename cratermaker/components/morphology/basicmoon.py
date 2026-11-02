@@ -211,7 +211,6 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo = monte_carlo if monte_carlo is not None else morphology.scaling.monte_carlo
         compute_nominal = not monte_carlo
         rng = morphology.rng
-        min_valid_diameter = 100.0  # Cutoff where the model is constrained. Smaller craters use the parameters at this cutoff value
 
         # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep)
 
@@ -349,16 +348,13 @@ class BasicMoonCrater(MorphologyCrater):
         }
 
         args = {}
-        diameter_m = crater.diameter if crater.diameter > min_valid_diameter else min_valid_diameter
+        diameter_m = min(max(crater.diameter, morphology.valid_diameter_range[0]), morphology.valid_diameter_range[1])
         fcorrection = crater.diameter / diameter_m
 
         if crater.morphology_type in ["complex", "transitional", "basin", "multiring", "peakring", "ring"]:
             fit_category = "non-simple"
         else:
             fit_category = "simple"
-
-        # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
-        # ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
 
         if rim_height is None:
             rim_height = (
@@ -777,6 +773,7 @@ class BasicMoonMorphology(Morphology):
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+
         super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         return
 
@@ -1411,3 +1408,12 @@ class BasicMoonMorphology(Morphology):
         The class definition of the associated Crater type.
         """
         return BasicMoonCrater
+
+    @property
+    def valid_diameter_range(self) -> tuple[float, float]:
+        """
+        Valid diameter range for the morphometric property models.
+
+        Craters with diameters outside the range will use the morphometric property models at th nearest boundary diameter.
+        """
+        return (100.0, 1000.0e3)

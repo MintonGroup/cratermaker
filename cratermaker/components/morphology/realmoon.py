@@ -685,8 +685,9 @@ class RealMoonMorphology(BasicMoonMorphology):
         fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
 
         coef = psd1d_coef[fit_category]
+        radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
         for term, c in coef.items():
-            control_points[term] = c["m"] * crater.radius + c["b"]
+            control_points[term] = c["m"] / np.log(radius_m) ** 2 + c["b"]
             if self.add_noise:
                 sigma = (
                     c["sigma"] / len(coef[term])

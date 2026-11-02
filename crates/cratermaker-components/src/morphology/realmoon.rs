@@ -13,7 +13,7 @@ use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
 
-const BLEND_WIDTH_FRACTION: f64 = 0.10; // Relative width of the blending region between PSD-derived parameter values and their means
+const BLEND_WIDTH_FRACTION: f64 = 0.05; // Relative width of the blending region between PSD-derived parameter values and their means
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
