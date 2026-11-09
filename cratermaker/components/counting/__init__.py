@@ -212,42 +212,41 @@ class Counting(ComponentBase):
         # Only tag if the crater is big enough
         if crater.crater_region is None:
             return
+        self.emplaced.append(crater)
 
         # Tag a region just outside crater rim with the id
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
-        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            self.emplaced.append(crater)
-            if add_to_observed:
-                crater_region.add_tag(
-                    name="crater_id",
-                    long_name=_TALLY_LONG_NAME,
-                    tag=crater.id,
-                    **kwargs,
-                )
+        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING and add_to_observed:
+            crater_region.add_tag(
+                name="crater_id",
+                long_name=_TALLY_LONG_NAME,
+                tag=crater.id,
+                **kwargs,
+            )
 
-                # Check to make sure the crater was recorded to the surface. HiResLocal surfaces may not record craters in the superdomain
-                if crater.id in self.surface.uxds.crater_id:
-                    self.observed[crater.id] = crater
-                else:
-                    return
+            # Check to make sure the crater was recorded to the surface. HiResLocal surfaces may not record craters in the superdomain
+            if crater.id in self.surface.uxds.crater_id:
+                self.observed[crater.id] = crater
+            else:
+                return
 
-                rim_interior_region = crater_region.extract_subregion(subregion_radius=crater.radius)
+            rim_interior_region = crater_region.extract_subregion(subregion_radius=crater.radius)
 
-                # Cookie cutting: remove any smaller craters that are overlapped by this new crater
-                unique_ids = np.unique(rim_interior_region.crater_id)
-                unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
-                if len(unique_ids) > 0:
-                    # Compute cookie cutting removes list
-                    observed = self.observed.copy()
-                    removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
-                    # For every id that appears in the removes list, set it to 0 in the data array
-                    for remove_id in removes:
-                        rim_interior_region.remove_tag(name="crater_id", tag=remove_id)
-                        if not np.any(
-                            self.surface.uxds.crater_id.data == remove_id
-                        ):  # Check to see if this crater id still appears, and if not, it's gone man.
-                            self.observed.pop(remove_id, None)
+            # Cookie cutting: remove any smaller craters that are overlapped by this new crater
+            unique_ids = np.unique(rim_interior_region.crater_id)
+            unique_ids = unique_ids[unique_ids > 0]  # Remove the 0 id which corresponds to no crater
+            if len(unique_ids) > 0:
+                # Compute cookie cutting removes list
+                observed = self.observed.copy()
+                removes = [id for id, v in observed.items() if v.id in unique_ids and v.diameter < crater.diameter]
+                # For every id that appears in the removes list, set it to 0 in the data array
+                for remove_id in removes:
+                    rim_interior_region.remove_tag(name="crater_id", tag=remove_id)
+                    if not np.any(
+                        self.surface.uxds.crater_id.data == remove_id
+                    ):  # Check to see if this crater id still appears, and if not, it's gone man.
+                        self.observed.pop(remove_id, None)
 
         return crater
 
