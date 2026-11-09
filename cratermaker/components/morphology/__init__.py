@@ -691,8 +691,8 @@ class Morphology(ComponentBase):
                 )
 
             # Record the crater to the counting layer
-            if self.do_counting:
-                self.counting.add(crater, **kwargs)
+            if self.counting is not None:
+                self.counting.add(crater, add_to_observed=self.do_counting, **kwargs)
 
             ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
             if ejecta_thickness is not None:
