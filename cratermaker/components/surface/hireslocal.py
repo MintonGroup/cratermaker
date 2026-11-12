@@ -15,6 +15,8 @@ from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 
+_PIX_THRESHOLD_FACTOR = 1.6e-7
+
 
 @Surface.register("hireslocal")
 class HiResLocalSurface(Surface):
@@ -610,6 +612,8 @@ class HiResLocalSurface(Surface):
             points = np.column_stack((x, y, z))
             return points.tolist(), theta_next
 
+        if self.pix / self.target.radius < _PIX_THRESHOLD_FACTOR:
+            raise ValueError(f"the value of pix is too small. Must be > {_PIX_THRESHOLD_FACTOR * self.target.radius}")
         print(f"Center of local region: {self.local_location}")
         print(f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}")
         print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
