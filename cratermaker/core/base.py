@@ -510,6 +510,8 @@ class CratermakerBase:
             |kwargs|
 
         """
+        import pyvista as pv
+
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine == "pyvista":

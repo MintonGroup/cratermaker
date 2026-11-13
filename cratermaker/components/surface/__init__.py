@@ -1170,7 +1170,7 @@ class Surface(ComponentBase):
         orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
-        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-8)
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-15)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
 
         uxgrid.attrs["_id"] = self._id
@@ -3852,6 +3852,11 @@ class LocalSurface(CratermakerBase):
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
             plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
             plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
+
+        prop = pv.Property()
+        for k, v in kwargs.items():
+            if hasattr(prop, k):
+                setattr(prop, k, v)
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
