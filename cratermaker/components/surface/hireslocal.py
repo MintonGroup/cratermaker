@@ -15,6 +15,8 @@ from cratermaker.components.target import Target
 from cratermaker.constants import FloatLike, PairOfFloats
 from cratermaker.utils.general_utils import format_large_units, parameter, validate_and_normalize_location
 
+_PIX_THRESHOLD_FACTOR = 1.6e-7
+
 
 @Surface.register("hireslocal")
 class HiResLocalSurface(Surface):
@@ -577,37 +579,16 @@ class HiResLocalSurface(Surface):
             Array of points on a unit sphere.
         """
 
-        def _interior_distribution(theta):
-            arc_distance = self.radius * theta
+        def _interior_points():
             delta = self.pix / self.radius
-            if arc_distance < self.pix:
-                return [], theta + delta
-            if np.pi * self.radius - arc_distance < self.pix:
-                return [], np.pi
-
-            max_extent = arc_distance / self.radius
-            coords = np.arange(-max_extent, max_extent + delta, delta)
-            lat_grid, lon_grid = np.meshgrid(coords, coords, indexing="ij")
-
-            pix_distance_sq = (lon_grid / delta) ** 2 + (lat_grid / delta) ** 2
-            inner = (arc_distance / self.pix - 1.0) ** 2
-            outer = (arc_distance / self.pix) ** 2
-            mask = (pix_distance_sq >= inner) & (pix_distance_sq < outer)
-
-            lat = lat_grid[mask]
-            lon = lon_grid[mask]
-
+            n = int(np.floor(self.local_radius / self.pix))
+            i, j = np.mgrid[-n : n + 1, -n : n + 1]
+            mask = i * i + j * j <= n * n
+            lat = i[mask] * delta
+            lon = j[mask] * delta
             cos_lat = np.cos(lat)
-            sin_lat = np.sin(lat)
-            cos_lon = np.cos(lon)
-            sin_lon = np.sin(lon)
-
-            z = cos_lat * cos_lon
-            x = cos_lat * sin_lon
-            y = sin_lat
-
-            points = np.column_stack([x, y, z])
-            return points.tolist(), theta + delta
+            theta = (n + 0.5) * delta
+            return np.column_stack([cos_lat * np.sin(lon), np.sin(lat), cos_lat * np.cos(lon)]), theta
 
         def _exterior_distribution(theta):
             r = self.radius
@@ -631,27 +612,24 @@ class HiResLocalSurface(Surface):
             points = np.column_stack((x, y, z))
             return points.tolist(), theta_next
 
+        if self.pix / self.target.radius < _PIX_THRESHOLD_FACTOR:
+            raise ValueError(f"the value of pix is too small. Must be > {_PIX_THRESHOLD_FACTOR * self.target.radius}")
         print(f"Center of local region: {self.local_location}")
         print(f"Radius of local region: {format_large_units(self.local_radius, quantity='length')}")
         print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
 
-        interior_points = []
-        theta = 0.0
-        while theta <= self.local_radius / self.radius:
-            new_points, theta = _interior_distribution(theta)
-            interior_points.extend(new_points)
-        print(f"Generated {len(interior_points)} points in the local region.")
+        interior_points, theta = _interior_points()
 
         exterior_points = []
         while theta < np.pi:
             new_points, theta = _exterior_distribution(theta)
             exterior_points.extend(new_points)
         print(f"Generated {len(exterior_points)} points in the superdomain region.")
-        points = interior_points + exterior_points
-        decimals = max(6, -int(np.floor(np.log10(self.pix / self.radius))))
+        points = np.concatenate((interior_points, np.array(exterior_points)))
+        # decimals = max(12, -int(np.floor(np.log10(self.pix / self.radius))))
 
-        points = np.array(points, dtype=np.float64)
-        points = np.round(points, decimals=decimals)
+        points = np.array(points)
+        # points = np.round(points, decimals=decimals)
         points = np.unique(points, axis=0)
         points = self._rotate_point_cloud(points).T  # rotates from the north pole to local_location
 
