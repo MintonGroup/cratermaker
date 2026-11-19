@@ -133,13 +133,11 @@ class NeukumProduction(Production):
         """
         Returns the relative number of craters produced over a given age range.
 
-        This implements the chronology function given in
-        Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit
-        system of My instead of Gy.
+        This implements the chronology function given in Eq. 5 of Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86, but takes in the age argument in the Cratermaker unit system of My instead of Gy. The result is scaled to the Cratermaker default unit system to give the cumulative number of craters per m² relative to the number in 1 My.
 
         Parameters
         ----------
-        age : ArrayLike, default=1000.0
+        time_start : ArrayLike, default=1000.0
             Age in the past relative to the present day to compute cumulative SFD in units of My.
         time_end : ArrayLike, default=0.0
             The ending age in the past relative to the present day to compute cumulative SFD in units of My. The default is 0 (present day).
@@ -161,7 +159,7 @@ class NeukumProduction(Production):
             age: Sequence[FloatLike] | ArrayLike,
         ) -> FloatLike | ArrayLike:
             """
-            Return the cumulative number of 1 km craters as a function of age in Gy.
+            Return the cumulative number of 1 km craters per km² as a function of age in Gy.
 
             This is a direct implementation of Eq. 5 in Ivanov, Neukum, and Hartmann (2001) SSR v. 96 pp. 55-86 (with corrected coefficient for the linear term).
 
@@ -173,15 +171,17 @@ class NeukumProduction(Production):
             Returns
             -------
             FloatLike or numpy array
-                The number of craters per square meter greater than 1 km in diameter
+                The number of craters per square kilometer greater than 1 km in diameter
             """
             N1 = self.Cexp * (np.exp(age * 1e-3 / self.tau) - 1.0) + self.Clin * age * 1e-3
-            return N1 * 1e-6
+            return N1
+
+        _N1km_norm = _N1km(1.0)
 
         if time_end is None:
-            return _N1km(age=time_start)
+            return _N1km(age=time_start) / _N1km_norm
         else:
-            return _N1km(age=time_start) - _N1km(age=time_end)
+            return (_N1km(age=time_start) - _N1km(age=time_end)) / _N1km_norm
 
     @property
     def valid_versions(self) -> list[str]:
@@ -400,7 +400,7 @@ class NeukumProduction(Production):
         diameter: FloatLike | ArrayLike,
     ) -> FloatLike | ArrayLike:
         """
-        Return the cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
+        Return the cumulative size frequency distribution of craters larger than diameter in m relative to age = 1 My ago per m².
 
         Parameters
         ----------
@@ -510,10 +510,10 @@ class NeukumProduction(Production):
         Dkm = diameter * 1e-3  # Convert m to km for internal functions
 
         if self.version == "Projectile":
-            Ncumulative = (
-                R_to_CSFD(R=_CSFD, D=Dkm) * 2.94e-5
-            )  # This is a multiplication factor that gets the projectile CSFD to approximately match the lunar crater CSFD
+            # This is a normalization factor that gets the projectile CSFD to approximately match the lunar crater CSFD
+            Rnorm = 2.94e-5
+            Ncumulative = R_to_CSFD(R=_CSFD, D=Dkm) * Rnorm
         else:
             Ncumulative = _CSFD(Dkm)
 
-        return Ncumulative * 1e3  # convert from Gy^-1 km^-2 to My^-1 m^-2
+        return Ncumulative * 1e-9  # convert from Gy^-1 km^-2 to My^-1 m^-2
