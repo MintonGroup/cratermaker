@@ -176,7 +176,7 @@ class PowerLawProduction(Production):
                 else:
                     time_end = np.zeros_like(time_start)
 
-        return time_end - time_start
+        return time_start - time_end
 
     def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """
