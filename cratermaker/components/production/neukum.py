@@ -509,6 +509,9 @@ class NeukumProduction(Production):
 
         Dkm = diameter * 1e-3  # Convert m to km for internal functions
 
+        # Cratermaker uses 1 My as the reference age instead of 1 Gy, so this conversion factor ensures that the value of the CSFD is exactly the NPF value at 1 Gy
+        age_norm = 1000.0 / self.chronology(age=1000.0)
+
         if self.version == "Projectile":
             # This is a normalization factor that gets the projectile CSFD to approximately match the lunar crater CSFD
             Rnorm = 2.94e-5
@@ -516,4 +519,4 @@ class NeukumProduction(Production):
         else:
             Ncumulative = _CSFD(Dkm)
 
-        return Ncumulative * 1e-9  # convert from Gy^-1 km^-2 to My^-1 m^-2
+        return Ncumulative * age_norm * 1e-9  # convert from Gy^-1 km^-2 to My^-1 m^-2
