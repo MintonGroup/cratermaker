@@ -119,7 +119,7 @@ class TestBase(unittest.TestCase):
                 self.float_attr = 2.5
                 self.bool_attr = True
                 self.str_attr = "hello"
-                self.np_int_attr = np.int32(3)
+                self.np_int_attr = np.int64(3)
                 self.np_float_attr = np.float64(4.5)
                 self.np_array_attr = np.array([1, 2, 3])
                 self.path_attr = Path("/tmp/test")
