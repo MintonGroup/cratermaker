@@ -30,7 +30,7 @@ _TALLY_LONG_NAME = "Unique crater identification number"
 
 @dataclass(frozen=True, slots=True)
 class CraterFixed:
-    id: np.uint32 = None
+    id: np.uint64 = None
     """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
     semimajor_axis: float | None = None
     """The semimajor axis of the crater in meters. For a circular crater, this is equal to the semiminor axis and the radius."""
@@ -735,7 +735,7 @@ class Crater(ComponentBase):
             """
             Sets the hash id of the crater based on input parameters.
 
-            This is used as a unique identifier for the crater. To reduce storage requirements, the id is a 32-bit unsigned integer derived from the hash of the input parameters. There is a very small chance of hash collisions, but this is acceptable for the purposes of crater identification.
+            This is used as a unique identifier for the crater. To reduce storage requirements, the id is a 64-bit unsigned integer derived from the hash of the input parameters. There is a very small chance of hash collisions, but this is acceptable for the purposes of crater identification.
 
             Parameters
             ----------
@@ -757,8 +757,8 @@ class Crater(ComponentBase):
             ]
             combined_args = [k for k in id_args if k in kwargs and kwargs[k] is not None]
             combined = "".join(f"{kwargs[k]}" for k in combined_args)
-            hexid = hashlib.shake_256(combined.encode()).hexdigest(4)
-            return np.uint32(int(f"0x{hexid}", 16))
+            hexid = hashlib.shake_256(combined.encode()).hexdigest(8)
+            return np.uint64(int(f"0x{hexid}", 16))
 
         # Convert from the old API "final_diameter/final_radius" to "diameter/radius"
         if final_diameter is not None:
@@ -1567,7 +1567,7 @@ class Crater(ComponentBase):
         return self._var._production_sequence
 
     @property
-    def id(self) -> np.uint32 | None:
+    def id(self) -> np.uint64 | None:
         """A unique identifyer for the crater, which can be used to track it across time steps in a simulation. This is automatically generated when a crater is emplaced in a simulation as a hash of its fixed attributes."""
         return self._fixed.id
 

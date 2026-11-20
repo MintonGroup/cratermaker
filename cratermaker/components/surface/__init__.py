@@ -1170,7 +1170,7 @@ class Surface(ComponentBase):
         orig_settings = np.seterr(divide="ignore", over="ignore", invalid="ignore")
         points = self._generate_face_distribution(**kwargs)
 
-        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-8)
+        threshold = min(10 ** np.floor(np.log10(self.pix / self.radius)), 1e-15)
         uxgrid = uxr.Grid.from_points(points, method="spherical_voronoi", threshold=threshold)
 
         uxgrid.attrs["_id"] = self._id
@@ -2312,7 +2312,7 @@ class LocalSurface(CratermakerBase):
         # Reset the tag layers if the tag is None or does not yet exist on the surface
         if name not in self.uxds or tag is None:
             dims = ("n_face", "layer")
-            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint32)
+            data = np.zeros((self.surface.n_face, _N_TAG_LAYERS), dtype=np.uint64)
             if long_name is not None:
                 attrs = {"long_name": long_name}
             else:
@@ -3849,6 +3849,11 @@ class LocalSurface(CratermakerBase):
             plotter = update_pyvista_help_message(plotter, new_message="j: Cycle through scalar face variables")
             plotter.add_key_event("j", lambda plotter=plotter, cmap=cmap: update_scalars(plotter, cmap=cmap))
             plotter.add_key_event("r", lambda plotter=plotter: reset_view(plotter))
+
+        prop = pv.Property()
+        for k, v in kwargs.items():
+            if hasattr(prop, k):
+                setattr(prop, k, v)
         return plotter
 
     def export_region_polygon(self, driver: str = "GPKG", **kwargs: Any) -> None:
@@ -4470,7 +4475,7 @@ class LocalSurface(CratermakerBase):
                 uxds[v].attrs = ds[v].attrs.copy()
                 # Ensure that the tags are the correct data type
                 if "layer" in ds[v].dims:
-                    uxds[v] = uxds[v].astype(np.uint32)
+                    uxds[v] = uxds[v].astype(np.uint64)
         return uxds
 
     @property
