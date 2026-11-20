@@ -54,7 +54,7 @@ class BasicMoonCraterFixed(CraterFixed):
     """Bearing angle of central peak/peak ring in degrees."""
     isring: bool | None = field(default=False, init=True)
     """Flag that indicates that this is a ring rather than a crater."""
-    parent: np.uint32 | None = field(default=False, init=True)
+    parent: np.uint64 | None = field(default=False, init=True)
 
     @property
     def depth_to_diameter(self) -> float | None:
