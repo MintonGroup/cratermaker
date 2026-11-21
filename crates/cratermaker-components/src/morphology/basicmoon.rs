@@ -300,6 +300,65 @@ fn elevation_offset_func(crater: &BasicMoonCrater, ring: &BasicMoonCrater) -> f6
         crater.peak_ring_radius,
     )
 }
+
+/// Computes the integrand of the axisymmetric volume integral, r * h(r), at an array of radial distances.
+///
+/// This is used to estimate crater and ejecta volumes by quadrature. The profile is evaluated with the crater's
+/// parameters passed through unmodified, exactly as the scalar `crater_profile_function` and `ejecta_profile_function`
+/// Python bindings do.
+///
+/// # Arguments
+///
+/// * `radial_distances` - 1D array of radial distances from the crater center (in meters).
+/// * `crater` - The crater whose profile is integrated.
+/// * `include_crater` - Include the crater (excavation and rim) part of the profile.
+/// * `include_ejecta` - Include the ejecta part of the profile.
+///
+/// # Returns
+///
+/// * `r * (h_crater - h_ejecta)` if only the crater is included, `r * h_ejecta` if only the ejecta is included,
+///   `r * h_crater` (which already contains the ejecta) if both are included, and zeros if neither is.
+pub fn volume_integrand(
+    radial_distances: ArrayView1<'_, f64>,
+    crater: &BasicMoonCrater,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> Array1<f64> {
+    let hcrater = |r: f64| {
+        crater_profile_function(
+            r,
+            crater.radius,
+            crater.floor_elevation,
+            crater.floor_radius,
+            crater.wall_curvature,
+            crater.floor_blend,
+            crater.rim_width,
+            crater.rim_height,
+            crater.frac_ejrim,
+            crater.ejprofile,
+            crater.peak_height,
+            crater.peak_width,
+            crater.peak_ring_radius,
+        )
+    };
+    let hejecta = |r: f64| {
+        ejecta_profile_function(
+            r,
+            crater.radius,
+            crater.frac_ejrim,
+            crater.rim_height,
+            crater.ejprofile,
+            crater.rim_width,
+        )
+    };
+    radial_distances.mapv(|r| match (include_crater, include_ejecta) {
+        (true, false) => r * (hcrater(r) - hejecta(r)),
+        (false, true) => r * hejecta(r),
+        (true, true) => r * hcrater(r),
+        (false, false) => 0.0,
+    })
+}
+
 /// Calculates the elevation of a crater as a function of distance from the center.
 ///
 /// This function applies a polynomial profile for the crater interior (r < 1.0) and a rim dropoff

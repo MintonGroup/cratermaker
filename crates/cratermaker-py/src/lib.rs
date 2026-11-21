@@ -27,6 +27,7 @@ mod cratermaker {
         #[pymodule_export]
         use crate::morphology::basicmoon_bindings::{
             basicmoon_profile, crater_profile_function, ejecta_profile_function, ray_intensity,
+            volume_integrand,
         };
     }
 

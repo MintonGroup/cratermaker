@@ -124,3 +124,37 @@ pub fn ejecta_profile_function<'py>(
     );
     Ok(result)
 }
+
+/// Computes the volume integrand r * h(r) of a crater profile at an array of radial distances.
+///
+/// This is the vectorized equivalent of evaluating `r * (crater_profile_function - ejecta_profile_function)` (crater only),
+/// `r * ejecta_profile_function` (ejecta only), or `r * crater_profile_function` (both) point by point, and is used to
+/// estimate crater volumes by quadrature.
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `radial_distances` - 1D array of radial distances from the crater center (in meters).
+/// * `crater` - A BasicMoonCrater struct containing the crater's properties.
+/// * `include_crater` - Include the crater part of the profile.
+/// * `include_ejecta` - Include the ejecta part of the profile.
+///
+/// # Returns
+///
+/// * A NumPy array of the integrand evaluated at each radial distance.
+#[pyfunction]
+pub fn volume_integrand<'py>(
+    py: Python<'py>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
+    crater: BasicMoonCrater,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let result = cratermaker_components::morphology::basicmoon::volume_integrand(
+        radial_distances.as_array(),
+        &crater,
+        include_crater,
+        include_ejecta,
+    );
+    Ok(PyArray1::from_owned_array(py, result))
+}

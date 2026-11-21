@@ -25,6 +25,33 @@ if TYPE_CHECKING:
 
 _EJPROFILE = -3.0
 
+# Nodes and weights of the 8-point Gauss-Legendre rule on [-1, 1], used for the fixed-order composite quadratures below.
+_GL_NODES, _GL_WEIGHTS = np.polynomial.legendre.leggauss(8)
+
+
+def _gauss_legendre_points(edges: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """
+    Return the abscissas and weights of a composite 8-point Gauss-Legendre rule.
+
+    Parameters
+    ----------
+    edges : NDArray[np.float64]
+        Sorted, strictly increasing boundaries of the subintervals. Each subinterval gets its own 8-point rule.
+
+    Returns
+    -------
+    x : NDArray[np.float64]
+        The abscissas of all subintervals, flattened.
+    w : NDArray[np.float64]
+        The corresponding weights, such that ``np.sum(w * f(x))`` approximates the integral of f from edges[0] to edges[-1].
+    """
+    a = edges[:-1, np.newaxis]
+    b = edges[1:, np.newaxis]
+    half_width = 0.5 * (b - a)
+    x = (half_width * _GL_NODES + 0.5 * (a + b)).ravel()
+    w = (half_width * _GL_WEIGHTS).ravel()
+    return x, w
+
 
 @dataclass(frozen=True, slots=True)
 class BasicMoonCraterFixed(CraterFixed):
@@ -1149,17 +1176,24 @@ class BasicMoonMorphology(Morphology):
         def _subpixel_degradation(diameter):
             fe = 100.0
             k = self.degradation_function(diameter, fe)
-            n = self.production.function(
-                diameter=diameter,
-                time_start=time_start,
-                time_end=time_end,
-                validate_inputs=False,
-            ).item()
-            degradation_region_area = np.pi * (diameter / 2) * fe
+            n = np.asarray(
+                self.production.function(
+                    diameter=diameter,
+                    time_start=time_start,
+                    time_end=time_end,
+                    validate_inputs=False,
+                )
+            ).reshape(diameter.shape)
+            degradation_region_area = np.pi * (diameter / 2) ** 2 * fe
             return k * n * degradation_region_area
 
         for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes, strict=False):
-            delta_kdiff, _ = quad(_subpixel_degradation, dc_min, dc_max)
+            # The integrand spans many orders of magnitude in diameter, so integrate in log(D) with a composite Gauss-Legendre rule
+            # (two 8-point subintervals per decade). All points are evaluated in a single vectorized call.
+            n_intervals = max(1, math.ceil(2 * math.log10(dc_max / dc_min)))
+            log_d, weights = _gauss_legendre_points(np.linspace(math.log(dc_min), math.log(dc_max), n_intervals + 1))
+            diameters = np.exp(log_d)
+            delta_kdiff = np.sum(weights * diameters * _subpixel_degradation(diameters))
             self._Kdiff[face_indices] += delta_kdiff
 
         # If any Kdiff values reaches a threshold where a meaningful amount of diffusion will occur on the surface, then go ahead and apply it.
@@ -1260,10 +1294,31 @@ class BasicMoonMorphology(Morphology):
         **kwargs,
     ) -> np.float64:
         """
-        Estimates the volume change of a crater by integrating the profile function using the scipy.integrate.quad function.
+        Estimates the volume change of a crater by integrating its axisymmetric profile.
+
+        With the default profile functions, the integral is computed with a composite Gauss-Legendre rule whose subintervals are
+        split at the radii where the profile changes character (floor blend, rim, central peak), and whose integrand is evaluated
+        in a single vectorized call. If custom profile functions or quadrature keyword arguments are given, scipy.integrate.quad
+        is used instead.
         """
         if not (include_crater or include_ejecta):
             return np.float64(0.0)
+
+        if self.ejecta_truncation is None:
+            rmax = 20 * crater.radius
+        else:
+            rmax = self.ejecta_truncation * crater.radius
+
+        if (
+            crater_profile_function is basicmoon_bindings.crater_profile_function
+            and ejecta_profile_function is basicmoon_bindings.ejecta_profile_function
+            and not kwargs
+        ):
+            edges = self._volume_quadrature_edges(crater, include_crater, include_ejecta, rmax)
+            if edges is not None:
+                r, w = _gauss_legendre_points(edges)
+                integrand = basicmoon_bindings.volume_integrand(r, crater, include_crater, include_ejecta)
+                return np.float64(2 * np.pi * np.sum(w * integrand))
 
         def _crater_func(r):
             hc = crater_profile_function(crater, r)
@@ -1285,12 +1340,54 @@ class BasicMoonMorphology(Morphology):
             func = _ejecta_func
         else:
             func = _combo_func
-        if self.ejecta_truncation is None:
-            rmax = 20 * crater.radius
-        else:
-            rmax = self.ejecta_truncation * crater.radius
         v = quad(func, 0.0, rmax, **{"limit": 100, "epsrel": 1e-3, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
+
+    @staticmethod
+    def _volume_quadrature_edges(
+        crater: BasicMoonCrater, include_crater: bool, include_ejecta: bool, rmax: float
+    ) -> NDArray[np.float64] | None:
+        """
+        Subinterval boundaries for the composite Gauss-Legendre volume integral in `estimate_volume`.
+
+        The boundaries are placed where the profile (see `crater_profile_function` in the Rust crate) switches between pieces or
+        blends between them, so that the integrand is smooth within each subinterval:
+
+        - the floor-to-wall blend, centered on the floor radius with half-width ``rfw``
+        - the wall-to-rim blend and the start of the ejecta, centered on the rim radius with half-width ``rim_width``
+        - the central peak, if present
+
+        Beyond ``radius + rim_width``, the crater-only integrand is purely the Gaussian rim, so it is truncated at 12 rim widths
+        (where it is below 1e-31 of its peak). When the ejecta is included, the power-law tail is covered with logarithmically
+        spaced subintervals out to `rmax`. Each subinterval is then split in two.
+
+        Returns None if the crater parameters do not produce a valid set of boundaries.
+        """
+        radius = crater.radius
+        floor_radius = crater.floor_radius
+        rim_width = crater.rim_width
+        floor_blend_width = (floor_radius if floor_radius < 0.5 * radius else radius - floor_radius) * crater.floor_blend
+        rim_outer = radius + rim_width
+
+        points = [0.0, floor_radius - floor_blend_width, floor_radius, floor_radius + floor_blend_width, radius - rim_width, radius]
+        if crater.peak_width > 0:
+            points += [crater.peak_ring_radius + k * crater.peak_width for k in (-3.0, 0.0, 3.0)]
+
+        if include_crater and not include_ejecta:
+            top = min(rmax, radius + 12 * rim_width)
+            if rim_outer < top:
+                points += list(np.linspace(rim_outer, top, 4))
+        else:
+            top = rmax
+            if 0 < rim_outer < top:
+                points += list(np.geomspace(rim_outer, top, 12))
+        points.append(top)
+
+        points = np.asarray(points, dtype=np.float64)
+        if not (np.all(np.isfinite(points)) and top > 0):
+            return None
+        edges = np.unique(np.clip(points, 0.0, top))
+        return np.sort(np.concatenate((edges, 0.5 * (edges[1:] + edges[:-1]))))
 
     def degradation_function(
         self,
@@ -1346,7 +1443,9 @@ class BasicMoonMorphology(Morphology):
             kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
             return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
 
-        return float(_kd(diameter / 2, fe))
+        if np.ndim(diameter) == 0:
+            return float(_kd(diameter / 2, fe))
+        return _kd(np.asarray(diameter, dtype=np.float64) / 2, fe)
 
     @staticmethod
     def overlap_function(crater: BasicMoonCrater) -> tuple[set[int], set[int]]:
