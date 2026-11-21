@@ -465,14 +465,15 @@ def bounded_norm(
         lower_bound = loc - scale
     if upper_bound is None:
         upper_bound = loc + scale
-    truncated_normal = truncnorm(
-        (lower_bound - loc) / scale,
-        (upper_bound - loc) / scale,
-        loc=loc,
-        scale=scale,
-    )
+    a = (lower_bound - loc) / scale
+    b = (upper_bound - loc) / scale
+    if not (scale > 0 and np.all(a < b)):
+        raise ValueError("Domain error in arguments: scale must be positive and lower_bound must be less than upper_bound.")
 
-    return truncated_normal.rvs(size, random_state=rng)
+    # Inverse-transform sampling. This is exactly what truncnorm(a, b, loc, scale).rvs(size, random_state=rng) does internally
+    # (same uniform draws, same result bit-for-bit), but avoids the large overhead of constructing a frozen scipy distribution
+    # on every call.
+    return truncnorm.ppf(rng.uniform(size=size), a, b, loc=loc, scale=scale)
 
 
 def sample_pikefit(
