@@ -4126,16 +4126,36 @@ class LocalSurface(CratermakerBase):
         if isinstance(row_indices, slice) and row_indices == slice(None):  # This is a global slice. Just return the original array
             return connectivity_array
         if isinstance(value_indices, slice):
-            value_indices = np.arange(total_value_size)[value_indices]
-
-        # Build global-to-local index mapping
-        mapping = np.full(total_value_size, fill_value, dtype=np.int64)
-        mapping[value_indices] = np.arange(value_indices.size)
+            value_indices = np.arange(*value_indices.indices(total_value_size))
+        else:
+            value_indices = np.asarray(value_indices)
 
         subset = connectivity_array[row_indices]
         remapped = np.full_like(subset, fill_value)
         valid = subset != fill_value
-        remapped[valid] = mapping[subset[valid]]
+        values = subset[valid]
+        if value_indices.size == 0 or values.size == 0:
+            return remapped
+
+        # Avoid allocating a lookup table the size of the global mesh: the table only needs to span the range of indices
+        # actually involved. When that span is still large compared to the amount of work, use a binary search instead.
+        lo = min(int(value_indices.min()), int(values.min()))
+        span = max(int(value_indices.max()), int(values.max())) - lo + 1
+        if span <= 64 * values.size:
+            mapping = np.full(span, fill_value, dtype=np.int64)
+            mapping[value_indices - lo] = np.arange(value_indices.size)
+            remapped[valid] = mapping[values - lo]
+        else:
+            if value_indices.size > 1 and not np.all(value_indices[1:] > value_indices[:-1]):
+                sorter = np.argsort(value_indices, kind="stable")
+                sorted_values = value_indices[sorter]
+            else:
+                sorter = None
+                sorted_values = value_indices
+            pos = np.searchsorted(sorted_values, values)
+            np.minimum(pos, sorted_values.size - 1, out=pos)
+            local = pos if sorter is None else sorter[pos]
+            remapped[valid] = np.where(sorted_values[pos] == values, local, fill_value)
 
         return remapped
 
