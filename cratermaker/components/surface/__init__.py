@@ -4,6 +4,7 @@ import hashlib
 import os
 import shutil
 import tempfile
+import threading
 import warnings
 from abc import abstractmethod
 from contextlib import AbstractContextManager
@@ -35,6 +36,46 @@ from cratermaker.utils.montecarlo_utils import _get_one_random_location
 
 _N_TAG_LAYERS = 8
 LOLA_LUNAR_RADIUS = 1737400.0
+
+_unique_scratch = threading.local()
+
+
+def _unique_indices(indices: NDArray, n_total: int) -> NDArray:
+    """
+    Return the sorted, unique, valid entries of an array of global mesh indices.
+
+    This is equivalent to ``u = np.unique(indices); u[u != INT_FILL_VALUE]``, but avoids NumPy's hash-based unique, which is
+    the dominant cost when it is called on every crater's region. Instead, it uses a reusable scratch array of size
+    `n_total`: each value records the position of its last occurrence, so exactly one position per distinct value matches.
+    Only the (much smaller) set of distinct values is then sorted.
+
+    Parameters
+    ----------
+    indices : NDArray
+        Array of global indices in the range [0, n_total), possibly containing INT_FILL_VALUE entries. Any shape.
+    n_total : int
+        The total number of items in the global index domain (e.g., the number of nodes on the surface).
+
+    Returns
+    -------
+    NDArray
+        1D sorted array of the unique valid indices.
+    """
+    indices = np.asarray(indices).ravel()
+    indices = indices[indices != INT_FILL_VALUE]
+    if indices.size == 0:
+        return indices
+    buffers = getattr(_unique_scratch, "buffers", None)
+    if buffers is None:
+        buffers = _unique_scratch.buffers = {}
+    scratch = buffers.get(n_total)
+    if scratch is None:
+        scratch = buffers[n_total] = np.empty(n_total, dtype=np.intp)
+    positions = np.arange(indices.size, dtype=np.intp)
+    scratch[indices] = positions
+    unique = indices[scratch[indices] == positions]
+    unique.sort()
+    return unique
 
 
 class Surface(ComponentBase):
@@ -300,23 +341,20 @@ class Surface(ComponentBase):
                     return None
 
             # First select edges and nodes that are attached to these faces
-            edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
-            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
-
-            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+            edge_indices = _unique_indices(self.face_edge_connectivity[face_indices], self.n_edge)
+            node_indices = _unique_indices(self.face_node_connectivity[face_indices], self.n_node)
 
             # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
             # These are needed for diffusion calculations
             neighbor_faces = self.face_face_connectivity[face_indices].ravel()
             node_faces = self.node_face_connectivity[node_indices].ravel()
             edge_faces = self.edge_face_connectivity[edge_indices].ravel()
-            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
-            face_indices = face_indices[face_indices != INT_FILL_VALUE]
+            face_indices = _unique_indices(
+                np.concatenate((np.ravel(face_indices), neighbor_faces, node_faces, edge_faces)), self.n_face
+            )
 
             # Add in all nodes that are attached to these buffer faces
-            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+            node_indices = _unique_indices(self.face_node_connectivity[face_indices], self.n_node)
 
         else:  # This is the entire surface
             face_indices = self.face_indices
@@ -2766,21 +2804,17 @@ class LocalSurface(CratermakerBase):
                 return None
 
             # First select edges and nodes that are attached to these faces
-            edge_indices = np.unique(self.surface.face_edge_connectivity[face_indices].ravel())
-            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
-
-            node_indices = np.unique(self.surface.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+            edge_indices = _unique_indices(self.surface.face_edge_connectivity[face_indices], self.surface.n_edge)
+            node_indices = _unique_indices(self.surface.face_node_connectivity[face_indices], self.surface.n_node)
 
             # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
             # These are needed for diffusion calculations
-            neighbor_faces = self.surface.face_face_connectivity[face_indices]
-            neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
-            node_faces = self.surface.node_face_connectivity[node_indices]
-            node_faces = node_faces[node_faces != INT_FILL_VALUE]
-            edge_faces = self.surface.edge_face_connectivity[edge_indices]
-            edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
-            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+            neighbor_faces = self.surface.face_face_connectivity[face_indices].ravel()
+            node_faces = self.surface.node_face_connectivity[node_indices].ravel()
+            edge_faces = self.surface.edge_face_connectivity[edge_indices].ravel()
+            face_indices = _unique_indices(
+                np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)), self.surface.n_face
+            )
 
         else:
             face_indices = self.face_indices
@@ -4390,8 +4424,7 @@ class LocalSurface(CratermakerBase):
     def node_indices(self) -> NDArray:
         """The indices of the nodes in the view."""
         if self._node_indices is None:
-            self._node_indices = np.unique(self.surface.face_node_connectivity[self.face_indices].ravel())
-            self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
+            self._node_indices = _unique_indices(self.surface.face_node_connectivity[self.face_indices], self.surface.n_node)
 
         return self._node_indices
 
@@ -4399,8 +4432,7 @@ class LocalSurface(CratermakerBase):
     def edge_indices(self) -> NDArray:
         """The indices of the edges in the view."""
         if self._edge_indices is None:
-            self._edge_indices = np.unique(self.surface.face_edge_connectivity[self.face_indices].ravel())
-            self._edge_indices = self._edge_indices[self._edge_indices != INT_FILL_VALUE]
+            self._edge_indices = _unique_indices(self.surface.face_edge_connectivity[self.face_indices], self.surface.n_edge)
         return self._edge_indices
 
     @property
