@@ -47,7 +47,7 @@ simdir = "simdata-1_8"
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
-# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off counting to speed up the simulation for this example.
+# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off saving the observed and emplaced craters to speed up the simulation for this example.
 sim = cm.Simulation(
     target="Moon",
     gridlevel=6,
