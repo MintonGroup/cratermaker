@@ -2431,7 +2431,7 @@ class LocalSurface(CratermakerBase):
 
         data = self.uxds[name].data
         if tag in data:
-            data[data == tag] = ""
+            data[data == tag] = np.uint64(0)
             self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
