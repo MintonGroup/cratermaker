@@ -1166,7 +1166,7 @@ class BasicMoonMorphology(Morphology):
         # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
         if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
-            if self.do_counting:
+            if self.save_observed:
                 measure_rim = kwargs.pop("measure_rim", False)
                 self.counting.tally(measure_rim=measure_rim, **kwargs)
 

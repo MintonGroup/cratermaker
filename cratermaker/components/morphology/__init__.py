@@ -422,7 +422,8 @@ class Morphology(ComponentBase):
         conserve_volume: bool = True,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
-        do_counting: bool | None = None,
+        save_observed: bool | None = None,
+        save_emplaced: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -444,8 +445,10 @@ class Morphology(ComponentBase):
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
             If True, slope collapse will be performed during the emplacement of craters. Default is True.
-        do_counting : bool or None, optional
+        save_observed : bool or None, optional
             If True, counting will be performed during emplacement if a Counting object is provided. If False, no counting will be performed even if a Counting object is provided. If None (default), the presence or absence of a Counting object will determine whether counting is performed.
+        save_emplaced : bool, optional
+            If True, any craters large enough to be emplaced onto the surface in each interval are stored. If False, emplaced craters will not be tracked and saved, even if a Counting object is provided. If None (default), thye presence or abscence of a Counting objecdt will determine whether emplaced craters are saved.
         **kwargs : Any
             |kwargs|
 
@@ -460,7 +463,8 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_scaling", None)
         object.__setattr__(self, "_conserve_volume", None)
-        object.__setattr__(self, "_do_counting", None)
+        object.__setattr__(self, "_save_observed", None)
+        object.__setattr__(self, "_save_emplaced", None)
         object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
 
@@ -480,11 +484,8 @@ class Morphology(ComponentBase):
 
         self.scaling = Scaling.maker(scaling, **kwargs)
 
-        if do_counting is not None:
-            if do_counting and self.counting is None:
-                raise ValueError("do_counting is True but no counting object was provided or created.")
-            else:
-                self.do_counting = do_counting
+        self.save_observed = save_observed
+        self.save_emplaced = save_emplaced
 
         self.conserve_volume = conserve_volume
         self.do_subpixel_degradation = do_subpixel_degradation
@@ -498,7 +499,9 @@ class Morphology(ComponentBase):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        if self.do_counting:
+        str_repr += f"Count observed craters: {self.save_observed}\n"
+        str_repr += f"Save emplaced craters: {self.save_emplaced}\n"
+        if self.counting is not None:
             str_repr += f"Counting : <{self.counting.component_name}>\n"
         str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
         str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
@@ -692,7 +695,7 @@ class Morphology(ComponentBase):
 
             # Record the crater to the counting layer
             if self.counting is not None:
-                self.counting.add(crater, add_to_observed=self.do_counting, **kwargs)
+                self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
 
             ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
             if ejecta_thickness is not None:
@@ -832,7 +835,7 @@ class Morphology(ComponentBase):
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
-                if self.do_counting and nacumulated >= tally_cadence:
+                if self.save_observed and nacumulated >= tally_cadence:
                     measure_rim = kwargs.pop("measure_rim", False)
                     self.counting.tally(measure_rim=measure_rim, quiet=False, **kwargs)
                     nacumulated = 0
@@ -855,7 +858,7 @@ class Morphology(ComponentBase):
 
         if self.do_subpixel_degradation:
             self.apply_subpixel_degradation(**kwargs)
-        if self.do_counting:
+        if self.save_observed:
             self.counting.tally(**kwargs)
         return
 
@@ -938,12 +941,12 @@ class Morphology(ComponentBase):
         elif isinstance(counting, str):
             self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
         elif counting is None:
-            self.do_counting = False
+            self.save_observed = False
             self._counting = None
             return
         else:
             raise TypeError("counting must be an instance of Counting or a string")
-        self.do_counting = True
+        self.save_observed = True
         self._counting.morphology = self
 
     @parameter
@@ -980,15 +983,36 @@ class Morphology(ComponentBase):
         self._do_slope_collapse = value
 
     @parameter
-    def do_counting(self) -> bool:
+    def save_observed(self) -> bool:
         """Whether to perform crater counting during crater emplacement."""
-        return self._do_counting
+        if self._save_observed is None:
+            return self.counting is not None
+        else:
+            return self._save_observed
 
-    @do_counting.setter
-    def do_counting(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            raise TypeError("do_counting must be a boolean value")
-        self._do_counting = value
+    @save_observed.setter
+    def save_observed(self, value: bool | None) -> None:
+        if not isinstance(value, (bool | None)):
+            raise TypeError("save_observed must be a boolean value or None")
+        if value and self.counting is None:
+            raise ValueError("save_observed cannot be True with no counting object was provided or created.")
+        self._save_observed = value
+
+    @parameter
+    def save_emplaced(self) -> bool:
+        """Whether to save a record of emplaced craters."""
+        if self._save_emplaced is None:
+            return self.counting is not None
+        else:
+            return self._save_emplaced
+
+    @save_emplaced.setter
+    def save_emplaced(self, value: bool) -> None:
+        if not isinstance(value, (bool | None)):
+            raise TypeError("save_emplaced must be a boolean value or None")
+        if value and self.counting is None:
+            raise ValueError("save_emplaced cannot be True with no counting object was provided or created.")
+        self._save_emplaced = value
 
     @property
     def scaling(self):

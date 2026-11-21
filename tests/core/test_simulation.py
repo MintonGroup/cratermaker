@@ -309,7 +309,7 @@ class TestSimulation(unittest.TestCase):
     def test_positive_only_ejecta(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(
-                simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None, do_counting=False
+                simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None, save_observed=False
             )
             sim.run(age=4310)
             self.assertFalse(any(sim.surface.ejecta_thickness < 0))
