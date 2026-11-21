@@ -3000,6 +3000,12 @@ class LocalSurface(CratermakerBase):
             if driver == "ESRI Shapefile":
                 gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
 
+            # OGR has no unsigned 64-bit field type, so uint64 values >= 2**63 (e.g. hashed crater ids) overflow on write.
+            # Reinterpret the bits as int64, which is lossless: recover the original ids with `.to_numpy().view(np.uint64)`.
+            for col in gdf.columns:
+                if gdf[col].dtype == np.uint64:
+                    gdf[col] = gdf[col].to_numpy().view(np.int64)
+
             print(f"Exporting to {filename} using driver {driver}")
             if not self._overwrite_check(filename):
                 return
