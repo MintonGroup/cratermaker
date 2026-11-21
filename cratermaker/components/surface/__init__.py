@@ -31,7 +31,7 @@ from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import convert_deg2m_res, format_large_units, validate_and_normalize_location
-from cratermaker.utils.montecarlo_utils import get_random_location_on_face
+from cratermaker.utils.montecarlo_utils import _get_one_random_location
 
 _N_TAG_LAYERS = 8
 LOLA_LUNAR_RADIUS = 1737400.0
@@ -95,12 +95,26 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_face_bin_argmin", None)
         object.__setattr__(self, "_face_bin_argmax", None)
         object.__setattr__(self, "_face_bin_area", None)
+        object.__setattr__(self, "_face_node_connectivity", None)
+        object.__setattr__(self, "_face_face_connectivity", None)
+        object.__setattr__(self, "_face_edge_connectivity", None)
+        object.__setattr__(self, "_node_face_connectivity", None)
+        object.__setattr__(self, "_edge_face_connectivity", None)
+        object.__setattr__(self, "_edge_node_connectivity", None)
         object.__setattr__(self, "_face_x", None)
         object.__setattr__(self, "_face_y", None)
         object.__setattr__(self, "_face_z", None)
+        object.__setattr__(self, "_face_lon", None)
+        object.__setattr__(self, "_face_lat", None)
         object.__setattr__(self, "_node_x", None)
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
+        object.__setattr__(self, "_node_lon", None)
+        object.__setattr__(self, "_node_lat", None)
+        object.__setattr__(self, "_face_indices", None)
+        object.__setattr__(self, "_node_indices", None)
+        object.__setattr__(self, "_n_nodes_per_face", None)
+        object.__setattr__(self, "_n_max_face_faces", None)
         object.__setattr__(self, "_smallest_length", None)
         object.__setattr__(self, "_crs", None)
         object.__setattr__(self, "_output_file_prefix", "surface")
@@ -404,12 +418,12 @@ class Surface(ComponentBase):
     def add_tag(
         self,
         name: str,
-        tag: int | None = None,
+        tag: str | None = None,
         long_name: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
-        Adds an integer tag to the surface.
+        Adds a string tag to the surface.
 
         Used primarily for tracking crater ids.
 
@@ -417,8 +431,8 @@ class Surface(ComponentBase):
         ----------
         name : str
             The name of the tag variable to perform the add operation on.
-        tag : int | None
-            The integer to value of the tag. If None is provided, the tag layers will be reset to zero
+        tag : str | None
+            The value of the tag. If None is provided, the tag layers will be reset to empty strings
         long_name : str | None
             The long name of the tag variable. This is only used if the tag variable doesn't exist in the surface dataset. If None, no long name will be added.
         **kwargs : Any
@@ -426,16 +440,16 @@ class Surface(ComponentBase):
         """
         return self._full().add_tag(name=name, tag=tag, long_name=long_name, **kwargs)
 
-    def remove_tag(self, name: str, tag: int, **kwargs: Any) -> None:
+    def remove_tag(self, name: str, tag: str, **kwargs: Any) -> None:
         """
-        Removes an integer tag from the surface.
+        Removes a string tag from the surface.
 
         Parameters
         ----------
         name : str
             The name of the tag variable to perform the remove operation on.
-        tag : int
-            The integer tag to be removed.
+        tag : str
+            The tag to be removed.
         **kwargs : Any
             |kwargs|
         """
@@ -642,7 +656,29 @@ class Surface(ComponentBase):
         -----
         This method is a wrapper for :py:meth:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
-        return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
+        from uxarray.grid import coordinates
+
+        # Extract node indices for the given face(s)
+        face_index = np.atleast_1d(face_index)
+        size = len(face_index)
+        node_indices = self.face_node_connectivity[face_index, :]
+
+        # Prepare index arrays
+        locations = np.empty(size, dtype=[("lon", "f8"), ("lat", "f8")])
+
+        node_x = self.node_x
+        node_y = self.node_y
+        node_z = self.node_z
+        rng_vals = self.rng.random((size, 3))
+        for i in range(size):
+            ind = node_indices[i]
+            ind = ind[ind >= 0]
+            p = _get_one_random_location(ind, node_x, node_y, node_z, rng_vals=rng_vals[i, :])
+            lon, lat = coordinates._xyz_to_lonlat_deg(*p)
+            locations["lon"][i] = np.float64(lon)
+            locations["lat"][i] = np.float64(lat)
+
+        return locations
 
     def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
         """
@@ -1383,7 +1419,7 @@ class Surface(ComponentBase):
                 return
             else:
                 uxgrid = self.uxgrid
-        self._face_area = uxgrid.face_areas.values * self.radius**2
+        self._face_area = uxgrid.face_areas.data * self.radius**2
         self._face_size = np.sqrt(self._face_area)
         self._pix_mean = float(self._face_size.mean().item())
         self._pix_std = float(self._face_size.std().item())
@@ -1553,74 +1589,86 @@ class Surface(ComponentBase):
     @property
     def face_lat(self) -> NDArray[np.float64]:
         """Latitude of the center of each face in degrees."""
-        return self.uxgrid.face_lat.values
+        if self._face_lat is None:
+            self._face_lat = self.uxgrid.face_lat.data
+        return self._face_lat
 
     @property
     def face_lon(self) -> NDArray[np.float64]:
         """Longitude of the center of each face in degrees."""
-        return self.uxgrid.face_lon.values
+        if self._face_lon is None:
+            self._face_lon = self.uxgrid.face_lon.data
+        return self._face_lon
 
     @property
     def face_x(self) -> NDArray[np.float64]:
         """Cartesian x location of the center of each face in meters."""
         if self._face_x is None:
-            self._face_x = self.uxgrid.face_x.values * self.radius
+            self._face_x = self.uxgrid.face_x.data * self.radius
         return self._face_x
 
     @property
     def face_y(self) -> NDArray[np.float64]:
         """Cartesian y location of the center of each face in meters."""
         if self._face_y is None:
-            self._face_y = self.uxgrid.face_y.values * self.radius
+            self._face_y = self.uxgrid.face_y.data * self.radius
         return self._face_y
 
     @property
     def face_z(self) -> NDArray[np.float64]:
         """Cartesian z location of the center of each face in meters."""
         if self._face_z is None:
-            self._face_z = self.uxgrid.face_z.values * self.radius
+            self._face_z = self.uxgrid.face_z.data * self.radius
         return self._face_z
 
     @property
     def node_lat(self) -> NDArray[np.float64]:
         """Latitude of each node in degrees."""
-        return self.uxgrid.node_lat.values
+        if self._node_lat is None:
+            self._node_lat = self.uxgrid.node_lat.data
+        return self._node_lat
 
     @property
     def node_lon(self) -> NDArray[np.float64]:
         """Longitude of each node in degrees."""
-        return self.uxgrid.node_lon.values
+        if self._node_lon is None:
+            self._node_lon = self.uxgrid.node_lon.data
+        return self._node_lon
 
     @property
     def node_x(self) -> NDArray[np.float64]:
         """Cartesian x location of each node in meters."""
         if self._node_x is None:
-            self._node_x = self.uxgrid.node_x.values * self.radius
+            self._node_x = self.uxgrid.node_x.data * self.radius
         return self._node_x
 
     @property
     def node_y(self) -> NDArray[np.float64]:
         """Cartesian y location of each node in meters."""
         if self._node_y is None:
-            self._node_y = self.uxgrid.node_y.values * self.radius
+            self._node_y = self.uxgrid.node_y.data * self.radius
         return self._node_y
 
     @property
     def node_z(self) -> NDArray[np.float64]:
         """Cartesian z location of each node in meters."""
         if self._node_z is None:
-            self._node_z = self.uxgrid.node_z.values * self.radius
+            self._node_z = self.uxgrid.node_z.data * self.radius
         return self._node_z
 
     @property
     def face_indices(self) -> NDArray[np.int64]:
         """The indices of the faces of the surface."""
-        return self.uxds.n_face.values
+        if self._face_indices is None:
+            self._face_indices = self.uxds.n_face.data
+        return self._face_indices
 
     @property
     def node_indices(self) -> NDArray[np.int64]:
         """The indices of the nodes of the surface."""
-        return self.uxds.n_node.values
+        if self._node_indices is None:
+            self._node_indices = self.uxds.n_node.data
+        return self._node_indices
 
     @property
     def edge_indices(self) -> NDArray[np.int64]:
@@ -1748,12 +1796,16 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_node, )`
         """
-        return self.uxgrid.n_nodes_per_face.values
+        if self._n_nodes_per_face is None:
+            self._n_nodes_per_face = self.uxgrid.n_nodes_per_face.data
+        return self._n_nodes_per_face
 
     @property
     def n_max_face_faces(self) -> int:
         """The maximum number of faces that surround a face."""
-        return int(self.uxgrid.n_max_face_faces)
+        if self._n_max_face_faces is None:
+            self._n_max_face_faces = int(self.uxgrid.n_max_face_faces)
+        return self._n_max_face_faces
 
     @property
     def edge_face_distance(self) -> NDArray[np.float64]:
@@ -1794,7 +1846,9 @@ class Surface(ComponentBase):
 
         Nodes are in counter-clockwise order.
         """
-        return self.uxgrid.face_node_connectivity.values
+        if self._face_node_connectivity is None:
+            self._face_node_connectivity = self.uxgrid.face_node_connectivity.data
+        return self._face_node_connectivity
 
     @property
     def face_face_connectivity(self) -> NDArray[np.int64]:
@@ -1803,7 +1857,9 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_face, n_max_face_faces)`
         """
-        return self.uxgrid.face_face_connectivity.values
+        if self._face_face_connectivity is None:
+            self._face_face_connectivity = self.uxgrid.face_face_connectivity.data
+        return self._face_face_connectivity
 
     @property
     def face_edge_connectivity(self) -> NDArray[np.int64]:
@@ -1813,7 +1869,9 @@ class Surface(ComponentBase):
         Dimensions (n_face, n_max_face_edges)
 
         """
-        return self.uxgrid.face_edge_connectivity.values
+        if self._face_edge_connectivity is None:
+            self._face_edge_connectivity = self.uxgrid.face_edge_connectivity.data
+        return self._face_edge_connectivity
 
     @property
     def node_face_connectivity(self) -> NDArray[np.int64]:
@@ -1822,7 +1880,9 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_node, n_max_node_faces)`
         """
-        return self.uxgrid.node_face_connectivity.values
+        if self._node_face_connectivity is None:
+            self._node_face_connectivity = self.uxgrid.node_face_connectivity.data
+        return self._node_face_connectivity
 
     @property
     def edge_face_connectivity(self) -> NDArray[np.int64]:
@@ -1832,7 +1892,9 @@ class Surface(ComponentBase):
         Dimensions (n_edge, 2)
 
         """
-        return self.uxgrid.edge_face_connectivity.values
+        if self._edge_face_connectivity is None:
+            self._edge_face_connectivity = self.uxgrid.edge_face_connectivity.data
+        return self._edge_face_connectivity
 
     @property
     def edge_node_connectivity(self) -> NDArray[np.int64]:
@@ -1842,7 +1904,9 @@ class Surface(ComponentBase):
         Dimensions (n_edge, 2)
 
         """
-        return self.uxgrid.edge_node_connectivity.values
+        if self._edge_node_connectivity is None:
+            self._edge_node_connectivity = self.uxgrid.edge_node_connectivity.data
+        return self._edge_node_connectivity
 
     @property
     def face_tree(self):
@@ -2110,7 +2174,7 @@ class LocalSurface(CratermakerBase):
         """
         uxds = self.surface.uxds
         if name in uxds:
-            arr = uxds[name].values
+            arr = uxds[name].data
             if arr.ndim >= 1:
                 if arr.shape[0] == self.surface.n_face:
                     return arr[self.face_indices, ...]
@@ -2289,12 +2353,12 @@ class LocalSurface(CratermakerBase):
     def add_tag(
         self,
         name: str,
-        tag: int | None = None,
+        tag: str | None = None,
         long_name: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
-        Adds an integer tag to the surface.
+        Adds a string tag to the surface.
 
         Used primarily for tracking crater ids.
 
@@ -2302,8 +2366,8 @@ class LocalSurface(CratermakerBase):
         ----------
         name : str
             The name of the tag to be added.
-        tag : int | None
-            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
+        tag : str | None
+            The value of the tag. If None is provided, the tag layers will be reset to empty strings
         long_name : str | None
             The long name of the tag to be added. If None, no long name will be added.
         **kwargs : Any
@@ -2335,7 +2399,7 @@ class LocalSurface(CratermakerBase):
         # Find the first layer that contains a contiguous set of empty spots
         for attempt in range(2):
             for i in range(_N_TAG_LAYERS):
-                if np.all(self.uxds[name].data[:, i] == 0):
+                if np.all(self.uxds[name].data[:, i] == ""):
                     insert_layer = i
                     break
             if insert_layer == -1:  # If at first we don't succed, try sorting the tags and try again.
@@ -2353,21 +2417,21 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def remove_tag(self, name: str, tag: int) -> None:
+    def remove_tag(self, name: str, tag: str) -> None:
         """
-        Removes an integer tag from the local surface.
+        Removes a string tag from the local surface.
 
         Parameters
         ----------
-        tag : int
-            The integer tag to be removed.
+        tag : str
+            The tag to be removed.
         """
         if name not in self.uxds:
             raise ValueError(f"Tag {name} does not exist on the surface")
 
         data = self.uxds[name].data
         if tag in data:
-            data[data == tag] = 0
+            data[data == tag] = ""
             self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
@@ -2967,7 +3031,7 @@ class LocalSurface(CratermakerBase):
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
 
         for interval in interval_numbers:
             uxdsi = uxds.sel(interval=interval).load()
@@ -3114,7 +3178,7 @@ class LocalSurface(CratermakerBase):
             return
 
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
         if interval is not None:
             if interval < 0:
                 interval = interval_numbers[interval]
@@ -3305,7 +3369,7 @@ class LocalSurface(CratermakerBase):
 
         # load data and select the face-based variables
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
         file_extension = "tif"
 
         for interval in interval_numbers:
@@ -3470,7 +3534,7 @@ class LocalSurface(CratermakerBase):
             uxds = self.uxds
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
-            interval = uxds.interval.values.item()
+            interval = uxds.interval.data.item()
             uxds = uxds.sel(interval=interval)
 
         if variable_name is not None and variable_name not in uxds:
@@ -3624,7 +3688,7 @@ class LocalSurface(CratermakerBase):
                         filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
                 else:
                     uxds = self.read_saved_output(interval=interval, reset=False)
-                    interval = uxds.interval.values.item()
+                    interval = uxds.interval.data.item()
                     uxds = uxds.sel(interval=interval)
                     if filename is None:
                         filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
