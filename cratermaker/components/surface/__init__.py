@@ -255,7 +255,8 @@ class Surface(ComponentBase):
             raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
         uxds = object.__getattribute__(self, "uxds")
         if name in uxds:
-            return uxds[name].data
+            # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+            return uxds.variables[name].data
         raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
@@ -2212,7 +2213,8 @@ class LocalSurface(CratermakerBase):
         """
         uxds = self.surface.uxds
         if name in uxds:
-            arr = uxds[name].data
+            # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+            arr = uxds.variables[name].data
             if arr.ndim >= 1:
                 if arr.shape[0] == self.surface.n_face:
                     return arr[self.face_indices, ...]
@@ -2296,27 +2298,25 @@ class LocalSurface(CratermakerBase):
                 name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
             )
             overwrite = True
-        elif overwrite:
-            if long_name is not None:
-                self.surface.uxds[name].attrs["long_name"] = long_name
-            if units is not None:
-                self.surface.uxds[name].attrs["units"] = units
+        # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+        # As documented, long_name and units are only used when creating new data; they are ignored for existing data.
+        variable = self.surface.uxds.variables[name]
 
         if np.any(np.isnan(data)):
             if np.all(np.isnan(data)):
                 return
             if overwrite:
-                data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
+                data[np.isnan(data)] = variable.data[indices][np.isnan(data)]
             else:
                 data[np.isnan(data)] = 0.0
 
         if overwrite:
-            self.surface.uxds[name].data[indices] = data
+            variable.data[indices] = data
         else:
-            self.surface.uxds[name].data[indices] += data
+            variable.data[indices] += data
 
         if positive_only:
-            self.surface.uxds[name].data[indices] = np.maximum(0.0, self.surface.uxds[name].data[indices])
+            variable.data[indices] = np.maximum(0.0, variable.data[indices])
 
         return
 
