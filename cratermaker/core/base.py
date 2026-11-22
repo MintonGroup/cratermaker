@@ -18,10 +18,10 @@ from tqdm import tqdm
 
 from cratermaker.utils.general_utils import parameter
 
-# Cache of resolved simulation directories, keyed by (the simdir value as given, the current working directory). Resolving a simdir
-# requires several filesystem calls, and a new component object (e.g. every crater, projectile, and local surface view) is created
-# with one, so this avoids repeating that work for the same directory.
-_SIMDIR_CACHE: dict[tuple[Path | None, Path], Path] = {}
+# Path objects already produced by the simdir setter, keyed by id(). Components pass their parent's simdir along by reference (e.g. a
+# Simulation's simdir is shared with every crater, projectile, and local surface view), so an identity check lets the setter skip all
+# filesystem work for a value that has already been vetted. Holding a strong reference prevents an id() from being reused.
+_RESOLVED_SIMDIRS: dict[int, Path] = {}
 
 
 @dataclass
@@ -624,33 +624,23 @@ class CratermakerBase:
 
     @simdir.setter
     def simdir(self, value):
-        cwd = Path.cwd()
-        try:
-            key = (None if value is None else Path(value), cwd)
-        except TypeError as e:
-            raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
-        cached = _SIMDIR_CACHE.get(key)
-        # Reuse the cached result as long as the directory still exists (otherwise fall through so that it is recreated)
-        if cached is not None and (value is None or (cwd / cached).is_dir()):
-            self._simdir = cached
+        # Fast path: value is a Path that this setter already resolved (passed along from another component), so no filesystem calls are needed.
+        if value is not None and _RESOLVED_SIMDIRS.get(id(value)) is value:
+            self._simdir = value
             return
 
-        if value is None:
-            p = Path.cwd()
-        else:
-            try:
-                p = Path(value)
-                if not p.is_absolute():
-                    p = Path.cwd() / p
-                p.mkdir(parents=True, exist_ok=True)
-                p = p.resolve()
-            except TypeError as e:
-                raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
         try:
-            self._simdir = p.relative_to(Path.cwd())
+            p = Path.cwd() if value is None else Path(value)
+        except TypeError as e:
+            raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
+        p.mkdir(parents=True, exist_ok=True)
+        p = p.resolve()
+        try:
+            p = p.relative_to(Path.cwd())
         except ValueError:
-            self._simdir = p
-        _SIMDIR_CACHE[key] = self._simdir
+            pass
+        self._simdir = p
+        _RESOLVED_SIMDIRS[id(p)] = p
         return
 
     @property
