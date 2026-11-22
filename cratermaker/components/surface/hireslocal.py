@@ -619,6 +619,7 @@ class HiResLocalSurface(Surface):
         print(f"Local region pixel size: {format_large_units(self.pix, quantity='length')}")
 
         interior_points, theta = _interior_points()
+        print(f"Generated {len(interior_points)} points in the local region.")
 
         exterior_points = []
         while theta < np.pi:
