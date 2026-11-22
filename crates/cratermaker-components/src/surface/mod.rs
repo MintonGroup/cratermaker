@@ -1317,6 +1317,18 @@ impl<'m> UniqueCollector<'m> {
         }
     }
 
+    /// Returns the unique values in the order they were first added, and clears the marks.
+    fn finish_unsorted(mut self) -> Result<Vec<i64>, String> {
+        let out = std::mem::take(&mut self.out);
+        for &v in &out {
+            self.marks[v as usize] = false;
+        }
+        match self.error.take() {
+            Some(e) => Err(e),
+            None => Ok(out),
+        }
+    }
+
     fn finish(mut self) -> Result<Vec<i64>, String> {
         let mut out = std::mem::take(&mut self.out);
         if out.len() >= self.n_total / DENSE_COLLECTION_DIVISOR {
@@ -1346,7 +1358,8 @@ impl<'m> UniqueCollector<'m> {
 ///
 /// This is the region construction used by `Surface.extract_region` and `LocalSurface.extract_subregion`:
 /// 1. `edges` are the edges of the seed faces.
-/// 2. `faces` are the seed faces plus a buffer of every face that shares a face, node, or edge with them.
+/// 2. `faces` are the seed faces plus a buffer of every face that shares a node with them. (Faces that share an edge with a
+///    seed face also share that edge's nodes, so this includes every face that shares a face, node, or edge with them.)
 /// 3. `nodes` are the nodes of all of `faces`, including the buffer.
 ///
 /// Each list is sorted and unique, with fill values removed, exactly as `np.unique` would produce.
@@ -1372,21 +1385,15 @@ pub fn build_region_indices(
     };
     check_rows("face_edge", &global.face_edge, global.n_face)?;
     check_rows("face_node", &global.face_node, global.n_face)?;
-    check_rows("face_face", &global.face_face, global.n_face)?;
     check_rows("node_face", &global.node_face, global.n_node)?;
-    check_rows("edge_face", &global.edge_face, global.n_edge)?;
 
     // Row-major views (no copy when the arrays are already C-contiguous, as they are coming from uxarray)
     let face_edge = global.face_edge.as_standard_layout();
     let face_node = global.face_node.as_standard_layout();
-    let face_face = global.face_face.as_standard_layout();
     let node_face = global.node_face.as_standard_layout();
-    let edge_face = global.edge_face.as_standard_layout();
     let fe = face_edge.as_slice().expect("standard layout");
     let fnn = face_node.as_slice().expect("standard layout");
-    let ff = face_face.as_slice().expect("standard layout");
     let nf = node_face.as_slice().expect("standard layout");
-    let ef = edge_face.as_slice().expect("standard layout");
 
     UNIQUE_MARKS.with(|scratch| {
         let mut marks = scratch.borrow_mut();
@@ -1395,17 +1402,16 @@ pub fn build_region_indices(
         c.add_rows(fe, face_edge.ncols(), &seeds);
         let edges = c.finish()?;
 
+        // The seed nodes are only used to find the faces around them, so they do not need to be sorted
         let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
         c.add_rows(fnn, face_node.ncols(), &seeds);
-        let seed_nodes = c.finish()?;
+        let seed_nodes = c.finish_unsorted()?;
 
         let mut c = UniqueCollector::new(&mut marks, global.n_face, fill, "face");
         for &f in &seeds {
             c.add(f);
         }
-        c.add_rows(ff, face_face.ncols(), &seeds);
         c.add_rows(nf, node_face.ncols(), &seed_nodes);
-        c.add_rows(ef, edge_face.ncols(), &edges);
         let faces = c.finish()?;
 
         let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
