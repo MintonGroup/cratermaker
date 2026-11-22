@@ -12,8 +12,7 @@
 //! 7. Optionally collapse slopes steeper than the critical slope.
 //!
 //! Each step follows the original Python implementation (`Morphology.form_crater` together with
-//! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls), including the NaN handling of
-//! `LocalSurface.add_data`.
+//! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls).
 
 use crate::ArrayResult;
 use crate::morphology::basicmoon::{
@@ -26,10 +25,6 @@ use crate::surface::{
 };
 use numpy::ndarray::concatenate;
 use numpy::ndarray::prelude::*;
-
-/// Python's `_VSMALL` (10 times the smallest positive normal f64). Diffusion steps whose largest diffusivity is below this are
-/// skipped.
-const PY_VSMALL: f64 = 10.0 * f64::MIN_POSITIVE;
 
 /// Scaling factor of the ejecta burial degradation, `k = EJECTA_SOFTEN_FACTOR * thickness^2`.
 const EJECTA_SOFTEN_FACTOR: f64 = 1.50;
@@ -393,7 +388,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
         state.ejecta_thickness[f] = 0.0;
     }
 
-    // 4-5. Ejecta blanket and the degradation it causes. NaN is truthy in Python, so only an exactly zero volume is skipped.
+    // 4-5. Ejecta blanket and the degradation it causes, if anything was excavated
     let mut conservation_factor = None;
     if excavated_volume != 0.0 {
         let zeros = Array1::<f64>::zeros(distance.len());
@@ -407,22 +402,16 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
             }
             None => Array1::<f64>::ones(distance.len()),
         };
-        // np.maximum(thickness, 0.0), which keeps NaN
-        thickness.mapv_inplace(|t| if t >= 0.0 || t.is_nan() { t } else { 0.0 });
+        thickness.mapv_inplace(|t| t.max(0.0));
 
         let ejecta_volume = face_volume(thickness.slice(s![..nf]), region.face_area);
         let factor = if options.conserve_volume {
-            python_max(-excavated_volume / ejecta_volume, 0.0)
+            (-excavated_volume / ejecta_volume).max(0.0)
         } else {
             1.0
         };
         thickness.mapv_inplace(|t| t * factor);
-        add_data(
-            state.ejecta_thickness.view_mut(),
-            thickness.slice(s![..nf]),
-            false,
-            false,
-        );
+        state.ejecta_thickness += &thickness.slice(s![..nf]);
 
         let burial: Array1<f64> = thickness
             .slice(s![..nf])
@@ -438,18 +427,8 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     }
 
     // 6. Add the crater and ejecta to the surface
-    add_data(
-        state.face_elevation.view_mut(),
-        elevation_change.slice(s![..nf]),
-        false,
-        false,
-    );
-    add_data(
-        state.node_elevation.view_mut(),
-        elevation_change.slice(s![nf..]),
-        false,
-        false,
-    );
+    state.face_elevation += &elevation_change.slice(s![..nf]);
+    state.node_elevation += &elevation_change.slice(s![nf..]);
 
     // 7. Slope collapse
     if let Some(critical_slope) = options.critical_slope {
@@ -475,17 +454,8 @@ fn diffuse(
     if kdiff.iter().any(|&k| k < 0.0) {
         return Err("kdiff must be greater than 0.0".to_string());
     }
-    // np.max, which returns NaN if any value is NaN
-    let kdiff_max = kdiff.iter().fold(f64::NEG_INFINITY, |m, &k| {
-        if m.is_nan() || k.is_nan() {
-            f64::NAN
-        } else if k > m {
-            k
-        } else {
-            m
-        }
-    });
-    if kdiff_max.abs() < PY_VSMALL {
+    // A step with no diffusivity anywhere would change nothing, but would still re-interpolate the node elevations
+    if !kdiff.iter().any(|&k| k > 0.0) {
         return Ok(());
     }
     let delta = {
@@ -496,63 +466,22 @@ fn diffuse(
     Ok(())
 }
 
-/// Adds a face elevation change, re-interpolates the node elevations, and adds the positive part of the change to the ejecta
-/// thickness, as `LocalSurface.update_elevation` followed by `add_data(..., positive_only=True)` does after a diffusion or slope
-/// collapse step.
+/// Adds a face elevation change, re-interpolates the node elevations, and adds the change to the ejecta thickness (which is kept
+/// non-negative), as `LocalSurface.update_elevation` followed by `add_data(..., positive_only=True)` does after a diffusion or
+/// slope collapse step.
 fn apply_face_change(
     region: &CraterRegionView<'_>,
     state: &mut CraterSurfaceState,
     delta: &Array1<f64>,
 ) {
-    add_data(state.face_elevation.view_mut(), delta.view(), false, false);
-    let node_elevation = {
+    state.face_elevation += delta;
+    state.node_elevation = {
         let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());
         interpolate_node_elevation_from_faces(&view).expect("interpolation does not fail")
     };
-    add_data(
-        state.node_elevation.view_mut(),
-        node_elevation.view(),
-        true,
-        false,
-    );
-    add_data(state.ejecta_thickness.view_mut(), delta.view(), false, true);
-}
-
-/// Adds (or, with `overwrite`, assigns) `data` to `target`, as `LocalSurface.add_data` does.
-///
-/// If every value of `data` is NaN, nothing changes. Otherwise NaN values are treated as 0 when adding, and leave the target
-/// unchanged when overwriting. With `positive_only`, the result is clipped at 0 (keeping NaN, as `np.maximum` does).
-fn add_data(
-    mut target: ArrayViewMut1<'_, f64>,
-    data: ArrayView1<'_, f64>,
-    overwrite: bool,
-    positive_only: bool,
-) {
-    debug_assert_eq!(target.len(), data.len());
-    let n_nan = data.iter().filter(|v| v.is_nan()).count();
-    if n_nan > 0 && n_nan == data.len() {
-        return;
-    }
-    for (t, &d) in target.iter_mut().zip(data.iter()) {
-        if d.is_nan() {
-            if !overwrite {
-                *t += 0.0;
-            }
-        } else if overwrite {
-            *t = d;
-        } else {
-            *t += d;
-        }
-    }
-    if positive_only {
-        target.mapv_inplace(|t| if 0.0 >= t { 0.0 } else { t });
-    }
-}
-
-/// Python's built-in `max(a, b)`: returns `a` unless `b > a`.
-#[inline]
-fn python_max(a: f64, b: f64) -> f64 {
-    if b > a { b } else { a }
+    state
+        .ejecta_thickness
+        .zip_mut_with(delta, |e, &d| *e = (*e + d).max(0.0));
 }
 
 /// Volume of a face elevation change: the sum of each face's elevation change times its area.
@@ -596,44 +525,4 @@ fn inner_crater_faces(region: &CraterRegionView<'_>, radius: f64) -> Vec<usize> 
         }
     }
     (0..nf).filter(|&f| inside[f]).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn add_data_matches_python_nan_handling() {
-        let mut t = Array1::from(vec![1.0, 2.0, 3.0]);
-        add_data(
-            t.view_mut(),
-            Array1::from(vec![f64::NAN, 1.0, -5.0]).view(),
-            false,
-            true,
-        );
-        assert_eq!(t.to_vec(), vec![1.0, 3.0, 0.0]);
-        let mut t = Array1::from(vec![1.0, 2.0, 3.0]);
-        add_data(
-            t.view_mut(),
-            Array1::from(vec![f64::NAN, 9.0, 8.0]).view(),
-            true,
-            false,
-        );
-        assert_eq!(t.to_vec(), vec![1.0, 9.0, 8.0]);
-        let mut t = Array1::from(vec![1.0, 2.0]);
-        add_data(
-            t.view_mut(),
-            Array1::from(vec![f64::NAN, f64::NAN]).view(),
-            false,
-            true,
-        );
-        assert_eq!(t.to_vec(), vec![1.0, 2.0]);
-    }
-
-    #[test]
-    fn python_max_semantics() {
-        assert_eq!(python_max(-1.0, 0.0), 0.0);
-        assert_eq!(python_max(2.0, 0.0), 2.0);
-        assert!(python_max(f64::NAN, 0.0).is_nan());
-    }
 }
