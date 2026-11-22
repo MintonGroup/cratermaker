@@ -1,5 +1,6 @@
 pub mod counting;
 pub mod morphology;
+pub mod scaling;
 pub mod surface;
 
 #[cfg(not(target_env = "msvc"))]
@@ -26,8 +27,9 @@ mod cratermaker {
     mod basicmoon_bindings {
         #[pymodule_export]
         use crate::morphology::basicmoon_bindings::{
-            basicmoon_profile, crater_profile_function, degradation_function, degradation_function_array,
-            ejecta_profile_function, form_craters, ray_intensity, rmax, volume_integrand,
+            basicmoon_profile, crater_profile_function, degradation_function,
+            degradation_function_array, ejecta_profile_function, form_craters, ray_intensity, rmax,
+            volume_integrand,
         };
     }
 
@@ -35,18 +37,26 @@ mod cratermaker {
     mod realmoon_bindings {
         #[pymodule_export]
         use crate::morphology::realmoon_bindings::{
-            form_craters, get_1d_psd_from_control_points, profile_from_psd, psd_from_profile, realmoon_profile,
+            form_craters, get_1d_psd_from_control_points, profile_from_psd, psd_from_profile,
+            realmoon_profile,
         };
+    }
+
+    #[pymodule]
+    mod scaling_bindings {
+        #[pymodule_export]
+        use crate::scaling::scaling_bindings::{projectile_to_transient, transient_to_projectile};
     }
 
     #[pymodule]
     mod surface_bindings {
         #[pymodule_export]
         use crate::surface::surface_bindings::{
-            apply_diffusion, build_local_connectivity, build_region_indices, compute_bearings, compute_distances, compute_distances_and_bearings, compute_edge_distances,
+            apply_diffusion, build_local_connectivity, build_region_indices, compute_bearings,
+            compute_distances, compute_distances_and_bearings, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
-            interpolate_node_elevation_from_faces, reference_surface, remap_connectivity_to_local, reset_radial_distances, slope_collapse,
-            turbulence_noise,
+            interpolate_node_elevation_from_faces, reference_surface, remap_connectivity_to_local,
+            reset_radial_distances, slope_collapse, turbulence_noise,
         };
     }
 }

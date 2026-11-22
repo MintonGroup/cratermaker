@@ -466,11 +466,9 @@ class RealMoonCrater(BasicMoonCrater):
                 ring = cls(crater=ring, morphology=morphology)
                 crater.rings[i] = ring
 
-        return cls(
-            crater=crater,
-            morphology=morphology,
-            **kwargs,
-        )
+        if isinstance(crater, cls):
+            return crater
+        return cls(crater=crater, morphology=morphology, **kwargs)
 
 
 @Morphology.register("realmoon")

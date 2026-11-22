@@ -1008,11 +1008,9 @@ class Crater(ComponentBase):
                 "projectile_location": args["location"],
                 "projectile_density": args["projectile_density"],
             }
-            projectile = Projectile.maker(
-                projectile,
-                target=target,
-                **{**projectile_args, **kwargs},
-            )
+            # Only resolve the projectile model here. The projectile's properties are drawn once, by new_projectile below, after
+            # any monte_carlo override has been applied.
+            projectile = Projectile.maker(projectile, target=target, **kwargs)
 
             scaling = Scaling.maker(
                 scaling,
@@ -1025,6 +1023,14 @@ class Crater(ComponentBase):
                 projectile_monte_carlo_orig = projectile.monte_carlo
                 scaling.monte_carlo = monte_carlo
                 projectile.monte_carlo = monte_carlo
+                if not monte_carlo and projectile_monte_carlo_orig:
+                    # Turning off Monte Carlo sampling for this crater gives the nominal impact: vertical and due north, unless
+                    # an angle or direction was given. (The projectile model's own angle and direction were drawn for an
+                    # earlier crater, so they are not nominal.)
+                    if projectile_args["projectile_angle"] is None:
+                        projectile_args["projectile_angle"] = 90.0
+                    if projectile_args["projectile_direction"] is None:
+                        projectile_args["projectile_direction"] = 0.0
 
             scaling.projectile = scaling.projectile.new_projectile(
                 **projectile_args,

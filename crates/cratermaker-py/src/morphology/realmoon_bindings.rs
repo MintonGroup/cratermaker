@@ -287,7 +287,9 @@ pub fn form_craters<'py>(
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
     if rings.len() != craters.len() {
-        return Err(PyValueError::new_err("craters and rings must have the same length"));
+        return Err(PyValueError::new_err(
+            "craters and rings must have the same length",
+        ));
     }
     // The Python data must outlive the views of it, so each level is collected before the next is built from it
     let craters_py: Vec<PyReadonlyRealMoonCrater> = craters
@@ -308,7 +310,10 @@ pub fn form_craters<'py>(
     let craters_v: Vec<RealMoonCrater> = craters_py.iter().map(|c| c.as_views()).collect();
     let rings_v: Vec<Option<Vec<RealMoonCrater>>> = rings_py
         .iter()
-        .map(|r| r.as_ref().map(|r| r.iter().map(|ring| ring.as_views()).collect()))
+        .map(|r| {
+            r.as_ref()
+                .map(|r| r.iter().map(|ring| ring.as_views()).collect())
+        })
         .collect();
     let models: Vec<RealMoonModel> = craters_v
         .iter()

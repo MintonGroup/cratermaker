@@ -40,8 +40,12 @@ impl<'py> PyCraterRegion<'py> {
     /// Reads the attributes of a Python `LocalSurface`. Accessing them computes any lazily evaluated values (distances, bearings,
     /// projected coordinates, and local connectivity) that have not been computed yet.
     pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let get1 = |name: &str| -> PyResult<PyReadonlyArray1<'py, f64>> { Ok(obj.getattr(name)?.extract()?) };
-        let get2 = |name: &str| -> PyResult<PyReadonlyArray2<'py, i64>> { Ok(obj.getattr(name)?.extract()?) };
+        let get1 = |name: &str| -> PyResult<PyReadonlyArray1<'py, f64>> {
+            Ok(obj.getattr(name)?.extract()?)
+        };
+        let get2 = |name: &str| -> PyResult<PyReadonlyArray2<'py, i64>> {
+            Ok(obj.getattr(name)?.extract()?)
+        };
         Ok(Self {
             face_area: get1("face_area")?,
             face_lon: get1("face_lon")?,
@@ -89,7 +93,11 @@ impl<'py> PyCraterRegion<'py> {
 }
 
 /// Converts global indices to `usize`, checking that each is within `[0, n_total)`.
-fn checked_indices(indices: &PyReadonlyArray1<'_, i64>, n_total: usize, what: &str) -> PyResult<Vec<usize>> {
+fn checked_indices(
+    indices: &PyReadonlyArray1<'_, i64>,
+    n_total: usize,
+    what: &str,
+) -> PyResult<Vec<usize>> {
     indices
         .as_array()
         .iter()
@@ -97,7 +105,9 @@ fn checked_indices(indices: &PyReadonlyArray1<'_, i64>, n_total: usize, what: &s
             if i >= 0 && (i as usize) < n_total {
                 Ok(i as usize)
             } else {
-                Err(PyValueError::new_err(format!("{what} index {i} is out of range [0, {n_total})")))
+                Err(PyValueError::new_err(format!(
+                    "{what} index {i} is out of range [0, {n_total})"
+                )))
             }
         })
         .collect()
@@ -176,13 +186,20 @@ pub fn run_form_craters<'py, P: CraterProfile>(
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
     let n = models.len();
-    if regions.len() != n || face_indices.len() != n || node_indices.len() != n || ray_seeds.len() != n {
+    if regions.len() != n
+        || face_indices.len() != n
+        || node_indices.len() != n
+        || ray_seeds.len() != n
+    {
         return Err(PyValueError::new_err(
             "craters, regions, face_indices, node_indices, and ray_seeds must all have the same length",
         ));
     }
 
-    let regions_py: Vec<PyCraterRegion> = regions.iter().map(PyCraterRegion::from_py).collect::<PyResult<_>>()?;
+    let regions_py: Vec<PyCraterRegion> = regions
+        .iter()
+        .map(PyCraterRegion::from_py)
+        .collect::<PyResult<_>>()?;
     let views: Vec<CraterRegionView> = regions_py.iter().map(|r| r.as_view()).collect();
 
     let mut face_elevation = face_elevation.readwrite();
@@ -192,7 +209,9 @@ pub fn run_form_craters<'py, P: CraterProfile>(
     let node_global = node_elevation.as_slice_mut()?;
     let ejecta_global = ejecta_thickness.as_slice_mut()?;
     if ejecta_global.len() != face_global.len() {
-        return Err(PyValueError::new_err("ejecta_thickness must have one value per face"));
+        return Err(PyValueError::new_err(
+            "ejecta_thickness must have one value per face",
+        ));
     }
 
     let faces: Vec<Vec<usize>> = face_indices

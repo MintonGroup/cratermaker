@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -18,6 +19,25 @@ from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 _EJPROFILE = -3.0
+
+# The crater properties that define the axisymmetric profile, as read by the compiled profile and volume functions
+_PROFILE_PARAMETERS = (
+    "diameter",
+    "radius",
+    "floor_elevation",
+    "floor_radius",
+    "wall_curvature",
+    "floor_blend",
+    "rim_width",
+    "rim_height",
+    "frac_ejrim",
+    "ejprofile",
+    "peak_height",
+    "peak_width",
+    "peak_ring_radius",
+    "peak_center_distance",
+    "peak_center_bearing",
+)
 
 # Nodes and weights of the 8-point Gauss-Legendre rule on [-1, 1], used for the fixed-order composite quadratures below.
 _GL_NODES, _GL_WEIGHTS = np.polynomial.legendre.leggauss(8)
@@ -552,32 +572,33 @@ class BasicMoonCrater(MorphologyCrater):
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
         if conserve_volume and not crater.isring:
+            # The search only changes the rim height and the ejecta profile exponent, so the volumes are evaluated on a copy of
+            # the profile parameters and the crater is rebuilt once with the final values.
+            params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
 
-            def ejvol(crater):
-                return 2 * np.pi * crater.frac_ejrim * crater.rim_height * crater.radius**2 / (-crater.ejprofile - 2)
+            def ejvol(p):
+                return 2 * np.pi * p.frac_ejrim * p.rim_height * p.radius**2 / (-p.ejprofile - 2)
 
             for _ in range(10):
-                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
                 while excavated_volume > 0.0:
                     # This occurs when rim_height is too high
                     kwargs["rim_height"] *= 0.9
-                    crater = cls(
-                        crater=crater,
-                        morphology=morphology,
-                        **kwargs,
-                    )
-                    excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                    params.rim_height = kwargs["rim_height"]
+                    excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
 
-                conservation_factor = -ejvol(crater) / excavated_volume
+                conservation_factor = -ejvol(params) / excavated_volume
 
-                ejprofile = -2.0 + conservation_factor * (crater.ejprofile + 2)
+                ejprofile = -2.0 + conservation_factor * (params.ejprofile + 2)
                 if ejprofile < -4:
                     kwargs["rim_height"] *= 0.9
                 else:
                     kwargs["ejprofile"] = ejprofile
-                crater = cls(crater=crater, morphology=morphology, **kwargs)
+                params.rim_height = kwargs["rim_height"]
+                params.ejprofile = kwargs["ejprofile"]
                 if ejprofile > -4:
                     break
+            crater = cls(crater=crater, morphology=morphology, **kwargs)
 
         return crater
 

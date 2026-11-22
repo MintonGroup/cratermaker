@@ -259,13 +259,11 @@ class MorphologyCrater(Crater):
         crater = super().maker(
             crater=crater, scaling=morphology.scaling, location=location, check_redundant_inputs=check_redundant_inputs, **kwargs
         )
-        args = {}
-
-        return cls(
-            crater=crater,
-            morphology=morphology,
-            **args,
-        )
+        # Crater.maker builds an instance of this class, so only the morphology needs to be attached rather than copying it
+        if isinstance(crater, cls) and isinstance(crater._var, MorphologyCraterVariable):
+            object.__setattr__(crater._var, "_morphology", morphology)
+            return crater
+        return cls(crater=crater, morphology=morphology)
 
     def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
         """
