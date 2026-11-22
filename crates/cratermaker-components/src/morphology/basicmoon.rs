@@ -8,7 +8,7 @@ use rand::SeedableRng;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::f64::consts::{PI, SQRT_2, TAU};
 
 const NRAYMAX: i32 = 5;
@@ -89,21 +89,33 @@ pub fn basicmoon_profile(
     };
     let min_elevation = meanref + crater.floor_elevation;
 
-    Ok(Array1::from_iter(
-        reference_elevations
-            .iter()
-            .zip(radial_distances.iter().copied())
-            .map(|(href, r)| {
-                let h =
-                    basicmoon_profile_one(r, *href, crater, rings, include_crater, include_ejecta);
-                if r <= crater.radius {
-                    h.max(min_elevation)
-                } else {
-                    h
-                }
-            }),
-    ))
+    // Each point is independent, so evaluate them in parallel. The minimum chunk length keeps small regions (the vast majority
+    // of craters) from paying more in thread coordination than they gain.
+    let profile: Vec<f64> = (0..radial_distances.len())
+        .into_par_iter()
+        .with_min_len(PROFILE_PAR_MIN_LEN)
+        .map(|i| {
+            let r = radial_distances[i];
+            let h = basicmoon_profile_one(
+                r,
+                reference_elevations[i],
+                crater,
+                rings,
+                include_crater,
+                include_ejecta,
+            );
+            if r <= crater.radius {
+                h.max(min_elevation)
+            } else {
+                h
+            }
+        })
+        .collect();
+    Ok(Array1::from_vec(profile))
 }
+
+/// Minimum number of points per parallel work item in `basicmoon_profile`.
+const PROFILE_PAR_MIN_LEN: usize = 2048;
 
 // Computes a either a crater and/or ejecta 1D profile at a single point using the model of  Minton et al. (2026)
 //

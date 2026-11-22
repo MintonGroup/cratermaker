@@ -18,6 +18,11 @@ from tqdm import tqdm
 
 from cratermaker.utils.general_utils import parameter
 
+# Cache of resolved simulation directories, keyed by (the simdir value as given, the current working directory). Resolving a simdir
+# requires several filesystem calls, and a new component object (e.g. every crater, projectile, and local surface view) is created
+# with one, so this avoids repeating that work for the same directory.
+_SIMDIR_CACHE: dict[tuple[Path | None, Path], Path] = {}
+
 
 @dataclass
 class CommonArgs:
@@ -619,6 +624,17 @@ class CratermakerBase:
 
     @simdir.setter
     def simdir(self, value):
+        cwd = Path.cwd()
+        try:
+            key = (None if value is None else Path(value), cwd)
+        except TypeError as e:
+            raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
+        cached = _SIMDIR_CACHE.get(key)
+        # Reuse the cached result as long as the directory still exists (otherwise fall through so that it is recreated)
+        if cached is not None and (value is None or (cwd / cached).is_dir()):
+            self._simdir = cached
+            return
+
         if value is None:
             p = Path.cwd()
         else:
@@ -634,6 +650,7 @@ class CratermakerBase:
             self._simdir = p.relative_to(Path.cwd())
         except ValueError:
             self._simdir = p
+        _SIMDIR_CACHE[key] = self._simdir
         return
 
     @property
