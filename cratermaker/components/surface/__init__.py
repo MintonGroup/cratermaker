@@ -299,6 +299,66 @@ class Surface(ComponentBase):
 
         return
 
+    _CONNECTIVITY_NAMES = (
+        "face_edge_connectivity",
+        "face_node_connectivity",
+        "face_face_connectivity",
+        "node_face_connectivity",
+        "edge_face_connectivity",
+        "edge_node_connectivity",
+    )
+
+    @property
+    def _global_connectivity_args(self) -> dict[str, Any]:
+        """
+        The global connectivity arrays and sizes, as keyword arguments for the Rust region builders.
+
+        This is built once and reused, since it is needed for every region that is extracted. It is rebuilt if any of the cached
+        global connectivity arrays is replaced.
+        """
+        cache = self.__dict__.get("_global_connectivity_args_cache")
+        if cache is not None:
+            # Compare against the cached arrays directly, which avoids calling the six properties on every region extraction
+            attrs = self.__dict__
+            if all(attrs.get("_" + name) is a for name, a in zip(self._CONNECTIVITY_NAMES, cache[0], strict=True)):
+                return cache[1]
+        sources = tuple(getattr(self, name) for name in self._CONNECTIVITY_NAMES)
+        args = {
+            # No copy for the int64, C-contiguous arrays that come from uxarray
+            name: np.ascontiguousarray(a, dtype=np.int64)
+            for name, a in zip(self._CONNECTIVITY_NAMES, sources, strict=True)
+        }
+        args.update(n_face=self.n_face, n_node=self.n_node, n_edge=self.n_edge, fill_value=INT_FILL_VALUE)
+        object.__setattr__(self, "_global_connectivity_args_cache", (sources, args))
+        return args
+
+    def _region_indices(
+        self, seed_faces: ArrayLike, include_buffer_face_nodes: bool = True
+    ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]:
+        """
+        Determine the face, node, and edge indices of a local region from a set of seed faces.
+
+        The edges and nodes are those attached to the seed faces. The faces are the seed faces plus a buffer of every face that
+        shares a face, node, or edge with them. Each array is sorted and unique.
+
+        Parameters
+        ----------
+        seed_faces : ArrayLike
+            Global indices of the faces inside the region.
+        include_buffer_face_nodes : bool, optional
+            If True, the node indices are expanded to include the nodes of the buffer faces. Default is True.
+
+        Returns
+        -------
+        tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]
+            The face, node, and edge indices of the region.
+        """
+        return surface_bindings.build_region_indices(
+            seed_faces=np.ascontiguousarray(np.ravel(seed_faces), dtype=np.int64),
+            include_buffer_face_nodes=include_buffer_face_nodes,
+            **self._global_connectivity_args,
+        )
+
     def extract_region(
         self,
         location: tuple[FloatLike, FloatLike],
@@ -341,21 +401,9 @@ class Surface(ComponentBase):
                 else:
                     return None
 
-            # First select edges and nodes that are attached to these faces
-            edge_indices = _unique_indices(self.face_edge_connectivity[face_indices], self.n_edge)
-            node_indices = _unique_indices(self.face_node_connectivity[face_indices], self.n_node)
-
-            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
-            # These are needed for diffusion calculations
-            neighbor_faces = self.face_face_connectivity[face_indices].ravel()
-            node_faces = self.node_face_connectivity[node_indices].ravel()
-            edge_faces = self.edge_face_connectivity[edge_indices].ravel()
-            face_indices = _unique_indices(
-                np.concatenate((np.ravel(face_indices), neighbor_faces, node_faces, edge_faces)), self.n_face
-            )
-
-            # Add in all nodes that are attached to these buffer faces
-            node_indices = _unique_indices(self.face_node_connectivity[face_indices], self.n_node)
+            # Select the edges of these faces, then add a buffer of every face connected to them (needed for diffusion
+            # calculations), and finally all nodes attached to the buffered faces
+            face_indices, node_indices, edge_indices = self._region_indices(face_indices, include_buffer_face_nodes=True)
 
         else:  # This is the entire surface
             face_indices = self.face_indices
@@ -2803,18 +2851,9 @@ class LocalSurface(CratermakerBase):
             if face_indices.size == 0:
                 return None
 
-            # First select edges and nodes that are attached to these faces
-            edge_indices = _unique_indices(self.surface.face_edge_connectivity[face_indices], self.surface.n_edge)
-            node_indices = _unique_indices(self.surface.face_node_connectivity[face_indices], self.surface.n_node)
-
-            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
-            # These are needed for diffusion calculations
-            neighbor_faces = self.surface.face_face_connectivity[face_indices].ravel()
-            node_faces = self.surface.node_face_connectivity[node_indices].ravel()
-            edge_faces = self.surface.edge_face_connectivity[edge_indices].ravel()
-            face_indices = _unique_indices(
-                np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)), self.surface.n_face
-            )
+            # Build the region exactly as extract_region does: the edges of these faces, a buffer of every face connected to them
+            # (needed for diffusion calculations), and all nodes attached to the buffered faces
+            face_indices, node_indices, edge_indices = self.surface._region_indices(face_indices, include_buffer_face_nodes=True)
 
         else:
             face_indices = self.face_indices
@@ -4454,6 +4493,37 @@ class LocalSurface(CratermakerBase):
             self._edge_indices = _unique_indices(self.surface.face_edge_connectivity[self.face_indices], self.surface.n_edge)
         return self._edge_indices
 
+    def _build_local_connectivity(self) -> bool:
+        """
+        Build all six local connectivity arrays at once with a single Rust call, if the view's indices allow it.
+
+        Each array is identical to what `_remap_connectivity_to_local` produces for it individually. Building them together means
+        the global-to-local map of each index domain (faces, nodes, edges) is only built once.
+
+        Returns
+        -------
+        bool
+            True if the arrays were built, or False if the indices are not all integer arrays (e.g. a slice for a global view),
+            in which case the caller should fall back to `_remap_connectivity_to_local`.
+        """
+        face_indices, node_indices, edge_indices = self.face_indices, self.node_indices, self.edge_indices
+        if not all(isinstance(idx, np.ndarray) and idx.dtype.kind in "iu" for idx in (face_indices, node_indices, edge_indices)):
+            return False
+        (
+            self._face_edge_connectivity,
+            self._face_node_connectivity,
+            self._face_face_connectivity,
+            self._node_face_connectivity,
+            self._edge_face_connectivity,
+            self._edge_node_connectivity,
+        ) = surface_bindings.build_local_connectivity(
+            face_indices=np.ascontiguousarray(face_indices.ravel(), dtype=np.int64),
+            node_indices=np.ascontiguousarray(node_indices.ravel(), dtype=np.int64),
+            edge_indices=np.ascontiguousarray(edge_indices.ravel(), dtype=np.int64),
+            **self.surface._global_connectivity_args,
+        )
+        return True
+
     @property
     def edge_face_connectivity(self) -> NDArray:
         """
@@ -4461,7 +4531,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_edge, 2)`
         """
-        if self._edge_face_connectivity is None:
+        if self._edge_face_connectivity is None and not self._build_local_connectivity():
             self._edge_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.edge_face_connectivity,
                 row_indices=self.edge_indices,
@@ -4477,7 +4547,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_face, n_max_face_edges)`
         """
-        if self._face_edge_connectivity is None:
+        if self._face_edge_connectivity is None and not self._build_local_connectivity():
             self._face_edge_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_edge_connectivity,
                 row_indices=self.face_indices,
@@ -4495,7 +4565,7 @@ class LocalSurface(CratermakerBase):
 
         Nodes are in counter-clockwise order.
         """
-        if self._face_node_connectivity is None:
+        if self._face_node_connectivity is None and not self._build_local_connectivity():
             self._face_node_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_node_connectivity,
                 row_indices=self.face_indices,
@@ -4511,7 +4581,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_face, n_max_face_faces)`
         """
-        if self._face_face_connectivity is None:
+        if self._face_face_connectivity is None and not self._build_local_connectivity():
             self._face_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_face_connectivity,
                 row_indices=self.face_indices,
@@ -4527,7 +4597,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_node, n_max_node_faces)`
         """
-        if self._node_face_connectivity is None:
+        if self._node_face_connectivity is None and not self._build_local_connectivity():
             self._node_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.node_face_connectivity,
                 row_indices=self.node_indices,
@@ -4543,7 +4613,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_edge, 2)`
         """
-        if self._edge_node_connectivity is None:
+        if self._edge_node_connectivity is None and not self._build_local_connectivity():
             self._edge_node_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.edge_node_connectivity,
                 row_indices=self.edge_indices,

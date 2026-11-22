@@ -439,6 +439,83 @@ class TestSurface(unittest.TestCase):
                 h_analytical, h_numerical, decimal=2, err_msg="Diffusion did not match analytical solution"
             )
 
+    def test_extract_region_matches_numpy_reference(self):
+        """The Rust region builders must reproduce the original NumPy construction of a region and its local connectivity."""
+        from uxarray import INT_FILL_VALUE
+
+        def unique_valid(a):
+            u = np.unique(a)
+            return u[u != INT_FILL_VALUE]
+
+        def remap(conn, rows, values, total):
+            subset = conn[rows]
+            lookup = np.full(total, -1, dtype=np.int64)
+            lookup[values] = np.arange(values.size)
+            valid = (subset != INT_FILL_VALUE) & (subset >= 0) & (subset < total)
+            mapped = lookup[np.where(valid, subset, 0)]
+            out = np.full_like(subset, INT_FILL_VALUE)
+            keep = valid & (mapped >= 0)
+            out[keep] = mapped[keep]
+            return out
+
+        def reference(s, seed, include_buffer_face_nodes):
+            edges = unique_valid(s.face_edge_connectivity[seed])
+            nodes = unique_valid(s.face_node_connectivity[seed])
+            faces = unique_valid(
+                np.concatenate(
+                    (
+                        np.ravel(seed),
+                        s.face_face_connectivity[seed].ravel(),
+                        s.node_face_connectivity[nodes].ravel(),
+                        s.edge_face_connectivity[edges].ravel(),
+                    )
+                )
+            )
+            if include_buffer_face_nodes:
+                nodes = unique_valid(s.face_node_connectivity[faces])
+            return faces, nodes, edges
+
+        def check_region(s, region, ref):
+            for got, expected in zip((region.face_indices, region.node_indices, region.edge_indices), ref, strict=True):
+                np.testing.assert_array_equal(got, expected)
+            f, n, e = ref
+            expected_conn = {
+                "face_edge_connectivity": remap(s.face_edge_connectivity, f, e, s.n_edge),
+                "face_node_connectivity": remap(s.face_node_connectivity, f, n, s.n_node),
+                "face_face_connectivity": remap(s.face_face_connectivity, f, f, s.n_face),
+                "node_face_connectivity": remap(s.node_face_connectivity, n, f, s.n_face),
+                "edge_face_connectivity": remap(s.edge_face_connectivity, e, f, s.n_face),
+                "edge_node_connectivity": remap(s.edge_node_connectivity, e, n, s.n_node),
+            }
+            for name, expected in expected_conn.items():
+                np.testing.assert_array_equal(getattr(region, name), expected, err_msg=name)
+
+        rng = np.random.default_rng(42)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            s = Surface.maker(simdir=simdir, gridlevel=5, target=target, ask_overwrite=False)
+            for radius in [1.0, 50e3, 150e3, 400e3, 1000e3]:
+                for _ in range(5):
+                    loc = get_random_location(rng=rng)[0]
+                    location = (float(loc["lon"]), float(loc["lat"]))
+                    region = s.extract_region(location=location, region_radius=radius, at_least_one_face=True)
+                    seed = s.face_tree.query_radius(np.asarray(location), np.rad2deg(radius / s.radius))
+                    if len(seed) == 0:
+                        seed = np.array([s.find_nearest_face(location)])
+                    check_region(s, region, reference(s, np.asarray(seed), include_buffer_face_nodes=True))
+
+                    # A subregion is a fast path to the same result as extracting a smaller region at the same center
+                    sub_radius = 0.5 * radius
+                    sub = region.extract_subregion(sub_radius)
+                    direct = s.extract_region(location=location, region_radius=sub_radius)
+                    if direct is None:
+                        self.assertIsNone(sub)
+                    else:
+                        self.assertIsNotNone(sub)
+                        expected = (direct.face_indices, direct.node_indices, direct.edge_indices)
+                        check_region(s, sub, expected)
+                        sub_seed = region.face_indices[region.face_distance <= sub_radius]
+                        check_region(s, sub, reference(s, sub_seed, include_buffer_face_nodes=True))
+
     def test_export(self):
         import os
 

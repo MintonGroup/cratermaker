@@ -946,9 +946,18 @@ pub fn remap_connectivity_to_local(
     total_value_size: usize,
     fill_value: i64,
 ) -> Result<Array2<i64>, String> {
-    let n_rows = connectivity.nrows();
-    let ncols = connectivity.ncols();
-    let rows: Vec<usize> = row_indices
+    let rows = to_row_indices(row_indices, connectivity.nrows())?;
+    REMAP_SCRATCH.with(|scratch| {
+        let mut map = scratch.borrow_mut();
+        Ok(with_value_map(&mut map, value_indices, total_value_size, |map| {
+            remap_rows(connectivity, &rows, map, total_value_size, fill_value)
+        }))
+    })
+}
+
+/// Converts row indices to `usize`, accepting negative indices that count from the end as in NumPy.
+fn to_row_indices(row_indices: ArrayView1<'_, i64>, n_rows: usize) -> Result<Vec<usize>, String> {
+    row_indices
         .iter()
         .map(|&r| {
             if r >= 0 && (r as usize) < n_rows {
@@ -959,39 +968,294 @@ pub fn remap_connectivity_to_local(
                 Err(format!("row index {r} is out of bounds for connectivity with {n_rows} rows"))
             }
         })
-        .collect::<Result<_, _>>()?;
+        .collect()
+}
 
-    REMAP_SCRATCH.with(|scratch| {
-        let mut map = scratch.borrow_mut();
-        if map.len() < total_value_size {
-            map.resize(total_value_size, -1);
+/// Fills the global-to-local map for `value_indices`, runs `f` with it, and restores the map to all -1 afterwards.
+///
+/// The map must be all -1 on entry. Each value `v` in `[0, total_value_size)` maps to its position in `value_indices` (the last
+/// position, if it appears more than once).
+fn with_value_map<T>(
+    map: &mut Vec<i64>,
+    value_indices: ArrayView1<'_, i64>,
+    total_value_size: usize,
+    f: impl FnOnce(&[i64]) -> T,
+) -> T {
+    if map.len() < total_value_size {
+        map.resize(total_value_size, -1);
+    }
+    let in_domain = |v: i64| v >= 0 && (v as usize) < total_value_size;
+    for (local, &v) in value_indices.iter().enumerate() {
+        if in_domain(v) {
+            map[v as usize] = local as i64;
         }
-        let in_domain = |v: i64| v >= 0 && (v as usize) < total_value_size;
-
-        for (local, &v) in value_indices.iter().enumerate() {
-            if in_domain(v) {
-                map[v as usize] = local as i64;
-            }
+    }
+    let result = f(map);
+    for &v in value_indices.iter() {
+        if in_domain(v) {
+            map[v as usize] = -1;
         }
+    }
+    result
+}
 
-        let mut out = Array2::<i64>::from_elem((rows.len(), ncols), fill_value);
-        for (mut out_row, &r) in out.outer_iter_mut().zip(rows.iter()) {
-            for (o, &v) in out_row.iter_mut().zip(connectivity.row(r).iter()) {
-                if v != fill_value && in_domain(v) {
-                    let local = map[v as usize];
-                    if local >= 0 {
-                        *o = local;
-                    }
+/// Extracts `rows` of `connectivity`, mapping each value through `map` (global to local index, -1 if absent). Values equal to
+/// `fill_value`, outside `[0, total_value_size)`, or absent from the map become `fill_value`.
+fn remap_rows(
+    connectivity: ArrayView2<'_, i64>,
+    rows: &[usize],
+    map: &[i64],
+    total_value_size: usize,
+    fill_value: i64,
+) -> Array2<i64> {
+    let in_domain = |v: i64| v >= 0 && (v as usize) < total_value_size;
+    let mut out = Array2::<i64>::from_elem((rows.len(), connectivity.ncols()), fill_value);
+    for (mut out_row, &r) in out.outer_iter_mut().zip(rows.iter()) {
+        for (o, &v) in out_row.iter_mut().zip(connectivity.row(r).iter()) {
+            if v != fill_value && in_domain(v) {
+                let local = map[v as usize];
+                if local >= 0 {
+                    *o = local;
                 }
             }
         }
+    }
+    out
+}
 
-        // Restore the scratch map to all -1 for the next call
-        for &v in value_indices.iter() {
-            if in_domain(v) {
-                map[v as usize] = -1;
+/// The global connectivity arrays of a surface mesh.
+pub struct GlobalConnectivity<'a> {
+    pub face_edge: ArrayView2<'a, i64>,
+    pub face_node: ArrayView2<'a, i64>,
+    pub face_face: ArrayView2<'a, i64>,
+    pub node_face: ArrayView2<'a, i64>,
+    pub edge_face: ArrayView2<'a, i64>,
+    pub edge_node: ArrayView2<'a, i64>,
+    pub n_face: usize,
+    pub n_node: usize,
+    pub n_edge: usize,
+    pub fill_value: i64,
+}
+
+/// The six connectivity arrays of a local region, in local indices.
+pub struct LocalConnectivity {
+    pub face_edge: Array2<i64>,
+    pub face_node: Array2<i64>,
+    pub face_face: Array2<i64>,
+    pub node_face: Array2<i64>,
+    pub edge_face: Array2<i64>,
+    pub edge_node: Array2<i64>,
+}
+
+/// Builds all six local connectivity arrays of a region in one pass.
+///
+/// Each output is identical to calling `remap_connectivity_to_local` with the corresponding rows and value domain (for example,
+/// `face_edge` uses the face indices as rows and the edge indices as values). Doing them together means the global-to-local map
+/// of each value domain (faces, nodes, edges) is built once rather than once per array.
+pub fn build_local_connectivity(
+    face_indices: ArrayView1<'_, i64>,
+    node_indices: ArrayView1<'_, i64>,
+    edge_indices: ArrayView1<'_, i64>,
+    global: &GlobalConnectivity<'_>,
+) -> Result<LocalConnectivity, String> {
+    let fill = global.fill_value;
+    let face_rows = to_row_indices(face_indices, global.n_face)?;
+    let node_rows = to_row_indices(node_indices, global.n_node)?;
+    let edge_rows = to_row_indices(edge_indices, global.n_edge)?;
+    for (name, conn, n) in [
+        ("face_edge", &global.face_edge, global.n_face),
+        ("face_node", &global.face_node, global.n_face),
+        ("face_face", &global.face_face, global.n_face),
+        ("node_face", &global.node_face, global.n_node),
+        ("edge_face", &global.edge_face, global.n_edge),
+        ("edge_node", &global.edge_node, global.n_edge),
+    ] {
+        if conn.nrows() != n {
+            return Err(format!("{name} connectivity has {} rows, expected {n}", conn.nrows()));
+        }
+    }
+
+    REMAP_SCRATCH.with(|scratch| {
+        let mut map = scratch.borrow_mut();
+        // Values that are faces
+        let (face_face, node_face, edge_face) = with_value_map(&mut map, face_indices, global.n_face, |map| {
+            (
+                remap_rows(global.face_face, &face_rows, map, global.n_face, fill),
+                remap_rows(global.node_face, &node_rows, map, global.n_face, fill),
+                remap_rows(global.edge_face, &edge_rows, map, global.n_face, fill),
+            )
+        });
+        // Values that are nodes
+        let (face_node, edge_node) = with_value_map(&mut map, node_indices, global.n_node, |map| {
+            (
+                remap_rows(global.face_node, &face_rows, map, global.n_node, fill),
+                remap_rows(global.edge_node, &edge_rows, map, global.n_node, fill),
+            )
+        });
+        // Values that are edges
+        let face_edge = with_value_map(&mut map, edge_indices, global.n_edge, |map| {
+            remap_rows(global.face_edge, &face_rows, map, global.n_edge, fill)
+        });
+        Ok(LocalConnectivity {
+            face_edge,
+            face_node,
+            face_face,
+            node_face,
+            edge_face,
+            edge_node,
+        })
+    })
+}
+
+thread_local! {
+    // Reusable membership marks for `build_region_indices`. Sized to the largest index domain seen so far and kept all-false
+    // between uses, so each use costs O(number of entries touched) rather than O(mesh size).
+    static UNIQUE_MARKS: std::cell::RefCell<Vec<bool>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Accumulates the sorted, unique values of a set of global indices, equivalent to `np.unique` with the fill value removed.
+///
+/// Membership is tracked in a reusable mark array (all-false on entry, restored to all-false by `finish`), so the cost is
+/// proportional to the number of values added, not to the size of the mesh.
+struct UniqueCollector<'m> {
+    marks: &'m mut Vec<bool>,
+    out: Vec<i64>,
+    n_total: usize,
+    fill_value: i64,
+    error: Option<String>,
+    what: &'static str,
+}
+
+impl<'m> UniqueCollector<'m> {
+    fn new(marks: &'m mut Vec<bool>, n_total: usize, fill_value: i64, what: &'static str) -> Self {
+        if marks.len() < n_total {
+            marks.resize(n_total, false);
+        }
+        Self {
+            marks,
+            out: Vec::new(),
+            n_total,
+            fill_value,
+            error: None,
+            what,
+        }
+    }
+
+    #[inline]
+    fn add(&mut self, v: i64) {
+        if v == self.fill_value {
+            return;
+        }
+        if v < 0 || v as usize >= self.n_total {
+            if self.error.is_none() {
+                self.error = Some(format!("{} index {v} is out of range [0, {})", self.what, self.n_total));
+            }
+            return;
+        }
+        let m = &mut self.marks[v as usize];
+        if !*m {
+            *m = true;
+            self.out.push(v);
+        }
+    }
+
+    /// Adds every value in the given rows of a row-major connectivity array with `ncols` columns.
+    fn add_rows(&mut self, conn: &[i64], ncols: usize, rows: &[i64]) {
+        for &r in rows {
+            let start = r as usize * ncols;
+            for &v in &conn[start..start + ncols] {
+                self.add(v);
             }
         }
+    }
+
+    fn finish(mut self) -> Result<Vec<i64>, String> {
+        for &v in &self.out {
+            self.marks[v as usize] = false;
+        }
+        if let Some(e) = self.error.take() {
+            return Err(e);
+        }
+        let mut out = std::mem::take(&mut self.out);
+        out.sort_unstable();
         Ok(out)
+    }
+}
+
+/// Determines the global face, node, and edge indices of a local region from its seed faces.
+///
+/// This reproduces the region construction in `Surface.extract_region` and `LocalSurface.extract_subregion`:
+/// 1. `edges` are the edges of the seed faces, and `nodes` are the nodes of the seed faces.
+/// 2. `faces` are the seed faces plus a buffer of every face that shares a face, node, or edge with them.
+/// 3. If `include_buffer_face_nodes` is true, `nodes` is recomputed as the nodes of all of `faces` (including the buffer).
+///
+/// Each list is sorted and unique, with fill values removed, exactly as `np.unique` would produce.
+///
+/// # Returns
+///
+/// * `(faces, nodes, edges)`, or an error if any index is out of range.
+pub fn build_region_indices(
+    seed_faces: ArrayView1<'_, i64>,
+    global: &GlobalConnectivity<'_>,
+    include_buffer_face_nodes: bool,
+) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>), String> {
+    let fill = global.fill_value;
+    let seeds: Vec<i64> = seed_faces.iter().copied().collect();
+    if let Some(&bad) = seeds.iter().find(|&&f| f < 0 || f as usize >= global.n_face) {
+        return Err(format!("seed face index {bad} is out of range [0, {})", global.n_face));
+    }
+    let check_rows = |name: &str, conn: &ArrayView2<'_, i64>, n: usize| {
+        if conn.nrows() == n {
+            Ok(())
+        } else {
+            Err(format!("{name} connectivity has {} rows, expected {n}", conn.nrows()))
+        }
+    };
+    check_rows("face_edge", &global.face_edge, global.n_face)?;
+    check_rows("face_node", &global.face_node, global.n_face)?;
+    check_rows("face_face", &global.face_face, global.n_face)?;
+    check_rows("node_face", &global.node_face, global.n_node)?;
+    check_rows("edge_face", &global.edge_face, global.n_edge)?;
+
+    // Row-major views (no copy when the arrays are already C-contiguous, as they are coming from uxarray)
+    let face_edge = global.face_edge.as_standard_layout();
+    let face_node = global.face_node.as_standard_layout();
+    let face_face = global.face_face.as_standard_layout();
+    let node_face = global.node_face.as_standard_layout();
+    let edge_face = global.edge_face.as_standard_layout();
+    let fe = face_edge.as_slice().expect("standard layout");
+    let fnn = face_node.as_slice().expect("standard layout");
+    let ff = face_face.as_slice().expect("standard layout");
+    let nf = node_face.as_slice().expect("standard layout");
+    let ef = edge_face.as_slice().expect("standard layout");
+
+    UNIQUE_MARKS.with(|scratch| {
+        let mut marks = scratch.borrow_mut();
+
+        let mut c = UniqueCollector::new(&mut marks, global.n_edge, fill, "edge");
+        c.add_rows(fe, face_edge.ncols(), &seeds);
+        let edges = c.finish()?;
+
+        let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
+        c.add_rows(fnn, face_node.ncols(), &seeds);
+        let seed_nodes = c.finish()?;
+
+        let mut c = UniqueCollector::new(&mut marks, global.n_face, fill, "face");
+        for &f in &seeds {
+            c.add(f);
+        }
+        c.add_rows(ff, face_face.ncols(), &seeds);
+        c.add_rows(nf, node_face.ncols(), &seed_nodes);
+        c.add_rows(ef, edge_face.ncols(), &edges);
+        let faces = c.finish()?;
+
+        let nodes = if include_buffer_face_nodes {
+            let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
+            c.add_rows(fnn, face_node.ncols(), &faces);
+            c.finish()?
+        } else {
+            seed_nodes
+        };
+        Ok((faces, nodes, edges))
     })
 }

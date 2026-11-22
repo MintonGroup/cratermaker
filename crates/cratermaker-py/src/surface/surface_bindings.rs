@@ -602,3 +602,148 @@ pub fn remap_connectivity_to_local<'py>(
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok(PyArray2::from_owned_array(py, result))
 }
+
+/// Bundles the six global connectivity arrays passed from Python into the cratermaker-components struct.
+#[allow(clippy::too_many_arguments)]
+fn global_connectivity<'a>(
+    face_edge_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    face_node_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    face_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    node_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    edge_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    edge_node_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+) -> cratermaker_components::surface::GlobalConnectivity<'a> {
+    cratermaker_components::surface::GlobalConnectivity {
+        face_edge: face_edge_connectivity.as_array(),
+        face_node: face_node_connectivity.as_array(),
+        face_face: face_face_connectivity.as_array(),
+        node_face: node_face_connectivity.as_array(),
+        edge_face: edge_face_connectivity.as_array(),
+        edge_node: edge_node_connectivity.as_array(),
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    }
+}
+
+/// Determines the global face, node, and edge indices of a local region from its seed faces.
+///
+/// The edges and nodes are those of the seed faces, and the faces are the seed faces plus a buffer of every face that shares a
+/// face, node, or edge with them. If `include_buffer_face_nodes` is true, the nodes are recomputed to include those of the buffer
+/// faces. Each returned array is sorted and unique, with fill values removed.
+///
+/// # Returns
+///
+/// * `(face_indices, node_indices, edge_indices)` as int64 arrays.
+#[pyfunction]
+#[pyo3(signature = (
+    seed_faces, face_edge_connectivity, face_node_connectivity, face_face_connectivity, node_face_connectivity,
+    edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value, include_buffer_face_nodes
+))]
+#[allow(clippy::too_many_arguments)]
+pub fn build_region_indices<'py>(
+    py: Python<'py>,
+    seed_faces: PyReadonlyArray1<'py, i64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    face_node_connectivity: PyReadonlyArray2<'py, i64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_node_connectivity: PyReadonlyArray2<'py, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+    include_buffer_face_nodes: bool,
+) -> PyResult<(Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>)> {
+    let global = global_connectivity(
+        &face_edge_connectivity,
+        &face_node_connectivity,
+        &face_face_connectivity,
+        &node_face_connectivity,
+        &edge_face_connectivity,
+        &edge_node_connectivity,
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    );
+    let (faces, nodes, edges) = cratermaker_components::surface::build_region_indices(
+        seed_faces.as_array(),
+        &global,
+        include_buffer_face_nodes,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok((PyArray1::from_vec(py, faces), PyArray1::from_vec(py, nodes), PyArray1::from_vec(py, edges)))
+}
+
+/// Builds all six local connectivity arrays of a region in one call.
+///
+/// Each output is identical to `remap_connectivity_to_local` applied to the corresponding global connectivity array, with the
+/// region's face, node, or edge indices as the rows and the matching index domain as the values.
+///
+/// # Returns
+///
+/// * `(face_edge, face_node, face_face, node_face, edge_face, edge_node)` local connectivity arrays.
+#[pyfunction]
+#[pyo3(signature = (
+    face_indices, node_indices, edge_indices, face_edge_connectivity, face_node_connectivity, face_face_connectivity,
+    node_face_connectivity, edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value
+))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn build_local_connectivity<'py>(
+    py: Python<'py>,
+    face_indices: PyReadonlyArray1<'py, i64>,
+    node_indices: PyReadonlyArray1<'py, i64>,
+    edge_indices: PyReadonlyArray1<'py, i64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    face_node_connectivity: PyReadonlyArray2<'py, i64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_node_connectivity: PyReadonlyArray2<'py, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+) -> PyResult<(
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+)> {
+    let global = global_connectivity(
+        &face_edge_connectivity,
+        &face_node_connectivity,
+        &face_face_connectivity,
+        &node_face_connectivity,
+        &edge_face_connectivity,
+        &edge_node_connectivity,
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    );
+    let local = cratermaker_components::surface::build_local_connectivity(
+        face_indices.as_array(),
+        node_indices.as_array(),
+        edge_indices.as_array(),
+        &global,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok((
+        PyArray2::from_owned_array(py, local.face_edge),
+        PyArray2::from_owned_array(py, local.face_node),
+        PyArray2::from_owned_array(py, local.face_face),
+        PyArray2::from_owned_array(py, local.node_face),
+        PyArray2::from_owned_array(py, local.edge_face),
+        PyArray2::from_owned_array(py, local.edge_node),
+    ))
+}
