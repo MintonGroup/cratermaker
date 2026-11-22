@@ -3,25 +3,20 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.integrate import quad
 from scipy.optimize import root_scalar
-from tqdm import tqdm
 
 from cratermaker.bindings import basicmoon_bindings
 from cratermaker.components.crater import Crater, CraterFixed
 from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
-from cratermaker.components.surface import LocalSurface, Surface
-from cratermaker.constants import _VSMALL, FloatLike
+from cratermaker.components.surface import Surface
+from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
-from cratermaker.utils.montecarlo_utils import bounded_norm
-
-if TYPE_CHECKING:
-    from cratermaker.components.surface import LocalSurface
 
 _EJPROFILE = -3.0
 
@@ -918,42 +913,6 @@ class BasicMoonMorphology(Morphology):
         """
         return
 
-    def crater_shape(self, crater: BasicMoonCrater, region: LocalSurface, **kwargs: Any) -> NDArray[np.float64]:
-        """
-        Compute the crater shape based on the region view and surface.
-
-        Parameters
-        ----------
-        crater : BasicMoonCrater
-            The crater object containing the parameters for the crater shape.
-        region:  LocalSurface
-            The region view of the surface mesh centered at the crater center.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed crater shape at the face and node elevations.
-        """
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-        reference_elevation = region.get_reference_surface(reference_radius=crater.diameter)
-
-        # Combine distances and references for nodes and faces
-        radial_distances = np.concatenate([region.face_distance, region.node_distance])
-        bearings = np.concatenate([region.face_bearing, region.node_bearing])
-
-        original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
-        reference_elevation[radial_distances > crater.radius] = original_elevation[radial_distances > crater.radius]
-
-        new_elevation = self.crater_profile(
-            crater=crater, radial_distances=radial_distances, bearings=bearings, reference_elevations=reference_elevation
-        )
-
-        elevation_change = new_elevation - original_elevation
-        return elevation_change
-
     def crater_profile(
         self,
         crater: BasicMoonCrater,
@@ -1031,41 +990,6 @@ class BasicMoonMorphology(Morphology):
         elevation = np.reshape(elevation, orig_shape)
 
         return elevation
-
-    def ejecta_shape(
-        self, crater: BasicMoonCrater, region: LocalSurface, **kwargs: Any
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """
-        Compute the ejecta shape based on the region view and surface.
-
-        Parameters
-        ----------
-        region : LocalSurface
-            The region view of the surface mesh centered at the crat er center.
-        crater : BasicMoonCrater
-            The crater object containing the parameters for the ejecta shape.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed ejecta shape at the face and node elevations
-        NDArray[np.float64]
-            The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
-        """
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-
-        radial_distances = np.concatenate([region.face_distance, region.node_distance])
-        bearings = np.concatenate([region.face_bearing, region.node_bearing])
-        if self.dorays:
-            thickness, intensity = self.ejecta_distribution(crater, radial_distances, bearings)
-        else:
-            thickness = self.ejecta_profile(crater, radial_distances, bearings)
-            intensity = np.ones_like(radial_distances)
-
-        return thickness, intensity
 
     def ejecta_profile(
         self,
@@ -1193,30 +1117,6 @@ class BasicMoonMorphology(Morphology):
         intensity = np.array(intensity, dtype=np.float64)
         intensity = np.reshape(intensity, radial_distances.shape)
         return intensity
-
-    def ejecta_burial_degradation(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:
-        """
-        Computes the change in degradation state due to ejecta burial.
-
-        This function implements a combination of the model by Minton et al. (2019) [#]_.
-
-        Parameters
-        ----------
-        region : LocalSurface
-            The region view of the surface mesh centered at the crater center.
-        ejecta_thickness : NDArray[np.float64]
-            The computed ejecta thickness at the face and node elevations.
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed change in degradation state for all faces in the
-
-        References
-        ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
-        """
-        return ejecta_soften_factor * ejecta_thickness**2
 
     def compute_subpixel_degradation(
         self,

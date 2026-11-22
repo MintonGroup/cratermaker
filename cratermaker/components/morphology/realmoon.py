@@ -9,7 +9,6 @@ import numpy as np
 import xarray as xr
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
-from scipy import fft
 
 from cratermaker.bindings import realmoon_bindings
 from cratermaker.components.crater import Crater

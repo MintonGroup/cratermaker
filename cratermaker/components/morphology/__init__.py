@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 from abc import abstractmethod
 from collections.abc import Callable
-from math import pi
 from typing import TYPE_CHECKING
 
 from numpy.typing import ArrayLike, NDArray
@@ -766,8 +765,6 @@ class Morphology(ComponentBase):
         if not hasattr(self, "_queue_manager"):
             raise RuntimeError("Queue manager has not been initialized. Call _init_queue_manager first.")
 
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         def _batch_process(pbar=None):
             tally_cadence = 2000
             nacumulated = 0
@@ -816,22 +813,6 @@ class Morphology(ComponentBase):
         if self.save_observed:
             self.counting.tally(**kwargs)
         return
-
-    @abstractmethod
-    def crater_shape(
-        self,
-        crater: Crater,
-        region: LocalSurface,
-        **kwarg: Any,
-    ) -> NDArray[np.float64]: ...
-
-    @abstractmethod
-    def ejecta_shape(
-        self,
-        crater: Crater,
-        region: LocalSurface,
-        **kwarg: Any,
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
     @abstractmethod
     def rmax(
