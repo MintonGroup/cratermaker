@@ -1448,7 +1448,7 @@ class BasicMoonMorphology(Morphology):
         return _kd(np.asarray(diameter, dtype=np.float64) / 2, fe)
 
     @staticmethod
-    def overlap_function(crater: BasicMoonCrater) -> tuple[set[int], set[int]]:
+    def overlap_function(crater: BasicMoonCrater) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
         """
         Get the affected node and face indices for the crater.
 
@@ -1459,11 +1459,12 @@ class BasicMoonMorphology(Morphology):
 
         Returns
         -------
-        tuple[set[int], set[int]]
-            The affected node and face indices for the crater.
+        tuple[NDArray[np.int64], NDArray[np.int64]]
+            The affected global node and face indices for the crater.
         """
         if not crater.emplaceable or crater.affected_node_indices is None or crater.affected_face_indices is None:
-            return set(), set()
+            empty = np.empty(0, dtype=np.int64)
+            return empty, empty
         else:
             return crater.affected_node_indices, crater.affected_face_indices
 

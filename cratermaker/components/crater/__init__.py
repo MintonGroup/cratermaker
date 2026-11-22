@@ -970,6 +970,9 @@ class Crater(ComponentBase):
 
         else:
             # --- Merge the CommonArgs with any arguments passed here using CratermakerBase ---
+            if simdir is None and isinstance(scaling, Scaling):
+                # Inherit the scaling model's (already resolved) simulation directory rather than defaulting to the cwd
+                simdir = scaling.simdir
             argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
             if scaling is not None and isinstance(scaling, Scaling):
                 if projectile is None:

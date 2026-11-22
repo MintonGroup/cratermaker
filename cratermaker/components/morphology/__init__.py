@@ -19,7 +19,7 @@ from collections.abc import Callable
 from math import pi
 from typing import TYPE_CHECKING
 
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from tqdm import tqdm
 
 from cratermaker.constants import FloatLike
@@ -146,13 +146,13 @@ class MorphologyCraterVariable(CraterVariable):
         return self._ejecta_rmax
 
     @property
-    def affected_face_indices(self) -> set[int] | None:
-        """The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
+    def affected_face_indices(self) -> NDArray[np.int64] | None:
+        """The sorted, unique face indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_face_indices
 
     @property
-    def affected_node_indices(self) -> set[int] | None:
-        """The set of node indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
+    def affected_node_indices(self) -> NDArray[np.int64] | None:
+        """The sorted, unique node indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_node_indices
 
     @property
@@ -164,6 +164,32 @@ class MorphologyCraterVariable(CraterVariable):
     def crater_region(self) -> LocalSurface | None:
         """The LocalSurface view extracted around the crater center that encompasses a buffered region around the cratered rim, as determined by the morphology model."""
         return self._crater_region
+
+
+def _region_indices_array(region: LocalSurface | None, attr: str, n_total: int) -> NDArray[np.int64]:
+    """
+    Return the global face or node indices of a region as an integer array.
+
+    Parameters
+    ----------
+    region : LocalSurface or None
+        The region whose indices are returned. If None, an empty array is returned.
+    attr : str
+        Either "face_indices" or "node_indices".
+    n_total : int
+        The total number of faces or nodes on the surface, used to expand a slice into explicit indices.
+
+    Returns
+    -------
+    NDArray[np.int64]
+        The indices covered by the region.
+    """
+    if region is None:
+        return np.empty(0, dtype=np.int64)
+    indices = getattr(region, attr)
+    if isinstance(indices, slice):
+        return np.arange(n_total, dtype=np.int64)[indices]
+    return np.asarray(indices)
 
 
 @Crater.register("morphologycrater")
@@ -323,43 +349,29 @@ class MorphologyCrater(Crater):
         return self._var._crater_region
 
     @property
-    def affected_face_indices(self) -> set[int] | None:
+    def affected_face_indices(self) -> NDArray[np.int64] | None:
         """
-        The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
+        The sorted, unique face indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
 
-        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
+        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously. The array is the ejecta region's own index array (not a copy), so it must not be modified.
         """
         if self._var._affected_face_indices is None and self._has_initialized_surface_data and self.emplaceable:
-            if self.ejecta_region is not None:
-                if isinstance(self.ejecta_region.face_indices, slice):
-                    self._var._affected_face_indices = set(
-                        np.arange(self.morphology.surface.n_face)[self.ejecta_region.face_indices]
-                    )
-                else:
-                    self._var._affected_face_indices = set(self.ejecta_region.face_indices)
-            else:
-                self._var._affected_face_indices = set()
-
+            self._var._affected_face_indices = _region_indices_array(
+                self.ejecta_region, "face_indices", self.morphology.surface.n_face
+            )
         return self._var._affected_face_indices
 
     @property
-    def affected_node_indices(self) -> set[int] | None:
+    def affected_node_indices(self) -> NDArray[np.int64] | None:
         """
-        The set of node indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
+        The sorted, unique node indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
 
-        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
+        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously. The array is the ejecta region's own index array (not a copy), so it must not be modified.
         """
         if self._var._affected_node_indices is None and self._has_initialized_surface_data and self.emplaceable:
-            if self.ejecta_region is not None:
-                if isinstance(self.ejecta_region.node_indices, slice):
-                    self._var._affected_node_indices = set(
-                        np.arange(self.morphology.surface.n_node)[self.ejecta_region.node_indices]
-                    )
-                else:
-                    self._var._affected_node_indices = set(self.ejecta_region.node_indices)
-            else:
-                self._var._affected_node_indices = set()
-
+            self._var._affected_node_indices = _region_indices_array(
+                self.ejecta_region, "node_indices", self.morphology.surface.n_node
+            )
         return self._var._affected_node_indices
 
     def reset(self):
@@ -896,7 +908,7 @@ class Morphology(ComponentBase):
     @abstractmethod
     def overlap_function(
         crater: Crater,
-    ) -> tuple[set[int], set[int]]: ...
+    ) -> tuple[ArrayLike, ArrayLike]: ...
 
     @property
     def surface(self) -> Surface:
@@ -1063,13 +1075,36 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        overlap_fn : Callable[[Crater], tuple[set[int], set[int]]]
-            A function that takes a crater and returns a tuple of (node indices, face indices) affected.
+        overlap_fn : Callable[[Crater], tuple[ArrayLike, ArrayLike]]
+            A function that takes a crater and returns a tuple of (node indices, face indices) affected. Each may be an integer
+            array of global indices or a set of ints.
         """
 
-        def __init__(self, overlap_fn: Callable[[Crater], tuple[set[int], set[int]]]):
+        def __init__(self, overlap_fn: Callable[[Crater], tuple[ArrayLike, ArrayLike]]):
             self._queue: list[Crater] = []
             self._overlap_fn = overlap_fn
+            # Reusable reservation masks over the global node and face indices. They are grown as needed and are always left
+            # all-False between calls to peek_next_batch.
+            self._reserved_nodes = np.zeros(0, dtype=bool)
+            self._reserved_faces = np.zeros(0, dtype=bool)
+
+        @staticmethod
+        def _as_index_array(indices: ArrayLike) -> NDArray[np.intp]:
+            """Convert the output of an overlap function (array or set of ints) to an integer index array."""
+            if isinstance(indices, (set, frozenset)):
+                return np.fromiter(indices, dtype=np.intp, count=len(indices))
+            return np.asarray(indices, dtype=np.intp)
+
+        @staticmethod
+        def _fit_mask(mask: NDArray[np.bool_], indices: NDArray[np.intp]) -> NDArray[np.bool_]:
+            """Return `mask`, grown with False entries if needed so that every index in `indices` is valid."""
+            if indices.size:
+                needed = int(indices.max()) + 1
+                if needed > mask.size:
+                    grown = np.zeros(max(needed, 2 * mask.size), dtype=bool)
+                    grown[: mask.size] = mask
+                    return grown
+            return mask
 
         def push(self, crater: Crater) -> None:
             """
@@ -1100,16 +1135,28 @@ class Morphology(ComponentBase):
                 The next batch of craters that can be processed simultaneously without overlap.
             """
             batch = []
-            reserved_nodes = set()
-            reserved_faces = set()
-            for crater in self._queue:
-                node_indices, face_indices = self._overlap_fn(crater)
-                if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):
+            touched_nodes = []
+            touched_faces = []
+            try:
+                for crater in self._queue:
+                    node_indices, face_indices = self._overlap_fn(crater)
+                    node_indices = self._as_index_array(node_indices)
+                    face_indices = self._as_index_array(face_indices)
+                    self._reserved_nodes = self._fit_mask(self._reserved_nodes, node_indices)
+                    self._reserved_faces = self._fit_mask(self._reserved_faces, face_indices)
+                    if self._reserved_nodes[node_indices].any() or self._reserved_faces[face_indices].any():
+                        break
                     batch.append(crater)
-                    reserved_nodes.update(node_indices)
-                    reserved_faces.update(face_indices)
-                else:
-                    break
+                    self._reserved_nodes[node_indices] = True
+                    self._reserved_faces[face_indices] = True
+                    touched_nodes.append(node_indices)
+                    touched_faces.append(face_indices)
+            finally:
+                # Clear only the entries that were set, so the masks are all-False for the next call
+                for idx in touched_nodes:
+                    self._reserved_nodes[idx] = False
+                for idx in touched_faces:
+                    self._reserved_faces[idx] = False
             return batch
 
         def pop_batch(self, batch: list[Crater]) -> None:

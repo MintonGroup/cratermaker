@@ -75,6 +75,69 @@ pub fn apply_diffusion(
     face_variable: ArrayView1<'_, f64>,
     region: &LocalSurfaceView<'_>,
 ) -> ArrayResult {
+    apply_diffusion_with_topology(face_kappa, face_variable, region, &mut None)
+}
+
+/// Minimum number of items per rayon task in the diffusion loops. Small regions are processed on fewer threads, which avoids
+/// fork/join overhead dominating the run time. This only affects scheduling, not results.
+const DIFFUSION_MIN_PAR_LEN: usize = 2048;
+
+/// Edge-to-face and face-to-edge incidence of a region, used by the diffusion update.
+///
+/// The face-to-edge lists are stored in CSR form, and each face's list is in increasing edge order (and, for the same edge,
+/// the first face of the edge before the second). This is the same order in which the original edge-wise scatter added flux
+/// contributions to each face, so gathering per face reproduces its floating-point summation order exactly.
+pub struct DiffusionTopology {
+    /// The two faces of each edge: [first, second]
+    edge_faces: Vec<[usize; 2]>,
+    /// incidence[offsets[f]..offsets[f + 1]] are the incidences of face f
+    offsets: Vec<usize>,
+    /// (edge index, true if the face is the second face of the edge)
+    incidence: Vec<(usize, bool)>,
+}
+
+impl DiffusionTopology {
+    pub fn new(region: &LocalSurfaceView<'_>) -> Self {
+        let n_edges = region.edge_face_connectivity.nrows();
+        let n_faces = region.n_face;
+        let mut edge_faces = vec![[0usize; 2]; n_edges];
+        let mut counts = vec![0usize; n_faces + 1];
+        for e in 0..n_edges {
+            let f1 = region.edge_face_connectivity[(e, 0)] as usize;
+            let f2 = region.edge_face_connectivity[(e, 1)] as usize;
+            assert!(f1 < n_faces && f2 < n_faces);
+            edge_faces[e] = [f1, f2];
+            counts[f1 + 1] += 1;
+            counts[f2 + 1] += 1;
+        }
+        for f in 0..n_faces {
+            counts[f + 1] += counts[f];
+        }
+        let offsets = counts;
+        let mut cursor = offsets.clone();
+        let mut incidence = vec![(0usize, false); 2 * n_edges];
+        for (e, &[f1, f2]) in edge_faces.iter().enumerate() {
+            incidence[cursor[f1]] = (e, false);
+            cursor[f1] += 1;
+            incidence[cursor[f2]] = (e, true);
+            cursor[f2] += 1;
+        }
+        Self {
+            edge_faces,
+            offsets,
+            incidence,
+        }
+    }
+}
+
+/// Same as `apply_diffusion`, but reuses (or lazily builds) the region's `DiffusionTopology`, so that repeated calls on the same
+/// region (e.g. from `slope_collapse`) do not rebuild it.
+fn apply_diffusion_with_topology(
+    face_kappa: ArrayView1<'_, f64>,
+    face_variable: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+    topology: &mut Option<DiffusionTopology>,
+) -> ArrayResult {
     // Compute initial dt von neumann stability condition
     let dt_max = compute_dt_max(face_kappa, region);
 
@@ -88,68 +151,51 @@ pub fn apply_diffusion(
     let dt = 1.0 / nloops as f64;
     let fac = dt / 2.0;
 
-    // Precompute once
-    let n_edges = region.edge_face_connectivity.nrows();
-    let n_faces = region.n_face;
-
-    let mut edge_faces = vec![[0usize; 2]; n_edges];
-
-    for e in 0..n_edges {
-        let f1_raw = region.edge_face_connectivity[(e, 0)];
-        let f2_raw = region.edge_face_connectivity[(e, 1)];
-
-        let f1 = f1_raw as usize;
-        let f2 = f2_raw as usize;
-
-        // keep your checks here (once)
-        assert!(f1 < n_faces && f2 < n_faces);
-
-        edge_faces[e] = [f1, f2];
-    }
+    let topology = topology.get_or_insert_with(|| DiffusionTopology::new(region));
+    let edge_faces = &topology.edge_faces;
+    let offsets = &topology.offsets;
+    let incidence = &topology.incidence;
+    let mut flux = vec![0.0f64; edge_faces.len()];
 
     for _ in 0..nloops {
-        let mut dhdt = vec![0.0f64; n_faces];
-        // Loop over edges, accumulate flux contributions to each face
-        let updates = (0..n_edges)
-            .into_par_iter()
-            .fold(
-                || Vec::<(usize, f64)>::new(),
-                |mut updates, e| {
-                    let [f1, f2] = edge_faces[e];
+        // Flux across each edge, using the face_delta from the previous step
+        flux.par_iter_mut()
+            .with_min_len(DIFFUSION_MIN_PAR_LEN)
+            .enumerate()
+            .for_each(|(e, flux_e)| {
+                let [f1, f2] = edge_faces[e];
+                let distance = region.edge_face_distance[e];
+                let length = region.edge_length[e];
 
-                    let distance = region.edge_face_distance[e];
-                    let length = region.edge_length[e];
+                debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
 
-                    debug_assert!(distance > 0.0, "non-positive distance at edge {}", e);
+                let h1 = face_variable[f1] + face_delta[f1];
+                let h2 = face_variable[f2] + face_delta[f2];
+                let k1 = face_kappa[f1];
+                let k2 = face_kappa[f2];
 
-                    let h1 = face_variable[f1] + face_delta[f1];
-                    let h2 = face_variable[f2] + face_delta[f2];
-                    let k1 = face_kappa[f1];
-                    let k2 = face_kappa[f2];
+                *flux_e = (k1 + k2) * (h2 - h1) / distance * length;
+            });
 
-                    let flux = (k1 + k2) * (h2 - h1) / distance * length;
-
-                    updates.push((f1, flux / region.face_area[f1]));
-                    updates.push((f2, -flux / region.face_area[f2]));
-
-                    updates
-                },
-            )
-            .reduce(
-                || Vec::<(usize, f64)>::new(),
-                |mut a, mut b| {
-                    a.append(&mut b);
-                    a
-                },
-            );
-
-        for (idx, val) in updates {
-            dhdt[idx] += val;
-        }
-
-        for f in 0..region.n_face {
-            face_delta[f] += fac * dhdt[f];
-        }
+        // Gather each face's flux contributions in edge order and update it
+        face_delta
+            .as_slice_mut()
+            .expect("face_delta is contiguous")
+            .par_iter_mut()
+            .with_min_len(DIFFUSION_MIN_PAR_LEN)
+            .enumerate()
+            .for_each(|(f, delta_f)| {
+                let area = region.face_area[f];
+                let mut dhdt = 0.0f64;
+                for &(e, is_second) in &incidence[offsets[f]..offsets[f + 1]] {
+                    if is_second {
+                        dhdt += -flux[e] / area;
+                    } else {
+                        dhdt += flux[e] / area;
+                    }
+                }
+                *delta_f += fac * dhdt;
+            });
     }
 
     Ok(face_delta)
@@ -402,6 +448,8 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
 
     let mut new_face_elevation = region.face_elevation.to_owned();
     let mut face_delta_elevation = Array1::<f64>::zeros(n_face);
+    // Built on the first diffusion step and reused for the remaining iterations
+    let mut topology: Option<DiffusionTopology> = None;
 
     for _ in 0..looplimit {
         new_face_elevation.assign(&region.face_elevation);
@@ -428,7 +476,12 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
             break;
         }
 
-        let delta = apply_diffusion(face_kappa.view(), new_face_elevation.view(), region)?;
+        let delta = apply_diffusion_with_topology(
+            face_kappa.view(),
+            new_face_elevation.view(),
+            region,
+            &mut topology,
+        )?;
         face_delta_elevation += &delta;
     }
     Ok(face_delta_elevation)
