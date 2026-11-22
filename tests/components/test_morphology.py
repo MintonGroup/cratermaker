@@ -135,6 +135,53 @@ class TestMorphology(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     morphology.form_craters(craters)
 
+    def test_morphology_type_classified_by_size(self):
+        # Without an explicit morphology_type, craters are classified from their size
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=7)
+                expected = {1e3: ("simple", 0), 30e3: ("complex", 1), 600e3: ("multiring", 3)}
+                for diameter, (morphology_type, nrings) in expected.items():
+                    crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
+                    self.assertEqual(crater.morphology_type, morphology_type, f"{model_name} D={diameter}")
+                    self.assertEqual(crater.nrings, nrings, f"{model_name} D={diameter}")
+                explicit = morphology.Crater.maker(diameter=15e3, location=(0.0, 0.0), morphology_type="complex")
+                self.assertEqual(explicit.morphology_type, "complex")
+
+    def test_realmoon_copy_keeps_everything(self):
+        # Copying a crater (with the constructor or with maker) keeps its rings, as independent copies, and the PSD data it has
+        # already generated, without drawing any random numbers
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=7)
+            crater = morphology.Crater.maker(diameter=600e3, location=(10.0, 5.0))
+            for c in [crater, *crater.rings]:
+                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
+                    getattr(c, f"{name}_psd")
+            rng_state = morphology.rng.bit_generator.state
+            copies = [type(crater)(crater=crater, morphology=morphology), morphology.Crater.maker(crater=crater)]
+            self.assertEqual(morphology.rng.bit_generator.state, rng_state, "copying drew random numbers")
+            for c in copies:
+                self.assertEqual(c.id, crater.id)
+                self.assertEqual(c.morphology_type, crater.morphology_type)
+                self.assertEqual(c.rim_height, crater.rim_height)
+                self.assertEqual(c.frac_ejrim, crater.frac_ejrim)
+                self.assertEqual(c.nrings, crater.nrings)
+                for ring, original in zip(c.rings, crater.rings, strict=True):
+                    self.assertIsNot(ring, original)
+                    self.assertEqual(ring.radius, original.radius)
+                    self.assertEqual(ring.rim_height, original.rim_height)
+                    np.testing.assert_array_equal(ring.rim_height_psd.amplitude, original.rim_height_psd.amplitude)
+                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
+                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").amplitude, getattr(crater, f"{name}_psd").amplitude)
+                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").phase, getattr(crater, f"{name}_psd").phase)
+
+            # A copy with a different size is a different crater: it is classified again and its PSD data is not carried over
+            resized = morphology.Crater.maker(crater=crater, diameter=5e3)
+            self.assertEqual(resized.morphology_type, "simple")
+            self.assertIsNone(getattr(resized._var, "_rim_height_psd", None))
+
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
         diameter_list = [200e3, 500e3, 1000e3]

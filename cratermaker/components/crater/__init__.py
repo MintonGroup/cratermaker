@@ -867,7 +867,7 @@ class Crater(ComponentBase):
             "projectile_velocity": projectile_velocity,
             "projectile_angle": projectile_angle,
             "projectile_density": projectile_density,
-            "morphology_type": "Not Set",
+            "morphology_type": morphology_type,
             "location": location,
             "time": time,
         }
@@ -920,6 +920,8 @@ class Crater(ComponentBase):
                 make_copy = False
                 for field in size_inputs:
                     old_parameters.pop(field, None)
+                # The morphology type depends on the size, so it is recomputed unless it was given
+                old_parameters.pop("morphology_type", None)
             if projectile_mean_velocity is None:
                 # Be sure to keep only two velocitity components, with a preference for angle over vertical velocity
                 if n_velocity_inputs == 0:

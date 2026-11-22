@@ -221,6 +221,7 @@ class BasicMoonCrater(MorphologyCrater):
         TODO: Update with Minton et al. (2026) info once done.
         """
         input_args = locals()
+        source = crater
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic
 
@@ -514,6 +515,10 @@ class BasicMoonCrater(MorphologyCrater):
             morphology=morphology,
             **kwargs,
         )
+
+        # A copy that does not make new rings keeps copies of the rings of the crater it was made from
+        if not make_rings and crater.nrings == 0 and isinstance(source, MorphologyCrater) and source.nrings > 0:
+            object.__setattr__(crater._var, "_rings", [type(ring)(crater=ring, morphology=morphology) for ring in source.rings])
 
         num_new_rings = 0
         if make_rings and not crater.isring and crater.nrings == 0:

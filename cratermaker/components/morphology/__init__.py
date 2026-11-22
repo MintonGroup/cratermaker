@@ -57,8 +57,8 @@ class MorphologyCraterVariable(CraterVariable):
         if rings is not None:
             if isinstance(rings, list):
                 self._rings = rings
-            elif isinstance(rings, self._CraterType):
-                self._ring = [rings]
+            elif isinstance(rings, Crater):
+                self._rings = [rings]
             else:
                 raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
@@ -199,6 +199,14 @@ def _region_indices_array(region: LocalSurface | None, attr: str, n_total: int) 
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
+        # A copy gets its own copies of the rings, so that changing the rings of one crater does not change the other
+        if (
+            crater is not None
+            and "rings" not in kwargs
+            and self.nrings > 0
+            and self._var._rings is getattr(crater._var, "_rings", None)
+        ):
+            self._var._rings = [type(ring)(crater=ring, morphology=ring.morphology) for ring in self._var._rings]
 
     def __str__(self) -> str:
         horiz_line = "-" * 40 + "\n"

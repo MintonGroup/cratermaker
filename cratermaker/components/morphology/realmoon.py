@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 from collections.abc import Callable
 from pathlib import Path
@@ -408,13 +409,52 @@ def register_psd1d_parameters(*features: str):
     return decorator
 
 
+# Keyword arguments that set a crater's PSD data directly
+_PSD_DATA_KEYWORDS = tuple(f"{name}_{kind}" for name in _PSD1D_PARAMETERS for kind in ("control", "psd"))
+
+
+def _copy_psd_data(source: Crater, target: Crater) -> None:
+    """
+    Copy the PSD control points and PSD objects that `source` has already generated to `target`.
+
+    The data for each feature is generated from the crater radius, the morphology type, and the feature's own value, so it is
+    copied only for the features where these are the same in both craters. Data that `source` has not generated yet is left to
+    be generated when it is first accessed, so copying a crater does not draw any random numbers.
+
+    Parameters
+    ----------
+    source : Crater
+        The crater being copied.
+    target : Crater
+        The new crater. Any PSD data it already has is kept.
+    """
+    if not isinstance(source, RealMoonCrater):
+        return
+    if source.radius != target.radius or source.morphology_type != target.morphology_type:
+        return
+    for name in _PSD1D_PARAMETERS:
+        if getattr(source, name) != getattr(target, name):
+            continue
+        for kind in ("control", "psd"):
+            attr = f"_{name}_{kind}"
+            value = getattr(source._var, attr, None)
+            if value is not None and getattr(target._var, attr, None) is None:
+                setattr(target._var, attr, copy.deepcopy(value))
+
+
 @Crater.register("realmooncrater")
 @register_psd1d_parameters(*_PSD1D_PARAMETERS)
 class RealMoonCrater(BasicMoonCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
+        # PSD data passed explicitly, as <feature>_psd or <feature>_control
+        psd_data = {key: kwargs.pop(key) for key in _PSD_DATA_KEYWORDS if kwargs.get(key) is not None}
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
+        for key, value in psd_data.items():
+            setattr(self._var, f"_{key}", value)
+        if crater is not None:
+            _copy_psd_data(crater, self)
 
     def __str__(self) -> str:
         str_repr = super().__str__()
@@ -449,13 +489,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         from cratermaker.components.morphology import Morphology
 
-        # This is a copy operation, to use old values for any un-specified arguments
-        if crater is not None and isinstance(crater, RealMoonCrater):
-            for param in _PSD1D_PARAMETERS:
-                var = f"{param}_psd"
-                if var not in kwargs and hasattr(crater, var):
-                    kwargs[var] = getattr(crater, var)
-
+        source = crater
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
@@ -466,9 +500,12 @@ class RealMoonCrater(BasicMoonCrater):
                 ring = cls(crater=ring, morphology=morphology)
                 crater.rings[i] = ring
 
-        if isinstance(crater, cls):
-            return crater
-        return cls(crater=crater, morphology=morphology, **kwargs)
+        if not isinstance(crater, cls):
+            crater = cls(crater=crater, morphology=morphology, **kwargs)
+        # Keep the PSD data the source crater has already generated, where it still applies
+        if source is not None:
+            _copy_psd_data(source, crater)
+        return crater
 
 
 @Morphology.register("realmoon")
