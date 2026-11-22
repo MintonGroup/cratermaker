@@ -240,7 +240,9 @@ pub fn form_craters<'py>(
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
     if rings.len() != craters.len() {
-        return Err(PyValueError::new_err("craters and rings must have the same length"));
+        return Err(PyValueError::new_err(
+            "craters and rings must have the same length",
+        ));
     }
     let models: Vec<BasicMoonModel> = craters
         .iter()
@@ -260,4 +262,44 @@ pub fn form_craters<'py>(
         conserve_volume,
         critical_slope,
     )
+}
+
+/// Computes the maximum extent of a crater or its ejecta blanket: the radius where the rim or ejecta profile falls to
+/// `minimum_thickness`, searched for in `[lower_limit, upper_limit]`.
+///
+/// # Arguments
+///
+/// * `crater` - The crater.
+/// * `minimum_thickness` - The threshold height (m).
+/// * `feature` - Either "crater" (the rim profile) or "ejecta" (the ejecta profile).
+/// * `lower_limit`, `upper_limit` - The search range (m).
+///
+/// # Returns
+///
+/// * The maximum extent (m).
+#[pyfunction]
+pub fn rmax(
+    crater: BasicMoonCrater,
+    minimum_thickness: f64,
+    feature: &str,
+    lower_limit: f64,
+    upper_limit: f64,
+) -> PyResult<f64> {
+    let ejecta = match feature {
+        "ejecta" => true,
+        "crater" => false,
+        _ => {
+            return Err(PyValueError::new_err(
+                "Unknown feature type. Choose either 'crater' or 'ejecta'",
+            ));
+        }
+    };
+    cratermaker_components::morphology::basicmoon::rmax(
+        &crater,
+        minimum_thickness,
+        ejecta,
+        lower_limit,
+        upper_limit,
+    )
+    .map_err(PyValueError::new_err)
 }

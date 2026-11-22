@@ -9,6 +9,10 @@ from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
 from cratermaker.constants import PairOfFloats
 from cratermaker.utils.general_utils import format_large_units
 
+# Relative difference below which the crater and ejecta region radii are treated as the same, so the crater region is reused as
+# the ejecta region. The two radii come from separate root searches that agree to within a few units in the last place.
+_SAME_REGION_RADIUS_RTOL = 16 * np.finfo(np.float64).eps
+
 if TYPE_CHECKING:
     from cratermaker.components.morphology import Morphology
     from cratermaker.components.surface import LocalSurface
@@ -323,10 +327,12 @@ class MorphologyCrater(Crater):
         This is extracted from the morphology's associated Surface object based on the location of the crater and the ejecta_rmax distance. If the ejecta region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
         if self._var._ejecta_region is None and self.crater_region is not None:
-            if self.ejecta_rmax == self.crater_region.radius:
-                # The ejecta region would be extracted with the same location and radius as the crater region (which is common, as
-                # ejecta_rmax is never smaller than the crater region radius), so reuse it rather than extracting an identical region
-                # and recomputing its distances, bearings, and connectivity.
+            if self.ejecta_rmax <= self.crater_region.radius * (1.0 + _SAME_REGION_RADIUS_RTOL):
+                # The ejecta region would be extracted with the same location and (to within rounding) the same radius as the crater
+                # region. This is common: ejecta_rmax is never smaller than the crater region radius, and the rim and ejecta
+                # profiles usually cross the threshold at the same radius, with the two root searches differing only in the last
+                # bit. Reuse the crater region rather than extracting an identical region and recomputing its distances, bearings,
+                # and connectivity.
                 self._var._ejecta_region = self.crater_region
             else:
                 self._var._ejecta_region = self.morphology.surface.extract_region(

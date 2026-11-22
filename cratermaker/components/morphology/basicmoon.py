@@ -9,7 +9,6 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.integrate import quad
-from scipy.optimize import root_scalar
 
 from cratermaker.bindings import basicmoon_bindings
 from cratermaker.components.crater import Crater, CraterFixed
@@ -1229,12 +1228,6 @@ class BasicMoonMorphology(Morphology):
         self._Kdiff = np.zeros_like(self.surface.face_elevation)
         return
 
-    def _profile_invert_ejecta(self, r, crater, minimum_thickness):
-        return basicmoon_bindings.ejecta_profile_function(crater, r) - minimum_thickness
-
-    def _profile_invert_crater(self, r, crater, minimum_thickness):
-        return basicmoon_bindings.crater_profile_function(crater, r) - minimum_thickness
-
     def rmax(
         self,
         crater: Crater,
@@ -1262,36 +1255,23 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, self._CraterType):
             crater = self.Crater.maker(crater=crater)
 
-        def _invert_ejecta(r):
-            return self._profile_invert_ejecta(r, crater, minimum_thickness)
-
-        def _invert_crater(r):
-            return self._profile_invert_crater(r, crater, minimum_thickness)
-
-        if feature == "ejecta":
-            _profile_invert = _invert_ejecta
-        elif feature == "crater":
-            _profile_invert = _invert_crater
-        else:
+        if feature not in ("crater", "ejecta"):
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 
         # Get the maximum extent
         lower_limit = crater.radius * 1.0001
         upper_limit = self.ejecta_truncation * crater.radius if self.ejecta_truncation else np.pi * self.surface.target.radius
 
-        if _profile_invert(lower_limit) < 0:
-            ans = lower_limit
-        elif _profile_invert(upper_limit) > 0:
-            ans = upper_limit
-        else:
-            sol = root_scalar(
-                _profile_invert,
-                bracket=[lower_limit, upper_limit],
-                method="brentq",
+        # The profile crossing is found with a compiled port of scipy.optimize.brentq
+        return float(
+            basicmoon_bindings.rmax(
+                crater=crater,
+                minimum_thickness=float(minimum_thickness),
+                feature=feature,
+                lower_limit=float(lower_limit),
+                upper_limit=float(upper_limit),
             )
-            ans = sol.root if sol.converged else crater.radius
-
-        return float(ans)
+        )
 
     def estimate_volume(
         self,

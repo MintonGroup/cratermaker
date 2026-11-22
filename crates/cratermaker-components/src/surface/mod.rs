@@ -1142,19 +1142,30 @@ fn remap_rows(
     fill_value: i64,
 ) -> Array2<i64> {
     let in_domain = |v: i64| v >= 0 && (v as usize) < total_value_size;
-    let mut out = Array2::<i64>::from_elem((rows.len(), connectivity.ncols()), fill_value);
-    for (mut out_row, &r) in out.outer_iter_mut().zip(rows.iter()) {
-        for (o, &v) in out_row.iter_mut().zip(connectivity.row(r).iter()) {
-            if v != fill_value && in_domain(v) {
-                let local = map[v as usize];
-                if local >= 0 {
-                    *o = local;
+    let ncols = connectivity.ncols();
+    let mut data = vec![fill_value; rows.len() * ncols];
+    if ncols > 0 {
+        // Each output row depends only on its own input row, so rows are filled in parallel. The minimum chunk length keeps
+        // small regions on a single thread.
+        data.par_chunks_mut(ncols)
+            .zip(rows.par_iter())
+            .with_min_len(REMAP_MIN_PAR_ROWS)
+            .for_each(|(out_row, &r)| {
+                for (o, &v) in out_row.iter_mut().zip(connectivity.row(r).iter()) {
+                    if v != fill_value && in_domain(v) {
+                        let local = map[v as usize];
+                        if local >= 0 {
+                            *o = local;
+                        }
+                    }
                 }
-            }
-        }
+            });
     }
-    out
+    Array2::from_shape_vec((rows.len(), ncols), data).expect("the shape matches the data length")
 }
+
+/// Minimum number of rows per rayon task in `remap_rows`.
+const REMAP_MIN_PAR_ROWS: usize = 4096;
 
 /// The global connectivity arrays of a surface mesh.
 pub struct GlobalConnectivity<'a> {
@@ -1240,6 +1251,10 @@ pub fn build_local_connectivity(
     })
 }
 
+/// A [`UniqueCollector`] that has collected at least `1 / DENSE_COLLECTION_DIVISOR` of its index domain produces its sorted
+/// output by scanning the marks rather than sorting. Around this point the two cost about the same.
+const DENSE_COLLECTION_DIVISOR: usize = 32;
+
 thread_local! {
     // Reusable membership marks for `build_region_indices`. Sized to the largest index domain seen so far and kept all-false
     // between uses, so each use costs O(number of entries touched) rather than O(mesh size).
@@ -1303,14 +1318,26 @@ impl<'m> UniqueCollector<'m> {
     }
 
     fn finish(mut self) -> Result<Vec<i64>, String> {
-        for &v in &self.out {
-            self.marks[v as usize] = false;
+        let mut out = std::mem::take(&mut self.out);
+        if out.len() >= self.n_total / DENSE_COLLECTION_DIVISOR {
+            // A large fraction of the domain was collected (as for regions that cover much of the globe), so reading the marks
+            // in index order is cheaper than sorting. It gives the same sorted, unique list, and clears the marks as it goes.
+            out.clear();
+            for (i, m) in self.marks[..self.n_total].iter_mut().enumerate() {
+                if *m {
+                    *m = false;
+                    out.push(i as i64);
+                }
+            }
+        } else {
+            for &v in &out {
+                self.marks[v as usize] = false;
+            }
+            out.sort_unstable();
         }
         if let Some(e) = self.error.take() {
             return Err(e);
         }
-        let mut out = std::mem::take(&mut self.out);
-        out.sort_unstable();
         Ok(out)
     }
 }

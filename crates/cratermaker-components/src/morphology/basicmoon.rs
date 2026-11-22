@@ -1,5 +1,6 @@
 use crate::ArrayResult;
 use crate::morphology::{blend_step, smooth_clamp, smooth_positive_part, smootherstep};
+use crate::rootfind::{BRENTQ_MAXITER, BRENTQ_RTOL, BRENTQ_XTOL, BrentqResult, brentq};
 use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
@@ -887,6 +888,81 @@ fn ejecta_ray_func(bearing: f64, ray_center_bearing: f64, r: f64, n: i32, w: f64
     }
 }
 
+/// Computes the maximum extent of a crater or its ejecta blanket: the radius where the rim (`ejecta == false`) or ejecta
+/// (`ejecta == true`) profile falls to `minimum_thickness`.
+///
+/// The radius is searched for in `[lower_limit, upper_limit]`. If the profile is already below the threshold at the lower limit,
+/// the lower limit is returned; if it is still above it at the upper limit, the upper limit is returned. Otherwise the crossing
+/// is found with [`brentq`], a port of `scipy.optimize.root_scalar(..., method="brentq")`. If the search does not converge, the
+/// crater radius is returned.
+///
+/// # Arguments
+///
+/// * `crater` - The crater.
+/// * `minimum_thickness` - The threshold height (m).
+/// * `ejecta` - Use the ejecta profile if true, or the rim (crater) profile if false.
+/// * `lower_limit`, `upper_limit` - The search range (m).
+///
+/// # Returns
+///
+/// The maximum extent (m), or an error if the profile is NaN or does not change sign across the search range.
+pub fn rmax(
+    crater: &BasicMoonCrater,
+    minimum_thickness: f64,
+    ejecta: bool,
+    lower_limit: f64,
+    upper_limit: f64,
+) -> Result<f64, String> {
+    let profile = |r: f64| -> f64 {
+        if ejecta {
+            ejecta_profile_function(
+                r,
+                crater.radius,
+                crater.frac_ejrim,
+                crater.rim_height,
+                crater.ejprofile,
+                crater.rim_width,
+            )
+        } else {
+            crater_profile_function(
+                r,
+                crater.radius,
+                crater.floor_elevation,
+                crater.floor_radius,
+                crater.wall_curvature,
+                crater.floor_blend,
+                crater.rim_width,
+                crater.rim_height,
+                crater.frac_ejrim,
+                crater.ejprofile,
+                crater.peak_height,
+                crater.peak_width,
+                crater.peak_ring_radius,
+            )
+        }
+    };
+    let invert = |r: f64| profile(r) - minimum_thickness;
+
+    if invert(lower_limit) < 0.0 {
+        return Ok(lower_limit);
+    }
+    if invert(upper_limit) > 0.0 {
+        return Ok(upper_limit);
+    }
+    match brentq(
+        |r| Ok(invert(r)),
+        lower_limit,
+        upper_limit,
+        BRENTQ_XTOL,
+        BRENTQ_RTOL,
+        BRENTQ_MAXITER,
+    )? {
+        BrentqResult::Converged(r) => Ok(r),
+        BrentqResult::NotConverged(_) => Ok(crater.radius),
+        BrentqResult::SignError => Err("f(a) and f(b) must have different signs".to_string()),
+    }
+}
+
 /// Computes the degradation function, which defines the topographic degradation that each crater contributes to the surface.
 ///
 /// This combines the mare-scale model of Minton et al. (2019) for small craters with the highlands-scale model of
@@ -972,7 +1048,8 @@ mod tests {
     fn degradation_function_is_power_law_far_from_break() {
         // Far below the break the slope in log-log space tends to psi_1, far above it tends to psi_2.
         let slope = |d1: f64, d2: f64| {
-            (degradation_function(d2, 100.0) / degradation_function(d1, 100.0)).ln() / (d2 / d1).ln()
+            (degradation_function(d2, 100.0) / degradation_function(d1, 100.0)).ln()
+                / (d2 / d1).ln()
         };
         assert!((slope(1e-3, 2e-3) - DEG_PSI_1).abs() < 1e-5);
         assert!((slope(1e8, 2e8) - DEG_PSI_2).abs() < 1e-5);

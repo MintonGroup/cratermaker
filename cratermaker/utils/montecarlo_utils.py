@@ -1,4 +1,3 @@
-import functools
 from typing import Any, Literal
 
 import numpy as np
@@ -8,7 +7,6 @@ from numpy import cross
 from numpy.linalg import norm
 from numpy.random import Generator
 from numpy.typing import NDArray
-from scipy.stats import truncnorm
 from uxarray import Grid
 
 from cratermaker.constants import FloatLike
@@ -472,62 +470,17 @@ def bounded_norm(
     if not (scale > 0 and np.all(a < b)):
         raise ValueError("Domain error in arguments: scale must be positive and lower_bound must be less than upper_bound.")
 
-    # Inverse-transform sampling. This is exactly what truncnorm(a, b, loc, scale).rvs(size, random_state=rng) does internally
-    # (same uniform draws, same result bit-for-bit), but avoids the large overhead of constructing a frozen scipy distribution
-    # on every call.
+    # Inverse-transform sampling of the truncated standard normal: x = Phi^-1(Phi(a) + q * (Phi(b) - Phi(a))). Bounds that lie
+    # entirely above the mean are mirrored below it (along with q), where the normal CDF does not lose precision to rounding
+    # near 1.
     q = rng.uniform(size=size)
-    if (
-        np.ndim(a) == 0
-        and np.ndim(b) == 0
-        and np.ndim(loc) == 0
-        and np.ndim(scale) == 0
-        and a < 0 < b
-        and np.all((q > 0) & (q < 1))
-    ):
-        return _truncnorm_ppf_straddling(q, float(a), float(b)) * scale + loc
-    return truncnorm.ppf(q, a, b, loc=loc, scale=scale)
-
-
-@functools.lru_cache(maxsize=64)
-def _truncnorm_straddling_constants(a: float, b: float) -> tuple[float, float]:
-    """
-    The log of the standard normal CDF at `a`, and the log of the standard normal probability mass between `a` and `b`.
-
-    These are computed exactly as `scipy.stats.truncnorm` computes them for bounds with `a < 0 < b`.
-    """
-    return float(sc.log_ndtr(a)), float(sc.log1p(-sc.ndtr(a) - sc.ndtr(-b)))
-
-
-def _truncnorm_ppf_straddling(q: NDArray[np.float64], a: float, b: float) -> NDArray[np.float64]:
-    """
-    Percent point function of the standard normal distribution truncated to [a, b], for bounds with `a < 0 < b`.
-
-    This evaluates the same expressions, in the same order, as `scipy.stats.truncnorm._ppf` does for these bounds (the
-    "central" Gaussian mass and the left-tail inversion, with the two-term `scipy.special.logsumexp` written out), so the
-    result is bit-for-bit identical to `truncnorm.ppf(q, a, b)` for 0 < q < 1. It skips the argument handling of the generic
-    distribution machinery, which dominates the run time for single values.
-
-    Parameters
-    ----------
-    q : NDArray[np.float64]
-        Probabilities, each strictly between 0 and 1.
-    a, b : float
-        The lower and upper bounds in units of the standard deviation, with a < 0 < b.
-
-    Returns
-    -------
-    NDArray[np.float64]
-        The quantiles of the truncated standard normal distribution.
-    """
-    log_cdf_a, log_mass = _truncnorm_straddling_constants(a, b)
-    # log(Phi(x)) = logsumexp([log(Phi(a)), log(q) + log(mass)]), with the larger term factored out as logsumexp does
-    p = np.float64(log_cdf_a)
-    r = np.log(q) + log_mass
-    hi = np.maximum(p, r)
-    tie = p == r
-    s = np.where(tie, 0.0, np.exp(np.minimum(p, r) - hi))
-    log_count = np.where(tie, np.log(2.0), np.log(1.0))
-    return sc.ndtri_exp(np.log1p(s) + log_count + hi)
+    flip = a > 0
+    lo = np.where(flip, -b, a)
+    hi = np.where(flip, -a, b)
+    p = np.where(flip, 1.0 - q, q)
+    cdf_lo = sc.ndtr(lo)
+    x = sc.ndtri(cdf_lo + p * (sc.ndtr(hi) - cdf_lo))
+    return np.where(flip, -x, x) * scale + loc
 
 
 def sample_pikefit(

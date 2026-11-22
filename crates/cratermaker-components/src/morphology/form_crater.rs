@@ -11,10 +11,11 @@
 //! 6. Add the crater and ejecta to the surface.
 //! 7. Optionally collapse slopes steeper than the critical slope.
 //!
-//! Each step reproduces the arithmetic of the original Python implementation (`Morphology.form_crater` together with
-//! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls), including NumPy's pairwise summation for volumes
-//! and the NaN handling of `LocalSurface.add_data`, so that results match it bit for bit.
+//! Each step follows the original Python implementation (`Morphology.form_crater` together with
+//! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls), including the NaN handling of
+//! `LocalSurface.add_data`.
 
+use crate::ArrayResult;
 use crate::morphology::basicmoon::{
     BasicMoonCrater, basicmoon_profile, degradation_function, ray_intensity,
 };
@@ -23,7 +24,6 @@ use crate::surface::{
     LocalSurfaceView, apply_diffusion, interpolate_node_elevation_from_faces, reference_surface,
     slope_collapse,
 };
-use crate::ArrayResult;
 use numpy::ndarray::concatenate;
 use numpy::ndarray::prelude::*;
 
@@ -204,11 +204,31 @@ impl CraterRegionView<'_> {
             ("node_proj_x", self.node_proj_x.len(), nn),
             ("node_proj_y", self.node_proj_y.len(), nn),
             ("edge_face_distance", self.edge_face_distance.len(), ne),
-            ("face_edge_connectivity rows", self.face_edge_connectivity.nrows(), nf),
-            ("face_node_connectivity rows", self.face_node_connectivity.nrows(), nf),
-            ("face_face_connectivity rows", self.face_face_connectivity.nrows(), nf),
-            ("node_face_connectivity rows", self.node_face_connectivity.nrows(), nn),
-            ("edge_face_connectivity rows", self.edge_face_connectivity.nrows(), ne),
+            (
+                "face_edge_connectivity rows",
+                self.face_edge_connectivity.nrows(),
+                nf,
+            ),
+            (
+                "face_node_connectivity rows",
+                self.face_node_connectivity.nrows(),
+                nf,
+            ),
+            (
+                "face_face_connectivity rows",
+                self.face_face_connectivity.nrows(),
+                nf,
+            ),
+            (
+                "node_face_connectivity rows",
+                self.node_face_connectivity.nrows(),
+                nn,
+            ),
+            (
+                "edge_face_connectivity rows",
+                self.edge_face_connectivity.nrows(),
+                ne,
+            ),
         ];
         for (name, len, expected) in checks {
             if len != expected {
@@ -327,27 +347,29 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
 
     // Faces followed by nodes, as the crater and ejecta shapes are evaluated at both
     let distance = concatenate![Axis(0), region.face_distance, region.node_distance];
-    let bearing = concatenate![Axis(0), region.face_bearing, region.node_bearing]
-        .mapv(f64::to_radians);
-    let original_elevation =
-        concatenate![Axis(0), state.face_elevation.view(), state.node_elevation.view()];
+    let bearing =
+        concatenate![Axis(0), region.face_bearing, region.node_bearing].mapv(f64::to_radians);
+    let original_elevation = concatenate![
+        Axis(0),
+        state.face_elevation.view(),
+        state.node_elevation.view()
+    ];
 
     // 1. Crater shape relative to a reference plane fitted to the surface within one crater diameter
     let reference_radius = model.diameter();
-    let mut reference_elevation =
-        if region.node_distance.iter().any(|&d| d <= reference_radius) {
-            let x = concatenate![Axis(0), region.face_proj_x, region.node_proj_x];
-            let y = concatenate![Axis(0), region.face_proj_y, region.node_proj_y];
-            reference_surface(
-                x.view(),
-                y.view(),
-                original_elevation.view(),
-                distance.view(),
-                reference_radius,
-            )?
-        } else {
-            original_elevation.clone()
-        };
+    let mut reference_elevation = if region.node_distance.iter().any(|&d| d <= reference_radius) {
+        let x = concatenate![Axis(0), region.face_proj_x, region.node_proj_x];
+        let y = concatenate![Axis(0), region.face_proj_y, region.node_proj_y];
+        reference_surface(
+            x.view(),
+            y.view(),
+            original_elevation.view(),
+            distance.view(),
+            reference_radius,
+        )?
+    } else {
+        original_elevation.clone()
+    };
     let radius = model.radius();
     for i in 0..distance.len() {
         if distance[i] > radius {
@@ -432,8 +454,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     // 7. Slope collapse
     if let Some(critical_slope) = options.critical_slope {
         let delta = {
-            let view =
-                region.kernel_view(state.face_elevation.view(), state.node_elevation.view());
+            let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());
             slope_collapse(critical_slope, &view)?
         };
         apply_face_change(region, state, &delta);
@@ -534,47 +555,9 @@ fn python_max(a: f64, b: f64) -> f64 {
     if b > a { b } else { a }
 }
 
-/// Volume of a face elevation change, `np.sum(elevation * face_area)`.
+/// Volume of a face elevation change: the sum of each face's elevation change times its area.
 fn face_volume(elevation: ArrayView1<'_, f64>, face_area: ArrayView1<'_, f64>) -> f64 {
-    let products: Vec<f64> = elevation
-        .iter()
-        .zip(face_area.iter())
-        .map(|(&h, &a)| h * a)
-        .collect();
-    pairwise_sum(&products)
-}
-
-/// Sums an array in the same order as NumPy's pairwise summation (`np.sum` of a contiguous float64 array), so that the result
-/// is bit-identical to it.
-pub fn pairwise_sum(a: &[f64]) -> f64 {
-    const BLOCK_SIZE: usize = 128;
-    let n = a.len();
-    if n < 8 {
-        let mut res = 0.0;
-        for &v in a {
-            res += v;
-        }
-        res
-    } else if n <= BLOCK_SIZE {
-        let mut r = [a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]];
-        let mut i = 8;
-        while i < n - (n % 8) {
-            for j in 0..8 {
-                r[j] += a[i + j];
-            }
-            i += 8;
-        }
-        let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
-        while i < n {
-            res += a[i];
-            i += 1;
-        }
-        res
-    } else {
-        let mut n2 = n / 2;
-        n2 -= n2 % 8;
-        pairwise_sum(&a[..n2]) + pairwise_sum(&a[n2..])
-    }
+    elevation.dot(&face_area)
 }
 
 /// Local indices of the faces of the crater interior, as `LocalSurface.extract_subregion(radius)` selects them: the faces within
@@ -620,30 +603,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pairwise_sum_matches_reference_cases() {
-        // Small and block-sized sums are plain left-to-right or 8-way unrolled sums
-        let a: Vec<f64> = (0..300).map(|i| ((i * 7919) % 1000) as f64 * 0.37 - 150.0).collect();
-        let seq: f64 = a[..5].iter().fold(0.0, |s, &v| s + v);
-        assert_eq!(pairwise_sum(&a[..5]).to_bits(), seq.to_bits());
-        // Large sums split at a multiple of 8 near the midpoint
-        let n2 = 300 / 2 - (300 / 2) % 8;
-        assert_eq!(
-            pairwise_sum(&a).to_bits(),
-            (pairwise_sum(&a[..n2]) + pairwise_sum(&a[n2..])).to_bits()
-        );
-        assert_eq!(pairwise_sum(&[]), 0.0);
-    }
-
-    #[test]
     fn add_data_matches_python_nan_handling() {
         let mut t = Array1::from(vec![1.0, 2.0, 3.0]);
-        add_data(t.view_mut(), Array1::from(vec![f64::NAN, 1.0, -5.0]).view(), false, true);
+        add_data(
+            t.view_mut(),
+            Array1::from(vec![f64::NAN, 1.0, -5.0]).view(),
+            false,
+            true,
+        );
         assert_eq!(t.to_vec(), vec![1.0, 3.0, 0.0]);
         let mut t = Array1::from(vec![1.0, 2.0, 3.0]);
-        add_data(t.view_mut(), Array1::from(vec![f64::NAN, 9.0, 8.0]).view(), true, false);
+        add_data(
+            t.view_mut(),
+            Array1::from(vec![f64::NAN, 9.0, 8.0]).view(),
+            true,
+            false,
+        );
         assert_eq!(t.to_vec(), vec![1.0, 9.0, 8.0]);
         let mut t = Array1::from(vec![1.0, 2.0]);
-        add_data(t.view_mut(), Array1::from(vec![f64::NAN, f64::NAN]).view(), false, true);
+        add_data(
+            t.view_mut(),
+            Array1::from(vec![f64::NAN, f64::NAN]).view(),
+            false,
+            true,
+        );
         assert_eq!(t.to_vec(), vec![1.0, 2.0]);
     }
 

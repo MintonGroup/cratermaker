@@ -160,8 +160,8 @@ class TestMonteCarlo(unittest.TestCase):
 
 class TestBoundedNorm(unittest.TestCase):
     def test_matches_scipy_truncnorm(self):
-        # bounded_norm evaluates truncnorm.ppf directly for bounds that straddle the mean. It must give exactly the same values,
-        # and consume the random number generator exactly the same way, as scipy's truncnorm.
+        # bounded_norm samples the truncated normal by inverse transform. It must agree with scipy's truncnorm quantile function
+        # to near machine precision, and consume the random number generator the same way (one uniform per sample).
         from scipy.stats import truncnorm
 
         cases = [
@@ -172,6 +172,8 @@ class TestBoundedNorm(unittest.TestCase):
             dict(loc=0.0, scale=1.0, lower_bound=-3.0, upper_bound=0.5, size=500),
             dict(loc=0.0, scale=1.0, lower_bound=0.5, upper_bound=3.0, size=500),
             dict(loc=0.0, scale=1.0, lower_bound=-3.0, upper_bound=-0.5, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=2.0, upper_bound=6.0, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=-6.0, upper_bound=-2.0, size=500),
         ]
         for case in cases:
             loc, scale, size = case["loc"], case["scale"], case.get("size", 1)
@@ -184,7 +186,9 @@ class TestBoundedNorm(unittest.TestCase):
                 ref = truncnorm.ppf(
                     rng_ref.uniform(size=size), (lower - loc) / scale, (upper - loc) / scale, loc=loc, scale=scale
                 )
-                np.testing.assert_array_equal(new, ref, err_msg=f"bounded_norm differs from truncnorm for {case}")
+                self.assertEqual(np.shape(new), np.shape(ref))
+                np.testing.assert_allclose(new, ref, rtol=1e-12, atol=1e-12 * scale, err_msg=f"bounded_norm vs truncnorm for {case}")
+                self.assertTrue(np.all((new >= lower) & (new <= upper)))
             self.assertEqual(rng_new.bit_generator.state, rng_ref.bit_generator.state)
 
 
