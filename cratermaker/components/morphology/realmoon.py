@@ -601,7 +601,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         self,
         crater: RealMoonCrater,
         radial_distances: ArrayLike,
-        bearing: ArrayLike,
+        bearings: ArrayLike,
         crater_cls: type[Crater] = RealMoonCrater,
         profile_func: Callable = realmoon_bindings.realmoon_profile,
         **kwargs: Any,
@@ -615,8 +615,8 @@ class RealMoonMorphology(BasicMoonMorphology):
             The crater object containing the parameters for the ejecta profile.
         radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
-        bearing : ArrayLike
-            bearing (in degrees) corresponding to the radial distances.
+        bearings : ArrayLike
+            Bearings (in degrees) corresponding to the radial distances.
         crater_cls : type[Crater], optional
             The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
         profile_func: Callable, optional
@@ -634,7 +634,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         return super().ejecta_profile(
             crater=crater,
             radial_distances=radial_distances,
-            bearing=bearing,
+            bearings=bearings,
             crater_cls=crater_cls,
             profile_func=profile_func,
             **kwargs,

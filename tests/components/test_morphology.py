@@ -71,6 +71,32 @@ class TestMorphology(unittest.TestCase):
                         f"Ejecta profile for {model_name} contains NaN or Inf values.",
                     )
 
+    def test_ejecta_profile_uses_bearings(self):
+        # The realmoon rim varies with bearing, so its ejecta profile near the rim must too. Passing the bearings through to the
+        # profile function previously failed silently and every point was evaluated at bearing 0.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface)
+            crater = morphology.Crater.maker(diameter=50e3, location=(0.0, 0.0))
+            rvals = np.full(36, crater.radius)
+            bvals = np.linspace(0.0, 350.0, 36)
+            ejecta = morphology.ejecta_profile(crater, rvals, bvals)
+            ejecta_at_zero = morphology.ejecta_profile(crater, rvals, np.zeros_like(bvals))
+            self.assertFalse(np.array_equal(ejecta, ejecta_at_zero), "realmoon ejecta profile ignores bearings")
+
+    def test_ejecta_distribution_executes(self):
+        # The ray (dorays=True) path calls ejecta_profile with bearings as a keyword argument
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                crater = morphology.Crater.maker(diameter=50e3, location=(0.0, 0.0))
+                rvals = np.linspace(0.0, 5.0 * crater.radius, 50)
+                bvals = np.linspace(0.0, 350.0, 50)
+                thickness, intensity = morphology.ejecta_distribution(crater, rvals, bvals)
+                self.assertEqual(thickness.shape, rvals.shape)
+                self.assertTrue(np.all(np.isfinite(thickness)) and np.all(np.isfinite(intensity)))
+
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
         diameter_list = [200e3, 500e3, 1000e3]

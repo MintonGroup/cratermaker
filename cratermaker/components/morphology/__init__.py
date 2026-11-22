@@ -770,7 +770,7 @@ class Morphology(ComponentBase):
                 if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
                     ejrim = ring.frac_ejrim * ring.rim_height
                     ejrim *= conservation_factor
-                    ring.frac_ejrim = max(ejrim / ring.rim_height, 1.0)
+                    ring.frac_ejrim = min(ejrim / ring.rim_height, 1.0)
 
         crater.ejecta_region.add_data(
             name="ejecta_thickness",
