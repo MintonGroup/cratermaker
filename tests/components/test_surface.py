@@ -458,7 +458,7 @@ class TestSurface(unittest.TestCase):
             out[keep] = mapped[keep]
             return out
 
-        def reference(s, seed, include_buffer_face_nodes):
+        def reference(s, seed):
             edges = unique_valid(s.face_edge_connectivity[seed])
             nodes = unique_valid(s.face_node_connectivity[seed])
             faces = unique_valid(
@@ -471,8 +471,7 @@ class TestSurface(unittest.TestCase):
                     )
                 )
             )
-            if include_buffer_face_nodes:
-                nodes = unique_valid(s.face_node_connectivity[faces])
+            nodes = unique_valid(s.face_node_connectivity[faces])
             return faces, nodes, edges
 
         def check_region(s, region, ref):
@@ -501,7 +500,7 @@ class TestSurface(unittest.TestCase):
                     seed = s.face_tree.query_radius(np.asarray(location), np.rad2deg(radius / s.radius))
                     if len(seed) == 0:
                         seed = np.array([s.find_nearest_face(location)])
-                    check_region(s, region, reference(s, np.asarray(seed), include_buffer_face_nodes=True))
+                    check_region(s, region, reference(s, np.asarray(seed)))
 
                     # A subregion is a fast path to the same result as extracting a smaller region at the same center
                     sub_radius = 0.5 * radius
@@ -514,7 +513,7 @@ class TestSurface(unittest.TestCase):
                         expected = (direct.face_indices, direct.node_indices, direct.edge_indices)
                         check_region(s, sub, expected)
                         sub_seed = region.face_indices[region.face_distance <= sub_radius]
-                        check_region(s, sub, reference(s, sub_seed, include_buffer_face_nodes=True))
+                        check_region(s, sub, reference(s, sub_seed))
 
     def test_export(self):
         import os

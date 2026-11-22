@@ -1184,10 +1184,10 @@ impl<'m> UniqueCollector<'m> {
 
 /// Determines the global face, node, and edge indices of a local region from its seed faces.
 ///
-/// This reproduces the region construction in `Surface.extract_region` and `LocalSurface.extract_subregion`:
-/// 1. `edges` are the edges of the seed faces, and `nodes` are the nodes of the seed faces.
+/// This is the region construction used by `Surface.extract_region` and `LocalSurface.extract_subregion`:
+/// 1. `edges` are the edges of the seed faces.
 /// 2. `faces` are the seed faces plus a buffer of every face that shares a face, node, or edge with them.
-/// 3. If `include_buffer_face_nodes` is true, `nodes` is recomputed as the nodes of all of `faces` (including the buffer).
+/// 3. `nodes` are the nodes of all of `faces`, including the buffer.
 ///
 /// Each list is sorted and unique, with fill values removed, exactly as `np.unique` would produce.
 ///
@@ -1197,7 +1197,6 @@ impl<'m> UniqueCollector<'m> {
 pub fn build_region_indices(
     seed_faces: ArrayView1<'_, i64>,
     global: &GlobalConnectivity<'_>,
-    include_buffer_face_nodes: bool,
 ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>), String> {
     let fill = global.fill_value;
     let seeds: Vec<i64> = seed_faces.iter().copied().collect();
@@ -1249,13 +1248,9 @@ pub fn build_region_indices(
         c.add_rows(ef, edge_face.ncols(), &edges);
         let faces = c.finish()?;
 
-        let nodes = if include_buffer_face_nodes {
-            let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
-            c.add_rows(fnn, face_node.ncols(), &faces);
-            c.finish()?
-        } else {
-            seed_nodes
-        };
+        let mut c = UniqueCollector::new(&mut marks, global.n_node, fill, "node");
+        c.add_rows(fnn, face_node.ncols(), &faces);
+        let nodes = c.finish()?;
         Ok((faces, nodes, edges))
     })
 }

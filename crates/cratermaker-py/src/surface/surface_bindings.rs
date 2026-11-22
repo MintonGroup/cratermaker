@@ -633,9 +633,9 @@ fn global_connectivity<'a>(
 
 /// Determines the global face, node, and edge indices of a local region from its seed faces.
 ///
-/// The edges and nodes are those of the seed faces, and the faces are the seed faces plus a buffer of every face that shares a
-/// face, node, or edge with them. If `include_buffer_face_nodes` is true, the nodes are recomputed to include those of the buffer
-/// faces. Each returned array is sorted and unique, with fill values removed.
+/// The edges are those of the seed faces, the faces are the seed faces plus a buffer of every face that shares a face, node, or
+/// edge with them, and the nodes are those of all of the faces (including the buffer). Each returned array is sorted and unique,
+/// with fill values removed.
 ///
 /// # Returns
 ///
@@ -643,7 +643,7 @@ fn global_connectivity<'a>(
 #[pyfunction]
 #[pyo3(signature = (
     seed_faces, face_edge_connectivity, face_node_connectivity, face_face_connectivity, node_face_connectivity,
-    edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value, include_buffer_face_nodes
+    edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value
 ))]
 #[allow(clippy::too_many_arguments)]
 pub fn build_region_indices<'py>(
@@ -659,7 +659,6 @@ pub fn build_region_indices<'py>(
     n_node: usize,
     n_edge: usize,
     fill_value: i64,
-    include_buffer_face_nodes: bool,
 ) -> PyResult<(Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>)> {
     let global = global_connectivity(
         &face_edge_connectivity,
@@ -676,7 +675,6 @@ pub fn build_region_indices<'py>(
     let (faces, nodes, edges) = cratermaker_components::surface::build_region_indices(
         seed_faces.as_array(),
         &global,
-        include_buffer_face_nodes,
     )
     .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
     Ok((PyArray1::from_vec(py, faces), PyArray1::from_vec(py, nodes), PyArray1::from_vec(py, edges)))

@@ -332,21 +332,18 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_global_connectivity_args_cache", (sources, args))
         return args
 
-    def _region_indices(
-        self, seed_faces: ArrayLike, include_buffer_face_nodes: bool = True
-    ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]:
+    def _region_indices(self, seed_faces: ArrayLike) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]:
         """
         Determine the face, node, and edge indices of a local region from a set of seed faces.
 
-        The edges and nodes are those attached to the seed faces. The faces are the seed faces plus a buffer of every face that
-        shares a face, node, or edge with them. Each array is sorted and unique.
+        The edges are those attached to the seed faces. The faces are the seed faces plus a buffer of every face that shares a
+        face, node, or edge with them (needed for diffusion calculations), and the nodes are those attached to all of the faces,
+        including the buffer. Each array is sorted and unique.
 
         Parameters
         ----------
         seed_faces : ArrayLike
             Global indices of the faces inside the region.
-        include_buffer_face_nodes : bool, optional
-            If True, the node indices are expanded to include the nodes of the buffer faces. Default is True.
 
         Returns
         -------
@@ -355,7 +352,6 @@ class Surface(ComponentBase):
         """
         return surface_bindings.build_region_indices(
             seed_faces=np.ascontiguousarray(np.ravel(seed_faces), dtype=np.int64),
-            include_buffer_face_nodes=include_buffer_face_nodes,
             **self._global_connectivity_args,
         )
 
@@ -403,7 +399,7 @@ class Surface(ComponentBase):
 
             # Select the edges of these faces, then add a buffer of every face connected to them (needed for diffusion
             # calculations), and finally all nodes attached to the buffered faces
-            face_indices, node_indices, edge_indices = self._region_indices(face_indices, include_buffer_face_nodes=True)
+            face_indices, node_indices, edge_indices = self._region_indices(face_indices)
 
         else:  # This is the entire surface
             face_indices = self.face_indices
@@ -2853,7 +2849,7 @@ class LocalSurface(CratermakerBase):
 
             # Build the region exactly as extract_region does: the edges of these faces, a buffer of every face connected to them
             # (needed for diffusion calculations), and all nodes attached to the buffered faces
-            face_indices, node_indices, edge_indices = self.surface._region_indices(face_indices, include_buffer_face_nodes=True)
+            face_indices, node_indices, edge_indices = self.surface._region_indices(face_indices)
 
         else:
             face_indices = self.face_indices
