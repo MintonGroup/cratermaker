@@ -816,33 +816,107 @@ class BasicMoonMorphology(Morphology):
         str_repr += f"Ejecta Rays: {self.dorays}\n"
         return str_repr
 
-    def compute_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    # The compiled crater formation function for this model's crater type. Models with a different crater type override this.
+    _form_crater_binding = staticmethod(basicmoon_bindings.form_crater)
+
+    # The angle of repose used for slope collapse after a crater forms, in degrees
+    _CRITICAL_SLOPE_ANGLE = 35.0
+
+    def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
-        Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
+        Form a crater and its ejecta blanket on the surface.
+
+        This alters the face and node elevations and the ejecta thickness of the surface around the crater: the crater is drawn
+        relative to a reference plane fitted to the pre-impact surface, the ejecta is scaled to conserve volume (if
+        `conserve_volume` is set), the pre-existing surface is degraded by ejecta burial and by the crater's degradation function,
+        and steep slopes are collapsed (if `do_slope_collapse` is set).
 
         Parameters
         ----------
         crater : Crater
-            The crater object whose ejecta is to be formed.
+            The crater object to be formed.
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations.
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function that runs the whole formation sequence in a single call.
         """
+        if not isinstance(crater, Crater):
+            raise TypeError("crater must be an instance of Crater")
         if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-        ejecta_thickness, ejecta_intensity = super().compute_ejecta(crater, **kwargs)
-        if ejecta_thickness is None or ejecta_intensity is None:
-            return None, None
-        k_ej = self.ejecta_burial_degradation(ejecta_thickness[: crater.ejecta_region.n_face], ejecta_soften_factor=1.50)
-        crater.ejecta_region.apply_diffusion(k_ej)
+            crater = self.Crater.maker(crater=crater, **kwargs)
+        if not crater.emplaceable:
+            return
 
-        k_deg = self.degradation_function(crater.diameter, fe=100) * ejecta_intensity[: crater.ejecta_region.n_face]
-        crater.ejecta_region.apply_diffusion(k_deg)
-        return ejecta_thickness, ejecta_intensity
+        region = crater.crater_region
+        crater_area = math.pi * region.radius**2
+
+        # Check to make sure that the face at the crater location is not smaller than the crater area
+        if crater_area > self.surface.face_area[crater.face_index]:
+            # The crater and ejecta are computed on the same set of faces and nodes
+            ejecta_region = crater.ejecta_region
+            if ejecta_region is not None and ejecta_region is not region:
+                if ejecta_region.n_face != region.n_face or ejecta_region.n_node != region.n_node:
+                    raise ValueError("The crater and ejecta regions of a crater must contain the same faces and nodes")
+
+            # Any crater data that is generated lazily from the random number generator must exist before the ray seed is drawn,
+            # so that random numbers are drawn in the same order as when the crater shape was computed in Python
+            self._prepare_crater(crater)
+
+            # Record the crater to the counting layer. This does not depend on the surface elevation or ejecta thickness.
+            if self.counting is not None:
+                self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
+
+            surface = region.surface
+            if "ejecta_thickness" not in surface.uxds.data_vars:
+                surface._add_new_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0, isfacedata=True)
+            variables = surface.uxds.variables
+
+            face_indices = region.face_indices
+            node_indices = region.node_indices
+            if isinstance(face_indices, slice):
+                face_indices = np.arange(surface.n_face)[face_indices]
+            if isinstance(node_indices, slice):
+                node_indices = np.arange(surface.n_node)[node_indices]
+
+            ray_seed = int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None
+            critical_slope = float(np.tan(np.deg2rad(self._CRITICAL_SLOPE_ANGLE))) if self.do_slope_collapse else None
+
+            _, conservation_factor = self._form_crater_binding(
+                crater=crater,
+                rings=crater.rings,
+                region=region,
+                face_indices=np.ascontiguousarray(face_indices, dtype=np.int64),
+                node_indices=np.ascontiguousarray(node_indices, dtype=np.int64),
+                face_elevation=variables["face_elevation"].data,
+                node_elevation=variables["node_elevation"].data,
+                ejecta_thickness=variables["ejecta_thickness"].data,
+                conserve_volume=kwargs.get("conserve_volume", self.conserve_volume),
+                ray_seed=ray_seed,
+                critical_slope=critical_slope,
+            )
+            if conservation_factor is not None:
+                self._scale_ejecta_rim(crater, conservation_factor)
+
+        # Remove the saved regions now that the crater is emplaced
+        crater.reset()
+        return
+
+    def _prepare_crater(self, crater: BasicMoonCrater) -> None:
+        """
+        Generate any crater data that is created lazily from the morphology's random number generator.
+
+        This is called by `form_crater` before it draws any random numbers of its own. Models whose craters draw random numbers
+        on first access to some of their data override this to access that data, in the order the compiled `form_crater` reads
+        it. The basic model has no such data.
+
+        Parameters
+        ----------
+        crater : BasicMoonCrater
+            The crater about to be formed.
+        """
+        return
 
     def crater_shape(self, crater: BasicMoonCrater, region: LocalSurface, **kwargs: Any) -> NDArray[np.float64]:
         """
@@ -1421,7 +1495,8 @@ class BasicMoonMorphology(Morphology):
         if np.ndim(diameter) == 0:
             return basicmoon_bindings.degradation_function(float(diameter), float(fe))
         diameter = np.asarray(diameter, dtype=np.float64)
-        return basicmoon_bindings.degradation_function_array(np.ascontiguousarray(diameter.ravel()), float(fe)).reshape(diameter.shape)
+        degradation = basicmoon_bindings.degradation_function_array(np.ascontiguousarray(diameter.ravel()), float(fe))
+        return degradation.reshape(diameter.shape)
 
     @staticmethod
     def overlap_function(crater: BasicMoonCrater) -> tuple[NDArray[np.int64], NDArray[np.int64]]:

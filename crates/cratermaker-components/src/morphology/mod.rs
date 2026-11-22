@@ -1,4 +1,5 @@
 pub mod basicmoon;
+pub mod form_crater;
 pub mod realmoon;
 
 // The second-order smootherstep function of Ken Perlin.

@@ -1,4 +1,6 @@
+use crate::morphology::form_crater_bindings::run_form_crater;
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
+use cratermaker_components::morphology::form_crater::{BasicMoonModel, FormCraterOptions};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -196,4 +198,60 @@ pub fn degradation_function_array<'py>(
         fe,
     );
     PyArray1::from_owned_array(py, result)
+}
+
+/// Forms a basic lunar crater on a region of the surface, updating the global surface arrays in place.
+///
+/// This runs the whole crater formation sequence (crater shape, excavated volume, ejecta with volume conservation, burial and
+/// degradation diffusion, and optional slope collapse) in a single call. See
+/// `cratermaker_components::morphology::form_crater` for the steps.
+///
+/// # Arguments
+///
+/// * `crater` - The BasicMoonCrater to form.
+/// * `rings` - Optional ring craters of a multi-ring basin.
+/// * `region` - The Python `LocalSurface` the crater is formed on.
+/// * `face_indices`, `node_indices` - Global indices of the region's faces and nodes.
+/// * `face_elevation`, `node_elevation`, `ejecta_thickness` - The global surface arrays, updated in place.
+/// * `conserve_volume` - Scale the ejecta so that its volume matches the excavated volume.
+/// * `ray_seed` - Seed of the ray pattern, or None for ejecta without rays.
+/// * `critical_slope` - Critical slope (rise over run) for slope collapse, or None to skip slope collapse.
+///
+/// # Returns
+///
+/// * `(excavated_volume, conservation_factor)`, where `conservation_factor` is None if no ejecta was formed.
+#[pyfunction]
+#[pyo3(signature = (crater, rings, region, face_indices, node_indices, face_elevation, node_elevation, ejecta_thickness, conserve_volume, ray_seed=None, critical_slope=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn form_crater<'py>(
+    crater: BasicMoonCrater,
+    rings: Option<Vec<BasicMoonCrater>>,
+    region: Bound<'py, PyAny>,
+    face_indices: PyReadonlyArray1<'py, i64>,
+    node_indices: PyReadonlyArray1<'py, i64>,
+    face_elevation: Bound<'py, PyArray1<f64>>,
+    node_elevation: Bound<'py, PyArray1<f64>>,
+    ejecta_thickness: Bound<'py, PyArray1<f64>>,
+    conserve_volume: bool,
+    ray_seed: Option<u64>,
+    critical_slope: Option<f64>,
+) -> PyResult<(f64, Option<f64>)> {
+    let model = BasicMoonModel {
+        crater: &crater,
+        rings: &rings,
+    };
+    run_form_crater(
+        &model,
+        &region,
+        face_indices,
+        node_indices,
+        &face_elevation,
+        &node_elevation,
+        &ejecta_thickness,
+        FormCraterOptions {
+            conserve_volume,
+            ray_seed,
+            critical_slope,
+        },
+    )
 }

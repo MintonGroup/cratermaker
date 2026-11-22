@@ -483,7 +483,6 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_conserve_volume", None)
         object.__setattr__(self, "_save_observed", None)
         object.__setattr__(self, "_save_emplaced", None)
-        object.__setattr__(self, "_excavated_volume", None)
         object.__setattr__(self, "_Crater", None)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
@@ -675,9 +674,17 @@ class Morphology(ComponentBase):
 
         return craters
 
+    @abstractmethod
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
-        Form the interior of the crater by altering the elevation variable of the surface mesh.
+        Form a crater and its ejecta blanket on the surface.
+
+        Implementations alter the face and node elevations and the ejecta thickness of the surface within the crater's region,
+        and record the crater with the `counting` component if there is one. They must only change the faces and nodes of the
+        region returned by `overlap_function`, which is what allows non-overlapping craters to be processed as a batch.
+
+        Morphology models implement this as a wrapper around a compiled Rust function that runs the whole formation sequence
+        (see `BasicMoonMorphology.form_crater`).
 
         Parameters
         ----------
@@ -686,83 +693,23 @@ class Morphology(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater, **kwargs)
-        if not crater.emplaceable:
-            return
+        ...
 
-        crater_area = pi * crater.crater_region.radius**2
-
-        # Check to make sure that the face at the crater location is not smaller than the crater area
-        if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.crater_region)
-            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
-
-            # Remove any ejecta from the interior of the crater
-            inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
-            if inner_crater_region is not None:
-                inner_crater_region.add_data(
-                    name="ejecta_thickness",
-                    long_name="ejecta thickness",
-                    units="m",
-                    data=0.0,
-                    overwrite=True,
-                )
-
-            # Record the crater to the counting layer
-            if self.counting is not None:
-                self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
-
-            ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
-            if ejecta_thickness is not None:
-                elevation_change += ejecta_thickness
-
-            # Apply the elevation change to the surface only after the ejecta formation has been run, to preven tthe crater from self-degrading
-            crater.crater_region.update_elevation(elevation_change)
-            if self.do_slope_collapse:
-                crater.crater_region.slope_collapse()
-        # Remove the saved regions now that the crater is emplaced
-        crater.reset()
-        return
-
-    def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    @staticmethod
+    def _scale_ejecta_rim(crater: Crater, conservation_factor: float) -> None:
         """
-        Computes the ejecta blanket of the crater and returns its thickness and intensity values to be applied to the mesh later.
+        Scale the ejecta fraction of the rim height of a crater and its rings by the ejecta volume conservation factor.
 
-        Ejecta burial and the diffusive degradation function are applied to the pre-existing surface.
+        The fraction is capped at 1.
 
         Parameters
         ----------
         crater : Crater
-            The crater object whose ejecta is to be formed.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations.
+            The crater whose ejecta was scaled.
+        conservation_factor : float
+            The factor the ejecta thickness was multiplied by.
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-
-        conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater, conserve_volume=conserve_volume)
-
-        if not self._excavated_volume or crater.ejecta_region is None:
-            return None, None
-        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
-        ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
-        ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
-        if conserve_volume:
-            conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
-        else:
-            conservation_factor = 1.0
         ejrim = crater.frac_ejrim * crater.rim_height
-        ejecta_thickness *= conservation_factor
         ejrim *= conservation_factor
         crater.frac_ejrim = min(ejrim / crater.rim_height, 1.0)
         if crater.nrings > 0:
@@ -771,16 +718,6 @@ class Morphology(ComponentBase):
                     ejrim = ring.frac_ejrim * ring.rim_height
                     ejrim *= conservation_factor
                     ring.frac_ejrim = min(ejrim / ring.rim_height, 1.0)
-
-        crater.ejecta_region.add_data(
-            name="ejecta_thickness",
-            long_name="ejecta thickness",
-            units="m",
-            data=ejecta_thickness[: crater.ejecta_region.n_face],
-            overwrite=False,
-        )
-
-        return ejecta_thickness, ejecta_intensity
 
     def _init_queue_manager(self) -> None:
         """
