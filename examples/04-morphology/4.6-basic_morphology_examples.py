@@ -19,17 +19,13 @@ pixels_per_radius = 200
 # Each crater gets its own simulation directory. The transitional crater diameter is set below from the scaling model.
 examples = {
     "Simple": 4e3,
-    "Transitional": None,
+    "Transitional": 17e3,
     "Complex": 100e3,
     "Multiring basin": 700e3,
 }
 
 fig, axes = plt.subplots(2, 2, figsize=(10, 10), layout="constrained")
 for ax, (name, diameter) in zip(axes.flat, examples.items(), strict=True):
-    if diameter is None:
-        # At exactly the nominal simple-to-complex transition diameter, the crater is always given the transitional morphology
-        diameter = Simulation(simdir="simdata-4.6/scaling", gridlevel=0, ask_overwrite=False, reset=True).scaling.transition_nominal
-
     sim = Simulation(
         surface="hireslocal",
         morphology="basicmoon",
@@ -40,7 +36,10 @@ for ax, (name, diameter) in zip(axes.flat, examples.items(), strict=True):
         reset=True,
         ask_overwrite=False,
     )
-    sim.emplace(diameter=diameter, location=(0, 0))
+    if name == "Transitional":
+        sim.emplace(diameter=diameter, location=(0, 0), morphology_type="transitional")
+    else:
+        sim.emplace(diameter=diameter, location=(0, 0))
     sim.plot(label=f"{name} ({diameter / 1e3:.0f} km)", ax=ax, show=False, save=False, close_when_done=False)
 
 plt.show()

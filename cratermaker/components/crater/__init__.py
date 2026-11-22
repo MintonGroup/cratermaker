@@ -572,6 +572,7 @@ class Crater(ComponentBase):
         final_radius: float | None = None,
         transient_diameter: float | None = None,
         transient_radius: float | None = None,
+        morphology_type: str | None = None,
         semimajor_axis: float | None = None,
         semiminor_axis: float | None = None,
         orientation: float | None = None,
@@ -635,6 +636,8 @@ class Crater(ComponentBase):
             The transient diameter of the crater in meters.
         transient_radius : float, optional
             The transient radius of the crater in meters.
+        morphology_type | str, optional
+            The morphology_type of the crater ("simple", "transitional", "complex", "multiring", etc.). Default is to be set automatically.
         semimajor_axis : float, optional
             The semimajor axis of the crater in meters. Same as radius if the crater is circular.
         semiminor_axis : float, optional
@@ -881,6 +884,8 @@ class Crater(ComponentBase):
             args["production_ND"] = production_ND
         if production_sequence is not None:
             args["production_sequence"] = production_sequence
+        if morphology_type is not None:
+            args["morphology_type"] = morphology_type
         if name is not None:
             args["name"] = name
 
@@ -1046,7 +1051,7 @@ class Crater(ComponentBase):
             pd = args["projectile_diameter"]
             pr = projectile_radius
             pm = projectile_mass
-            mt = None
+            mt = args.get("morphology_type") if "morphology_type" in args else None
 
             if pr is not None:
                 pd = 2 * pr
@@ -1056,7 +1061,7 @@ class Crater(ComponentBase):
                 td = 2 * tr
 
             if fd is not None:
-                td, mt = scaling.final_to_transient(fd)
+                td, mt = scaling.final_to_transient(final_diameter=fd, morphology_type=mt)
                 pd = scaling.transient_to_projectile(td)
             elif td is not None:
                 fd, mt = scaling.transient_to_final(td)

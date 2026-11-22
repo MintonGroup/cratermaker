@@ -20,7 +20,7 @@ from matplotlib import colormaps
 
 import cratermaker
 
-simdir = "simdata-1_4"
+simdir = "simdata-1_1"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
 # prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
@@ -28,7 +28,7 @@ simdir = "simdata-1_4"
 
 
 # Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
-sim = cratermaker.Simulation(gridlevel=6, simdir=simdir, ask_overwrite=False, reset=True, rng_seed=3124562342)
+sim = cratermaker.Simulation(gridlevel=8, simdir=simdir, ask_overwrite=False, reset=True, rng_seed=3124562342)
 sim.run(age=3000)
 sim.export(driver="GPKG", ask_overwrite=False)
 

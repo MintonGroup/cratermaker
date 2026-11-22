@@ -40,7 +40,7 @@ References
 
 import cratermaker as cm
 
-simdir = "simdata-1_8"
+simdir = "simdata-1_1"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
 # prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
@@ -50,7 +50,7 @@ simdir = "simdata-1_8"
 # Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off saving the observed and emplaced craters to speed up the simulation for this example.
 sim = cm.Simulation(
     target="Moon",
-    gridlevel=6,
+    gridlevel=8,
     save_observed=False,
     save_emplaced=False,
     simdir=simdir,
