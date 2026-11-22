@@ -298,10 +298,16 @@ class MorphologyCrater(Crater):
         This is extracted from the morphology's associated Surface object based on the location of the crater and the ejecta_rmax distance. If the ejecta region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
         if self._var._ejecta_region is None and self.crater_region is not None:
-            self._var._ejecta_region = self.morphology.surface.extract_region(
-                location=self.location,
-                region_radius=self.ejecta_rmax,
-            )
+            if self.ejecta_rmax == self.crater_region.radius:
+                # The ejecta region would be extracted with the same location and radius as the crater region (which is common, as
+                # ejecta_rmax is never smaller than the crater region radius), so reuse it rather than extracting an identical region
+                # and recomputing its distances, bearings, and connectivity.
+                self._var._ejecta_region = self.crater_region
+            else:
+                self._var._ejecta_region = self.morphology.surface.extract_region(
+                    location=self.location,
+                    region_radius=self.ejecta_rmax,
+                )
         return self._var._ejecta_region
 
     @property
