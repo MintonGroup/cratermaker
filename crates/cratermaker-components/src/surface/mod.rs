@@ -97,6 +97,11 @@ pub struct DiffusionTopology {
 }
 
 impl DiffusionTopology {
+    /// The edges of face `f` as `(edge index, true if the face is the second face of the edge)`, in increasing edge order.
+    fn incidence_of(&self, f: usize) -> &[(usize, bool)] {
+        &self.incidence[self.offsets[f]..self.offsets[f + 1]]
+    }
+
     pub fn new(region: &LocalSurfaceView<'_>) -> Self {
         let n_edges = region.edge_face_connectivity.nrows();
         let n_faces = region.n_face;
@@ -422,69 +427,239 @@ pub fn compute_slope(region: &LocalSurfaceView<'_>) -> ArrayResult {
     Ok(Array1::from_vec(slope_vec))
 }
 
-/// Computes the spatially varying diffusivity (`face_kappa`) for a slope collapse step.
+/// Collapses slopes steeper than the critical slope by diffusion, and returns the resulting face elevation change.
 ///
-/// Sets `kappa = diffmax` if any neighbor violates the critical slope threshold,
-/// otherwise sets `kappa = 0.0`. `diffmax` is computed assuming a stable timestep of 1.0.
+/// Each iteration gives every face that is steeper than the critical slope a diffusivity that grows with its steepness, and
+/// applies one diffusion step, until no face is too steep (or for at most 1000 iterations).
+///
+/// A diffusion step only changes the faces on the edges of steep faces, and a face's slope depends only on its own elevation and
+/// those of its edge neighbors. So after the first iteration, only the faces that changed and their neighbors have their slopes
+/// re-evaluated, and each diffusion step is applied only across the edges of steep faces. This gives the same result as
+/// re-evaluating and diffusing the whole region every iteration, at a cost proportional to the size of the collapsing area.
 ///
 /// # Arguments
 ///
-/// * `critical_slope` - Maximum allowable slope (e.g., 0.7 for ~35 degrees).
+/// * `critical_slope` - Maximum allowable slope (rise over run, e.g. 0.7 for about 35 degrees).
 /// * `region` - Reference to the local surface data structure containing mesh information.
 ///
 /// # Returns
 ///
-/// A NumPy array of `face_kappa` values.
-///
+/// The change in elevation of each face.
 pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> ArrayResult {
+    const LOOP_LIMIT: usize = 1000;
     let n_face = region.n_face;
     let critical_slope_sq = critical_slope * critical_slope;
+    // The diffusivity that is stable with a time step of 1
+    let diffmax = compute_dt_max(Array1::<f64>::ones(n_face).view(), region);
 
-    // face_kappa_ones should be an array view
-    let face_kappa_ones = Array1::<f64>::ones(n_face);
+    let base = region.face_elevation;
+    let mut total_delta = Array1::<f64>::zeros(n_face);
+    let mut elevation = base.to_owned();
+    let mut slope_sq: Vec<f64> = (0..n_face)
+        .into_par_iter()
+        .with_min_len(DIFFUSION_MIN_PAR_LEN)
+        .map(|f| compute_face_slope_squared(f, elevation.view(), region))
+        .collect();
+    let mut steep: Vec<usize> = (0..n_face)
+        .filter(|&f| slope_sq[f] > critical_slope_sq)
+        .collect();
+    if steep.is_empty() {
+        return Ok(total_delta);
+    }
 
-    let diffmax = compute_dt_max(face_kappa_ones.view(), region);
-    let looplimit = 1000 as usize;
+    let topology = DiffusionTopology::new(region);
+    let mut scratch = ActiveDiffusionScratch::new(n_face, topology.edge_faces.len());
+    let mut kappa = vec![0.0f64; n_face];
+    let mut face_mark = vec![false; n_face];
 
-    let mut new_face_elevation = region.face_elevation.to_owned();
-    let mut face_delta_elevation = Array1::<f64>::zeros(n_face);
-    // Built on the first diffusion step and reused for the remaining iterations
-    let mut topology: Option<DiffusionTopology> = None;
-
-    for _ in 0..looplimit {
-        new_face_elevation.assign(&region.face_elevation);
-        new_face_elevation += &face_delta_elevation;
-
-        // Compute (slope_sq, kappa) for each face in parallel
-        let slope_kappa: Vec<_> = (0..n_face)
-            .into_par_iter()
-            .map(|f| {
-                let slope_sq = compute_face_slope_squared(f, new_face_elevation.view(), region);
-                let kappa = if slope_sq > critical_slope_sq {
-                    diffmax * (1.0 + slope_sq / critical_slope_sq) * 10.0
-                } else {
-                    0.0
-                };
-                kappa
-            })
-            .collect();
-
-        let face_kappa = Array1::from_vec(slope_kappa);
-
-        let n_active = face_kappa.iter().filter(|&&k| k > 0.0).count();
-        if n_active == 0 {
+    for _ in 0..LOOP_LIMIT {
+        if steep.is_empty() {
             break;
         }
+        for &f in &steep {
+            kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq) * 10.0;
+        }
+        let touched = diffuse_active_edges(&steep, &kappa, elevation.view(), region, &topology, &mut scratch);
+        for &(f, step) in &touched {
+            total_delta[f] += step;
+            elevation[f] = base[f] + total_delta[f];
+        }
+        for &f in &steep {
+            kappa[f] = 0.0;
+        }
 
-        let delta = apply_diffusion_with_topology(
-            face_kappa.view(),
-            new_face_elevation.view(),
-            region,
-            &mut topology,
-        )?;
-        face_delta_elevation += &delta;
+        // The faces whose slope may have changed: those that changed, and their neighbors
+        let mut candidates: Vec<usize> = Vec::with_capacity(touched.len() * 2);
+        for &(f, _) in &touched {
+            if !face_mark[f] {
+                face_mark[f] = true;
+                candidates.push(f);
+            }
+        }
+        for &(f, _) in &touched {
+            for &(e, is_second) in topology.incidence_of(f) {
+                let other = topology.edge_faces[e][usize::from(!is_second)];
+                if !face_mark[other] {
+                    face_mark[other] = true;
+                    candidates.push(other);
+                }
+            }
+        }
+        for &f in &candidates {
+            face_mark[f] = false;
+        }
+        let new_slopes: Vec<f64> = candidates
+            .par_iter()
+            .with_min_len(DIFFUSION_MIN_PAR_LEN)
+            .map(|&f| compute_face_slope_squared(f, elevation.view(), region))
+            .collect();
+        steep.clear();
+        for (&f, &s) in candidates.iter().zip(new_slopes.iter()) {
+            slope_sq[f] = s;
+            if s > critical_slope_sq {
+                steep.push(f);
+            }
+        }
     }
-    Ok(face_delta_elevation)
+    Ok(total_delta)
+}
+
+/// Reusable work arrays for [`diffuse_active_edges`], kept all-zero (or unset) between calls.
+struct ActiveDiffusionScratch {
+    /// Per face: the change in elevation during the current step
+    step: Vec<f64>,
+    /// Per face: the sum of the inverse stable time steps of its active edges
+    inverse_dt_sum: Vec<f64>,
+    /// Per face: whether it is in the list of touched faces
+    touched: Vec<bool>,
+    /// Per edge: its position in the list of active edges, or `usize::MAX` if it is not active
+    edge_position: Vec<usize>,
+}
+
+impl ActiveDiffusionScratch {
+    fn new(n_face: usize, n_edge: usize) -> Self {
+        Self {
+            step: vec![0.0; n_face],
+            inverse_dt_sum: vec![0.0; n_face],
+            touched: vec![false; n_face],
+            edge_position: vec![usize::MAX; n_edge],
+        }
+    }
+}
+
+/// Applies one diffusion step (as `apply_diffusion` does) in which only the faces in `active` have a nonzero diffusivity.
+///
+/// Only the edges of active faces carry any flux, so the step is computed on those edges and the faces they touch, summing each
+/// face's fluxes in the same order as the full diffusion step.
+///
+/// # Returns
+///
+/// The faces the step changed, with their change in elevation.
+fn diffuse_active_edges(
+    active: &[usize],
+    kappa: &[f64],
+    elevation: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+    topology: &DiffusionTopology,
+    scratch: &mut ActiveDiffusionScratch,
+) -> Vec<(usize, f64)> {
+    // The edges of the active faces, in increasing order, and the faces on them
+    let mut edges: Vec<usize> = Vec::new();
+    for &f in active {
+        for &(e, _) in topology.incidence_of(f) {
+            if scratch.edge_position[e] == usize::MAX {
+                scratch.edge_position[e] = 0;
+                edges.push(e);
+            }
+        }
+    }
+    edges.sort_unstable();
+    let mut faces: Vec<usize> = Vec::new();
+    for (i, &e) in edges.iter().enumerate() {
+        scratch.edge_position[e] = i;
+        for &f in &topology.edge_faces[e] {
+            if !scratch.touched[f] {
+                scratch.touched[f] = true;
+                faces.push(f);
+            }
+        }
+    }
+
+    // The largest stable time step, as `compute_dt_max` computes it (only edges with a positive diffusivity contribute)
+    for &e in &edges {
+        let distance = region.edge_face_distance[e];
+        if distance <= 0.0 {
+            continue;
+        }
+        let [f1, f2] = topology.edge_faces[e];
+        let k_avg = 0.5 * (kappa[f1] + kappa[f2]);
+        let length = region.edge_length[e];
+        if k_avg > 0.0 {
+            scratch.inverse_dt_sum[f1] += 2.0 * k_avg * length / (distance * region.face_area[f1]);
+            scratch.inverse_dt_sum[f2] += 2.0 * k_avg * length / (distance * region.face_area[f2]);
+        }
+    }
+    let dt_max = faces
+        .iter()
+        .map(|&f| scratch.inverse_dt_sum[f])
+        .filter(|&x| x > 0.0)
+        .map(|x| 1.0 / x)
+        .fold(f64::INFINITY, f64::min);
+    for &f in &faces {
+        scratch.inverse_dt_sum[f] = 0.0;
+    }
+
+    if dt_max.is_finite() && dt_max > 0.0 {
+        let nloops = (1.0 / dt_max).ceil() as usize;
+        let fac = (1.0 / nloops as f64) / 2.0;
+        for _ in 0..nloops {
+            let step = &scratch.step;
+            let flux: Vec<f64> = edges
+                .par_iter()
+                .with_min_len(DIFFUSION_MIN_PAR_LEN)
+                .map(|&e| {
+                    let [f1, f2] = topology.edge_faces[e];
+                    let h1 = elevation[f1] + step[f1];
+                    let h2 = elevation[f2] + step[f2];
+                    (kappa[f1] + kappa[f2]) * (h2 - h1) / region.edge_face_distance[e] * region.edge_length[e]
+                })
+                .collect();
+            let edge_position = &scratch.edge_position;
+            let dhdt: Vec<f64> = faces
+                .par_iter()
+                .with_min_len(DIFFUSION_MIN_PAR_LEN)
+                .map(|&f| {
+                    let area = region.face_area[f];
+                    let mut dhdt = 0.0f64;
+                    for &(e, is_second) in topology.incidence_of(f) {
+                        let i = edge_position[e];
+                        if i == usize::MAX {
+                            continue;
+                        }
+                        if is_second {
+                            dhdt += -flux[i] / area;
+                        } else {
+                            dhdt += flux[i] / area;
+                        }
+                    }
+                    dhdt
+                })
+                .collect();
+            for (&f, &d) in faces.iter().zip(dhdt.iter()) {
+                scratch.step[f] += fac * d;
+            }
+        }
+    }
+
+    let touched: Vec<(usize, f64)> = faces.iter().map(|&f| (f, scratch.step[f])).collect();
+    for &f in &faces {
+        scratch.step[f] = 0.0;
+        scratch.touched[f] = false;
+    }
+    for &e in &edges {
+        scratch.edge_position[e] = usize::MAX;
+    }
+    touched
 }
 
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
