@@ -479,7 +479,14 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
         for &f in &steep {
             kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq) * 10.0;
         }
-        let touched = diffuse_active_edges(&steep, &kappa, elevation.view(), region, &topology, &mut scratch);
+        let touched = diffuse_active_edges(
+            &steep,
+            &kappa,
+            elevation.view(),
+            region,
+            &topology,
+            &mut scratch,
+        );
         for &(f, step) in &touched {
             total_delta[f] += step;
             elevation[f] = base[f] + total_delta[f];
@@ -621,7 +628,8 @@ fn diffuse_active_edges(
                     let [f1, f2] = topology.edge_faces[e];
                     let h1 = elevation[f1] + step[f1];
                     let h2 = elevation[f2] + step[f2];
-                    (kappa[f1] + kappa[f2]) * (h2 - h1) / region.edge_face_distance[e] * region.edge_length[e]
+                    (kappa[f1] + kappa[f2]) * (h2 - h1) / region.edge_face_distance[e]
+                        * region.edge_length[e]
                 })
                 .collect();
             let edge_position = &scratch.edge_position;
@@ -1711,7 +1719,9 @@ mod reference_surface_tests {
         let x = Array1::from_shape_fn(n, |i| 1.0e5 * ((i as f64) * 0.37).cos());
         let y = Array1::from_shape_fn(n, |i| 1.0e5 * ((i as f64) * 0.61).sin());
         let d = Array1::from_shape_fn(n, |i| (x[i] * x[i] + y[i] * y[i]).sqrt());
-        let z = Array1::from_shape_fn(n, |i| 1.0e-3 * x[i] - 2.0e-3 * y[i] + 1234.5 + if i % 2 == 0 { 0.0 } else { 7.0 });
+        let z = Array1::from_shape_fn(n, |i| {
+            1.0e-3 * x[i] - 2.0e-3 * y[i] + 1234.5 + if i % 2 == 0 { 0.0 } else { 7.0 }
+        });
         let r = 8.0e4;
         let out = reference_surface(x.view(), y.view(), z.view(), d.view(), r).unwrap();
         for i in 0..n {
@@ -1721,7 +1731,8 @@ mod reference_surface_tests {
         }
         // Fit should pass through the mean offset of the alternating +0/+7 noise, with the exact slopes
         let inside: Vec<usize> = (0..n).filter(|&i| d[i] <= r).collect();
-        let resid_mean: f64 = inside.iter().map(|&i| z[i] - out[i]).sum::<f64>() / inside.len() as f64;
+        let resid_mean: f64 =
+            inside.iter().map(|&i| z[i] - out[i]).sum::<f64>() / inside.len() as f64;
         assert!(resid_mean.abs() < 1e-9);
     }
 
