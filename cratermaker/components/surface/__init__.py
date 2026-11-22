@@ -4163,6 +4163,25 @@ class LocalSurface(CratermakerBase):
             value_indices = np.arange(*value_indices.indices(total_value_size))
         else:
             value_indices = np.asarray(value_indices)
+        if isinstance(row_indices, slice):
+            row_indices = np.arange(*row_indices.indices(connectivity_array.shape[0]))
+        else:
+            row_indices = np.asarray(row_indices)
+
+        if (
+            connectivity_array.dtype == np.int64
+            and connectivity_array.ndim == 2
+            and row_indices.dtype.kind in "iu"
+            and value_indices.dtype.kind in "iu"
+        ):
+            # Fast path: one pass in Rust using a reusable global-to-local lookup table, with the same semantics as the code below.
+            return surface_bindings.remap_connectivity_to_local(
+                connectivity=connectivity_array,
+                row_indices=row_indices.astype(np.int64, copy=False).ravel(),
+                value_indices=value_indices.astype(np.int64, copy=False).ravel(),
+                total_value_size=total_value_size,
+                fill_value=fill_value,
+            )
 
         subset = connectivity_array[row_indices]
         remapped = np.full_like(subset, fill_value)

@@ -570,3 +570,35 @@ pub fn reset_radial_distances<'py>(
         PyArray1::from_owned_array(py, z_out),
     ))
 }
+
+/// Extracts rows of a global connectivity array and remaps their values from global to local indices.
+///
+/// # Arguments
+/// * `py` - Python interpreter token.
+/// * `connectivity` - The global 2D connectivity array of shape (N, K).
+/// * `row_indices` - Global indices of the rows to retain.
+/// * `value_indices` - Global indices of the value domain, whose positions become the local indices.
+/// * `total_value_size` - Total number of items in the global value domain.
+/// * `fill_value` - Fill value marking invalid entries.
+///
+/// # Returns
+/// A 2D NumPy array of shape (len(row_indices), K) of local indices, with `fill_value` where not applicable.
+#[pyfunction]
+pub fn remap_connectivity_to_local<'py>(
+    py: Python<'py>,
+    connectivity: PyReadonlyArray2<'py, i64>,
+    row_indices: PyReadonlyArray1<'py, i64>,
+    value_indices: PyReadonlyArray1<'py, i64>,
+    total_value_size: usize,
+    fill_value: i64,
+) -> PyResult<Bound<'py, PyArray2<i64>>> {
+    let result = cratermaker_components::surface::remap_connectivity_to_local(
+        connectivity.as_array(),
+        row_indices.as_array(),
+        value_indices.as_array(),
+        total_value_size,
+        fill_value,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray2::from_owned_array(py, result))
+}

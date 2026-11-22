@@ -862,3 +862,83 @@ pub fn reset_radial_distances(
 
     Ok((x_out, y_out, z_out))
 }
+
+thread_local! {
+    // Reusable global-to-local index map for `remap_connectivity_to_local`. It is sized to the largest global index domain seen so
+    // far and every entry is kept at -1 between calls, so each call costs O(number of entries touched) rather than O(mesh size).
+    static REMAP_SCRATCH: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Extracts rows of a global connectivity array and remaps their values from global to local indices.
+///
+/// Row `i` of the output is row `row_indices[i]` of `connectivity`, with each value `v` replaced by the position of `v` in
+/// `value_indices` (if `v` appears more than once, its last position is used). Values equal to `fill_value`, values outside the
+/// range `[0, total_value_size)`, and values not present in `value_indices` are set to `fill_value`.
+///
+/// # Arguments
+///
+/// * `connectivity` - The global 2D connectivity array of shape (N, K).
+/// * `row_indices` - Global indices of the rows to retain.
+/// * `value_indices` - Global indices of the value domain, whose positions become the local indices (e.g., the face indices).
+/// * `total_value_size` - Total number of items in the global value domain (e.g., the total number of faces).
+/// * `fill_value` - Fill value marking invalid entries.
+///
+/// # Returns
+///
+/// * A 2D array of shape (len(row_indices), K) of local indices, or an error if a row index is out of range.
+pub fn remap_connectivity_to_local(
+    connectivity: ArrayView2<'_, i64>,
+    row_indices: ArrayView1<'_, i64>,
+    value_indices: ArrayView1<'_, i64>,
+    total_value_size: usize,
+    fill_value: i64,
+) -> Result<Array2<i64>, String> {
+    let n_rows = connectivity.nrows();
+    let ncols = connectivity.ncols();
+    let rows: Vec<usize> = row_indices
+        .iter()
+        .map(|&r| {
+            if r >= 0 && (r as usize) < n_rows {
+                Ok(r as usize)
+            } else if r < 0 && ((-r) as usize) <= n_rows {
+                Ok((n_rows as i64 + r) as usize) // Negative indices count from the end, as in NumPy
+            } else {
+                Err(format!("row index {r} is out of bounds for connectivity with {n_rows} rows"))
+            }
+        })
+        .collect::<Result<_, _>>()?;
+
+    REMAP_SCRATCH.with(|scratch| {
+        let mut map = scratch.borrow_mut();
+        if map.len() < total_value_size {
+            map.resize(total_value_size, -1);
+        }
+        let in_domain = |v: i64| v >= 0 && (v as usize) < total_value_size;
+
+        for (local, &v) in value_indices.iter().enumerate() {
+            if in_domain(v) {
+                map[v as usize] = local as i64;
+            }
+        }
+
+        let mut out = Array2::<i64>::from_elem((rows.len(), ncols), fill_value);
+        for (mut out_row, &r) in out.outer_iter_mut().zip(rows.iter()) {
+            for (o, &v) in out_row.iter_mut().zip(connectivity.row(r).iter()) {
+                if v != fill_value && in_domain(v) {
+                    let local = map[v as usize];
+                    if local >= 0 {
+                        *o = local;
+                    }
+                }
+            }
+        }
+
+        // Restore the scratch map to all -1 for the next call
+        for &v in value_indices.iter() {
+            if in_domain(v) {
+                map[v as usize] = -1;
+            }
+        }
+        Ok(out)
+    })
+}
