@@ -3378,13 +3378,18 @@ class LocalSurface(CratermakerBase):
         else:
             gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
             pix = self.pix
-            R = (
-                self.region_radius + 4 * pix
-            )  # Add a 4 * pix border to enswure that the pixels along the border of the local region are plotted in full
+            # The raster pixels are exactly the mesh spacing, with an odd number of them so that one is centered on the
+            # region's center. The local mesh is a nearly square lattice of faces centered there, so this puts pixel centers on
+            # face centers. If the pixels are a different size than the faces, the two grids drift in and out of alignment, and
+            # if pixel edges fall on rows of face centers, pixels along those rows are assigned inconsistently. Either way the
+            # result is a grid of lines (a moire pattern) in hillshaded plots.
+            # A border of 4 * pix ensures that the pixels along the border of the local region are plotted in full.
+            n_half = int(np.ceil((self.region_radius + 4 * pix) / pix))
+            W = H = 2 * n_half + 1
+            xres = yres = pix
+            R = 0.5 * W * pix
             xmin, xmax = -R, R
             ymin, ymax = -R, R
-            # pixel size (meters/pixel)
-            xres = yres = (2.0 * R) / W
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
@@ -3397,13 +3402,17 @@ class LocalSurface(CratermakerBase):
         ]
         extent = (xmin, xmax, ymin, ymax)
 
+        # For a local region, the pixels are centered on the faces and the same size, so assigning each pixel the face that
+        # contains its center gives every pixel exactly its own face. With all_touched, each face would also claim the pixels
+        # around its edges, and those pixels would take the value of whichever neighboring face happened to be drawn last,
+        # which creates seams. A global raster can have faces smaller than a pixel, so it uses all_touched to avoid gaps.
         raster = rasterize(
             shapes=shapes,
             out_shape=(H, W),
             transform=transform,
             fill=np.nan,
             dtype=np.float32,
-            all_touched=True,
+            all_touched=self.is_global,
         )
         return raster, extent, transform, gdf.crs
 
@@ -3733,11 +3742,16 @@ class LocalSurface(CratermakerBase):
             dpi = max(minimum_plot_width, W)
 
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
+        ax_width_inches = 1.0
         if ax is None:
             _, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False, layout="constrained")
+        else:
+            # An axes supplied by the caller can be any size, so scale the text and line elements to its actual width
+            ax_width_inches = ax.get_position().width * ax.figure.get_figwidth()
 
-        # This helps scale plot elements that are sized in points, because we're using a somewhat non-standard dpi and figure size to plot the rasterio-genrated surface data
-        scale_fraction = 72 / dpi
+        # This helps scale plot elements that are sized in points, because we're using a somewhat non-standard dpi and figure size to plot the rasterio-genrated surface data.
+        # Elements are sized relative to the width of the plot, the same way on a supplied axes as on the default 1-inch figure.
+        scale_fraction = 72 * ax_width_inches / dpi
         scaled_params = {
             k: v * scale_fraction
             for k, v in rcParams.items()
