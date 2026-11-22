@@ -1345,7 +1345,8 @@ class Crater(ComponentBase):
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
                 if "morphology_type" in crater_data:
                     crater_data["isring"] = crater_data["morphology_type"] == "ring"
-                crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+                # Values read from the file take priority over any keyword arguments of the same name
+                crater = cls.maker(**{**kwargs, **crater_data}, conserve_volume=conserve_volume, check_redundant_inputs=False)
                 if crater.morphology_type == "ring":
                     rings.append(crater)
                 else:
@@ -1391,7 +1392,9 @@ class Crater(ComponentBase):
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
             crater = cls.maker(
-                diameter=diam * 1e3, location=(lon, lat), conserve_volume=conserve_volume, check_redundant_inputs=False
+                **{**kwargs, "diameter": diam * 1e3, "location": (lon, lat)},
+                conserve_volume=conserve_volume,
+                check_redundant_inputs=False,
             )
             craters.append(crater)
 
@@ -1460,8 +1463,9 @@ class Crater(ComponentBase):
             if "morphology_type" in crater_data:
                 crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
+            # Values read from the dataset take priority over any keyword arguments of the same name
             crater = cls.maker(
-                **crater_data,
+                **{**kwargs, **crater_data},
                 conserve_volume=conserve_volume,
                 make_rings=make_rings,
                 monte_carlo=False,
