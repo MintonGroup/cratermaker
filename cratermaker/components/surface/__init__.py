@@ -2682,11 +2682,8 @@ class LocalSurface(CratermakerBase):
             raise ValueError("location must be a single pair of (longitude, latitude).")
         if validate:
             location = validate_and_normalize_location(location)
-        node_locations = np.vstack((self.node_lon, self.node_lat)).T
-        face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(
-            locations=face_locations, reference_location=location, validate=False
-        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
+        result = self._compute_distances_and_bearings(distance_origin=location)
+        return result["face"][0], result["node"][0]
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2715,21 +2712,70 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        face_bearing, node_bearing = (
-            surface_bindings.compute_bearings(
-                lon1=np.radians(location[0]),
-                lat1=np.radians(location[1]),
-                lon2=np.radians(self.face_lon),
-                lat2=np.radians(self.face_lat),
-            ),
-            surface_bindings.compute_bearings(
-                lon1=np.radians(location[0]),
-                lat1=np.radians(location[1]),
-                lon2=np.radians(self.node_lon),
-                lat2=np.radians(self.node_lat),
-            ),
+        result = self._compute_distances_and_bearings(bearing_origin=location)
+        return result["face"][1], result["node"][1]
+
+    def _compute_distances_and_bearings(
+        self,
+        distance_origin: tuple[float, float] | None = None,
+        bearing_origin: tuple[float, float] | None = None,
+        with_projection: bool = False,
+    ) -> dict[str, tuple[NDArray | None, NDArray | None, NDArray | None, NDArray | None]]:
+        """
+        Compute distances, initial bearings, and projected coordinates from origin points to the faces and nodes of the view.
+
+        Each of the faces and nodes is handled by a single Rust call.
+
+        Parameters
+        ----------
+        distance_origin : tuple[float, float], optional
+            The (longitude, latitude) in degrees to measure distances from. If None, distances are not computed.
+        bearing_origin : tuple[float, float], optional
+            The (longitude, latitude) in degrees to measure bearings from. If None, bearings are not computed.
+        with_projection : bool, optional
+            If True, also compute the projected coordinates x = distance * sin(bearing) and y = distance * cos(bearing). This
+            requires both origins. Default is False.
+
+        Returns
+        -------
+        dict
+            Maps "face" and "node" to (distances in m, bearings in degrees, projected x in m, projected y in m), with None in
+            place of any output that was not requested.
+        """
+        surface = self.surface
+        result = {}
+        for key, lon, lat, indices, n_total in (
+            ("face", surface.face_lon, surface.face_lat, self.face_indices, surface.n_face),
+            ("node", surface.node_lon, surface.node_lat, self.node_indices, surface.n_node),
+        ):
+            if isinstance(indices, slice):
+                indices = None if indices == slice(None) else np.arange(n_total)[indices]
+            result[key] = surface_bindings.compute_distances_and_bearings(
+                lon=lon,
+                lat=lat,
+                radius=surface.radius,
+                indices=None if indices is None else np.ascontiguousarray(indices, dtype=np.int64),
+                distance_origin=None if distance_origin is None else tuple(map(float, distance_origin)),
+                bearing_origin=None if bearing_origin is None else tuple(map(float, bearing_origin)),
+                with_projection=with_projection,
+            )
+        return result
+
+    def _set_distances_and_bearings(self) -> None:
+        """
+        Compute and cache the face and node distances, bearings, and projected coordinates from the view's location together.
+
+        Only values that are not already cached are filled in, so values that were set explicitly are kept.
+        """
+        location = self.location
+        result = self._compute_distances_and_bearings(
+            distance_origin=location, bearing_origin=validate_and_normalize_location(location), with_projection=True
         )
-        return np.degrees(face_bearing), np.degrees(node_bearing)
+        for key in ("face", "node"):
+            names = (f"_{key}_distance", f"_{key}_bearing", f"_{key}_proj_x", f"_{key}_proj_y")
+            for name, value in zip(names, result[key], strict=True):
+                if getattr(self, name) is None:
+                    setattr(self, name, value)
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
@@ -4363,28 +4409,28 @@ class LocalSurface(CratermakerBase):
     def face_bearing(self) -> NDArray:
         """The initial bearing from the location to the faces measured clockwise relative to North in degrees."""
         if self._location is not None and self._face_bearing is None:
-            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
+            self._set_distances_and_bearings()
         return self._face_bearing
 
     @property
     def node_bearing(self) -> NDArray:
         """The initial bearing from the location to the nodes measured clockwise relative to North in degrees."""
         if self._location is not None and self._node_bearing is None:
-            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
+            self._set_distances_and_bearings()
         return self._node_bearing
 
     @property
     def face_distance(self) -> NDArray:
         """The distance from the location to the faces in meters."""
         if self._location is not None and self._face_distance is None:
-            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._set_distances_and_bearings()
         return self._face_distance
 
     @property
     def node_distance(self) -> NDArray:
         """The distance from the location to the nodes in meters."""
         if self._location is not None and self._node_distance is None:
-            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._set_distances_and_bearings()
         return self._node_distance
 
     @property
@@ -4792,7 +4838,10 @@ class LocalSurface(CratermakerBase):
         """
         Set the projected x and y coordinates of the faces relative to the LocalSurface center.
         """
-        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
+        if self._face_proj_x is None and self._location is not None:
+            self._set_distances_and_bearings()
+        if self._face_proj_x is None and self.face_distance is not None and self.face_bearing is not None:
+            # Distances and bearings were set explicitly without a location
             self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
             self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
         return
@@ -4801,7 +4850,10 @@ class LocalSurface(CratermakerBase):
         """
         Set the projected x and y coordinates of the nodes relative to the LocalSurface center.
         """
-        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
+        if self._node_proj_x is None and self._location is not None:
+            self._set_distances_and_bearings()
+        if self._node_proj_x is None and self.node_distance is not None and self.node_bearing is not None:
+            # Distances and bearings were set explicitly without a location
             self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
             self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
         return

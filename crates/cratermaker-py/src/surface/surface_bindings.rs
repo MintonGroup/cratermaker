@@ -1,3 +1,4 @@
+use numpy::ndarray::Array1;
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
@@ -744,4 +745,47 @@ pub fn build_local_connectivity<'py>(
         PyArray2::from_owned_array(py, local.edge_face),
         PyArray2::from_owned_array(py, local.edge_node),
     ))
+}
+
+/// Computes great-circle distances and/or initial bearings from origin points to a subset of points given in degrees.
+///
+/// The points are `(lon[i], lat[i])` for each `i` in `indices` (or all points if `indices` is None). Distances are measured from
+/// `distance_origin` and bearings from `bearing_origin`; pass None for either origin to skip that output. The results are
+/// identical to converting the points to radians with NumPy and calling `compute_distances` and `compute_bearings`, with the
+/// bearings converted back to degrees. If `with_projection` is true (which requires both origins), the projected coordinates
+/// `x = distance * sin(bearing)` and `y = distance * cos(bearing)` are also returned.
+///
+/// # Returns
+///
+/// * `(distances in m, bearings in degrees in [0, 360), projected x in m, projected y in m)`, each None if not requested.
+#[pyfunction]
+#[pyo3(signature = (lon, lat, radius, indices=None, distance_origin=None, bearing_origin=None, with_projection=false))]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub fn compute_distances_and_bearings<'py>(
+    py: Python<'py>,
+    lon: PyReadonlyArray1<'py, f64>,
+    lat: PyReadonlyArray1<'py, f64>,
+    radius: f64,
+    indices: Option<PyReadonlyArray1<'py, i64>>,
+    distance_origin: Option<(f64, f64)>,
+    bearing_origin: Option<(f64, f64)>,
+    with_projection: bool,
+) -> PyResult<(
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+)> {
+    let (distances, bearings, proj_x, proj_y) = cratermaker_components::surface::compute_distances_and_bearings(
+        lon.as_array(),
+        lat.as_array(),
+        indices.as_ref().map(|i| i.as_array()),
+        distance_origin,
+        bearing_origin,
+        radius,
+        with_projection,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    let to_py = |a: Option<Array1<f64>>| a.map(|a| PyArray1::from_owned_array(py, a));
+    Ok((to_py(distances), to_py(bearings), to_py(proj_x), to_py(proj_y)))
 }

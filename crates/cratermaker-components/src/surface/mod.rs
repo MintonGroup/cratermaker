@@ -727,6 +727,139 @@ fn compute_one_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64, radius: f64)
     radius * c
 }
 
+/// Degrees to radians, computed exactly as NumPy's `np.radians` does (`x * (π / 180)`), so results are bit-identical.
+#[inline(always)]
+fn deg_to_rad(x: f64) -> f64 {
+    x * (PI / 180.0)
+}
+
+/// Radians to degrees, computed exactly as NumPy's `np.degrees` does (`x * (180 / π)`), so results are bit-identical.
+#[inline(always)]
+fn rad_to_deg(x: f64) -> f64 {
+    x * (180.0 / PI)
+}
+
+/// Minimum number of points per rayon task for the distance/bearing calculations, so small regions are not dominated by
+/// fork/join overhead. This only affects scheduling, not results.
+const DISTANCE_MIN_PAR_LEN: usize = 4096;
+
+/// Computes great-circle distances and/or initial bearings from origin points to a subset of points given in degrees.
+///
+/// The points are `(lon[i], lat[i])` for each `i` in `indices` (or every point if `indices` is `None`). The distance to each
+/// point is computed from `distance_origin`, and the bearing from `bearing_origin`; either output is skipped if its origin is
+/// `None`. Each value is identical to what `compute_distances` and `compute_bearings` return for the same points after
+/// converting their coordinates to radians with NumPy, and the bearings are converted back to degrees in the same way.
+///
+/// # Arguments
+///
+/// * `lon`, `lat` - Longitude and latitude of all points, in degrees.
+/// * `indices` - Indices of the points to use, or `None` for all of them.
+/// * `distance_origin` - `(lon, lat)` in degrees of the point to measure distances from, or `None` to skip distances.
+/// * `bearing_origin` - `(lon, lat)` in degrees of the point to measure bearings from, or `None` to skip bearings.
+/// * `radius` - Radius of the sphere in meters.
+/// * `with_projection` - If true, also return the projected coordinates `x = distance * sin(bearing)` and
+///   `y = distance * cos(bearing)` (an azimuthal equidistant projection about the origin). Requires both origins.
+///
+/// # Returns
+///
+/// * `(distances in meters, bearings in degrees in [0, 360), projected x in meters, projected y in meters)`, each `None` if it
+///   was not requested.
+#[allow(clippy::type_complexity)]
+pub fn compute_distances_and_bearings(
+    lon: ArrayView1<'_, f64>,
+    lat: ArrayView1<'_, f64>,
+    indices: Option<ArrayView1<'_, i64>>,
+    distance_origin: Option<(f64, f64)>,
+    bearing_origin: Option<(f64, f64)>,
+    radius: f64,
+    with_projection: bool,
+) -> Result<(Option<Array1<f64>>, Option<Array1<f64>>, Option<Array1<f64>>, Option<Array1<f64>>), String> {
+    if with_projection && (distance_origin.is_none() || bearing_origin.is_none()) {
+        return Err("with_projection requires both a distance origin and a bearing origin".to_string());
+    }
+    if lon.len() != lat.len() {
+        return Err(format!("lon and lat have different lengths ({} and {})", lon.len(), lat.len()));
+    }
+    let n_total = lon.len();
+    let idx: Option<Vec<usize>> = match indices {
+        Some(ind) => Some(
+            ind.iter()
+                .map(|&i| {
+                    if i >= 0 && (i as usize) < n_total {
+                        Ok(i as usize)
+                    } else {
+                        Err(format!("index {i} is out of range [0, {n_total})"))
+                    }
+                })
+                .collect::<Result<_, _>>()?,
+        ),
+        None => None,
+    };
+    let n = idx.as_ref().map_or(n_total, |v| v.len());
+    let point = |k: usize| -> (f64, f64) {
+        let i = idx.as_ref().map_or(k, |v| v[k]);
+        (deg_to_rad(lon[i]), deg_to_rad(lat[i]))
+    };
+    // Per-origin constants (cos and sin of the origin latitude) are computed once, and per-point terms (cos and sin of the
+    // point latitude, and the longitude difference when both outputs share an origin longitude) are shared between the distance
+    // and bearing calculations. The formulas are the same as compute_one_distance and compute_one_bearing, but the results can
+    // differ from those functions in the last bits because the compiler is free to evaluate the shared sin/cos differently.
+    let origin = |(lo, la): (f64, f64)| {
+        let (lon1, lat1) = (deg_to_rad(lo), deg_to_rad(la));
+        let (sin_lat1, cos_lat1) = lat1.sin_cos();
+        (lon1, lat1, cos_lat1, sin_lat1)
+    };
+    let d_origin = distance_origin.map(origin);
+    let b_origin = bearing_origin.map(origin);
+    let shared_dlon = matches!((d_origin, b_origin), (Some(d), Some(b)) if d.0.to_bits() == b.0.to_bits());
+
+    let values: Vec<[f64; 4]> = (0..n)
+        .into_par_iter()
+        .with_min_len(DISTANCE_MIN_PAR_LEN)
+        .map(|k| {
+            let (lon2, lat2) = point(k);
+            let (sin_lat2, cos_lat2) = lat2.sin_cos();
+            let mut dlon_d = f64::NAN;
+            let distance = match d_origin {
+                Some((lon1, lat1, cos_lat1, _)) => {
+                    // Haversine distance, as in compute_one_distance
+                    dlon_d = positive_mod(lon2 - lon1 + PI, TAU) - PI;
+                    let dlat = lat2 - lat1;
+                    let a = (dlat / 2.0).sin().powi(2) + cos_lat1 * cos_lat2 * (dlon_d / 2.0).sin().powi(2);
+                    radius * (2.0 * a.sqrt().asin())
+                }
+                None => f64::NAN,
+            };
+            let bearing_rad = match b_origin {
+                Some((lon1, _, cos_lat1, sin_lat1)) => {
+                    // Initial bearing, as in compute_one_bearing, normalized to [0, 2π)
+                    let dlon = if shared_dlon { dlon_d } else { positive_mod(lon2 - lon1 + PI, TAU) - PI };
+                    let (sin_dlon, cos_dlon) = dlon.sin_cos();
+                    let x = sin_dlon * cos_lat2;
+                    let y = cos_lat1 * sin_lat2 - sin_lat1 * cos_lat2 * cos_dlon;
+                    positive_mod(x.atan2(y), TAU)
+                }
+                None => f64::NAN,
+            };
+            let (proj_x, proj_y) = if with_projection {
+                let (sin_b, cos_b) = bearing_rad.sin_cos();
+                (distance * sin_b, distance * cos_b)
+            } else {
+                (f64::NAN, f64::NAN)
+            };
+            [distance, rad_to_deg(bearing_rad), proj_x, proj_y]
+        })
+        .collect();
+
+    let column = |j: usize| Array1::from_iter(values.iter().map(|v| v[j]));
+    Ok((
+        distance_origin.map(|_| column(0)),
+        bearing_origin.map(|_| column(1)),
+        with_projection.then(|| column(2)),
+        with_projection.then(|| column(3)),
+    ))
+}
+
 /// Computes the initial bearing (forward azimuth) from a fixed point to each of a set of destination points.
 ///
 /// The bearing is calculated on a spherical surface using great-circle paths and returned in radians,

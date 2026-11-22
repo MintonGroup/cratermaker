@@ -43,7 +43,7 @@ mod cratermaker {
     mod surface_bindings {
         #[pymodule_export]
         use crate::surface::surface_bindings::{
-            apply_diffusion, build_local_connectivity, build_region_indices, compute_bearings, compute_distances, compute_edge_distances,
+            apply_diffusion, build_local_connectivity, build_region_indices, compute_bearings, compute_distances, compute_distances_and_bearings, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
             interpolate_node_elevation_from_faces, remap_connectivity_to_local, reset_radial_distances, slope_collapse,
             turbulence_noise,
