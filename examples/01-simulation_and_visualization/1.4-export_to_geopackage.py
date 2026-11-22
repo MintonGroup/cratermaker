@@ -28,7 +28,7 @@ simdir = "simdata-1_4"
 
 
 # Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
-sim = cratermaker.Simulation(gridlevel=7, simdir=simdir, ask_overwrite=False, reset=True, rng_seed=3124562342)
+sim = cratermaker.Simulation(gridlevel=6, simdir=simdir, ask_overwrite=False, reset=True, rng_seed=3124562342)
 sim.run(age=3000)
 sim.export(driver="GPKG", ask_overwrite=False)
 

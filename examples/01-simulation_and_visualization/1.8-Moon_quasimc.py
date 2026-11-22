@@ -50,7 +50,7 @@ simdir = "simdata-1_8"
 # Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off saving the observed and emplaced craters to speed up the simulation for this example.
 sim = cm.Simulation(
     target="Moon",
-    gridlevel=7,
+    gridlevel=8,
     save_observed=False,
     save_emplaced=False,
     simdir=simdir,
