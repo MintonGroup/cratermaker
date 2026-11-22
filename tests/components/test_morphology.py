@@ -97,6 +97,44 @@ class TestMorphology(unittest.TestCase):
                 self.assertEqual(thickness.shape, rvals.shape)
                 self.assertTrue(np.all(np.isfinite(thickness)) and np.all(np.isfinite(intensity)))
 
+    def test_form_craters_matches_sequential(self):
+        # Forming a batch of non-overlapping craters in parallel must give exactly the same surface as forming them one at a time
+        locations = [(0.0, 0.0), (90.0, 0.0), (180.0, 0.0), (-90.0, 0.0), (0.0, 60.0), (0.0, -60.0)]
+        for model_name in morphology_models:
+            results = []
+            for batched in (False, True):
+                with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                    surface = Surface.maker(
+                        simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False
+                    )
+                    morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=4321)
+                    craters = [morphology.Crater.maker(diameter=100e3, location=loc) for loc in locations]
+                    face_sets = [set(np.asarray(morphology.overlap_function(c)[1]).tolist()) for c in craters]
+                    self.assertTrue(
+                        all(not (face_sets[i] & face_sets[j]) for i in range(len(face_sets)) for j in range(i)),
+                        "test craters must have non-overlapping regions",
+                    )
+                    if batched:
+                        morphology.form_craters(craters)
+                    else:
+                        for crater in craters:
+                            morphology.form_crater(crater)
+                    variables = surface.uxds.variables
+                    results.append(
+                        [variables[name].data.copy() for name in ("face_elevation", "node_elevation", "ejecta_thickness")]
+                    )
+            for sequential, batched in zip(*results, strict=True):
+                np.testing.assert_array_equal(batched, sequential, err_msg=f"{model_name}: batched result differs")
+
+    def test_form_craters_rejects_overlapping_regions(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                craters = [morphology.Crater.maker(diameter=150e3, location=(0.0, 0.0)) for _ in range(2)]
+                with self.assertRaises(ValueError):
+                    morphology.form_craters(craters)
+
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
         diameter_list = [200e3, 500e3, 1000e3]

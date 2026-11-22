@@ -499,15 +499,16 @@ class RealMoonMorphology(BasicMoonMorphology):
 
     """
 
-    # The compiled crater formation function for RealMoonCrater objects
-    _form_crater_binding = staticmethod(realmoon_bindings.form_crater)
+    # The compiled function that forms a batch of RealMoonCrater objects
+    _form_craters_binding = staticmethod(realmoon_bindings.form_craters)
 
     def _prepare_crater(self, crater: RealMoonCrater) -> None:
         """
         Generate the PSD objects of the crater and its rings.
 
-        Each PSD object draws a seed from the morphology's random number generator on first access. They are accessed in the order the compiled `form_crater` reads them (each PSD parameter of the crater, then of each
-        ring), so random numbers are drawn in the same order as when the profile is computed directly.
+        Each PSD object draws a seed from the morphology's random number generator on first access. They are accessed in the
+        order the compiled `form_craters` reads them (each PSD parameter of the crater, then of each ring), so random numbers
+        are drawn in the same order as when the profile is computed directly.
 
         Parameters
         ----------

@@ -1,5 +1,5 @@
-use crate::morphology::form_crater_bindings::run_form_crater;
-use cratermaker_components::morphology::form_crater::{FormCraterOptions, RealMoonModel};
+use crate::morphology::form_crater_bindings::run_form_craters;
+use cratermaker_components::morphology::form_crater::RealMoonModel;
 use cratermaker_components::morphology::realmoon::{ProfileEvaluator, RealMoonCrater};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
@@ -247,72 +247,85 @@ pub fn psd_from_profile<'py>(
     ))
 }
 
-/// Forms a RealMoon crater on a region of the surface, updating the global surface arrays in place.
+/// Forms a batch of RealMoon craters with non-overlapping regions, updating the global surface arrays in place.
 ///
-/// This runs the whole crater formation sequence (crater shape, excavated volume, ejecta with volume conservation, burial and
-/// degradation diffusion, and optional slope collapse) in a single call. See
-/// `cratermaker_components::morphology::form_crater` for the steps.
+/// Each crater goes through the whole formation sequence (crater shape, excavated volume, ejecta with volume conservation,
+/// burial and degradation diffusion, and optional slope collapse); see `cratermaker_components::morphology::form_crater`. The
+/// craters are formed in parallel with the GIL released, which gives the same result as forming them one after another because
+/// their regions do not overlap.
 ///
 /// # Arguments
 ///
-/// * `crater` - The RealMoonCrater to form.
-/// * `rings` - Optional ring craters of a multi-ring basin.
-/// * `region` - The Python `LocalSurface` the crater is formed on.
-/// * `face_indices`, `node_indices` - Global indices of the region's faces and nodes.
+/// * `craters` - The RealMoonCraters to form.
+/// * `rings` - The optional ring craters of each crater.
+/// * `regions` - The Python `LocalSurface` each crater is formed on.
+/// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
+/// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
 /// * `face_elevation`, `node_elevation`, `ejecta_thickness` - The global surface arrays, updated in place.
-/// * `conserve_volume` - Scale the ejecta so that its volume matches the excavated volume.
-/// * `ray_seed` - Seed of the ray pattern, or None for ejecta without rays.
+/// * `conserve_volume` - Scale each crater's ejecta so that its volume matches the excavated volume.
 /// * `critical_slope` - Critical slope (rise over run) for slope collapse, or None to skip slope collapse.
 ///
 /// # Returns
 ///
-/// * `(excavated_volume, conservation_factor)`, where `conservation_factor` is None if no ejecta was formed.
+/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if no ejecta was
+///   formed.
 #[pyfunction]
-#[pyo3(signature = (crater, rings, region, face_indices, node_indices, face_elevation, node_elevation, ejecta_thickness, conserve_volume, ray_seed=None, critical_slope=None))]
+#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
-pub fn form_crater<'py>(
-    crater: Bound<'py, PyAny>,
-    rings: Option<Vec<Bound<'py, PyAny>>>,
-    region: Bound<'py, PyAny>,
-    face_indices: PyReadonlyArray1<'py, i64>,
-    node_indices: PyReadonlyArray1<'py, i64>,
+pub fn form_craters<'py>(
+    py: Python<'py>,
+    craters: Vec<Bound<'py, PyAny>>,
+    rings: Vec<Option<Vec<Bound<'py, PyAny>>>>,
+    regions: Vec<Bound<'py, PyAny>>,
+    face_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    node_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    ray_seeds: Vec<Option<u64>>,
     face_elevation: Bound<'py, PyArray1<f64>>,
     node_elevation: Bound<'py, PyArray1<f64>>,
     ejecta_thickness: Bound<'py, PyArray1<f64>>,
     conserve_volume: bool,
-    ray_seed: Option<u64>,
     critical_slope: Option<f64>,
-) -> PyResult<(f64, Option<f64>)> {
-    let crater_py = PyReadonlyRealMoonCrater::from_py(&crater)?;
-    let rings_py: Option<Vec<PyReadonlyRealMoonCrater>> = match rings {
-        Some(rings) => Some(
-            rings
+) -> PyResult<Vec<(f64, Option<f64>)>> {
+    if rings.len() != craters.len() {
+        return Err(PyValueError::new_err("craters and rings must have the same length"));
+    }
+    // The Python data must outlive the views of it, so each level is collected before the next is built from it
+    let craters_py: Vec<PyReadonlyRealMoonCrater> = craters
+        .iter()
+        .map(PyReadonlyRealMoonCrater::from_py)
+        .collect::<PyResult<_>>()?;
+    let rings_py: Vec<Option<Vec<PyReadonlyRealMoonCrater>>> = rings
+        .iter()
+        .map(|r| match r {
+            Some(r) => r
                 .iter()
                 .map(PyReadonlyRealMoonCrater::from_py)
-                .collect::<PyResult<Vec<_>>>()?,
-        ),
-        None => None,
-    };
-    let crater_v = crater_py.as_views();
-    let rings_v: Option<Vec<RealMoonCrater>> = rings_py
-        .as_ref()
-        .map(|py_vec| py_vec.iter().map(|ring| ring.as_views()).collect());
-    let model = RealMoonModel {
-        crater: &crater_v,
-        rings: &rings_v,
-    };
-    run_form_crater(
-        &model,
-        &region,
-        face_indices,
-        node_indices,
+                .collect::<PyResult<Vec<_>>>()
+                .map(Some),
+            None => Ok(None),
+        })
+        .collect::<PyResult<_>>()?;
+    let craters_v: Vec<RealMoonCrater> = craters_py.iter().map(|c| c.as_views()).collect();
+    let rings_v: Vec<Option<Vec<RealMoonCrater>>> = rings_py
+        .iter()
+        .map(|r| r.as_ref().map(|r| r.iter().map(|ring| ring.as_views()).collect()))
+        .collect();
+    let models: Vec<RealMoonModel> = craters_v
+        .iter()
+        .zip(rings_v.iter())
+        .map(|(crater, rings)| RealMoonModel { crater, rings })
+        .collect();
+    run_form_craters(
+        py,
+        &models,
+        &regions,
+        &face_indices,
+        &node_indices,
+        &ray_seeds,
         &face_elevation,
         &node_elevation,
         &ejecta_thickness,
-        FormCraterOptions {
-            conserve_volume,
-            ray_seed,
-            critical_slope,
-        },
+        conserve_volume,
+        critical_slope,
     )
 }

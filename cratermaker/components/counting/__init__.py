@@ -219,6 +219,10 @@ class Counting(ComponentBase):
         if add_to_emplaced:
             self.emplaced.append(crater)
 
+        # The rest only tags the crater for observation, so skip extracting its tagging region when it will not be used
+        if not add_to_observed:
+            return crater
+
         # Tag a region just outside crater rim with the id
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 

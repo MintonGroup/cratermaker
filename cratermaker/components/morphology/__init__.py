@@ -694,6 +694,24 @@ class Morphology(ComponentBase):
         """
         ...
 
+    def form_craters(self, craters: list[Crater], **kwargs: Any) -> None:
+        """
+        Form a batch of craters whose regions do not overlap.
+
+        The emplacement queue calls this once per batch of non-overlapping craters. This default forms them one at a time with
+        `form_crater`. Models override it to form the craters of a batch in parallel (see `BasicMoonMorphology.form_craters`).
+
+        Parameters
+        ----------
+        craters : list of Crater
+            The craters to be formed, in emplacement order. Their regions (see `overlap_function`) must not share any faces or
+            nodes.
+        **kwargs : Any
+            |kwargs|
+        """
+        for crater in craters:
+            self.form_crater(crater, **kwargs)
+
     @staticmethod
     def _scale_ejecta_rim(crater: Crater, conservation_factor: float) -> None:
         """
@@ -771,10 +789,9 @@ class Morphology(ComponentBase):
             while not self._queue_manager.is_empty:
                 batch = self._queue_manager.peek_next_batch()
 
-                for crater in batch:
-                    self.form_crater(crater)
-                    if pbar is not None:
-                        pbar.update(1)
+                self.form_craters(batch)
+                if pbar is not None:
+                    pbar.update(len(batch))
 
                 if self.do_subpixel_degradation and len(batch) > 1:
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values

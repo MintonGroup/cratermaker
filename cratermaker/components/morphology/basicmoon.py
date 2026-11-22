@@ -811,8 +811,9 @@ class BasicMoonMorphology(Morphology):
         str_repr += f"Ejecta Rays: {self.dorays}\n"
         return str_repr
 
-    # The compiled crater formation function for this model's crater type. Models with a different crater type override this.
-    _form_crater_binding = staticmethod(basicmoon_bindings.form_crater)
+    # The compiled function that forms a batch of craters of this model's crater type. Models with a different crater type
+    # override this.
+    _form_craters_binding = staticmethod(basicmoon_bindings.form_craters)
 
     # The angle of repose used for slope collapse after a crater forms, in degrees
     _CRITICAL_SLOPE_ANGLE = 35.0
@@ -837,18 +838,48 @@ class BasicMoonMorphology(Morphology):
         -----
         This is a wrapper for a compiled Rust function that runs the whole formation sequence in a single call.
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater, **kwargs)
-        if not crater.emplaceable:
-            return
+        self.form_craters([crater], **kwargs)
+        return
 
-        region = crater.crater_region
-        crater_area = math.pi * region.radius**2
+    def form_craters(self, craters: list[Crater], **kwargs: Any) -> None:
+        """
+        Form a batch of craters whose regions do not overlap.
 
-        # Check to make sure that the face at the crater location is not smaller than the crater area
-        if crater_area > self.surface.face_area[crater.face_index]:
+        Each crater is formed as described in `form_crater`. The bookkeeping that must happen in order (recording each crater
+        with the counting component and drawing its ray seed) is done one crater at a time in Python, and then all of the
+        craters are formed in parallel by a single compiled call. Because their regions do not overlap, the result is the same
+        as forming them one after another.
+
+        Parameters
+        ----------
+        craters : list of Crater
+            The craters to be formed. Their regions (see `overlap_function`) must not share any faces or nodes.
+        **kwargs : Any
+            |kwargs|
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function that forms the craters in parallel.
+        """
+        formed = []
+        regions = []
+        ray_seeds = []
+        for crater in craters:
+            if not isinstance(crater, Crater):
+                raise TypeError("crater must be an instance of Crater")
+            if not isinstance(crater, self._CraterType):
+                crater = self.Crater.maker(crater=crater, **kwargs)
+            if not crater.emplaceable:
+                continue
+
+            region = crater.crater_region
+            crater_area = math.pi * region.radius**2
+
+            # Skip craters that are smaller than the face they are centered on
+            if crater_area <= self.surface.face_area[crater.face_index]:
+                crater.reset()
+                continue
+
             # The crater and ejecta are computed on the same set of faces and nodes
             ejecta_region = crater.ejecta_region
             if ejecta_region is not None and ejecta_region is not region:
@@ -859,51 +890,55 @@ class BasicMoonMorphology(Morphology):
             # so that random numbers are drawn in the same order as when the crater shape was computed in Python
             self._prepare_crater(crater)
 
-            # Record the crater to the counting layer. This does not depend on the surface elevation or ejecta thickness.
+            # Record the crater to the counting layer. This does not depend on the surface elevation or ejecta thickness, so it
+            # can be done before any of the craters in the batch are formed.
             if self.counting is not None:
                 self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
 
-            surface = region.surface
-            if "ejecta_thickness" not in surface.uxds.data_vars:
-                surface._add_new_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0, isfacedata=True)
-            variables = surface.uxds.variables
+            formed.append(crater)
+            regions.append(region)
+            ray_seeds.append(int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None)
 
-            face_indices = region.face_indices
-            node_indices = region.node_indices
-            if isinstance(face_indices, slice):
-                face_indices = np.arange(surface.n_face)[face_indices]
-            if isinstance(node_indices, slice):
-                node_indices = np.arange(surface.n_node)[node_indices]
+        if not formed:
+            return
 
-            ray_seed = int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None
-            critical_slope = float(np.tan(np.deg2rad(self._CRITICAL_SLOPE_ANGLE))) if self.do_slope_collapse else None
+        surface = regions[0].surface
+        if "ejecta_thickness" not in surface.uxds.data_vars:
+            surface._add_new_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0, isfacedata=True)
+        variables = surface.uxds.variables
 
-            _, conservation_factor = self._form_crater_binding(
-                crater=crater,
-                rings=crater.rings,
-                region=region,
-                face_indices=np.ascontiguousarray(face_indices, dtype=np.int64),
-                node_indices=np.ascontiguousarray(node_indices, dtype=np.int64),
-                face_elevation=variables["face_elevation"].data,
-                node_elevation=variables["node_elevation"].data,
-                ejecta_thickness=variables["ejecta_thickness"].data,
-                conserve_volume=kwargs.get("conserve_volume", self.conserve_volume),
-                ray_seed=ray_seed,
-                critical_slope=critical_slope,
-            )
+        def _global_indices(indices, n_total):
+            if isinstance(indices, slice):
+                indices = np.arange(n_total)[indices]
+            return np.ascontiguousarray(indices, dtype=np.int64)
+
+        results = self._form_craters_binding(
+            craters=formed,
+            rings=[crater.rings for crater in formed],
+            regions=regions,
+            face_indices=[_global_indices(region.face_indices, surface.n_face) for region in regions],
+            node_indices=[_global_indices(region.node_indices, surface.n_node) for region in regions],
+            ray_seeds=ray_seeds,
+            face_elevation=variables["face_elevation"].data,
+            node_elevation=variables["node_elevation"].data,
+            ejecta_thickness=variables["ejecta_thickness"].data,
+            conserve_volume=kwargs.get("conserve_volume", self.conserve_volume),
+            critical_slope=float(np.tan(np.deg2rad(self._CRITICAL_SLOPE_ANGLE))) if self.do_slope_collapse else None,
+        )
+
+        for crater, (_, conservation_factor) in zip(formed, results, strict=True):
             if conservation_factor is not None:
                 self._scale_ejecta_rim(crater, conservation_factor)
-
-        # Remove the saved regions now that the crater is emplaced
-        crater.reset()
+            # Remove the saved regions now that the crater is emplaced
+            crater.reset()
         return
 
     def _prepare_crater(self, crater: BasicMoonCrater) -> None:
         """
         Generate any crater data that is created lazily from the morphology's random number generator.
 
-        This is called by `form_crater` before it draws any random numbers of its own. Models whose craters draw random numbers
-        on first access to some of their data override this to access that data, in the order the compiled `form_crater` reads
+        This is called by `form_craters` before it draws any random numbers of its own. Models whose craters draw random numbers
+        on first access to some of their data override this to access that data, in the order the compiled `form_craters` reads
         it. The basic model has no such data.
 
         Parameters
