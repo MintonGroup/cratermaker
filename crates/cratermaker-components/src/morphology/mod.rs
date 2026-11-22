@@ -6,7 +6,7 @@ pub mod realmoon;
 //
 /// # Arguments
 ///
-/// * `x` - The parameter to smooth. 
+/// * `x` - The parameter to smooth.
 ///
 /// # Returns
 ///
@@ -45,8 +45,7 @@ pub fn blend_step(x: f64, yinner: f64, youter: f64, xtransition: f64, xwidth: f6
     (1.0 - phi) * yinner + phi * youter
 }
 
-
-// Blends a perturbed value to a background mean value wityin an annular band near a boundary.
+// Blends a perturbed value to a background mean value within an annular band near a boundary.
 //
 //
 /// # Arguments

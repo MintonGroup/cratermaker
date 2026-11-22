@@ -1,10 +1,8 @@
-use cratermaker_components::morphology::realmoon::RealMoonCrater;
-use interp::{InterpMode, interp_slice};
+use cratermaker_components::morphology::realmoon::{ProfileEvaluator, RealMoonCrater};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::f64::consts::TAU;
 use paste::paste;
 
 // Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
@@ -225,28 +223,9 @@ pub fn profile_from_psd<'py>(
     let psd_v = psd_py.as_views();
     let bearing_v = bearing.as_array();
 
-    let (psd_bearing, profile) =
-        cratermaker_components::morphology::realmoon::profile_from_psd(&psd_v);
-    let n = psd_bearing.len();
-    if n == 0 {
-        return Ok(PyArray1::from_vec(py, Vec::new()));
-    }
-
-    let mut padded_bearing = Vec::with_capacity(n + 2);
-    let mut padded_profile = Vec::with_capacity(n + 2);
-    padded_bearing.push(psd_bearing[n - 1] - TAU);
-    padded_profile.push(profile[n - 1]);
-    padded_bearing.extend_from_slice(&psd_bearing);
-    padded_profile.extend_from_slice(&profile);
-    padded_bearing.push(psd_bearing[0] + TAU);
-    padded_profile.push(profile[0]);
-
-    let result = interp_slice(
-        &padded_bearing,
-        &padded_profile,
-        &bearing_v.to_vec(),
-        &InterpMode::default(),
-    );
+    // Use the same periodic evaluator as realmoon_profile so the Python-facing profile matches what is drawn on the surface
+    let evaluator = ProfileEvaluator::new(&psd_v);
+    let result: Vec<f64> = bearing_v.iter().map(|&b| evaluator.eval(b)).collect();
     Ok(PyArray1::from_vec(py, result))
 }
 
