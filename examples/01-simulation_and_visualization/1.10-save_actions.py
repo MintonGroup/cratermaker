@@ -20,7 +20,7 @@ simdir = "simdata-1_10"
 sim = Simulation(
     surface="hireslocal",
     local_location=(0, 0),
-    pix=300.0,
+    pix=400.0,
     local_radius=100.0e3,
     simdir=simdir,
     ask_overwrite=False,
@@ -46,7 +46,6 @@ def plot_sfd(interval, **kwargs):
     nsig = np.sqrt(n)
     ax.errorbar(ds.diameter * 1e-3, n, yerr=nsig, label="Observed")
     ax.legend(loc="lower left")
-    # plt.savefig(f"sfd{interval:02d}.pdf")
     plt.show()
     return
 
