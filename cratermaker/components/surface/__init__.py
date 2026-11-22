@@ -2813,60 +2813,31 @@ class LocalSurface(CratermakerBase):
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
-        def _find_reference_coeffs(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
-            """
-            Compute the coefficients of the mean plane that fits the points given by the projected x, projected y, and elevation array.
-
-            Parameters
-            ----------
-            region_points : NDArray
-                An array of shape (3) containing the [A,B,C] values
-
-            Returns
-            -------
-            NDArray
-                An array of elevation values corresponding to the mean plane for each projected x and y point.
-            """
-            # Create the design matrix for the plane fitting
-            A = np.vstack([x, y, np.ones(len(x))]).T
-
-            # Solve for the coefficients of the plane (Ax + By + C = z)
-            coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
-
-            return coeffs
-
         if reference_radius is None:
             reference_radius = self.region_radius
-        # Find cells within the crater radius
-        faces_within_region = self.face_distance <= reference_radius
-        if only_faces:
-            points_within_region = faces_within_region
-            elevation = self.face_elevation
-            n_reference = np.sum(faces_within_region)
-        else:
-            elevation = np.concatenate([self.face_elevation, self.node_elevation])
-            nodes_within_region = self.node_distance <= reference_radius
-            if not nodes_within_region.any():
-                return elevation
-            points_within_region = np.concatenate([faces_within_region, nodes_within_region])
-            n_reference = np.sum(faces_within_region) + np.sum(nodes_within_region)
-
-        # if there are not points within the radius, return the original elevations and use that as the reference
-        if n_reference < 5:
-            return elevation
 
         self.set_face_proj()
         if only_faces:
-            x, y, z = self.face_proj_x, self.face_proj_y, self.face_elevation
+            x, y, z, distance = self.face_proj_x, self.face_proj_y, self.face_elevation, self.face_distance
         else:
+            # If no nodes fall within the reference radius, the original elevations are used as the reference
+            if not np.any(self.node_distance <= reference_radius):
+                return np.concatenate([self.face_elevation, self.node_elevation])
             self.set_node_proj()
             x = np.concatenate([self.face_proj_x, self.node_proj_x])
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
-        coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
-        reference_elevation = np.where(points_within_region, coeffs[0] * x + coeffs[1] * y + coeffs[2], elevation)
+            distance = np.concatenate([self.face_distance, self.node_distance])
 
-        return reference_elevation
+        # Fit a mean plane to the points within the reference radius and evaluate it there. If fewer than 5 points fall within
+        # the radius, the original elevations are returned.
+        return surface_bindings.reference_surface(
+            x=np.ascontiguousarray(x, dtype=np.float64),
+            y=np.ascontiguousarray(y, dtype=np.float64),
+            elevation=np.ascontiguousarray(z, dtype=np.float64),
+            distance=np.ascontiguousarray(distance, dtype=np.float64),
+            reference_radius=float(reference_radius),
+        )
 
     def extract_subregion(self, subregion_radius: FloatLike, **kwargs) -> LocalSurface | None:
         """

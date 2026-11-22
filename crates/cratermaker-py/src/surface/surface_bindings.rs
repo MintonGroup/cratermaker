@@ -789,3 +789,40 @@ pub fn compute_distances_and_bearings<'py>(
     let to_py = |a: Option<Array1<f64>>| a.map(|a| PyArray1::from_owned_array(py, a));
     Ok((to_py(distances), to_py(bearings), to_py(proj_x), to_py(proj_y)))
 }
+
+/// Computes the elevation of a mean reference plane fitted to the points within a reference radius of a region's center.
+///
+/// Points within `reference_radius` are replaced by the elevation of the least-squares plane through them; points outside
+/// keep their original elevation. If fewer than 5 points lie within the radius, the original elevations are returned.
+///
+/// # Arguments
+///
+/// * `py` - Python interpreter token.
+/// * `x` - 1D array of projected x coordinates (meters).
+/// * `y` - 1D array of projected y coordinates (meters).
+/// * `elevation` - 1D array of elevations (meters).
+/// * `distance` - 1D array of radial distances from the region center (meters).
+/// * `reference_radius` - Radius of the region used to fit the reference plane (meters).
+///
+/// # Returns
+///
+/// A NumPy array of reference elevations, one per input point.
+#[pyfunction]
+pub fn reference_surface<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    elevation: PyReadonlyArray1<'py, f64>,
+    distance: PyReadonlyArray1<'py, f64>,
+    reference_radius: f64,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let result = cratermaker_components::surface::reference_surface(
+        x.as_array(),
+        y.as_array(),
+        elevation.as_array(),
+        distance.as_array(),
+        reference_radius,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
+}

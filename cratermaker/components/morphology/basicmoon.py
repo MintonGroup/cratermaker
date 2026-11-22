@@ -1418,34 +1418,10 @@ class BasicMoonMorphology(Morphology):
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. `doi:10.1029/2019JE006273 <https://doi.org/10.1029/2019JE006273>`_
         """
 
-        def _kdmare(r, fe, psi):
-            """
-            The mare-scale degradation function from Minton et al. (2019). See eq. (32).
-            """
-            kv1 = 0.30
-            neq1 = 0.0084
-            eta = 3.2
-            gamma = 2.0
-            beta = 2.0
-            kd1 = kv1 * (math.pi * fe**2 * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))) ** (-gamma / (eta - beta))
-            psi = gamma * ((eta - 2.0) / (eta - beta))
-            return kd1 * r**psi
-
-        def _smooth_broken(x, a, x_break, alpha_1, alpha_2, delta):
-            return a * (x / x_break) ** (alpha_1) * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta))) ** ((alpha_2 - alpha_1) / delta)
-
-        def _kd(r, fe):
-            psi_1 = 2.0  # Mare scale power law exponent
-            psi_2 = 1.2  # Highlands scale power law exponent
-            rb = 0.5e3  # breakpoint radius
-            delta = 1.0e0  # Smoothing function
-
-            kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
-            return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
-
         if np.ndim(diameter) == 0:
-            return float(_kd(diameter / 2, fe))
-        return _kd(np.asarray(diameter, dtype=np.float64) / 2, fe)
+            return basicmoon_bindings.degradation_function(float(diameter), float(fe))
+        diameter = np.asarray(diameter, dtype=np.float64)
+        return basicmoon_bindings.degradation_function_array(np.ascontiguousarray(diameter.ravel()), float(fe)).reshape(diameter.shape)
 
     @staticmethod
     def overlap_function(crater: BasicMoonCrater) -> tuple[NDArray[np.int64], NDArray[np.int64]]:

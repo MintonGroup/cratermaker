@@ -26,8 +26,8 @@ mod cratermaker {
     mod basicmoon_bindings {
         #[pymodule_export]
         use crate::morphology::basicmoon_bindings::{
-            basicmoon_profile, crater_profile_function, ejecta_profile_function, ray_intensity,
-            volume_integrand,
+            basicmoon_profile, crater_profile_function, degradation_function, degradation_function_array,
+            ejecta_profile_function, ray_intensity, volume_integrand,
         };
     }
 
@@ -45,7 +45,7 @@ mod cratermaker {
         use crate::surface::surface_bindings::{
             apply_diffusion, build_local_connectivity, build_region_indices, compute_bearings, compute_distances, compute_distances_and_bearings, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
-            interpolate_node_elevation_from_faces, remap_connectivity_to_local, reset_radial_distances, slope_collapse,
+            interpolate_node_elevation_from_faces, reference_surface, remap_connectivity_to_local, reset_radial_distances, slope_collapse,
             turbulence_noise,
         };
     }

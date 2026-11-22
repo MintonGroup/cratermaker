@@ -158,3 +158,42 @@ pub fn volume_integrand<'py>(
     );
     Ok(PyArray1::from_owned_array(py, result))
 }
+
+/// Computes the degradation function for a single crater diameter.
+///
+/// # Arguments
+///
+/// * `diameter` - Final crater diameter (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * The degradation state contributed by the crater.
+#[pyfunction]
+pub fn degradation_function(diameter: f64, fe: f64) -> f64 {
+    cratermaker_components::morphology::basicmoon::degradation_function(diameter, fe)
+}
+
+/// Computes the degradation function for an array of crater diameters.
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `diameter` - 1D array of final crater diameters (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * A NumPy array of degradation states, one per diameter.
+#[pyfunction]
+pub fn degradation_function_array<'py>(
+    py: Python<'py>,
+    diameter: PyReadonlyArray1<'py, f64>,
+    fe: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let result = cratermaker_components::morphology::basicmoon::degradation_function_array(
+        diameter.as_array(),
+        fe,
+    );
+    PyArray1::from_owned_array(py, result)
+}

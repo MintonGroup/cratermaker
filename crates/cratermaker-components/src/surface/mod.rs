@@ -1387,3 +1387,154 @@ pub fn build_region_indices(
         Ok((faces, nodes, edges))
     })
 }
+
+/// Computes the elevation of a mean reference plane fitted to the points within a reference radius of a region's center.
+///
+/// The plane `z = a*x + b*y + c` is fitted by least squares to the points whose radial distance is at most `reference_radius`,
+/// using coordinates projected onto the local tangent plane. Points inside the radius are replaced by the plane's elevation;
+/// points outside it keep their original elevation. If fewer than 5 points lie within the radius, the original elevations are
+/// returned unchanged.
+///
+/// The fit is done on coordinates centered on the mean of the fitted points, which keeps the 2x2 normal equations well
+/// conditioned even though the projected coordinates can be many orders of magnitude larger than the elevations.
+///
+/// # Arguments
+///
+/// * `x` - 1D array of projected x coordinates (meters).
+/// * `y` - 1D array of projected y coordinates (meters).
+/// * `elevation` - 1D array of elevations (meters).
+/// * `distance` - 1D array of radial distances from the region center (meters).
+/// * `reference_radius` - Radius of the region used to fit the reference plane (meters).
+///
+/// # Returns
+///
+/// A 1D array of reference elevations, one per input point.
+///
+/// # Errors
+///
+/// Returns an error if the input arrays have mismatched lengths.
+pub fn reference_surface(
+    x: ArrayView1<'_, f64>,
+    y: ArrayView1<'_, f64>,
+    elevation: ArrayView1<'_, f64>,
+    distance: ArrayView1<'_, f64>,
+    reference_radius: f64,
+) -> ArrayResult {
+    let n = elevation.len();
+    if x.len() != n || y.len() != n || distance.len() != n {
+        return Err("x, y, elevation, and distance must all have the same length".to_string());
+    }
+
+    // Means of the fitted points
+    let (mut count, mut xm, mut ym, mut zm) = (0usize, 0.0, 0.0, 0.0);
+    for i in 0..n {
+        if distance[i] <= reference_radius {
+            count += 1;
+            xm += x[i];
+            ym += y[i];
+            zm += elevation[i];
+        }
+    }
+    if count < 5 {
+        return Ok(elevation.to_owned());
+    }
+    let inv_count = 1.0 / count as f64;
+    xm *= inv_count;
+    ym *= inv_count;
+    zm *= inv_count;
+
+    // Centered second moments
+    let (mut sxx, mut sxy, mut syy, mut sxz, mut syz) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for i in 0..n {
+        if distance[i] <= reference_radius {
+            let dx = x[i] - xm;
+            let dy = y[i] - ym;
+            let dz = elevation[i] - zm;
+            sxx += dx * dx;
+            sxy += dx * dy;
+            syy += dy * dy;
+            sxz += dx * dz;
+            syz += dy * dz;
+        }
+    }
+
+    let (a, b) = solve_plane_slopes(sxx, sxy, syy, sxz, syz);
+    let c = zm - a * xm - b * ym;
+
+    let result = Array1::from_shape_fn(n, |i| {
+        if distance[i] <= reference_radius {
+            a * x[i] + b * y[i] + c
+        } else {
+            elevation[i]
+        }
+    });
+    Ok(result)
+}
+
+/// Solves the centered 2x2 normal equations `[[sxx, sxy], [sxy, syy]] [a, b] = [sxz, syz]` for the plane slopes.
+///
+/// When the system is singular (all fitted points collinear or coincident), returns the minimum-norm solution, matching the
+/// behavior of a least-squares solver.
+fn solve_plane_slopes(sxx: f64, sxy: f64, syy: f64, sxz: f64, syz: f64) -> (f64, f64) {
+    let trace = sxx + syy;
+    if trace <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let det = sxx * syy - sxy * sxy;
+    if det > 1e-12 * trace * trace {
+        return ((sxz * syy - syz * sxy) / det, (syz * sxx - sxz * sxy) / det);
+    }
+    // Rank-1: the matrix is trace * v v^T for the unit vector v along the points' line, and the minimum-norm solution is
+    // (v . rhs) / trace * v.
+    let (vx, vy) = if sxx >= syy { (sxx, sxy) } else { (sxy, syy) };
+    let norm = (vx * vx + vy * vy).sqrt();
+    let (vx, vy) = (vx / norm, vy / norm);
+    let s = (vx * sxz + vy * syz) / trace;
+    (s * vx, s * vy)
+}
+
+#[cfg(test)]
+mod reference_surface_tests {
+    use super::*;
+
+    #[test]
+    fn recovers_exact_plane_and_leaves_outside_points() {
+        let n = 50;
+        let x = Array1::from_shape_fn(n, |i| 1.0e5 * ((i as f64) * 0.37).cos());
+        let y = Array1::from_shape_fn(n, |i| 1.0e5 * ((i as f64) * 0.61).sin());
+        let d = Array1::from_shape_fn(n, |i| (x[i] * x[i] + y[i] * y[i]).sqrt());
+        let z = Array1::from_shape_fn(n, |i| 1.0e-3 * x[i] - 2.0e-3 * y[i] + 1234.5 + if i % 2 == 0 { 0.0 } else { 7.0 });
+        let r = 8.0e4;
+        let out = reference_surface(x.view(), y.view(), z.view(), d.view(), r).unwrap();
+        for i in 0..n {
+            if d[i] > r {
+                assert_eq!(out[i], z[i]);
+            }
+        }
+        // Fit should pass through the mean offset of the alternating +0/+7 noise, with the exact slopes
+        let inside: Vec<usize> = (0..n).filter(|&i| d[i] <= r).collect();
+        let resid_mean: f64 = inside.iter().map(|&i| z[i] - out[i]).sum::<f64>() / inside.len() as f64;
+        assert!(resid_mean.abs() < 1e-9);
+    }
+
+    #[test]
+    fn too_few_points_returns_input() {
+        let x = Array1::from(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        let d = x.clone();
+        let z = Array1::from(vec![1.0, 2.0, 0.0, 5.0, 3.0, 9.0]);
+        let out = reference_surface(x.view(), x.view(), z.view(), d.view(), 3.0).unwrap();
+        assert_eq!(out, z);
+    }
+
+    #[test]
+    fn collinear_points_give_min_norm_slopes() {
+        // Points on the line y = x: only the slope along the line is determined
+        let x = Array1::from(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        let z = Array1::from_shape_fn(6, |i| 2.0 * x[i]);
+        let d = Array1::zeros(6);
+        let out = reference_surface(x.view(), x.view(), z.view(), d.view(), 1.0).unwrap();
+        for i in 0..6 {
+            assert!((out[i] - z[i]).abs() < 1e-12);
+        }
+    }
+}

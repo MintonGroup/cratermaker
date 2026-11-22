@@ -887,9 +887,96 @@ fn ejecta_ray_func(bearing: f64, ray_center_bearing: f64, r: f64, n: i32, w: f64
     }
 }
 
+/// Computes the degradation function, which defines the topographic degradation that each crater contributes to the surface.
+///
+/// This combines the mare-scale model of Minton et al. (2019) for small craters with the highlands-scale model of
+/// Riedel et al. (2020) for large craters, joined by a smoothly broken power law at a breakpoint radius of 500 m.
+///
+/// The arithmetic mirrors the original Python implementation term by term (same operation order and `powf` calls) so that
+/// results match it bit for bit.
+///
+/// # Arguments
+///
+/// * `diameter` - Final crater diameter (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * The degradation state (diffusivity times time, m²) contributed by the crater.
+pub fn degradation_function(diameter: f64, fe: f64) -> f64 {
+    let kd1 = degradation_breakpoint_coefficient(fe);
+    degradation_smooth_broken(diameter / 2.0, kd1)
+}
+
+/// Vectorized form of [`degradation_function`] over an array of diameters.
+///
+/// # Arguments
+///
+/// * `diameter` - 1D array of final crater diameters (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * A 1D array of degradation states, one per diameter.
+pub fn degradation_function_array(diameter: ArrayView1<'_, f64>, fe: f64) -> Array1<f64> {
+    let kd1 = degradation_breakpoint_coefficient(fe);
+    diameter.mapv(|d| degradation_smooth_broken(d / 2.0, kd1))
+}
+
+// Breakpoint radius (m) between the mare-scale and highlands-scale degradation power laws.
+const DEG_RB: f64 = 0.5e3;
+// Mare-scale and highlands-scale power-law exponents.
+const DEG_PSI_1: f64 = 2.0;
+const DEG_PSI_2: f64 = 1.2;
+// Smoothing width of the broken power law.
+const DEG_DELTA: f64 = 1.0e0;
+
+/// The amplitude of the smoothly broken power law, derived from the mare-scale degradation function of Minton et al. (2019)
+/// eq. (32) evaluated at the breakpoint radius.
+fn degradation_breakpoint_coefficient(fe: f64) -> f64 {
+    let kv1 = 0.30;
+    let neq1 = 0.0084;
+    let eta = 3.2;
+    let gamma = 2.0;
+    let beta = 2.0;
+    let kd1 = kv1
+        * (PI * fe.powf(2.0) * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta))))
+            .powf(-gamma / (eta - beta));
+    let psi = gamma * ((eta - 2.0) / (eta - beta));
+    let kdmare_rb = kd1 * DEG_RB.powf(psi);
+    kdmare_rb / (1.0 + (DEG_PSI_1 - DEG_PSI_2) / DEG_PSI_1).powf(2.0)
+}
+
+/// Smoothly broken power law in crater radius `r` with amplitude `a`.
+#[inline]
+fn degradation_smooth_broken(r: f64, a: f64) -> f64 {
+    let xr = r / DEG_RB;
+    a * xr.powf(DEG_PSI_1)
+        * (0.5 * (1.0 + xr.powf(1.0 / DEG_DELTA))).powf((DEG_PSI_2 - DEG_PSI_1) / DEG_DELTA)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn degradation_function_scalar_matches_array() {
+        let d = Array1::from(vec![1e-8, 1.0, 999.9, 1000.0, 1000.1, 2.5e4, 3.0e5]);
+        let arr = degradation_function_array(d.view(), 100.0);
+        for (i, &di) in d.iter().enumerate() {
+            assert_eq!(arr[i].to_bits(), degradation_function(di, 100.0).to_bits());
+        }
+    }
+
+    #[test]
+    fn degradation_function_is_power_law_far_from_break() {
+        // Far below the break the slope in log-log space tends to psi_1, far above it tends to psi_2.
+        let slope = |d1: f64, d2: f64| {
+            (degradation_function(d2, 100.0) / degradation_function(d1, 100.0)).ln() / (d2 / d1).ln()
+        };
+        assert!((slope(1e-3, 2e-3) - DEG_PSI_1).abs() < 1e-5);
+        assert!((slope(1e8, 2e8) - DEG_PSI_2).abs() < 1e-5);
+    }
 
     #[test]
     fn wallfunc_derivatives_match_finite_differences() {
