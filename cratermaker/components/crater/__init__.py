@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import Field, asdict, dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -413,6 +414,12 @@ class CraterVariable:
         return
 
 
+@functools.cache
+def _dataclass_fields(cls: type) -> tuple[Field, ...]:
+    """The fields of a dataclass, cached per class because `dataclasses.fields` rebuilds the tuple on every call."""
+    return fields(cls)
+
+
 class Crater(ComponentBase):
     _registry: dict[str, Crater] = {}
 
@@ -426,10 +433,15 @@ class Crater(ComponentBase):
         if crater is not None:
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be an instance of Crater or None")
-            fixed_fields = asdict(crater._fixed)
-            for f in fields(crater._fixed):
-                if not f.init or (f.name in kwargs and kwargs[f.name] is not None):
-                    fixed_fields.pop(f.name)
+            # Copy the fixed fields that can be passed to the constructor and are not being replaced by a keyword argument. The
+            # fixed fields only hold immutable values, so a shallow copy gives the same result as dataclasses.asdict, which deep
+            # copies every value.
+            fixed = crater._fixed
+            fixed_fields = {
+                f.name: getattr(fixed, f.name)
+                for f in _dataclass_fields(type(fixed))
+                if f.init and not (f.name in kwargs and kwargs[f.name] is not None)
+            }
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs
             kwargs = self._scrub_measured_input_size(**kwargs)
@@ -440,7 +452,7 @@ class Crater(ComponentBase):
             fixed_fields = {}
             var_fields = {}
 
-        for f in fields(fixed_cls):
+        for f in _dataclass_fields(fixed_cls):
             if f.name in kwargs and f.init and (f.name not in fixed_fields or fixed_fields[f.name] is None):
                 fixed_fields[f.name] = kwargs.pop(f.name)
             if f.name not in fixed_fields and f.name in kwargs and f.init:
