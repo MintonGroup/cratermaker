@@ -1,5 +1,5 @@
 use crate::ArrayResult;
-use crate::morphology::{smootherstep,blend_step};
+use crate::morphology::{blend_step, smooth_clamp, smooth_positive_part, smootherstep};
 use itertools::Itertools;
 use libm::erf;
 use numpy::ndarray::prelude::*;
@@ -143,23 +143,45 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
-
     // Prevent invalid values of parameters
-    let radius = crater.radius.max(1e-8); 
-    let floor_elevation = crater.floor_elevation.min(-1e-8); 
-    let floor_radius = crater.floor_radius.max(1e-8); 
+    let radius = crater.radius.max(1e-8);
+    let floor_elevation = crater.floor_elevation.min(-1e-8);
+    let floor_radius = crater.floor_radius.max(1e-8);
     let peak_height = crater.peak_height.max(0.0);
     let peak_width = crater.peak_width.max(0.0);
     let peak_ring_radius = crater.peak_ring_radius.max(0.0);
 
     // Guard against NaN in inputs by falling back to safe defaults
-    let wall_curvature = if crater.wall_curvature.is_nan() { 0.5 } else { crater.wall_curvature.max(0.0).min(1.0) };
-    let floor_blend = if crater.floor_blend.is_nan() { 0.5 } else { crater.floor_blend.max(0.0).min(1.0) };
-    let rim_width = if crater.rim_width.is_nan() { radius * 0.1 } else { crater.rim_width.max(radius * 1e-3) };
-    let rim_height = if crater.rim_height.is_nan() { 0.0 } else { crater.rim_height.max(0.0) };
-    let frac_ejrim = if crater.frac_ejrim.is_nan() { 0.5 } else { crater.frac_ejrim.max(0.0).min(1.0) };
-    let ejprofile = if crater.ejprofile.is_nan() { -3.0 } else { crater.ejprofile.max(-6.0).min(-0.25) };
-
+    let wall_curvature = if crater.wall_curvature.is_nan() {
+        0.5
+    } else {
+        crater.wall_curvature.max(0.0).min(1.0)
+    };
+    let floor_blend = if crater.floor_blend.is_nan() {
+        0.5
+    } else {
+        crater.floor_blend.max(0.0).min(1.0)
+    };
+    let rim_width = if crater.rim_width.is_nan() {
+        radius * 0.1
+    } else {
+        crater.rim_width.max(radius * 1e-3)
+    };
+    let rim_height = if crater.rim_height.is_nan() {
+        0.0
+    } else {
+        crater.rim_height.max(0.0)
+    };
+    let frac_ejrim = if crater.frac_ejrim.is_nan() {
+        0.5
+    } else {
+        crater.frac_ejrim.max(0.0).min(1.0)
+    };
+    let ejprofile = if crater.ejprofile.is_nan() {
+        -3.0
+    } else {
+        crater.ejprofile.max(-6.0).min(-0.25)
+    };
 
     let mut hcrat = crater_profile_function(
         r,
@@ -176,6 +198,19 @@ pub fn basicmoon_profile_one(
         peak_width,
         peak_ring_radius,
     );
+
+    // Craters without rings use a smooth split of the profile into its crater and ejecta parts (see smooth_crater_ejecta_split).
+    // Craters with rings combine the main crater and its rings with the composition below.
+    if !matches!(rings, Some(v) if !v.is_empty()) {
+        let hej = smooth_crater_ejecta_split(
+            r, hcrat, radius, rim_width, rim_height, frac_ejrim, ejprofile,
+        );
+        let crater_part = if include_crater { hcrat - hej } else { 0.0 };
+        let ejecta_part = if include_ejecta { hej } else { 0.0 };
+        let final_val = href + crater_part + ejecta_part;
+        return if final_val.is_nan() { href } else { final_val };
+    }
+
     match rings {
         Some(rings) => {
             for (i, ring) in rings.iter().enumerate() {
@@ -185,16 +220,28 @@ pub fn basicmoon_profile_one(
                     elevation_offset_func(&rings[i - 1], ring)
                 };
                 let mut ring_floor_elevation = crater.floor_elevation - elevation_offset;
-                ring_floor_elevation = ring_floor_elevation.min(-1e-8); 
+                ring_floor_elevation = ring_floor_elevation.min(-1e-8);
 
-                let ring_radius = ring.radius.max(1e-8); 
-                let ring_floor_radius = ring.floor_radius.max(1e-8); 
-                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
-                let ring_rim_height = ring.rim_height.max(0.0); 
+                let ring_radius = ring.radius.max(1e-8);
+                let ring_floor_radius = ring.floor_radius.max(1e-8);
+                let ring_rim_width = ring.rim_width.max(ring_radius * 1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0);
                 // Guard against NaN in inputs by falling back to safe defaults
-                let ring_wall_curvature = if ring.wall_curvature.is_nan() { 0.5 } else { ring.wall_curvature.max(0.0).min(1.0) };
-                let ring_frac_ejrim = if ring.frac_ejrim.is_nan() { 0.5 } else { ring.frac_ejrim.max(0.0).min(1.0) };
-                let ring_ejprofile = if ring.ejprofile.is_nan() { -3.0 } else { ring.ejprofile.max(-6.0).min(-0.25) };
+                let ring_wall_curvature = if ring.wall_curvature.is_nan() {
+                    0.5
+                } else {
+                    ring.wall_curvature.max(0.0).min(1.0)
+                };
+                let ring_frac_ejrim = if ring.frac_ejrim.is_nan() {
+                    0.5
+                } else {
+                    ring.frac_ejrim.max(0.0).min(1.0)
+                };
+                let ring_ejprofile = if ring.ejprofile.is_nan() {
+                    -3.0
+                } else {
+                    ring.ejprofile.max(-6.0).min(-0.25)
+                };
 
                 let hring = crater_profile_function(
                     r,
@@ -216,25 +263,16 @@ pub fn basicmoon_profile_one(
         }
         None => (),
     }
-    let mut hej = ejecta_profile_function(
-        r,
-        radius,
-        frac_ejrim,
-        rim_height,
-        ejprofile,
-        rim_width,
-    );
+    let mut hej = ejecta_profile_function(r, radius, frac_ejrim, rim_height, ejprofile, rim_width);
 
     match rings {
         Some(rings) => {
             for (i, ring) in rings.iter().enumerate() {
-
-                let ring_radius = ring.radius.max(1e-8); 
-                let ring_rim_width = ring.rim_width.max(ring_radius*1e-3);
-                let ring_rim_height = ring.rim_height.max(0.0); 
+                let ring_radius = ring.radius.max(1e-8);
+                let ring_rim_width = ring.rim_width.max(ring_radius * 1e-3);
+                let ring_rim_height = ring.rim_height.max(0.0);
                 let ring_frac_ejrim = ring.frac_ejrim.max(0.0).min(1.0);
                 let ring_ejprofile = ring.ejprofile.max(-6.0).min(-0.25);
-
 
                 let mut hejring = ejecta_profile_function(
                     r,
@@ -291,6 +329,43 @@ pub fn basicmoon_profile_one(
 
     let final_val = href + hcrat + hej;
     if final_val.is_nan() { href } else { final_val }
+}
+
+/// Half-width of the smoothing at each end of the clamp that assigns the upper rim to the ejecta, as a fraction of the ejecta
+/// rim height.
+const SPLIT_CLAMP_SMOOTHING: f64 = 0.5;
+
+/// Half-width of the blend across the rim from the inside to the outside form of the ejecta part, as a fraction of the rim
+/// width.
+const SPLIT_RIM_BLEND: f64 = 0.25;
+
+/// Returns the ejecta part of a crater profile `hcrat` at radius `r`; the crater part is `hcrat` minus this.
+///
+/// Inside the rim, the upper part of the rim (above a narrower Gaussian of height `(1 - frac_ejrim) * rim_height`) is ejecta, up
+/// to the ejecta rim height `frac_ejrim * rim_height`. Outside the rim, the ejecta part is the ejecta blanket. The clamp is
+/// smoothed and the two forms are blended across the rim, so both parts of the profile are smooth and they always sum to
+/// `hcrat`.
+#[inline]
+fn smooth_crater_ejecta_split(
+    r: f64,
+    hcrat: f64,
+    radius: f64,
+    rim_width: f64,
+    rim_height: f64,
+    frac_ejrim: f64,
+    ejprofile: f64,
+) -> f64 {
+    let he = frac_ejrim * rim_height;
+    let hup = rimfunc(
+        r,
+        radius,
+        (1.0 - frac_ejrim) * rim_height,
+        0.0,
+        0.5 * rim_width,
+    );
+    let inside = smooth_clamp(hcrat - hup, 0.0, he, SPLIT_CLAMP_SMOOTHING * he);
+    let outside = ejecta_rim_function(r, radius, frac_ejrim, rim_height, ejprofile, rim_width);
+    blend_step(r, inside, outside, radius, SPLIT_RIM_BLEND * rim_width)
 }
 
 #[inline]
@@ -419,21 +494,75 @@ pub fn crater_profile_function(
     rc: f64,
     ro: f64,
 ) -> f64 {
+    // Every piece below is smooth and the pieces are joined so that elevation, slope, and curvature are continuous, so the
+    // profile has no breaks. (A smootherstep blend is only as smooth as the functions it blends, so none of them may switch
+    // formulas or be clipped inside a blend zone.)
     let beta = (1.0 + wc * 9.0).clamp(1.0, 10.0);
     let he = fe * hr;
-    let rfw = if rf < 0.5 * radius { rf } else { radius - rf } * fb;
-    let hfloor = floorfunc(r, rc, hc, ro, hf); // Central peak contribution. Include this to avoid sharp discontinuities
-    let mut hwall = if r > rf {
-        wallfunc(r, radius, rf, hr, hfloor, beta)
+
+    // The rim and ejecta, blended in from the interior across [radius - rw, radius + rw]. Beyond that zone only this term is
+    // needed (and the wall formula's exponentials would eventually overflow far from the crater).
+    let phi_rim = smootherstep((r - (radius - rw)) / (2.0 * rw));
+    let hrim =
+        rimfunc(r, radius, hr - he, 0.0, rw) + ejecta_rim_function(r, radius, fe, hr, pej, rw);
+    if phi_rim >= 1.0 {
+        return hrim;
+    }
+
+    // The interior: a flat floor, a quintic fillet across the floor blend zone [rf - rfw, rf + rfw] that matches the
+    // elevation, slope, and curvature of the floor at its inner end and of the wall at its outer end, then the wall. The slope
+    // rises steadily through the fillet, so the floor-to-wall transition has no shoulders. Any central peak is added on top.
+    let rfw = (if rf < 0.5 * radius { rf } else { radius - rf } * fb).max(1e-8 * radius);
+    let (fillet_start, fillet_end) = (rf - rfw, rf + rfw);
+    let base = if r <= fillet_start {
+        hf
+    } else if r < fillet_end {
+        let (w_end, slope_end, curv_end) =
+            wallfunc_derivatives(fillet_end, radius, rf, hr, hf, beta);
+        quintic_hermite(
+            (r - fillet_start) / (fillet_end - fillet_start),
+            fillet_end - fillet_start,
+            (hf, 0.0, 0.0),
+            (w_end, slope_end, curv_end),
+        )
     } else {
-        hfloor
+        wallfunc(r, radius, rf, hr, hf, beta)
     };
-    let hwalltofloor = walltofloorfunc(r, radius, rf, hr, hf, rfw);
-    let hwf = blend_step(r, hwalltofloor, hwall, rf, rfw);
-    hwall = blend_step(r, hfloor, hwf, rf, rfw);
-    let hej = ejecta_profile_function(r, radius, fe, hr, pej, rw);
-    let hrim = rimfunc(r, radius, hr, he, rw) + hej;
-    blend_step(r, hwall, hrim, radius, rw)
+    let interior = base + floorfunc(r, rc, hc, ro, 0.0);
+
+    // The wall formula keeps rising past the rim, so cap the interior at the rim height with a smooth minimum whose radial
+    // width is a fraction of the rim width. Without it the rim blend would carry the rising wall outward, moving the crest
+    // off the rim; with a hard cap the crest would be a corner. The cap level is raised slightly so the crest height is kept.
+    let (_, wall_slope_at_rim, _) = wallfunc_derivatives(radius, radius, rf, hr, hf, beta);
+    let cap_width = RIM_CAP_WIDTH * rw * wall_slope_at_rim.abs();
+    let cap_level = hr + 0.15625 * cap_width;
+    let hwall = interior - smooth_positive_part(interior - cap_level, cap_width);
+
+    (1.0 - phi_rim) * hwall + phi_rim * hrim
+}
+
+/// Radial half-width of the smooth cap that limits the wall to the rim height, as a fraction of the rim width. It sets how
+/// gradually the wall rounds over into the rim crest.
+const RIM_CAP_WIDTH: f64 = 0.05;
+
+/// Quintic Hermite interpolation on `u` in [0, 1] over an interval of length `length`, matching the (value, slope, curvature)
+/// given at each end, so that a curve joined with it is continuous in elevation, slope, and curvature.
+#[inline]
+fn quintic_hermite(u: f64, length: f64, start: (f64, f64, f64), end: (f64, f64, f64)) -> f64 {
+    let (h0, s0, k0) = start;
+    let (h1, s1, k1) = end;
+    let (u2, u3) = (u * u, u * u * u);
+    let (u4, u5) = (u3 * u, u3 * u2);
+    let h_basis0 = 1.0 - 10.0 * u3 + 15.0 * u4 - 6.0 * u5;
+    let h_basis1 = 10.0 * u3 - 15.0 * u4 + 6.0 * u5;
+    let s_basis0 = u - 6.0 * u3 + 8.0 * u4 - 3.0 * u5;
+    let s_basis1 = -4.0 * u3 + 7.0 * u4 - 3.0 * u5;
+    let k_basis0 = 0.5 * u2 - 1.5 * u3 + 1.5 * u4 - 0.5 * u5;
+    let k_basis1 = 0.5 * u3 - u4 + 0.5 * u5;
+    h0 * h_basis0
+        + h1 * h_basis1
+        + length * (s0 * s_basis0 + s1 * s_basis1)
+        + length * length * (k0 * k_basis0 + k1 * k_basis1)
 }
 
 #[inline]
@@ -445,22 +574,40 @@ fn floorfunc(r: f64, rc: f64, hc: f64, ro: f64, hf: f64) -> f64 {
     }
 }
 
+/// The crater wall, rising from `hf` at the floor radius `rf` to `hr` at the rim `radius`.
+///
+/// The formula is evaluated analytically on both sides of that range (it is smooth everywhere), because it is blended with
+/// the floor and rim terms across zones that extend past `rf` and `radius`.
 #[inline]
 fn wallfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, beta: f64) -> f64 {
-    if r <= radius {
-        let r0 = (r - rf) / (radius - rf);
-        let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
-        (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())) + hr
-    } else {
-        hr
-    }
+    let r0 = (r - rf) / (radius - rf);
+    let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
+    (c * ((beta * r0).exp() - beta.exp()) / (1.0 + (beta * (r0 - 0.5)).exp())) + hr
 }
 
+/// The wall elevation and its first and second derivatives with respect to `r`, computed analytically.
 #[inline]
-fn walltofloorfunc(r: f64, radius: f64, rf: f64, hr: f64, hf: f64, rfw: f64) -> f64 {
-    let fw2 = hr - hf;
-    let m = fw2 / (radius - rf + rfw / 2.0);
-    (hf + m * (r - rf + rfw / 2.0)).max(hf)
+fn wallfunc_derivatives(
+    r: f64,
+    radius: f64,
+    rf: f64,
+    hr: f64,
+    hf: f64,
+    beta: f64,
+) -> (f64, f64, f64) {
+    let span = radius - rf;
+    let x = (r - rf) / span;
+    let c = (hr - hf) * ((-beta / 2.0).exp() + 1.0) / (beta.exp() - 1.0);
+    let ex = (beta * x).exp();
+    let n = ex - beta.exp();
+    let (n1, n2) = (beta * ex, beta * beta * ex);
+    let ed = (beta * (x - 0.5)).exp();
+    let d = 1.0 + ed;
+    let (d1, d2) = (beta * ed, beta * beta * ed);
+    let q = n / d;
+    let q1 = (n1 * d - n * d1) / (d * d);
+    let q2 = (n2 * d - n * d2) / (d * d) - 2.0 * d1 * (n1 * d - n * d1) / (d * d * d);
+    (c * q + hr, c * q1 / span, c * q2 / (span * span))
 }
 
 #[inline]
@@ -468,8 +615,6 @@ fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
     let hmax = if r > radius { hr - he } else { hr };
     hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
-
-
 
 /// Computes the ejecta profile scaling at a given radial distance.
 ///
@@ -487,24 +632,44 @@ fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
 ///
 /// * Scaled profile value representing the ejecta contribution at distance `r_actual`.
 #[inline]
-pub fn ejecta_profile_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
+pub fn ejecta_profile_function(
+    r: f64,
+    radius: f64,
+    fe: f64,
+    hr: f64,
+    ejprofile: f64,
+    rw: f64,
+) -> f64 {
     if r > radius {
-        let t = (r - (radius - rw)) / (2.0 * rw);
-        let phi = smootherstep(t);
-        let ejrim = fe * hr;
-        let hg = rimfunc(r, radius, ejrim, 0.0, rw);
-
-        // Guard division by zero or exceptionally small numbers close to center
-        let r_ratio = (r / radius).max(1e-12);
-        let hp = ejrim * r_ratio.powf(ejprofile);
-
-        // Safeguard against Infinity and NaN propagation
-        let hp_safe = if hp.is_finite() { hp } else { 0.0 };
-
-        (1.0 - phi) * hg + phi * hp_safe
+        ejecta_rim_function(r, radius, fe, hr, ejprofile, rw)
     } else {
         0.0
     }
+}
+
+/// The ejecta part of the rim, defined smoothly on both sides of the rim.
+///
+/// It blends a Gaussian rim of height `fe * hr` into the power-law ejecta blanket across [radius - rw, radius + rw]. Outside
+/// the rim it is the ejecta thickness (`ejecta_profile_function` is this function cut off at the rim). Inside the rim it is
+/// the ejecta portion of the rim's height, which is needed so that the rim and the crater/ejecta split stay smooth across r =
+/// radius.
+#[inline]
+fn ejecta_rim_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
+    let phi = smootherstep((r - (radius - rw)) / (2.0 * rw));
+    let ejrim = fe * hr;
+    let hg = rimfunc(r, radius, ejrim, 0.0, rw);
+    if phi <= 0.0 {
+        return hg;
+    }
+
+    // Guard division by zero or exceptionally small numbers close to center
+    let r_ratio = (r / radius).max(1e-12);
+    let hp = ejrim * r_ratio.powf(ejprofile);
+
+    // Safeguard against Infinity and NaN propagation
+    let hp_safe = if hp.is_finite() { hp } else { 0.0 };
+
+    (1.0 - phi) * hg + phi * hp_safe
 }
 
 /// Computes the ray intensity contribution for a single ejecta point.
@@ -719,5 +884,94 @@ fn ejecta_ray_func(bearing: f64, ray_center_bearing: f64, r: f64, n: i32, w: f64
         }
         let a = (2.0 * PI).sqrt() / (n as f64 * c * denom);
         a * logval.exp()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wallfunc_derivatives_match_finite_differences() {
+        let (radius, rf, hr, hf) = (1000.0, 180.0, 75.0, -350.0);
+        for &beta in &[1.0, 2.8, 5.0, 10.0] {
+            for &r in &[0.0, 90.0, 180.0, 260.0, 500.0, 900.0, 1000.0, 1300.0] {
+                let (w, w1, w2) = wallfunc_derivatives(r, radius, rf, hr, hf, beta);
+                let h = 1e-3;
+                let (wp, wm) = (
+                    wallfunc(r + h, radius, rf, hr, hf, beta),
+                    wallfunc(r - h, radius, rf, hr, hf, beta),
+                );
+                assert!((w - wallfunc(r, radius, rf, hr, hf, beta)).abs() < 1e-9);
+                assert!(
+                    (w1 - (wp - wm) / (2.0 * h)).abs() < 1e-6 * (1.0 + w1.abs()),
+                    "slope beta={beta} r={r}"
+                );
+                assert!(
+                    (w2 - (wp - 2.0 * w + wm) / (h * h)).abs() < 1e-3 * (1.0 + w2.abs()),
+                    "curvature beta={beta} r={r}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn quintic_hermite_matches_end_conditions() {
+        let (length, start, end) = (170.0, (-350.0, 0.0, 0.0), (-310.0, 0.42, 0.0013));
+        let f = |u: f64| quintic_hermite(u, length, start, end);
+        let du = 1e-5;
+        for (u, (h, s, k)) in [(0.0, start), (1.0, end)] {
+            let slope = (f(u + du) - f(u - du)) / (2.0 * du * length);
+            let curv = (f(u + du) - 2.0 * f(u) + f(u - du)) / (du * du * length * length);
+            assert!((f(u) - h).abs() < 1e-9);
+            assert!((slope - s).abs() < 1e-6, "slope at u={u}: {slope} vs {s}");
+            assert!((curv - k).abs() < 1e-4, "curvature at u={u}: {curv} vs {k}");
+        }
+    }
+
+    #[test]
+    fn simple_crater_profile_is_smooth() {
+        // No breaks in slope anywhere: the change in slope between neighbouring samples stays at the level set by curvature
+        let crater = BasicMoonCrater {
+            diameter: 2000.0,
+            radius: 1000.0,
+            floor_elevation: -347.0,
+            floor_radius: 151.0,
+            wall_curvature: 0.2,
+            floor_blend: 0.56,
+            rim_width: 354.0,
+            rim_height: 70.7,
+            frac_ejrim: 0.61,
+            ejprofile: -3.58,
+            peak_height: 0.0,
+            peak_width: 0.0,
+            peak_ring_radius: 0.0,
+            peak_center_distance: 0.0,
+            peak_center_bearing: 0.0,
+        };
+        let dr = 0.05;
+        for (include_crater, include_ejecta) in [(true, true), (true, false), (false, true)] {
+            let h: Vec<f64> = (0..60000)
+                .map(|i| {
+                    basicmoon_profile_one(
+                        i as f64 * dr,
+                        0.0,
+                        &crater,
+                        &None,
+                        include_crater,
+                        include_ejecta,
+                    )
+                })
+                .collect();
+            let slope: Vec<f64> = h.windows(2).map(|w| (w[1] - w[0]) / dr).collect();
+            let max_step = slope
+                .windows(2)
+                .map(|w| (w[1] - w[0]).abs())
+                .fold(0.0, f64::max);
+            assert!(
+                max_step < 1e-3,
+                "slope jumps by {max_step} between samples ({include_crater}, {include_ejecta})"
+            );
+        }
     }
 }
