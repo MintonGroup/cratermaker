@@ -191,6 +191,65 @@ class Production(ComponentBase):
             **kwargs,
         )
 
+    @abstractmethod
+    def chronology(
+        self,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike = 0.0,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike: ...
+
+    @abstractmethod
+    def csfd(self, diameter: FloatLike | ArrayLike, validate_inputs: bool = True, **kwargs: Any) -> FloatLike | ArrayLike: ...
+
+    def function(
+        self,
+        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> NDArray[np.float64]:
+        """
+        Return the cumulative size-frequency distribution of impactors or craters over a given age range and diameter.
+
+        Parameters
+        ----------
+        diameter : FloatLike or numpy array
+            Diameter(s) in units of meters to compute corresponding cumulative number density value.
+        time_start : FloatLike or ArrayLike, default=1.0
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age : FloatLike or ArrayLike, optional
+            Equilvalent to time_start. Passing this overrides the value of time_start.
+        time_end : FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default=True
+            If True, the function will check that the validity of age, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or numpy array of FloatLike
+            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
+            surface over the given age range.
+        """
+        if age is not None:
+            time_start = age
+        if validate_inputs:
+            time_start, time_end = self._validate_age(time_start, time_end)
+            diameter, _ = self._validate_csfd(diameter=diameter)
+
+        n_array = np.asarray(self.csfd(diameter, validate_inputs=False, **kwargs))
+        age_difference = np.asarray(self.chronology(time_start=time_start, time_end=time_end, validate_inputs=False, **kwargs))
+
+        if n_array.ndim > 0 and age_difference.ndim > 0:
+            return n_array[:, None] * age_difference
+        else:
+            return n_array * age_difference
+
     def sample(
         self,
         time_start: FloatLike | None = None,
@@ -362,15 +421,6 @@ class Production(ComponentBase):
 
         return timevals
 
-    @abstractmethod
-    def function(
-        self,
-        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        **kwargs: Any,
-    ) -> NDArray[np.float64]: ...
-
     def age_from_D_N(
         self,
         diameter: FloatLike | Sequence[FloatLike] | ArrayLike,
@@ -522,18 +572,6 @@ class Production(ComponentBase):
             raise ValueError(
                 f"The root finding algorithm did not converge for all values of cumulative_number and age. Flag {flag}"
             )
-
-    @abstractmethod
-    def chronology(
-        self,
-        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_end: FloatLike | Sequence[FloatLike] | ArrayLike = 0.0,
-        validate_inputs: bool = True,
-        **kwargs: Any,
-    ) -> FloatLike | ArrayLike: ...
-
-    @abstractmethod
-    def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike: ...
 
     def _validate_csfd(
         self,

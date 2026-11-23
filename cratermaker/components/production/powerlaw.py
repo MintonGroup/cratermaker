@@ -84,56 +84,6 @@ class PowerLawProduction(Production):
         str_repr += f"Slope: {self.slope:.3f}\n"
         return str_repr
 
-    def function(
-        self,
-        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        validate_inputs: bool = True,
-        **kwargs: Any,
-    ) -> FloatLike | ArrayLike:
-        """
-        Return the cumulative size-frequency distribution of craters over a given age range and crater diameter for a simple power law model.
-
-        Parameters
-        ----------
-        diameter : FloatLike or ArrayLike
-            Crater diameter(s) in units of meters to compute corresponding cumulative number density value.
-        time_start : FloatLike or ArrayLike, default=1.0
-            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        time_end : FloatLike or ArrayLike, optional
-            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
-        validate_inputs: bool, default=True
-            If True, the function will check that the validity of time_start, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
-        **kwargs : Any
-            Any additional keywords. These are not used in this base class, but included here so that any extended class can share
-            the same function signature.
-
-        Returns
-        -------
-        FloatLike or numpy array of FloatLike
-            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
-            surface over the given age range.
-        """
-        if "age" in kwargs:
-            time_start = kwargs.pop("age")
-        if validate_inputs:
-            diameter, _ = self._validate_csfd(diameter=diameter)
-            time_start, time_end = self._validate_age(time_start, time_end)
-        elif time_end is None:
-            if np.isscalar(time_start):
-                time_end = 0.0
-            else:
-                time_end = np.zeros_like(time_start)
-
-        n_array = np.asarray(self.csfd(diameter))
-        age_difference = np.asarray(time_start - time_end)
-
-        if n_array.ndim > 0 and age_difference.ndim > 0:
-            return n_array[:, None] * age_difference
-        else:
-            return n_array * age_difference
-
     def chronology(
         self,
         time_start: ArrayLike = (1000.0),
