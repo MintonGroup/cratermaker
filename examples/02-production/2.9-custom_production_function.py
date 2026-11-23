@@ -199,57 +199,56 @@ class ZahnleCaseA(Production):
         raise NotImplementedError("The generator type cannot be changed for this production function.")
 
 
-# %%
-# Sample the production function for Juliet
-# ------------------------------------------
-#
-# Here we make a version of Fig. 8 of Zahnle et al. (2003) for Case A on the uranian satellite Juliet. Unlike Fig. 8, which shows crater
-# diameters, our production function generates projectiles, so the x-axis is projectile diameter. We sample the population of projectiles
-# that strike Juliet over 4000 My, repeat this 100 times, and plot each sample against the expected value given by
-# :py:meth:`Production.function`. The right-hand axis converts the cumulative number into the equivalent present-day cumulative impact rate
-# per 10⁶ km² per year, which is the quantity plotted in Fig. 8.
+if __name__ == "__main__":
+    # Sample the production function for Juliet
+    # ------------------------------------------
+    #
+    # Here we make a version of Fig. 8 of Zahnle et al. (2003) for Case A on the uranian satellite Juliet. Unlike Fig. 8, which shows crater
+    # diameters, our production function generates projectiles, so the x-axis is crater diameter. We sample the population of projectiles
+    # that strike Juliet over 100 My, repeat this 100 times, and plot each sample against the expected value given by
+    # :py:meth:`Production.function`. The right-hand axis converts the cumulative number into the equivalent present-day cumulative impact rate
+    # per 10⁶ km² per year, which is the quantity plotted in Fig. 8.
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as ticker
 
-production = Production.maker("zahnle_case_a", target="Juliet", rng_seed=5551212)
-target = production.target
-area = target.surface_area
-age = 4000.0
-diameter_range = (10.0, 2 * target.radius)  # Range of projectile diameters to generate in m (up to the size of Juliet itself)
-Nevaluations = 100
+    simdir = "simdata-2.9"
 
-x_min = diameter_range[0] * 1e-3
-x_max = diameter_range[1] * 1e-3
-Dvals = np.logspace(np.log10(x_min), np.log10(x_max), num=1000)
+    sim = Simulation(
+        simdir=simdir, gridlevel=6, target="Juliet", production="zahnle_case_a", rng_seed=788563223, ask_overwrite=False, reset=True
+    )
+    target = sim.target
+    area = target.surface_area
+    age = 100.0
+    diameter_range = (1.0, 2 * target.radius)  # Range of projectile diameters to generate in m (up to the size of Juliet itself)
+    Nevaluations = 100
 
-fig, ax = plt.subplots(figsize=(6, 6), layout="constrained")
-ax.set_title(f"Zahnle et al. (2003) Case A: {target.name}, {age:.0f} My")
-ax.set_xscale("log")
-ax.set_yscale("log")
-ax.set_xlabel("Projectile Diameter (km)")
-ax.set_ylabel(f"$\\mathregular{{N_{{>d}}}}$ on {target.name}")
-ax.set_xlim(x_min, x_max)
-ax.set_ylim(0.5, 1e4)
-ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
-ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
-ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
+    x_min = diameter_range[0] * 1e-3
+    x_max = diameter_range[1] * 1e-3
+    fig, ax = plt.subplots(figsize=(6, 6), layout="constrained")
+    ax.set_title(f"Zahnle et al. (2003) Case A: {target.name}, {age:.0f} My")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Crater Diameter (km)")
+    ax.set_ylabel(f"$\\mathregular{{N_{{>D}}}}$ on {target.name}")
+    ax.set_ylim(1, 100)
+    ax.set_xlim(1, 100)
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+    ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
+    ax.yaxis.set_major_locator(ticker.LogLocator(base=10.0, numticks=20))
+    ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=100))
 
-# Plot each sampled population Monte Carlo style
-for i in range(Nevaluations):
-    Dsampled, _ = production.sample(age=age, diameter_range=diameter_range, area=area, compute_time=False)
-    Dsampled = np.sort(Dsampled)[::-1]
-    Nsampled = range(1, len(Dsampled) + 1)
-    ax.plot(Dsampled * 1e-3, Nsampled, "-", color="cornflowerblue", linewidth=2.0, zorder=50, alpha=0.2)
+    # Plot each sampled population Monte Carlo style
+    for _ in range(Nevaluations):
+        craters = sim.populate(age=age, emplace=False)
+        Dsampled = [c.diameter for c in craters]
+        Dsampled = np.sort(Dsampled)[::-1]
+        Nsampled = range(1, len(Dsampled) + 1)
+        ax.plot(Dsampled * 1e-3, Nsampled, "-", color="cornflowerblue", linewidth=2.0, zorder=50, alpha=0.2)
 
-# Plot the production function (the expected values)
-Nvals = production.function(diameter=Dvals * 1e3, age=age) * area
-ax.plot(Dvals, Nvals, "-", color="black", linewidth=1.0, zorder=60)
+    # Secondary axis: equivalent present-day cumulative impact rate in units of per 10⁶ km² per year, as in Fig. 8 of Zahnle et al. (2003)
+    rate_factor = 1.0 / (area * 1e-12) / (sim.production.chronology(age=age) * 1e6)
+    secax = ax.secondary_yaxis("right", functions=(lambda N: N * rate_factor, lambda R: R / rate_factor))
+    secax.set_ylabel("Present-day cratering rate [per 10⁶ km² yr⁻¹]")
 
-# Secondary axis: equivalent present-day cumulative impact rate in units of per 10⁶ km² per year, as in Fig. 8 of Zahnle et al. (2003)
-rate_factor = 1.0 / (area * 1e-12) / (production.chronology(age=age) * 1e6)
-secax = ax.secondary_yaxis("right", functions=(lambda N: N * rate_factor, lambda R: R / rate_factor))
-secax.set_ylabel("Present-day impact rate [per 10⁶ km² yr⁻¹]")
-
-plt.show()
+    plt.show()

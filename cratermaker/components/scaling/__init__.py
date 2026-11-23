@@ -121,15 +121,50 @@ class Scaling(ComponentBase):
         return scaling
 
     @abstractmethod
-    def projectile_to_transient(self, **kwargs: Any) -> np.float64: ...
+    def projectile_to_transient(self, projectile_diameter: FloatLike, **kwargs: Any) -> np.float64: ...
     @abstractmethod
-    def transient_to_projectile(self, **kwargs: Any) -> np.float64: ...
+    def transient_to_projectile(self, transient_diameter: FloatLike, **kwargs: Any) -> np.float64: ...
     @abstractmethod
     def transient_to_final(self, transient_diameter: FloatLike, **kwargs: Any) -> tuple[np.float64, str]: ...
     @abstractmethod
     def final_to_transient(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs: Any) -> np.float64: ...
     @abstractmethod
     def recompute(self, **kwargs: Any) -> None: ...
+
+    def projectile_to_final(self, projectile_diameter: FloatLike, **kwargs: Any) -> np.float64:
+        """
+        Computes the final diameter of a crater based on the properties of the projectile and target.
+
+        Returns
+        -------
+        float
+            The final crater diameter
+        str
+            The morphology type of the crater
+        """
+        transient_diameter = self.projectile_to_transient(projectile_diameter=projectile_diameter, **kwargs)
+        return self.transient_to_final(transient_diameter=transient_diameter, **kwargs)
+
+    def final_to_projectile(self, final_diameter: FloatLike, morphology_type: str | None = None, **kwargs: Any) -> np.float64:
+        """
+        Compute of the projectile that could have created a given final crater.
+
+        Parameters
+        ----------
+        transient_diameter : float
+            The diameter of the crater in meters.
+        morphology_type : str, optional
+            The morphology type of the crater if known.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        float
+            The computed projectile diameter for the crater.
+        """
+        transient_diameter, _ = self.final_to_transient(final_diameter=final_diameter, morphology_type=morphology_type, **kwargs)
+        return self.transient_to_projectile(transient_diameter, **kwargs)
 
     def __str__(self) -> str:
         str_repr = super().__str__()
