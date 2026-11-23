@@ -1,4 +1,6 @@
+use crate::morphology::form_crater_bindings::run_form_craters;
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
+use cratermaker_components::morphology::form_crater::BasicMoonModel;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -123,4 +125,181 @@ pub fn ejecta_profile_function<'py>(
         crater.rim_width,
     );
     Ok(result)
+}
+
+/// Computes the volume integrand r * h(r) of a crater profile at an array of radial distances.
+///
+/// This is the vectorized equivalent of evaluating `r * (crater_profile_function - ejecta_profile_function)` (crater only),
+/// `r * ejecta_profile_function` (ejecta only), or `r * crater_profile_function` (both) point by point, and is used to
+/// estimate crater volumes by quadrature.
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `radial_distances` - 1D array of radial distances from the crater center (in meters).
+/// * `crater` - A BasicMoonCrater struct containing the crater's properties.
+/// * `include_crater` - Include the crater part of the profile.
+/// * `include_ejecta` - Include the ejecta part of the profile.
+///
+/// # Returns
+///
+/// * A NumPy array of the integrand evaluated at each radial distance.
+#[pyfunction]
+pub fn volume_integrand<'py>(
+    py: Python<'py>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
+    crater: BasicMoonCrater,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let result = cratermaker_components::morphology::basicmoon::volume_integrand(
+        radial_distances.as_array(),
+        &crater,
+        include_crater,
+        include_ejecta,
+    );
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
+/// Computes the degradation function for a single crater diameter.
+///
+/// # Arguments
+///
+/// * `diameter` - Final crater diameter (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * The degradation state contributed by the crater.
+#[pyfunction]
+pub fn degradation_function(diameter: f64, fe: f64) -> f64 {
+    cratermaker_components::morphology::basicmoon::degradation_function(diameter, fe)
+}
+
+/// Computes the degradation function for an array of crater diameters.
+///
+/// # Arguments
+///
+/// * `py` - Python GIL token.
+/// * `diameter` - 1D array of final crater diameters (meters).
+/// * `fe` - Degradation function size factor.
+///
+/// # Returns
+///
+/// * A NumPy array of degradation states, one per diameter.
+#[pyfunction]
+pub fn degradation_function_array<'py>(
+    py: Python<'py>,
+    diameter: PyReadonlyArray1<'py, f64>,
+    fe: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let result = cratermaker_components::morphology::basicmoon::degradation_function_array(
+        diameter.as_array(),
+        fe,
+    );
+    PyArray1::from_owned_array(py, result)
+}
+
+/// Forms a batch of basic lunar craters with non-overlapping regions, updating the global surface arrays in place.
+///
+/// Each crater goes through the whole formation sequence (crater shape, excavated volume, ejecta with volume conservation,
+/// burial and degradation diffusion, and optional slope collapse); see `cratermaker_components::morphology::form_crater`. The
+/// craters are formed in parallel with the GIL released, which gives the same result as forming them one after another because
+/// their regions do not overlap.
+///
+/// # Arguments
+///
+/// * `craters` - The BasicMoonCraters to form.
+/// * `rings` - The optional ring craters of each crater.
+/// * `regions` - The Python `LocalSurface` each crater is formed on.
+/// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
+/// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
+/// * `face_elevation`, `node_elevation`, `ejecta_thickness` - The global surface arrays, updated in place.
+/// * `conserve_volume` - Scale each crater's ejecta so that its volume matches the excavated volume.
+/// * `critical_slope` - Critical slope (rise over run) for slope collapse, or None to skip slope collapse.
+///
+/// # Returns
+///
+/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if no ejecta was
+///   formed.
+#[pyfunction]
+#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn form_craters<'py>(
+    py: Python<'py>,
+    craters: Vec<BasicMoonCrater>,
+    rings: Vec<Option<Vec<BasicMoonCrater>>>,
+    regions: Vec<Bound<'py, PyAny>>,
+    face_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    node_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    ray_seeds: Vec<Option<u64>>,
+    face_elevation: Bound<'py, PyArray1<f64>>,
+    node_elevation: Bound<'py, PyArray1<f64>>,
+    ejecta_thickness: Bound<'py, PyArray1<f64>>,
+    conserve_volume: bool,
+    critical_slope: Option<f64>,
+) -> PyResult<Vec<(f64, Option<f64>)>> {
+    if rings.len() != craters.len() {
+        return Err(PyValueError::new_err(
+            "craters and rings must have the same length",
+        ));
+    }
+    let models: Vec<BasicMoonModel> = craters
+        .iter()
+        .zip(rings.iter())
+        .map(|(crater, rings)| BasicMoonModel { crater, rings })
+        .collect();
+    run_form_craters(
+        py,
+        &models,
+        &regions,
+        &face_indices,
+        &node_indices,
+        &ray_seeds,
+        &face_elevation,
+        &node_elevation,
+        &ejecta_thickness,
+        conserve_volume,
+        critical_slope,
+    )
+}
+
+/// Computes the maximum extent of a crater or its ejecta blanket: the radius where the rim or ejecta profile falls to
+/// `minimum_thickness`, searched for in `[lower_limit, upper_limit]`.
+///
+/// # Arguments
+///
+/// * `crater` - The crater.
+/// * `minimum_thickness` - The threshold height (m).
+/// * `feature` - Either "crater" (the rim profile) or "ejecta" (the ejecta profile).
+/// * `lower_limit`, `upper_limit` - The search range (m).
+///
+/// # Returns
+///
+/// * The maximum extent (m).
+#[pyfunction]
+pub fn rmax(
+    crater: BasicMoonCrater,
+    minimum_thickness: f64,
+    feature: &str,
+    lower_limit: f64,
+    upper_limit: f64,
+) -> PyResult<f64> {
+    let ejecta = match feature {
+        "ejecta" => true,
+        "crater" => false,
+        _ => {
+            return Err(PyValueError::new_err(
+                "Unknown feature type. Choose either 'crater' or 'ejecta'",
+            ));
+        }
+    };
+    cratermaker_components::morphology::basicmoon::rmax(
+        &crater,
+        minimum_thickness,
+        ejecta,
+        lower_limit,
+        upper_limit,
+    )
+    .map_err(PyValueError::new_err)
 }

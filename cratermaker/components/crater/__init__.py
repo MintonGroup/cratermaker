@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import Field, asdict, dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -413,6 +414,12 @@ class CraterVariable:
         return
 
 
+@functools.cache
+def _dataclass_fields(cls: type) -> tuple[Field, ...]:
+    """The fields of a dataclass, cached per class because `dataclasses.fields` rebuilds the tuple on every call."""
+    return fields(cls)
+
+
 class Crater(ComponentBase):
     _registry: dict[str, Crater] = {}
 
@@ -426,10 +433,15 @@ class Crater(ComponentBase):
         if crater is not None:
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be an instance of Crater or None")
-            fixed_fields = asdict(crater._fixed)
-            for f in fields(crater._fixed):
-                if not f.init or (f.name in kwargs and kwargs[f.name] is not None):
-                    fixed_fields.pop(f.name)
+            # Copy the fixed fields that can be passed to the constructor and are not being replaced by a keyword argument. The
+            # fixed fields only hold immutable values, so a shallow copy gives the same result as dataclasses.asdict, which deep
+            # copies every value.
+            fixed = crater._fixed
+            fixed_fields = {
+                f.name: getattr(fixed, f.name)
+                for f in _dataclass_fields(type(fixed))
+                if f.init and not (f.name in kwargs and kwargs[f.name] is not None)
+            }
             var_fields = crater._var.as_dict()
             # Be sure to scrub any fields that are redundant with any potential kwargs
             kwargs = self._scrub_measured_input_size(**kwargs)
@@ -440,7 +452,7 @@ class Crater(ComponentBase):
             fixed_fields = {}
             var_fields = {}
 
-        for f in fields(fixed_cls):
+        for f in _dataclass_fields(fixed_cls):
             if f.name in kwargs and f.init and (f.name not in fixed_fields or fixed_fields[f.name] is None):
                 fixed_fields[f.name] = kwargs.pop(f.name)
             if f.name not in fixed_fields and f.name in kwargs and f.init:
@@ -572,6 +584,7 @@ class Crater(ComponentBase):
         final_radius: float | None = None,
         transient_diameter: float | None = None,
         transient_radius: float | None = None,
+        morphology_type: str | None = None,
         semimajor_axis: float | None = None,
         semiminor_axis: float | None = None,
         orientation: float | None = None,
@@ -635,6 +648,8 @@ class Crater(ComponentBase):
             The transient diameter of the crater in meters.
         transient_radius : float, optional
             The transient radius of the crater in meters.
+        morphology_type | str, optional
+            The morphology_type of the crater ("simple", "transitional", "complex", "multiring", etc.). Default is to be set automatically.
         semimajor_axis : float, optional
             The semimajor axis of the crater in meters. Same as radius if the crater is circular.
         semiminor_axis : float, optional
@@ -852,7 +867,7 @@ class Crater(ComponentBase):
             "projectile_velocity": projectile_velocity,
             "projectile_angle": projectile_angle,
             "projectile_density": projectile_density,
-            "morphology_type": "Not Set",
+            "morphology_type": morphology_type,
             "location": location,
             "time": time,
         }
@@ -881,6 +896,8 @@ class Crater(ComponentBase):
             args["production_ND"] = production_ND
         if production_sequence is not None:
             args["production_sequence"] = production_sequence
+        if morphology_type is not None:
+            args["morphology_type"] = morphology_type
         if name is not None:
             args["name"] = name
 
@@ -903,6 +920,8 @@ class Crater(ComponentBase):
                 make_copy = False
                 for field in size_inputs:
                     old_parameters.pop(field, None)
+                # The morphology type depends on the size, so it is recomputed unless it was given
+                old_parameters.pop("morphology_type", None)
             if projectile_mean_velocity is None:
                 # Be sure to keep only two velocitity components, with a preference for angle over vertical velocity
                 if n_velocity_inputs == 0:
@@ -970,6 +989,9 @@ class Crater(ComponentBase):
 
         else:
             # --- Merge the CommonArgs with any arguments passed here using CratermakerBase ---
+            if simdir is None and isinstance(scaling, Scaling):
+                # Inherit the scaling model's (already resolved) simulation directory rather than defaulting to the cwd
+                simdir = scaling.simdir
             argproc = CratermakerBase(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
             if scaling is not None and isinstance(scaling, Scaling):
                 if projectile is None:
@@ -988,11 +1010,9 @@ class Crater(ComponentBase):
                 "projectile_location": args["location"],
                 "projectile_density": args["projectile_density"],
             }
-            projectile = Projectile.maker(
-                projectile,
-                target=target,
-                **{**projectile_args, **kwargs},
-            )
+            # Only resolve the projectile model here. The projectile's properties are drawn once, by new_projectile below, after
+            # any monte_carlo override has been applied.
+            projectile = Projectile.maker(projectile, target=target, **kwargs)
 
             scaling = Scaling.maker(
                 scaling,
@@ -1005,6 +1025,14 @@ class Crater(ComponentBase):
                 projectile_monte_carlo_orig = projectile.monte_carlo
                 scaling.monte_carlo = monte_carlo
                 projectile.monte_carlo = monte_carlo
+                if not monte_carlo and projectile_monte_carlo_orig:
+                    # Turning off Monte Carlo sampling for this crater gives the nominal impact: vertical and due north, unless
+                    # an angle or direction was given. (The projectile model's own angle and direction were drawn for an
+                    # earlier crater, so they are not nominal.)
+                    if projectile_args["projectile_angle"] is None:
+                        projectile_args["projectile_angle"] = 90.0
+                    if projectile_args["projectile_direction"] is None:
+                        projectile_args["projectile_direction"] = 0.0
 
             scaling.projectile = scaling.projectile.new_projectile(
                 **projectile_args,
@@ -1043,7 +1071,7 @@ class Crater(ComponentBase):
             pd = args["projectile_diameter"]
             pr = projectile_radius
             pm = projectile_mass
-            mt = None
+            mt = args.get("morphology_type") if "morphology_type" in args else None
 
             if pr is not None:
                 pd = 2 * pr
@@ -1053,7 +1081,7 @@ class Crater(ComponentBase):
                 td = 2 * tr
 
             if fd is not None:
-                td, mt = scaling.final_to_transient(fd)
+                td, mt = scaling.final_to_transient(final_diameter=fd, morphology_type=mt)
                 pd = scaling.transient_to_projectile(td)
             elif td is not None:
                 fd, mt = scaling.transient_to_final(td)
@@ -1325,7 +1353,8 @@ class Crater(ComponentBase):
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
                 if "morphology_type" in crater_data:
                     crater_data["isring"] = crater_data["morphology_type"] == "ring"
-                crater = cls.maker(**crater_data, conserve_volume=conserve_volume, check_redundant_inputs=False)
+                # Values read from the file take priority over any keyword arguments of the same name
+                crater = cls.maker(**{**kwargs, **crater_data}, conserve_volume=conserve_volume, check_redundant_inputs=False)
                 if crater.morphology_type == "ring":
                     rings.append(crater)
                 else:
@@ -1371,7 +1400,9 @@ class Crater(ComponentBase):
         scc = Spatialcount(filename=str(input_file))
         for diam, lon, lat in zip(scc.diam, scc.lon, scc.lat, strict=True):
             crater = cls.maker(
-                diameter=diam * 1e3, location=(lon, lat), conserve_volume=conserve_volume, check_redundant_inputs=False
+                **{**kwargs, "diameter": diam * 1e3, "location": (lon, lat)},
+                conserve_volume=conserve_volume,
+                check_redundant_inputs=False,
             )
             craters.append(crater)
 
@@ -1440,8 +1471,9 @@ class Crater(ComponentBase):
             if "morphology_type" in crater_data:
                 crater_data["isring"] = crater_data["morphology_type"] == "ring"
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
+            # Values read from the dataset take priority over any keyword arguments of the same name
             crater = cls.maker(
-                **crater_data,
+                **{**kwargs, **crater_data},
                 conserve_volume=conserve_volume,
                 make_rings=make_rings,
                 monte_carlo=False,

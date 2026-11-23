@@ -347,6 +347,9 @@ class Projectile(ComponentBase):
         if projectile_density is None:
             projectile_density = self.projectile_density
 
+        # Combine the kwargs with the common_args (simdir, rng, etc.), giving common_args priority
+        kwargs = {**kwargs, **vars(self.common_args)}
+
         return self.__class__(
             projectile_velocity=projectile_velocity,
             projectile_angle=projectile_angle,
@@ -356,7 +359,6 @@ class Projectile(ComponentBase):
             projectile_mean_velocity=self.projectile_mean_velocity,
             monte_carlo=self.monte_carlo,
             target=self.target,
-            rng=self.rng,
             **kwargs,
         )
 

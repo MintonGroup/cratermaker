@@ -105,6 +105,26 @@ class TestCrater(unittest.TestCase):
         meteor_crater = Crater.maker(target="Earth", diameter=1200.0, projectile_density=projectile_density)
         self.assertAlmostEqual(meteor_crater.projectile_density, projectile_density)
 
+    def test_monte_carlo_false_gives_nominal_impact(self):
+        # Turning off Monte Carlo sampling for a crater gives a vertical impact, due north, at the mean velocity, even when earlier
+        # craters made with the same scaling model drew random or explicit values.
+        from cratermaker.components.scaling import Scaling
+
+        scaling = Scaling.maker("montecarlo", target="Moon", rng_seed=5)
+        Crater.maker(scaling=scaling, diameter=1000.0, location=(0.0, 0.0), projectile_angle=30.0, orientation=45.0)
+        Crater.maker(scaling=scaling, diameter=1000.0, location=(0.0, 0.0))
+
+        nominal = Crater.maker(scaling=scaling, diameter=1000.0, location=(0.0, 0.0), monte_carlo=False)
+        self.assertEqual(nominal.projectile_angle, 90.0)
+        self.assertEqual(nominal.orientation, 0.0)
+        self.assertEqual(nominal.projectile_velocity, scaling.projectile.projectile_mean_velocity)
+
+        # Explicit values are still used, and the scaling model goes back to Monte Carlo sampling afterwards
+        explicit = Crater.maker(scaling=scaling, diameter=1000.0, location=(0.0, 0.0), monte_carlo=False, projectile_angle=45.0)
+        self.assertEqual(explicit.projectile_angle, 45.0)
+        self.assertTrue(scaling.monte_carlo)
+        self.assertTrue(scaling.projectile.monte_carlo)
+
 
 if __name__ == "__main__":
     unittest.main()
