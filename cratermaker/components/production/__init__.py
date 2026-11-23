@@ -445,6 +445,30 @@ class Production(ComponentBase):
 
         return diameters, timevals
 
+    def spatial_weight(self, lon: ArrayLike, lat: ArrayLike, **kwargs: Any) -> NDArray[np.float64]:
+        """
+        Return the relative production rate as a function of location on the surface.
+
+        The weight multiplies the spatially averaged production function, so it should be normalized such that its area-weighted
+        mean over the whole surface is 1. The default implementation is spatially uniform. Derived classes can override this to
+        model non-uniform cratering, such as latitudinal or apex/antapex asymmetries.
+
+        Parameters
+        ----------
+        lon : ArrayLike
+            Longitude(s) in degrees.
+        lat : ArrayLike
+            Latitude(s) in degrees.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The relative production rate at each location, with the same shape as `lon`.
+        """
+        return np.ones_like(np.asarray(lon, dtype=np.float64))
+
     def compute_time(self, diameters: ArrayLike, time_start: float, time_end: float = 0.0, **kwargs: Any) -> np.ndarray:
         """
         Compute the ages of craters with given diameters based on the production function.
