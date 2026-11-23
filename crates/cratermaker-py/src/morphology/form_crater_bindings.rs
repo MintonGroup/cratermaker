@@ -170,7 +170,8 @@ fn check_disjoint(lists: &[Vec<usize>], n_total: usize, what: &str) -> PyResult<
 ///
 /// # Returns
 ///
-/// `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is `None` if no ejecta was formed.
+/// `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is `None` if the crater was not formed
+/// because its excavated volume was not negative.
 #[allow(clippy::too_many_arguments)]
 pub fn run_form_craters<'py, P: CraterProfile>(
     py: Python<'py>,

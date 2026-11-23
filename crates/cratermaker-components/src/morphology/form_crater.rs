@@ -4,7 +4,8 @@
 //! full sequence of surface changes for one crater on a local region of the mesh:
 //!
 //! 1. Fit a reference plane to the pre-impact surface and compute the crater shape relative to it.
-//! 2. Compute the excavated volume.
+//! 2. Compute the excavated volume. A crater that does not excavate any net volume on the mesh (which can happen when the
+//!    mesh barely resolves it) is not formed, because its ejecta could not balance it.
 //! 3. Clear any existing ejecta from the crater interior.
 //! 4. Compute the ejecta blanket (optionally modulated by rays), scale it to conserve volume, and record its thickness.
 //! 5. Degrade the pre-existing surface by ejecta burial and by the crater's degradation function (two diffusion steps).
@@ -308,7 +309,7 @@ pub struct FormCraterOptions {
 pub struct FormCraterOutcome {
     /// Volume of the crater relative to the pre-impact surface (m³, negative for a net excavation).
     pub excavated_volume: f64,
-    /// Factor the ejecta was scaled by, or `None` if no ejecta was formed (zero excavated volume).
+    /// Factor the ejecta was scaled by, or `None` if the crater was not formed because its excavated volume was not negative.
     pub conservation_factor: Option<f64>,
 }
 
@@ -323,7 +324,8 @@ pub struct FormCraterOutcome {
 ///
 /// # Returns
 ///
-/// The excavated volume and ejecta conservation factor, or an error if the inputs are inconsistent.
+/// The excavated volume and ejecta conservation factor (`None` if the crater was not formed), or an error if the inputs are
+/// inconsistent.
 pub fn form_crater<P: CraterProfile + ?Sized>(
     model: &P,
     region: &CraterRegionView<'_>,
@@ -383,48 +385,55 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     // 2. Excavated volume
     let excavated_volume = face_volume(elevation_change.slice(s![..nf]), region.face_area);
 
+    // A crater whose shape on this mesh removes no material (a net volume of zero or more, as happens when the rim uplift
+    // outweighs a bowl that the mesh barely resolves) cannot be balanced by its ejecta, so it is not formed and the surface is
+    // left unchanged.
+    if !(excavated_volume < 0.0) {
+        return Ok(FormCraterOutcome {
+            excavated_volume,
+            conservation_factor: None,
+        });
+    }
+
     // 3. Remove any existing ejecta from the crater interior
     for f in inner_crater_faces(region, radius) {
         state.ejecta_thickness[f] = 0.0;
     }
 
-    // 4-5. Ejecta blanket and the degradation it causes, if anything was excavated
-    let mut conservation_factor = None;
-    if excavated_volume != 0.0 {
-        let zeros = Array1::<f64>::zeros(distance.len());
-        let mut thickness =
-            model.profile(distance.view(), bearing.view(), zeros.view(), false, true)?;
-        let intensity = match options.ray_seed {
-            Some(seed) => {
-                let intensity = model.ray_intensity(distance.view(), bearing.view(), seed)?;
-                thickness *= &intensity;
-                intensity
-            }
-            None => Array1::<f64>::ones(distance.len()),
-        };
-        thickness.mapv_inplace(|t| t.max(0.0));
+    // 4-5. Ejecta blanket and the degradation it causes
+    let zeros = Array1::<f64>::zeros(distance.len());
+    let mut thickness =
+        model.profile(distance.view(), bearing.view(), zeros.view(), false, true)?;
+    let intensity = match options.ray_seed {
+        Some(seed) => {
+            let intensity = model.ray_intensity(distance.view(), bearing.view(), seed)?;
+            thickness *= &intensity;
+            intensity
+        }
+        None => Array1::<f64>::ones(distance.len()),
+    };
+    thickness.mapv_inplace(|t| t.max(0.0));
 
-        let ejecta_volume = face_volume(thickness.slice(s![..nf]), region.face_area);
-        let factor = if options.conserve_volume {
-            (-excavated_volume / ejecta_volume).max(0.0)
-        } else {
-            1.0
-        };
-        thickness.mapv_inplace(|t| t * factor);
-        state.ejecta_thickness += &thickness.slice(s![..nf]);
+    let ejecta_volume = face_volume(thickness.slice(s![..nf]), region.face_area);
+    let factor = if options.conserve_volume {
+        (-excavated_volume / ejecta_volume).max(0.0)
+    } else {
+        1.0
+    };
+    thickness.mapv_inplace(|t| t * factor);
+    state.ejecta_thickness += &thickness.slice(s![..nf]);
 
-        let burial: Array1<f64> = thickness
-            .slice(s![..nf])
-            .mapv(|t| model.burial_degradation(t));
-        diffuse(region, state, &burial)?;
+    let burial: Array1<f64> = thickness
+        .slice(s![..nf])
+        .mapv(|t| model.burial_degradation(t));
+    diffuse(region, state, &burial)?;
 
-        let k_degradation = model.degradation();
-        let degradation: Array1<f64> = intensity.slice(s![..nf]).mapv(|i| k_degradation * i);
-        diffuse(region, state, &degradation)?;
+    let k_degradation = model.degradation();
+    let degradation: Array1<f64> = intensity.slice(s![..nf]).mapv(|i| k_degradation * i);
+    diffuse(region, state, &degradation)?;
 
-        elevation_change += &thickness;
-        conservation_factor = Some(factor);
-    }
+    elevation_change += &thickness;
+    let conservation_factor = Some(factor);
 
     // 6. Add the crater and ejecta to the surface
     state.face_elevation += &elevation_change.slice(s![..nf]);
