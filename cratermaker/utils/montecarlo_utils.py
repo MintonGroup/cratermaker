@@ -1,12 +1,12 @@
 from typing import Any, Literal
 
 import numpy as np
+import scipy.special as sc
 from numba import njit
 from numpy import cross
 from numpy.linalg import norm
 from numpy.random import Generator
 from numpy.typing import NDArray
-from scipy.stats import truncnorm
 from uxarray import Grid
 
 from cratermaker.constants import FloatLike
@@ -465,14 +465,22 @@ def bounded_norm(
         lower_bound = loc - scale
     if upper_bound is None:
         upper_bound = loc + scale
-    truncated_normal = truncnorm(
-        (lower_bound - loc) / scale,
-        (upper_bound - loc) / scale,
-        loc=loc,
-        scale=scale,
-    )
+    a = (lower_bound - loc) / scale
+    b = (upper_bound - loc) / scale
+    if not (scale > 0 and np.all(a < b)):
+        raise ValueError("Domain error in arguments: scale must be positive and lower_bound must be less than upper_bound.")
 
-    return truncated_normal.rvs(size, random_state=rng)
+    # Inverse-transform sampling of the truncated standard normal: x = Phi^-1(Phi(a) + q * (Phi(b) - Phi(a))). Bounds that lie
+    # entirely above the mean are mirrored below it (along with q), where the normal CDF does not lose precision to rounding
+    # near 1.
+    q = rng.uniform(size=size)
+    flip = a > 0
+    lo = np.where(flip, -b, a)
+    hi = np.where(flip, -a, b)
+    p = np.where(flip, 1.0 - q, q)
+    cdf_lo = sc.ndtr(lo)
+    x = sc.ndtri(cdf_lo + p * (sc.ndtr(hi) - cdf_lo))
+    return np.where(flip, -x, x) * scale + loc
 
 
 def sample_pikefit(

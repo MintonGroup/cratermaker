@@ -71,6 +71,117 @@ class TestMorphology(unittest.TestCase):
                         f"Ejecta profile for {model_name} contains NaN or Inf values.",
                     )
 
+    def test_ejecta_profile_uses_bearings(self):
+        # The realmoon rim varies with bearing, so its ejecta profile near the rim must too. Passing the bearings through to the
+        # profile function previously failed silently and every point was evaluated at bearing 0.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface)
+            crater = morphology.Crater.maker(diameter=50e3, location=(0.0, 0.0))
+            rvals = np.full(36, crater.radius)
+            bvals = np.linspace(0.0, 350.0, 36)
+            ejecta = morphology.ejecta_profile(crater, rvals, bvals)
+            ejecta_at_zero = morphology.ejecta_profile(crater, rvals, np.zeros_like(bvals))
+            self.assertFalse(np.array_equal(ejecta, ejecta_at_zero), "realmoon ejecta profile ignores bearings")
+
+    def test_ejecta_distribution_executes(self):
+        # The ray (dorays=True) path calls ejecta_profile with bearings as a keyword argument
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                crater = morphology.Crater.maker(diameter=50e3, location=(0.0, 0.0))
+                rvals = np.linspace(0.0, 5.0 * crater.radius, 50)
+                bvals = np.linspace(0.0, 350.0, 50)
+                thickness, intensity = morphology.ejecta_distribution(crater, rvals, bvals)
+                self.assertEqual(thickness.shape, rvals.shape)
+                self.assertTrue(np.all(np.isfinite(thickness)) and np.all(np.isfinite(intensity)))
+
+    def test_form_craters_matches_sequential(self):
+        # Forming a batch of non-overlapping craters in parallel must give exactly the same surface as forming them one at a time
+        locations = [(0.0, 0.0), (90.0, 0.0), (180.0, 0.0), (-90.0, 0.0), (0.0, 60.0), (0.0, -60.0)]
+        for model_name in morphology_models:
+            results = []
+            for batched in (False, True):
+                with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                    surface = Surface.maker(
+                        simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False
+                    )
+                    morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=4321)
+                    craters = [morphology.Crater.maker(diameter=100e3, location=loc) for loc in locations]
+                    face_sets = [set(np.asarray(morphology.overlap_function(c)[1]).tolist()) for c in craters]
+                    self.assertTrue(
+                        all(not (face_sets[i] & face_sets[j]) for i in range(len(face_sets)) for j in range(i)),
+                        "test craters must have non-overlapping regions",
+                    )
+                    if batched:
+                        morphology.form_craters(craters)
+                    else:
+                        for crater in craters:
+                            morphology.form_crater(crater)
+                    variables = surface.uxds.variables
+                    results.append(
+                        [variables[name].data.copy() for name in ("face_elevation", "node_elevation", "ejecta_thickness")]
+                    )
+            for sequential, batched in zip(*results, strict=True):
+                np.testing.assert_array_equal(batched, sequential, err_msg=f"{model_name}: batched result differs")
+
+    def test_form_craters_rejects_overlapping_regions(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface)
+                craters = [morphology.Crater.maker(diameter=150e3, location=(0.0, 0.0)) for _ in range(2)]
+                with self.assertRaises(ValueError):
+                    morphology.form_craters(craters)
+
+    def test_morphology_type_classified_by_size(self):
+        # Without an explicit morphology_type, craters are classified from their size
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            for model_name in morphology_models:
+                morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=7)
+                expected = {1e3: ("simple", 0), 30e3: ("complex", 1), 600e3: ("multiring", 3)}
+                for diameter, (morphology_type, nrings) in expected.items():
+                    crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
+                    self.assertEqual(crater.morphology_type, morphology_type, f"{model_name} D={diameter}")
+                    self.assertEqual(crater.nrings, nrings, f"{model_name} D={diameter}")
+                explicit = morphology.Crater.maker(diameter=15e3, location=(0.0, 0.0), morphology_type="complex")
+                self.assertEqual(explicit.morphology_type, "complex")
+
+    def test_realmoon_copy_keeps_everything(self):
+        # Copying a crater (with the constructor or with maker) keeps its rings, as independent copies, and the PSD data it has
+        # already generated, without drawing any random numbers
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=7)
+            crater = morphology.Crater.maker(diameter=600e3, location=(10.0, 5.0))
+            for c in [crater, *crater.rings]:
+                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
+                    getattr(c, f"{name}_psd")
+            rng_state = morphology.rng.bit_generator.state
+            copies = [type(crater)(crater=crater, morphology=morphology), morphology.Crater.maker(crater=crater)]
+            self.assertEqual(morphology.rng.bit_generator.state, rng_state, "copying drew random numbers")
+            for c in copies:
+                self.assertEqual(c.id, crater.id)
+                self.assertEqual(c.morphology_type, crater.morphology_type)
+                self.assertEqual(c.rim_height, crater.rim_height)
+                self.assertEqual(c.frac_ejrim, crater.frac_ejrim)
+                self.assertEqual(c.nrings, crater.nrings)
+                for ring, original in zip(c.rings, crater.rings, strict=True):
+                    self.assertIsNot(ring, original)
+                    self.assertEqual(ring.radius, original.radius)
+                    self.assertEqual(ring.rim_height, original.rim_height)
+                    np.testing.assert_array_equal(ring.rim_height_psd.amplitude, original.rim_height_psd.amplitude)
+                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
+                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").amplitude, getattr(crater, f"{name}_psd").amplitude)
+                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").phase, getattr(crater, f"{name}_psd").phase)
+
+            # A copy with a different size is a different crater: it is classified again and its PSD data is not carried over
+            resized = morphology.Crater.maker(crater=crater, diameter=5e3)
+            self.assertEqual(resized.morphology_type, "simple")
+            self.assertIsNone(getattr(resized._var, "_rim_height_psd", None))
+
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
         diameter_list = [200e3, 500e3, 1000e3]

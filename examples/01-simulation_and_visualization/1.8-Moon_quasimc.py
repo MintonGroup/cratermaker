@@ -47,9 +47,17 @@ simdir = "simdata-1_8"
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
-# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off counting to speed up the simulation for this example.
+# Initialize a quick Moon simulation. We will reduce the resolution to gridlevel 6 and turn off saving the observed and emplaced craters to speed up the simulation for this example.
 sim = cm.Simulation(
-    target="Moon", gridlevel=6, do_counting=False, simdir=simdir, ask_overwrite=False, reset=True, quasimc_file="qmc_input.csv"
+    target="Moon",
+    gridlevel=6,
+    save_observed=False,
+    save_emplaced=False,
+    simdir=simdir,
+    ask_overwrite=False,
+    reset=True,
+    quasimc_file="qmc_input.csv",
+    rng_seed=2325123465,
 )
 
 # When assigning quasimc craters, the size of the smallest Quasi-Monte Carlo crater will be used to set the largest Monte Carlo-generated crater. In our example test case, we have two small young craters (Tycho and Copernicus), so we need to ensure we don't artificially cut off our production population at the size of Tycho.

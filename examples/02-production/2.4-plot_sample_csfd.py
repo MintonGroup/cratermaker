@@ -17,8 +17,8 @@ fig, axs = plt.subplots(1, 2, figsize=(8, 7), layout="constrained")
 axes = dict(zip(["Power Law", "NPF (Moon)"], axs))
 
 production = {
-    "Power Law": Production.maker("powerlaw"),
-    "NPF (Moon)": Production.maker("neukum", version="Moon"),
+    "Power Law": Production.maker("powerlaw", rng_seed=8402636),
+    "NPF (Moon)": Production.maker("neukum", version="Moon", rng_seed=9091297117),
 }
 
 target = Target.maker("Moon")

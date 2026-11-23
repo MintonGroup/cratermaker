@@ -3,27 +3,68 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 from scipy.integrate import quad
-from scipy.optimize import root_scalar
-from tqdm import tqdm
 
 from cratermaker.bindings import basicmoon_bindings
 from cratermaker.components.crater import Crater, CraterFixed
 from cratermaker.components.morphology import Morphology, MorphologyCrater, MorphologyCraterVariable
-from cratermaker.components.surface import LocalSurface, Surface
-from cratermaker.constants import _VSMALL, FloatLike
+from cratermaker.components.surface import Surface
+from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
-from cratermaker.utils.montecarlo_utils import bounded_norm
-
-if TYPE_CHECKING:
-    from cratermaker.components.surface import LocalSurface
 
 _EJPROFILE = -3.0
+
+# The crater properties that define the axisymmetric profile, as read by the compiled profile and volume functions
+_PROFILE_PARAMETERS = (
+    "diameter",
+    "radius",
+    "floor_elevation",
+    "floor_radius",
+    "wall_curvature",
+    "floor_blend",
+    "rim_width",
+    "rim_height",
+    "frac_ejrim",
+    "ejprofile",
+    "peak_height",
+    "peak_width",
+    "peak_ring_radius",
+    "peak_center_distance",
+    "peak_center_bearing",
+)
+
+# Nodes and weights of the 8-point Gauss-Legendre rule on [-1, 1], used for the fixed-order composite quadratures below.
+_GL_NODES, _GL_WEIGHTS = np.polynomial.legendre.leggauss(8)
+
+
+def _gauss_legendre_points(edges: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """
+    Return the abscissas and weights of a composite 8-point Gauss-Legendre rule.
+
+    Parameters
+    ----------
+    edges : NDArray[np.float64]
+        Sorted, strictly increasing boundaries of the subintervals. Each subinterval gets its own 8-point rule.
+
+    Returns
+    -------
+    x : NDArray[np.float64]
+        The abscissas of all subintervals, flattened.
+    w : NDArray[np.float64]
+        The corresponding weights, such that ``np.sum(w * f(x))`` approximates the integral of f from edges[0] to edges[-1].
+    """
+    a = edges[:-1, np.newaxis]
+    b = edges[1:, np.newaxis]
+    half_width = 0.5 * (b - a)
+    x = (half_width * _GL_NODES + 0.5 * (a + b)).ravel()
+    w = (half_width * _GL_WEIGHTS).ravel()
+    return x, w
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +95,7 @@ class BasicMoonCraterFixed(CraterFixed):
     """Bearing angle of central peak/peak ring in degrees."""
     isring: bool | None = field(default=False, init=True)
     """Flag that indicates that this is a ring rather than a crater."""
-    parent: np.uint32 | None = field(default=False, init=True)
+    parent: np.uint64 | None = field(default=np.uint64(0), init=True)
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -180,6 +221,7 @@ class BasicMoonCrater(MorphologyCrater):
         TODO: Update with Minton et al. (2026) info once done.
         """
         input_args = locals()
+        source = crater
         from cratermaker.components.morphology import Morphology
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic
 
@@ -474,6 +516,10 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
+        # A copy that does not make new rings keeps copies of the rings of the crater it was made from
+        if not make_rings and crater.nrings == 0 and isinstance(source, MorphologyCrater) and source.nrings > 0:
+            object.__setattr__(crater._var, "_rings", [type(ring)(crater=ring, morphology=morphology) for ring in source.rings])
+
         num_new_rings = 0
         if make_rings and not crater.isring and crater.nrings == 0:
             if crater.morphology_type == "complex":
@@ -531,32 +577,33 @@ class BasicMoonCrater(MorphologyCrater):
 
         # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
         if conserve_volume and not crater.isring:
+            # The search only changes the rim height and the ejecta profile exponent, so the volumes are evaluated on a copy of
+            # the profile parameters and the crater is rebuilt once with the final values.
+            params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
 
-            def ejvol(crater):
-                return 2 * np.pi * crater.frac_ejrim * crater.rim_height * crater.radius**2 / (-crater.ejprofile - 2)
+            def ejvol(p):
+                return 2 * np.pi * p.frac_ejrim * p.rim_height * p.radius**2 / (-p.ejprofile - 2)
 
             for _ in range(10):
-                excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
                 while excavated_volume > 0.0:
                     # This occurs when rim_height is too high
                     kwargs["rim_height"] *= 0.9
-                    crater = cls(
-                        crater=crater,
-                        morphology=morphology,
-                        **kwargs,
-                    )
-                    excavated_volume = morphology.estimate_volume(crater, include_crater=True, include_ejecta=False)
+                    params.rim_height = kwargs["rim_height"]
+                    excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
 
-                conservation_factor = -ejvol(crater) / excavated_volume
+                conservation_factor = -ejvol(params) / excavated_volume
 
-                ejprofile = -2.0 + conservation_factor * (crater.ejprofile + 2)
+                ejprofile = -2.0 + conservation_factor * (params.ejprofile + 2)
                 if ejprofile < -4:
                     kwargs["rim_height"] *= 0.9
                 else:
                     kwargs["ejprofile"] = ejprofile
-                crater = cls(crater=crater, morphology=morphology, **kwargs)
+                params.rim_height = kwargs["rim_height"]
+                params.ejprofile = kwargs["ejprofile"]
                 if ejprofile > -4:
                     break
+            crater = cls(crater=crater, morphology=morphology, **kwargs)
 
         return crater
 
@@ -789,69 +836,142 @@ class BasicMoonMorphology(Morphology):
         str_repr += f"Ejecta Rays: {self.dorays}\n"
         return str_repr
 
-    def compute_ejecta(self, crater: Crater | BasicMoonCrater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    # The compiled function that forms a batch of craters of this model's crater type. Models with a different crater type
+    # override this.
+    _form_craters_binding = staticmethod(basicmoon_bindings.form_craters)
+
+    # The angle of repose used for slope collapse after a crater forms, in degrees
+    _CRITICAL_SLOPE_ANGLE = 35.0
+
+    def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
-        Form the ejecta blanket of the crater by altering the elevation variable of the surface mesh.
+        Form a crater and its ejecta blanket on the surface.
+
+        This alters the face and node elevations and the ejecta thickness of the surface around the crater: the crater is drawn
+        relative to a reference plane fitted to the pre-impact surface, the ejecta is scaled to conserve volume (if
+        `conserve_volume` is set), the pre-existing surface is degraded by ejecta burial and by the crater's degradation function,
+        and steep slopes are collapsed (if `do_slope_collapse` is set).
 
         Parameters
         ----------
         crater : Crater
-            The crater object whose ejecta is to be formed.
+            The crater object to be formed.
         **kwargs : Any
             |kwargs|
 
-        Returns
-        -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations.
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function that runs the whole formation sequence in a single call.
         """
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-        ejecta_thickness, ejecta_intensity = super().compute_ejecta(crater, **kwargs)
-        if ejecta_thickness is None or ejecta_intensity is None:
-            return None, None
-        k_ej = self.ejecta_burial_degradation(ejecta_thickness[: crater.ejecta_region.n_face], ejecta_soften_factor=1.50)
-        crater.ejecta_region.apply_diffusion(k_ej)
+        self.form_craters([crater], **kwargs)
+        return
 
-        k_deg = self.degradation_function(crater.diameter, fe=100) * ejecta_intensity[: crater.ejecta_region.n_face]
-        crater.ejecta_region.apply_diffusion(k_deg)
-        return ejecta_thickness, ejecta_intensity
-
-    def crater_shape(self, crater: BasicMoonCrater, region: LocalSurface, **kwargs: Any) -> NDArray[np.float64]:
+    def form_craters(self, craters: list[Crater], **kwargs: Any) -> None:
         """
-        Compute the crater shape based on the region view and surface.
+        Form a batch of craters whose regions do not overlap.
+
+        Each crater is formed as described in `form_crater`. The bookkeeping that must happen in order (recording each crater
+        with the counting component and drawing its ray seed) is done one crater at a time in Python, and then all of the
+        craters are formed in parallel by a single compiled call. Because their regions do not overlap, the result is the same
+        as forming them one after another.
+
+        Parameters
+        ----------
+        craters : list of Crater
+            The craters to be formed. Their regions (see `overlap_function`) must not share any faces or nodes.
+        **kwargs : Any
+            |kwargs|
+
+        Notes
+        -----
+        This is a wrapper for a compiled Rust function that forms the craters in parallel.
+        """
+        formed = []
+        regions = []
+        ray_seeds = []
+        for crater in craters:
+            if not isinstance(crater, Crater):
+                raise TypeError("crater must be an instance of Crater")
+            if not isinstance(crater, self._CraterType):
+                crater = self.Crater.maker(crater=crater, **kwargs)
+            if not crater.emplaceable:
+                continue
+
+            region = crater.crater_region
+            crater_area = math.pi * region.radius**2
+
+            # Skip craters that are smaller than the face they are centered on
+            if crater_area <= self.surface.face_area[crater.face_index]:
+                crater.reset()
+                continue
+
+            # The crater and ejecta are computed on the same set of faces and nodes
+            ejecta_region = crater.ejecta_region
+            if ejecta_region is not None and ejecta_region is not region:
+                if ejecta_region.n_face != region.n_face or ejecta_region.n_node != region.n_node:
+                    raise ValueError("The crater and ejecta regions of a crater must contain the same faces and nodes")
+
+            # Any crater data that is generated lazily from the random number generator must exist before the ray seed is drawn,
+            # so that random numbers are drawn in the same order as when the crater shape was computed in Python
+            self._prepare_crater(crater)
+
+            # Record the crater to the counting layer. This does not depend on the surface elevation or ejecta thickness, so it
+            # can be done before any of the craters in the batch are formed.
+            if self.counting is not None:
+                self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
+
+            formed.append(crater)
+            regions.append(region)
+            ray_seeds.append(int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None)
+
+        if not formed:
+            return
+
+        surface = regions[0].surface
+        if "ejecta_thickness" not in surface.uxds.data_vars:
+            surface._add_new_data("ejecta_thickness", long_name="ejecta thickness", units="m", data=0.0, isfacedata=True)
+        variables = surface.uxds.variables
+
+        def _global_indices(indices, n_total):
+            if isinstance(indices, slice):
+                indices = np.arange(n_total)[indices]
+            return np.ascontiguousarray(indices, dtype=np.int64)
+
+        results = self._form_craters_binding(
+            craters=formed,
+            rings=[crater.rings for crater in formed],
+            regions=regions,
+            face_indices=[_global_indices(region.face_indices, surface.n_face) for region in regions],
+            node_indices=[_global_indices(region.node_indices, surface.n_node) for region in regions],
+            ray_seeds=ray_seeds,
+            face_elevation=variables["face_elevation"].data,
+            node_elevation=variables["node_elevation"].data,
+            ejecta_thickness=variables["ejecta_thickness"].data,
+            conserve_volume=kwargs.get("conserve_volume", self.conserve_volume),
+            critical_slope=float(np.tan(np.deg2rad(self._CRITICAL_SLOPE_ANGLE))) if self.do_slope_collapse else None,
+        )
+
+        for crater, (_, conservation_factor) in zip(formed, results, strict=True):
+            if conservation_factor is not None:
+                self._scale_ejecta_rim(crater, conservation_factor)
+            # Remove the saved regions now that the crater is emplaced
+            crater.reset()
+        return
+
+    def _prepare_crater(self, crater: BasicMoonCrater) -> None:
+        """
+        Generate any crater data that is created lazily from the morphology's random number generator.
+
+        This is called by `form_craters` before it draws any random numbers of its own. Models whose craters draw random numbers
+        on first access to some of their data override this to access that data, in the order the compiled `form_craters` reads
+        it. The basic model has no such data.
 
         Parameters
         ----------
         crater : BasicMoonCrater
-            The crater object containing the parameters for the crater shape.
-        region:  LocalSurface
-            The region view of the surface mesh centered at the crater center.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed crater shape at the face and node elevations.
+            The crater about to be formed.
         """
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-        reference_elevation = region.get_reference_surface(reference_radius=crater.diameter)
-
-        # Combine distances and references for nodes and faces
-        radial_distances = np.concatenate([region.face_distance, region.node_distance])
-        bearings = np.concatenate([region.face_bearing, region.node_bearing])
-
-        original_elevation = np.concatenate([region.face_elevation, region.node_elevation])
-        reference_elevation[radial_distances > crater.radius] = original_elevation[radial_distances > crater.radius]
-
-        new_elevation = self.crater_profile(
-            crater=crater, radial_distances=radial_distances, bearings=bearings, reference_elevations=reference_elevation
-        )
-
-        elevation_change = new_elevation - original_elevation
-        return elevation_change
+        return
 
     def crater_profile(
         self,
@@ -930,41 +1050,6 @@ class BasicMoonMorphology(Morphology):
         elevation = np.reshape(elevation, orig_shape)
 
         return elevation
-
-    def ejecta_shape(
-        self, crater: BasicMoonCrater, region: LocalSurface, **kwargs: Any
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """
-        Compute the ejecta shape based on the region view and surface.
-
-        Parameters
-        ----------
-        region : LocalSurface
-            The region view of the surface mesh centered at the crat er center.
-        crater : BasicMoonCrater
-            The crater object containing the parameters for the ejecta shape.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed ejecta shape at the face and node elevations
-        NDArray[np.float64]
-            The computed ejecta intensity at the face and node elevations which is used to compute the degradation function. When `dorays` is True, this is the ray intensity function. When `dorays` is False, this is just a constant 1 over the ejecta region.
-        """
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater)
-
-        radial_distances = np.concatenate([region.face_distance, region.node_distance])
-        bearings = np.concatenate([region.face_bearing, region.node_bearing])
-        if self.dorays:
-            thickness, intensity = self.ejecta_distribution(crater, radial_distances, bearings)
-        else:
-            thickness = self.ejecta_profile(crater, radial_distances, bearings)
-            intensity = np.ones_like(radial_distances)
-
-        return thickness, intensity
 
     def ejecta_profile(
         self,
@@ -1093,30 +1178,6 @@ class BasicMoonMorphology(Morphology):
         intensity = np.reshape(intensity, radial_distances.shape)
         return intensity
 
-    def ejecta_burial_degradation(self, ejecta_thickness, ejecta_soften_factor=1.50) -> NDArray[np.float64]:
-        """
-        Computes the change in degradation state due to ejecta burial.
-
-        This function implements a combination of the model by Minton et al. (2019) [#]_.
-
-        Parameters
-        ----------
-        region : LocalSurface
-            The region view of the surface mesh centered at the crater center.
-        ejecta_thickness : NDArray[np.float64]
-            The computed ejecta thickness at the face and node elevations.
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The computed change in degradation state for all faces in the
-
-        References
-        ----------
-        .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
-        """
-        return ejecta_soften_factor * ejecta_thickness**2
-
     def compute_subpixel_degradation(
         self,
         time_start: float,
@@ -1149,24 +1210,31 @@ class BasicMoonMorphology(Morphology):
         def _subpixel_degradation(diameter):
             fe = 100.0
             k = self.degradation_function(diameter, fe)
-            n = self.production.function(
-                diameter=diameter,
-                time_start=time_start,
-                time_end=time_end,
-                validate_inputs=False,
-            ).item()
-            degradation_region_area = np.pi * (diameter / 2) * fe
+            n = np.asarray(
+                self.production.function(
+                    diameter=diameter,
+                    time_start=time_start,
+                    time_end=time_end,
+                    validate_inputs=False,
+                )
+            ).reshape(diameter.shape)
+            degradation_region_area = np.pi * (diameter / 2) ** 2 * fe
             return k * n * degradation_region_area
 
         for face_indices, dc_max in zip(self.surface.face_bin_indices, self.surface.face_bin_max_sizes, strict=False):
-            delta_kdiff, _ = quad(_subpixel_degradation, dc_min, dc_max)
+            # The integrand spans many orders of magnitude in diameter, so integrate in log(D) with a composite Gauss-Legendre rule
+            # (two 8-point subintervals per decade). All points are evaluated in a single vectorized call.
+            n_intervals = max(1, math.ceil(2 * math.log10(dc_max / dc_min)))
+            log_d, weights = _gauss_legendre_points(np.linspace(math.log(dc_min), math.log(dc_max), n_intervals + 1))
+            diameters = np.exp(log_d)
+            delta_kdiff = np.sum(weights * diameters * _subpixel_degradation(diameters))
             self._Kdiff[face_indices] += delta_kdiff
 
         # If any Kdiff values reaches a threshold where a meaningful amount of diffusion will occur on the surface, then go ahead and apply it.
         # Otherwise, degradation will continue to accumulate until the next batch of craters is processed.
         if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
-            if self.do_counting:
+            if self.save_observed:
                 measure_rim = kwargs.pop("measure_rim", False)
                 self.counting.tally(measure_rim=measure_rim, **kwargs)
 
@@ -1185,12 +1253,6 @@ class BasicMoonMorphology(Morphology):
         self.surface.apply_diffusion(self._Kdiff)
         self._Kdiff = np.zeros_like(self.surface.face_elevation)
         return
-
-    def _profile_invert_ejecta(self, r, crater, minimum_thickness):
-        return basicmoon_bindings.ejecta_profile_function(crater, r) - minimum_thickness
-
-    def _profile_invert_crater(self, r, crater, minimum_thickness):
-        return basicmoon_bindings.crater_profile_function(crater, r) - minimum_thickness
 
     def rmax(
         self,
@@ -1219,36 +1281,23 @@ class BasicMoonMorphology(Morphology):
         if not isinstance(crater, self._CraterType):
             crater = self.Crater.maker(crater=crater)
 
-        def _invert_ejecta(r):
-            return self._profile_invert_ejecta(r, crater, minimum_thickness)
-
-        def _invert_crater(r):
-            return self._profile_invert_crater(r, crater, minimum_thickness)
-
-        if feature == "ejecta":
-            _profile_invert = _invert_ejecta
-        elif feature == "crater":
-            _profile_invert = _invert_crater
-        else:
+        if feature not in ("crater", "ejecta"):
             raise ValueError("Unknown feature type. Choose either 'crater' or 'ejecta'")
 
         # Get the maximum extent
         lower_limit = crater.radius * 1.0001
         upper_limit = self.ejecta_truncation * crater.radius if self.ejecta_truncation else np.pi * self.surface.target.radius
 
-        if _profile_invert(lower_limit) < 0:
-            ans = lower_limit
-        elif _profile_invert(upper_limit) > 0:
-            ans = upper_limit
-        else:
-            sol = root_scalar(
-                _profile_invert,
-                bracket=[lower_limit, upper_limit],
-                method="brentq",
+        # The profile crossing is found with a compiled port of scipy.optimize.brentq
+        return float(
+            basicmoon_bindings.rmax(
+                crater=crater,
+                minimum_thickness=float(minimum_thickness),
+                feature=feature,
+                lower_limit=float(lower_limit),
+                upper_limit=float(upper_limit),
             )
-            ans = sol.root if sol.converged else crater.radius
-
-        return float(ans)
+        )
 
     def estimate_volume(
         self,
@@ -1260,10 +1309,31 @@ class BasicMoonMorphology(Morphology):
         **kwargs,
     ) -> np.float64:
         """
-        Estimates the volume change of a crater by integrating the profile function using the scipy.integrate.quad function.
+        Estimates the volume change of a crater by integrating its axisymmetric profile.
+
+        With the default profile functions, the integral is computed with a composite Gauss-Legendre rule whose subintervals are
+        split at the radii where the profile changes character (floor blend, rim, central peak), and whose integrand is evaluated
+        in a single vectorized call. If custom profile functions or quadrature keyword arguments are given, scipy.integrate.quad
+        is used instead.
         """
         if not (include_crater or include_ejecta):
             return np.float64(0.0)
+
+        if self.ejecta_truncation is None:
+            rmax = 20 * crater.radius
+        else:
+            rmax = self.ejecta_truncation * crater.radius
+
+        if (
+            crater_profile_function is basicmoon_bindings.crater_profile_function
+            and ejecta_profile_function is basicmoon_bindings.ejecta_profile_function
+            and not kwargs
+        ):
+            edges = self._volume_quadrature_edges(crater, include_crater, include_ejecta, rmax)
+            if edges is not None:
+                r, w = _gauss_legendre_points(edges)
+                integrand = basicmoon_bindings.volume_integrand(r, crater, include_crater, include_ejecta)
+                return np.float64(2 * np.pi * np.sum(w * integrand))
 
         def _crater_func(r):
             hc = crater_profile_function(crater, r)
@@ -1285,12 +1355,54 @@ class BasicMoonMorphology(Morphology):
             func = _ejecta_func
         else:
             func = _combo_func
-        if self.ejecta_truncation is None:
-            rmax = 20 * crater.radius
-        else:
-            rmax = self.ejecta_truncation * crater.radius
         v = quad(func, 0.0, rmax, **{"limit": 100, "epsrel": 1e-3, **kwargs}, full_output=1)[0]
         return 2 * np.pi * v
+
+    @staticmethod
+    def _volume_quadrature_edges(
+        crater: BasicMoonCrater, include_crater: bool, include_ejecta: bool, rmax: float
+    ) -> NDArray[np.float64] | None:
+        """
+        Subinterval boundaries for the composite Gauss-Legendre volume integral in `estimate_volume`.
+
+        The boundaries are placed where the profile (see `crater_profile_function` in the Rust crate) switches between pieces or
+        blends between them, so that the integrand is smooth within each subinterval:
+
+        - the floor-to-wall blend, centered on the floor radius with half-width ``rfw``
+        - the wall-to-rim blend and the start of the ejecta, centered on the rim radius with half-width ``rim_width``
+        - the central peak, if present
+
+        Beyond ``radius + rim_width``, the crater-only integrand is purely the Gaussian rim, so it is truncated at 12 rim widths
+        (where it is below 1e-31 of its peak). When the ejecta is included, the power-law tail is covered with logarithmically
+        spaced subintervals out to `rmax`. Each subinterval is then split in two.
+
+        Returns None if the crater parameters do not produce a valid set of boundaries.
+        """
+        radius = crater.radius
+        floor_radius = crater.floor_radius
+        rim_width = crater.rim_width
+        floor_blend_width = (floor_radius if floor_radius < 0.5 * radius else radius - floor_radius) * crater.floor_blend
+        rim_outer = radius + rim_width
+
+        points = [0.0, floor_radius - floor_blend_width, floor_radius, floor_radius + floor_blend_width, radius - rim_width, radius]
+        if crater.peak_width > 0:
+            points += [crater.peak_ring_radius + k * crater.peak_width for k in (-3.0, 0.0, 3.0)]
+
+        if include_crater and not include_ejecta:
+            top = min(rmax, radius + 12 * rim_width)
+            if rim_outer < top:
+                points += list(np.linspace(rim_outer, top, 4))
+        else:
+            top = rmax
+            if 0 < rim_outer < top:
+                points += list(np.geomspace(rim_outer, top, 12))
+        points.append(top)
+
+        points = np.asarray(points, dtype=np.float64)
+        if not (np.all(np.isfinite(points)) and top > 0):
+            return None
+        edges = np.unique(np.clip(points, 0.0, top))
+        return np.sort(np.concatenate((edges, 0.5 * (edges[1:] + edges[:-1]))))
 
     def degradation_function(
         self,
@@ -1321,35 +1433,14 @@ class BasicMoonMorphology(Morphology):
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. `doi:10.1029/2019JE006273 <https://doi.org/10.1029/2019JE006273>`_
         """
 
-        def _kdmare(r, fe, psi):
-            """
-            The mare-scale degradation function from Minton et al. (2019). See eq. (32).
-            """
-            kv1 = 0.30
-            neq1 = 0.0084
-            eta = 3.2
-            gamma = 2.0
-            beta = 2.0
-            kd1 = kv1 * (math.pi * fe**2 * neq1 * (gamma * beta / ((eta - 2.0) * (beta + gamma - eta)))) ** (-gamma / (eta - beta))
-            psi = gamma * ((eta - 2.0) / (eta - beta))
-            return kd1 * r**psi
-
-        def _smooth_broken(x, a, x_break, alpha_1, alpha_2, delta):
-            return a * (x / x_break) ** (alpha_1) * (0.5 * (1.0 + (x / x_break) ** (1.0 / delta))) ** ((alpha_2 - alpha_1) / delta)
-
-        def _kd(r, fe):
-            psi_1 = 2.0  # Mare scale power law exponent
-            psi_2 = 1.2  # Highlands scale power law exponent
-            rb = 0.5e3  # breakpoint radius
-            delta = 1.0e0  # Smoothing function
-
-            kd1 = _kdmare(rb, fe, psi_1) / (1 + (psi_1 - psi_2) / psi_1) ** 2
-            return _smooth_broken(r, kd1, rb, psi_1, psi_2, delta)
-
-        return float(_kd(diameter / 2, fe))
+        if np.ndim(diameter) == 0:
+            return basicmoon_bindings.degradation_function(float(diameter), float(fe))
+        diameter = np.asarray(diameter, dtype=np.float64)
+        degradation = basicmoon_bindings.degradation_function_array(np.ascontiguousarray(diameter.ravel()), float(fe))
+        return degradation.reshape(diameter.shape)
 
     @staticmethod
-    def overlap_function(crater: BasicMoonCrater) -> tuple[set[int], set[int]]:
+    def overlap_function(crater: BasicMoonCrater) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
         """
         Get the affected node and face indices for the crater.
 
@@ -1360,11 +1451,12 @@ class BasicMoonMorphology(Morphology):
 
         Returns
         -------
-        tuple[set[int], set[int]]
-            The affected node and face indices for the crater.
+        tuple[NDArray[np.int64], NDArray[np.int64]]
+            The affected global node and face indices for the crater.
         """
         if not crater.emplaceable or crater.affected_node_indices is None or crater.affected_face_indices is None:
-            return set(), set()
+            empty = np.empty(0, dtype=np.int64)
+            return empty, empty
         else:
             return crater.affected_node_indices, crater.affected_face_indices
 

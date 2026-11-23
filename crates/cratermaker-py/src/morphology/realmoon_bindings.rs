@@ -1,10 +1,10 @@
-use cratermaker_components::morphology::realmoon::RealMoonCrater;
-use interp::{InterpMode, interp_slice};
+use crate::morphology::form_crater_bindings::run_form_craters;
+use cratermaker_components::morphology::form_crater::RealMoonModel;
+use cratermaker_components::morphology::realmoon::{ProfileEvaluator, RealMoonCrater};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::f64::consts::TAU;
 use paste::paste;
 
 // Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
@@ -225,28 +225,9 @@ pub fn profile_from_psd<'py>(
     let psd_v = psd_py.as_views();
     let bearing_v = bearing.as_array();
 
-    let (psd_bearing, profile) =
-        cratermaker_components::morphology::realmoon::profile_from_psd(&psd_v);
-    let n = psd_bearing.len();
-    if n == 0 {
-        return Ok(PyArray1::from_vec(py, Vec::new()));
-    }
-
-    let mut padded_bearing = Vec::with_capacity(n + 2);
-    let mut padded_profile = Vec::with_capacity(n + 2);
-    padded_bearing.push(psd_bearing[n - 1] - TAU);
-    padded_profile.push(profile[n - 1]);
-    padded_bearing.extend_from_slice(&psd_bearing);
-    padded_profile.extend_from_slice(&profile);
-    padded_bearing.push(psd_bearing[0] + TAU);
-    padded_profile.push(profile[0]);
-
-    let result = interp_slice(
-        &padded_bearing,
-        &padded_profile,
-        &bearing_v.to_vec(),
-        &InterpMode::default(),
-    );
+    // Use the same periodic evaluator as realmoon_profile so the Python-facing profile matches what is drawn on the surface
+    let evaluator = ProfileEvaluator::new(&psd_v);
+    let result: Vec<f64> = bearing_v.iter().map(|&b| evaluator.eval(b)).collect();
     Ok(PyArray1::from_vec(py, result))
 }
 
@@ -264,4 +245,92 @@ pub fn psd_from_profile<'py>(
         PyArray1::from_vec(py, amplitude),
         PyArray1::from_vec(py, phase),
     ))
+}
+
+/// Forms a batch of RealMoon craters with non-overlapping regions, updating the global surface arrays in place.
+///
+/// Each crater goes through the whole formation sequence (crater shape, excavated volume, ejecta with volume conservation,
+/// burial and degradation diffusion, and optional slope collapse); see `cratermaker_components::morphology::form_crater`. The
+/// craters are formed in parallel with the GIL released, which gives the same result as forming them one after another because
+/// their regions do not overlap.
+///
+/// # Arguments
+///
+/// * `craters` - The RealMoonCraters to form.
+/// * `rings` - The optional ring craters of each crater.
+/// * `regions` - The Python `LocalSurface` each crater is formed on.
+/// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
+/// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
+/// * `face_elevation`, `node_elevation`, `ejecta_thickness` - The global surface arrays, updated in place.
+/// * `conserve_volume` - Scale each crater's ejecta so that its volume matches the excavated volume.
+/// * `critical_slope` - Critical slope (rise over run) for slope collapse, or None to skip slope collapse.
+///
+/// # Returns
+///
+/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if no ejecta was
+///   formed.
+#[pyfunction]
+#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn form_craters<'py>(
+    py: Python<'py>,
+    craters: Vec<Bound<'py, PyAny>>,
+    rings: Vec<Option<Vec<Bound<'py, PyAny>>>>,
+    regions: Vec<Bound<'py, PyAny>>,
+    face_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    node_indices: Vec<PyReadonlyArray1<'py, i64>>,
+    ray_seeds: Vec<Option<u64>>,
+    face_elevation: Bound<'py, PyArray1<f64>>,
+    node_elevation: Bound<'py, PyArray1<f64>>,
+    ejecta_thickness: Bound<'py, PyArray1<f64>>,
+    conserve_volume: bool,
+    critical_slope: Option<f64>,
+) -> PyResult<Vec<(f64, Option<f64>)>> {
+    if rings.len() != craters.len() {
+        return Err(PyValueError::new_err(
+            "craters and rings must have the same length",
+        ));
+    }
+    // The Python data must outlive the views of it, so each level is collected before the next is built from it
+    let craters_py: Vec<PyReadonlyRealMoonCrater> = craters
+        .iter()
+        .map(PyReadonlyRealMoonCrater::from_py)
+        .collect::<PyResult<_>>()?;
+    let rings_py: Vec<Option<Vec<PyReadonlyRealMoonCrater>>> = rings
+        .iter()
+        .map(|r| match r {
+            Some(r) => r
+                .iter()
+                .map(PyReadonlyRealMoonCrater::from_py)
+                .collect::<PyResult<Vec<_>>>()
+                .map(Some),
+            None => Ok(None),
+        })
+        .collect::<PyResult<_>>()?;
+    let craters_v: Vec<RealMoonCrater> = craters_py.iter().map(|c| c.as_views()).collect();
+    let rings_v: Vec<Option<Vec<RealMoonCrater>>> = rings_py
+        .iter()
+        .map(|r| {
+            r.as_ref()
+                .map(|r| r.iter().map(|ring| ring.as_views()).collect())
+        })
+        .collect();
+    let models: Vec<RealMoonModel> = craters_v
+        .iter()
+        .zip(rings_v.iter())
+        .map(|(crater, rings)| RealMoonModel { crater, rings })
+        .collect();
+    run_form_craters(
+        py,
+        &models,
+        &regions,
+        &face_indices,
+        &node_indices,
+        &ray_seeds,
+        &face_elevation,
+        &node_elevation,
+        &ejecta_thickness,
+        conserve_volume,
+        critical_slope,
+    )
 }

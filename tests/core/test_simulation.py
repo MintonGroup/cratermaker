@@ -227,6 +227,36 @@ class TestSimulation(unittest.TestCase):
             self.assertEqual(len(scc_out), 2 * (ninterval + 1))
         return
 
+    def test_quasimc_reproducible(self):
+        # The quasi-Monte Carlo craters must be created with the simulation's random number generator, so that two simulations
+        # with the same seed produce the same craters (including the randomly drawn projectile properties).
+        attrs = ("id", "time", "diameter", "transient_diameter", "projectile_velocity", "projectile_angle", "orientation")
+        results = []
+        for _ in range(2):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                quasimc_file = Path(simdir) / "qmc.csv"
+                with Path.open(quasimc_file, "w") as f:
+                    f.write(
+                        "name,latitude,longitude,diameter,production_time,production_time_stdev,production_D,production_N,production_N_stdev,production_sequence\n"
+                    )
+                    f.write("South Pole-Aitken,-53,191,2400000,,,20,999,,0\n")
+                    f.write("Nectaris,-15.6,35.1,885000,,,20,172,20,40\n")
+                    f.write("Imbrium,37,341.5,1321000,3922,12,,,,100\n")
+                sim = cratermaker.Simulation(
+                    simdir=simdir,
+                    gridlevel=self.gridlevel,
+                    reset=True,
+                    ask_overwrite=False,
+                    quasimc_file=quasimc_file,
+                    rng_seed=8675309,
+                )
+                from_file = [tuple(getattr(c, a) for a in attrs) for c in sim.quasimc_craters]
+                merged = sim.populate(time_start=4500, time_end=3800, emplace=False)
+                named = [tuple(getattr(c, a) for a in attrs) for c in merged if c.name is not None]
+                results.append((from_file, named))
+        self.assertEqual(len(results[0][1]), 3)
+        self.assertEqual(results[0], results[1])
+
     def test_quasimc(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             quasimc_file = Path(simdir) / "qmc.csv"
@@ -309,7 +339,7 @@ class TestSimulation(unittest.TestCase):
     def test_positive_only_ejecta(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(
-                simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None, do_counting=False
+                simdir=simdir, gridlevel=self.gridlevel, ask_overwrite=False, save_actions=None, save_observed=False
             )
             sim.run(age=4310)
             self.assertFalse(any(sim.surface.ejecta_thickness < 0))
