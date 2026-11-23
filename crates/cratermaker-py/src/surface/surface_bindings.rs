@@ -1,3 +1,4 @@
+use numpy::ndarray::Array1;
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
@@ -46,7 +47,7 @@ pub struct PyReadonlyLocalSurface<'py> {
     pub face_bearing: Option<PyReadonlyArray1<'py, f64>>,
     pub region_radius: Option<f64>,
     pub location: Option<(f64, f64)>,
-    pub crater_id: Option<PyReadonlyArray2<'py, u32>>,
+    pub crater_id: Option<PyReadonlyArray2<'py, u64>>,
     pub desloped_face_elevation: Option<PyReadonlyArray1<'py, f64>>,
 }
 
@@ -569,4 +570,259 @@ pub fn reset_radial_distances<'py>(
         PyArray1::from_owned_array(py, y_out),
         PyArray1::from_owned_array(py, z_out),
     ))
+}
+
+/// Extracts rows of a global connectivity array and remaps their values from global to local indices.
+///
+/// # Arguments
+/// * `py` - Python interpreter token.
+/// * `connectivity` - The global 2D connectivity array of shape (N, K).
+/// * `row_indices` - Global indices of the rows to retain.
+/// * `value_indices` - Global indices of the value domain, whose positions become the local indices.
+/// * `total_value_size` - Total number of items in the global value domain.
+/// * `fill_value` - Fill value marking invalid entries.
+///
+/// # Returns
+/// A 2D NumPy array of shape (len(row_indices), K) of local indices, with `fill_value` where not applicable.
+#[pyfunction]
+pub fn remap_connectivity_to_local<'py>(
+    py: Python<'py>,
+    connectivity: PyReadonlyArray2<'py, i64>,
+    row_indices: PyReadonlyArray1<'py, i64>,
+    value_indices: PyReadonlyArray1<'py, i64>,
+    total_value_size: usize,
+    fill_value: i64,
+) -> PyResult<Bound<'py, PyArray2<i64>>> {
+    let result = cratermaker_components::surface::remap_connectivity_to_local(
+        connectivity.as_array(),
+        row_indices.as_array(),
+        value_indices.as_array(),
+        total_value_size,
+        fill_value,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray2::from_owned_array(py, result))
+}
+
+/// Bundles the six global connectivity arrays passed from Python into the cratermaker-components struct.
+#[allow(clippy::too_many_arguments)]
+fn global_connectivity<'a>(
+    face_edge_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    face_node_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    face_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    node_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    edge_face_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    edge_node_connectivity: &'a PyReadonlyArray2<'_, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+) -> cratermaker_components::surface::GlobalConnectivity<'a> {
+    cratermaker_components::surface::GlobalConnectivity {
+        face_edge: face_edge_connectivity.as_array(),
+        face_node: face_node_connectivity.as_array(),
+        face_face: face_face_connectivity.as_array(),
+        node_face: node_face_connectivity.as_array(),
+        edge_face: edge_face_connectivity.as_array(),
+        edge_node: edge_node_connectivity.as_array(),
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    }
+}
+
+/// Determines the global face, node, and edge indices of a local region from its seed faces.
+///
+/// The edges are those of the seed faces, the faces are the seed faces plus a buffer of every face that shares a face, node, or
+/// edge with them, and the nodes are those of all of the faces (including the buffer). Each returned array is sorted and unique,
+/// with fill values removed.
+///
+/// # Returns
+///
+/// * `(face_indices, node_indices, edge_indices)` as int64 arrays.
+#[pyfunction]
+#[pyo3(signature = (
+    seed_faces, face_edge_connectivity, face_node_connectivity, face_face_connectivity, node_face_connectivity,
+    edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value
+))]
+#[allow(clippy::too_many_arguments)]
+pub fn build_region_indices<'py>(
+    py: Python<'py>,
+    seed_faces: PyReadonlyArray1<'py, i64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    face_node_connectivity: PyReadonlyArray2<'py, i64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_node_connectivity: PyReadonlyArray2<'py, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+) -> PyResult<(Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>, Bound<'py, PyArray1<i64>>)> {
+    let global = global_connectivity(
+        &face_edge_connectivity,
+        &face_node_connectivity,
+        &face_face_connectivity,
+        &node_face_connectivity,
+        &edge_face_connectivity,
+        &edge_node_connectivity,
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    );
+    let (faces, nodes, edges) = cratermaker_components::surface::build_region_indices(
+        seed_faces.as_array(),
+        &global,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok((PyArray1::from_vec(py, faces), PyArray1::from_vec(py, nodes), PyArray1::from_vec(py, edges)))
+}
+
+/// Builds all six local connectivity arrays of a region in one call.
+///
+/// Each output is identical to `remap_connectivity_to_local` applied to the corresponding global connectivity array, with the
+/// region's face, node, or edge indices as the rows and the matching index domain as the values.
+///
+/// # Returns
+///
+/// * `(face_edge, face_node, face_face, node_face, edge_face, edge_node)` local connectivity arrays.
+#[pyfunction]
+#[pyo3(signature = (
+    face_indices, node_indices, edge_indices, face_edge_connectivity, face_node_connectivity, face_face_connectivity,
+    node_face_connectivity, edge_face_connectivity, edge_node_connectivity, n_face, n_node, n_edge, fill_value
+))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn build_local_connectivity<'py>(
+    py: Python<'py>,
+    face_indices: PyReadonlyArray1<'py, i64>,
+    node_indices: PyReadonlyArray1<'py, i64>,
+    edge_indices: PyReadonlyArray1<'py, i64>,
+    face_edge_connectivity: PyReadonlyArray2<'py, i64>,
+    face_node_connectivity: PyReadonlyArray2<'py, i64>,
+    face_face_connectivity: PyReadonlyArray2<'py, i64>,
+    node_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_face_connectivity: PyReadonlyArray2<'py, i64>,
+    edge_node_connectivity: PyReadonlyArray2<'py, i64>,
+    n_face: usize,
+    n_node: usize,
+    n_edge: usize,
+    fill_value: i64,
+) -> PyResult<(
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+    Bound<'py, PyArray2<i64>>,
+)> {
+    let global = global_connectivity(
+        &face_edge_connectivity,
+        &face_node_connectivity,
+        &face_face_connectivity,
+        &node_face_connectivity,
+        &edge_face_connectivity,
+        &edge_node_connectivity,
+        n_face,
+        n_node,
+        n_edge,
+        fill_value,
+    );
+    let local = cratermaker_components::surface::build_local_connectivity(
+        face_indices.as_array(),
+        node_indices.as_array(),
+        edge_indices.as_array(),
+        &global,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok((
+        PyArray2::from_owned_array(py, local.face_edge),
+        PyArray2::from_owned_array(py, local.face_node),
+        PyArray2::from_owned_array(py, local.face_face),
+        PyArray2::from_owned_array(py, local.node_face),
+        PyArray2::from_owned_array(py, local.edge_face),
+        PyArray2::from_owned_array(py, local.edge_node),
+    ))
+}
+
+/// Computes great-circle distances and/or initial bearings from origin points to a subset of points given in degrees.
+///
+/// The points are `(lon[i], lat[i])` for each `i` in `indices` (or all points if `indices` is None). Distances are measured from
+/// `distance_origin` and bearings from `bearing_origin`; pass None for either origin to skip that output. The results are
+/// identical to converting the points to radians with NumPy and calling `compute_distances` and `compute_bearings`, with the
+/// bearings converted back to degrees. If `with_projection` is true (which requires both origins), the projected coordinates
+/// `x = distance * sin(bearing)` and `y = distance * cos(bearing)` are also returned.
+///
+/// # Returns
+///
+/// * `(distances in m, bearings in degrees in [0, 360), projected x in m, projected y in m)`, each None if not requested.
+#[pyfunction]
+#[pyo3(signature = (lon, lat, radius, indices=None, distance_origin=None, bearing_origin=None, with_projection=false))]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub fn compute_distances_and_bearings<'py>(
+    py: Python<'py>,
+    lon: PyReadonlyArray1<'py, f64>,
+    lat: PyReadonlyArray1<'py, f64>,
+    radius: f64,
+    indices: Option<PyReadonlyArray1<'py, i64>>,
+    distance_origin: Option<(f64, f64)>,
+    bearing_origin: Option<(f64, f64)>,
+    with_projection: bool,
+) -> PyResult<(
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+    Option<Bound<'py, PyArray1<f64>>>,
+)> {
+    let (distances, bearings, proj_x, proj_y) = cratermaker_components::surface::compute_distances_and_bearings(
+        lon.as_array(),
+        lat.as_array(),
+        indices.as_ref().map(|i| i.as_array()),
+        distance_origin,
+        bearing_origin,
+        radius,
+        with_projection,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    let to_py = |a: Option<Array1<f64>>| a.map(|a| PyArray1::from_owned_array(py, a));
+    Ok((to_py(distances), to_py(bearings), to_py(proj_x), to_py(proj_y)))
+}
+
+/// Computes the elevation of a mean reference plane fitted to the points within a reference radius of a region's center.
+///
+/// Points within `reference_radius` are replaced by the elevation of the least-squares plane through them; points outside
+/// keep their original elevation. If fewer than 5 points lie within the radius, the original elevations are returned.
+///
+/// # Arguments
+///
+/// * `py` - Python interpreter token.
+/// * `x` - 1D array of projected x coordinates (meters).
+/// * `y` - 1D array of projected y coordinates (meters).
+/// * `elevation` - 1D array of elevations (meters).
+/// * `distance` - 1D array of radial distances from the region center (meters).
+/// * `reference_radius` - Radius of the region used to fit the reference plane (meters).
+///
+/// # Returns
+///
+/// A NumPy array of reference elevations, one per input point.
+#[pyfunction]
+pub fn reference_surface<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f64>,
+    elevation: PyReadonlyArray1<'py, f64>,
+    distance: PyReadonlyArray1<'py, f64>,
+    reference_radius: f64,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let result = cratermaker_components::surface::reference_surface(
+        x.as_array(),
+        y.as_array(),
+        elevation.as_array(),
+        distance.as_array(),
+        reference_radius,
+    )
+    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
 }

@@ -18,6 +18,11 @@ from tqdm import tqdm
 
 from cratermaker.utils.general_utils import parameter
 
+# Path objects already produced by the simdir setter, keyed by id(). Components pass their parent's simdir along by reference (e.g. a
+# Simulation's simdir is shared with every crater, projectile, and local surface view), so an identity check lets the setter skip all
+# filesystem work for a value that has already been vetted. Holding a strong reference prevents an id() from being reused.
+_RESOLVED_SIMDIRS: dict[int, Path] = {}
+
 
 @dataclass
 class CommonArgs:
@@ -510,6 +515,8 @@ class CratermakerBase:
             |kwargs|
 
         """
+        import pyvista as pv
+
         from cratermaker.constants import PYVISTA_SHOW_KWARGS
 
         if engine == "pyvista":
@@ -617,21 +624,23 @@ class CratermakerBase:
 
     @simdir.setter
     def simdir(self, value):
-        if value is None:
-            p = Path.cwd()
-        else:
-            try:
-                p = Path(value)
-                if not p.is_absolute():
-                    p = Path.cwd() / p
-                p.mkdir(parents=True, exist_ok=True)
-                p = p.resolve()
-            except TypeError as e:
-                raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
+        # Fast path: value is a Path that this setter already resolved (passed along from another component), so no filesystem calls are needed.
+        if value is not None and _RESOLVED_SIMDIRS.get(id(value)) is value:
+            self._simdir = value
+            return
+
         try:
-            self._simdir = p.relative_to(Path.cwd())
+            p = Path.cwd() if value is None else Path(value)
+        except TypeError as e:
+            raise TypeError("simdir must be a path-like object (str, Path, or None)") from e
+        p.mkdir(parents=True, exist_ok=True)
+        p = p.resolve()
+        try:
+            p = p.relative_to(Path.cwd())
         except ValueError:
-            self._simdir = p
+            pass
+        self._simdir = p
+        _RESOLVED_SIMDIRS[id(p)] = p
         return
 
     @property

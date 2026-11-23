@@ -158,5 +158,39 @@ class TestMonteCarlo(unittest.TestCase):
         return
         
 
+class TestBoundedNorm(unittest.TestCase):
+    def test_matches_scipy_truncnorm(self):
+        # bounded_norm samples the truncated normal by inverse transform. It must agree with scipy's truncnorm quantile function
+        # to near machine precision, and consume the random number generator the same way (one uniform per sample).
+        from scipy.stats import truncnorm
+
+        cases = [
+            dict(loc=0.84, scale=0.04),
+            dict(loc=0.079, scale=0.0001),
+            dict(loc=5.0, scale=2.0, size=1000),
+            dict(loc=5.0, scale=2.0, size=(10, 7)),
+            dict(loc=0.0, scale=1.0, lower_bound=-3.0, upper_bound=0.5, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=0.5, upper_bound=3.0, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=-3.0, upper_bound=-0.5, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=2.0, upper_bound=6.0, size=500),
+            dict(loc=0.0, scale=1.0, lower_bound=-6.0, upper_bound=-2.0, size=500),
+        ]
+        for case in cases:
+            loc, scale, size = case["loc"], case["scale"], case.get("size", 1)
+            lower = case.get("lower_bound", loc - scale)
+            upper = case.get("upper_bound", loc + scale)
+            rng_new = np.random.default_rng(11)
+            rng_ref = np.random.default_rng(11)
+            for _ in range(50):
+                new = bounded_norm(rng=rng_new, **case)
+                ref = truncnorm.ppf(
+                    rng_ref.uniform(size=size), (lower - loc) / scale, (upper - loc) / scale, loc=loc, scale=scale
+                )
+                self.assertEqual(np.shape(new), np.shape(ref))
+                np.testing.assert_allclose(new, ref, rtol=1e-12, atol=1e-12 * scale, err_msg=f"bounded_norm vs truncnorm for {case}")
+                self.assertTrue(np.all((new >= lower) & (new <= upper)))
+            self.assertEqual(rng_new.bit_generator.state, rng_ref.bit_generator.state)
+
+
 if __name__ == '__main__':
     unittest.main()

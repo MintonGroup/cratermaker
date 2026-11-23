@@ -181,7 +181,9 @@ class Counting(ComponentBase):
                 self._emplaced = self.Crater.from_xarray(emplaced, interval=interval)
         return
 
-    def add(self, crater: MorphologyCrater, **kwargs: Any) -> MorphologyCrater:
+    def add(
+        self, crater: MorphologyCrater, add_to_observed: bool = True, add_to_emplaced: bool = True, **kwargs: Any
+    ) -> MorphologyCrater:
         """
         Add a crater to the surface.
 
@@ -189,6 +191,10 @@ class Counting(ComponentBase):
         ----------
         crater : Crater
             The crater to be added to the surface.
+        add_to_observed : bool, optional
+            If True, then craters that are big enough to be evaluated for counting will be added to a tally layer on the Surface so that it can be tracked for observability. If False, then the crater won't be stored for tallying in the observed list. Default is True.
+        add_to_emplaced : bool, optional
+            If True, then craters will be added to the list of emplaced craters if it is big enough. If False, then the crater won't be stored in the emplaced list. Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -210,12 +216,17 @@ class Counting(ComponentBase):
         # Only tag if the crater is big enough
         if crater.crater_region is None:
             return
+        if add_to_emplaced:
+            self.emplaced.append(crater)
+
+        # The rest only tags the crater for observation, so skip extracting its tagging region when it will not be used
+        if not add_to_observed:
+            return crater
 
         # Tag a region just outside crater rim with the id
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
-        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING:
-            self.emplaced.append(crater)
+        if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING and add_to_observed:
             crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,

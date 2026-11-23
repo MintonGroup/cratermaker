@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 #[derive(FromPyObject, Clone, Debug)]
 pub struct Crater {
-    pub id: u32,
+    pub id: u64,
     pub diameter: f64,
     pub radius: f64,
     pub semimajor_axis: f64,

@@ -104,7 +104,9 @@ sphinx_gallery_conf = {
     "gallery_dirs": "auto_examples",
     "filename_pattern": r"\.py",  # Allows all Python files to be found, not just ones that begin with `plot_`
     "image_scrapers": (DynamicScraper(), "matplotlib"),
-    "parallel": True,
+    # Run examples serially on Read the Docs: the build container has limited RAM and
+    # several high-resolution examples together exceed it (worker gets SIGKILLed).
+    "parallel": os.environ.get("READTHEDOCS") != "True",
 }
 html_theme = "sphinx_book_theme"
 html_title = ""
