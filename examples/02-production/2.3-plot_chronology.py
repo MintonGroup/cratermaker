@@ -16,8 +16,8 @@ moon = Production.maker("neukum", version="Moon")
 mars = Production.maker("neukum", version="Mars")
 age_vals = np.linspace(4.5e3, 0.0, num=1000)
 
-N1_moon = moon.chronology(age=age_vals)
-N1_mars = mars.chronology(age=age_vals)
+N1_moon = moon.function(age=age_vals, diameter=1000.0)
+N1_mars = mars.function(age=age_vals, diameter=1000.0)
 
 fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
 ax.set_yscale("log")
