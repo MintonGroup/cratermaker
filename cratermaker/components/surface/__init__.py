@@ -4,6 +4,7 @@ import hashlib
 import os
 import shutil
 import tempfile
+import threading
 import warnings
 from abc import abstractmethod
 from contextlib import AbstractContextManager
@@ -31,10 +32,50 @@ from cratermaker.components.target import Target
 from cratermaker.constants import _SMALLFAC, _VSMALL, FloatLike, PairOfFloats
 from cratermaker.core.base import ComponentBase, CratermakerBase, import_components
 from cratermaker.utils.general_utils import convert_deg2m_res, format_large_units, validate_and_normalize_location
-from cratermaker.utils.montecarlo_utils import get_random_location_on_face
+from cratermaker.utils.montecarlo_utils import _get_one_random_location
 
 _N_TAG_LAYERS = 8
 LOLA_LUNAR_RADIUS = 1737400.0
+
+_unique_scratch = threading.local()
+
+
+def _unique_indices(indices: NDArray, n_total: int) -> NDArray:
+    """
+    Return the sorted, unique, valid entries of an array of global mesh indices.
+
+    This is equivalent to ``u = np.unique(indices); u[u != INT_FILL_VALUE]``, but avoids NumPy's hash-based unique, which is
+    the dominant cost when it is called on every crater's region. Instead, it uses a reusable scratch array of size
+    `n_total`: each value records the position of its last occurrence, so exactly one position per distinct value matches.
+    Only the (much smaller) set of distinct values is then sorted.
+
+    Parameters
+    ----------
+    indices : NDArray
+        Array of global indices in the range [0, n_total), possibly containing INT_FILL_VALUE entries. Any shape.
+    n_total : int
+        The total number of items in the global index domain (e.g., the number of nodes on the surface).
+
+    Returns
+    -------
+    NDArray
+        1D sorted array of the unique valid indices.
+    """
+    indices = np.asarray(indices).ravel()
+    indices = indices[indices != INT_FILL_VALUE]
+    if indices.size == 0:
+        return indices
+    buffers = getattr(_unique_scratch, "buffers", None)
+    if buffers is None:
+        buffers = _unique_scratch.buffers = {}
+    scratch = buffers.get(n_total)
+    if scratch is None:
+        scratch = buffers[n_total] = np.empty(n_total, dtype=np.intp)
+    positions = np.arange(indices.size, dtype=np.intp)
+    scratch[indices] = positions
+    unique = indices[scratch[indices] == positions]
+    unique.sort()
+    return unique
 
 
 class Surface(ComponentBase):
@@ -95,12 +136,26 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_face_bin_argmin", None)
         object.__setattr__(self, "_face_bin_argmax", None)
         object.__setattr__(self, "_face_bin_area", None)
+        object.__setattr__(self, "_face_node_connectivity", None)
+        object.__setattr__(self, "_face_face_connectivity", None)
+        object.__setattr__(self, "_face_edge_connectivity", None)
+        object.__setattr__(self, "_node_face_connectivity", None)
+        object.__setattr__(self, "_edge_face_connectivity", None)
+        object.__setattr__(self, "_edge_node_connectivity", None)
         object.__setattr__(self, "_face_x", None)
         object.__setattr__(self, "_face_y", None)
         object.__setattr__(self, "_face_z", None)
+        object.__setattr__(self, "_face_lon", None)
+        object.__setattr__(self, "_face_lat", None)
         object.__setattr__(self, "_node_x", None)
         object.__setattr__(self, "_node_y", None)
         object.__setattr__(self, "_node_z", None)
+        object.__setattr__(self, "_node_lon", None)
+        object.__setattr__(self, "_node_lat", None)
+        object.__setattr__(self, "_face_indices", None)
+        object.__setattr__(self, "_node_indices", None)
+        object.__setattr__(self, "_n_nodes_per_face", None)
+        object.__setattr__(self, "_n_max_face_faces", None)
         object.__setattr__(self, "_smallest_length", None)
         object.__setattr__(self, "_crs", None)
         object.__setattr__(self, "_output_file_prefix", "surface")
@@ -200,7 +255,8 @@ class Surface(ComponentBase):
             raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
         uxds = object.__getattribute__(self, "uxds")
         if name in uxds:
-            return uxds[name].data
+            # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+            return uxds.variables[name].data
         raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def saved_output_files(self, **kwargs: Any) -> list[Path]:
@@ -242,6 +298,62 @@ class Surface(ComponentBase):
         self.is_new = True
 
         return
+
+    _CONNECTIVITY_NAMES = (
+        "face_edge_connectivity",
+        "face_node_connectivity",
+        "face_face_connectivity",
+        "node_face_connectivity",
+        "edge_face_connectivity",
+        "edge_node_connectivity",
+    )
+
+    @property
+    def _global_connectivity_args(self) -> dict[str, Any]:
+        """
+        The global connectivity arrays and sizes, as keyword arguments for the Rust region builders.
+
+        This is built once and reused, since it is needed for every region that is extracted. It is rebuilt if any of the cached
+        global connectivity arrays is replaced.
+        """
+        cache = self.__dict__.get("_global_connectivity_args_cache")
+        if cache is not None:
+            # Compare against the cached arrays directly, which avoids calling the six properties on every region extraction
+            attrs = self.__dict__
+            if all(attrs.get("_" + name) is a for name, a in zip(self._CONNECTIVITY_NAMES, cache[0], strict=True)):
+                return cache[1]
+        sources = tuple(getattr(self, name) for name in self._CONNECTIVITY_NAMES)
+        args = {
+            # No copy for the int64, C-contiguous arrays that come from uxarray
+            name: np.ascontiguousarray(a, dtype=np.int64)
+            for name, a in zip(self._CONNECTIVITY_NAMES, sources, strict=True)
+        }
+        args.update(n_face=self.n_face, n_node=self.n_node, n_edge=self.n_edge, fill_value=INT_FILL_VALUE)
+        object.__setattr__(self, "_global_connectivity_args_cache", (sources, args))
+        return args
+
+    def _region_indices(self, seed_faces: ArrayLike) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]:
+        """
+        Determine the face, node, and edge indices of a local region from a set of seed faces.
+
+        The edges are those attached to the seed faces. The faces are the seed faces plus a buffer of every face that shares a
+        face, node, or edge with them (needed for diffusion calculations), and the nodes are those attached to all of the faces,
+        including the buffer. Each array is sorted and unique.
+
+        Parameters
+        ----------
+        seed_faces : ArrayLike
+            Global indices of the faces inside the region.
+
+        Returns
+        -------
+        tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64]]
+            The face, node, and edge indices of the region.
+        """
+        return surface_bindings.build_region_indices(
+            seed_faces=np.ascontiguousarray(np.ravel(seed_faces), dtype=np.int64),
+            **self._global_connectivity_args,
+        )
 
     def extract_region(
         self,
@@ -285,24 +397,9 @@ class Surface(ComponentBase):
                 else:
                     return None
 
-            # First select edges and nodes that are attached to these faces
-            edge_indices = np.unique(self.face_edge_connectivity[face_indices].ravel())
-            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
-
-            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
-
-            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
-            # These are needed for diffusion calculations
-            neighbor_faces = self.face_face_connectivity[face_indices].ravel()
-            node_faces = self.node_face_connectivity[node_indices].ravel()
-            edge_faces = self.edge_face_connectivity[edge_indices].ravel()
-            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
-            face_indices = face_indices[face_indices != INT_FILL_VALUE]
-
-            # Add in all nodes that are attached to these buffer faces
-            node_indices = np.unique(self.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
+            # Select the edges of these faces, then add a buffer of every face connected to them (needed for diffusion
+            # calculations), and finally all nodes attached to the buffered faces
+            face_indices, node_indices, edge_indices = self._region_indices(face_indices)
 
         else:  # This is the entire surface
             face_indices = self.face_indices
@@ -404,12 +501,12 @@ class Surface(ComponentBase):
     def add_tag(
         self,
         name: str,
-        tag: int | None = None,
+        tag: str | None = None,
         long_name: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
-        Adds an integer tag to the surface.
+        Adds a string tag to the surface.
 
         Used primarily for tracking crater ids.
 
@@ -417,8 +514,8 @@ class Surface(ComponentBase):
         ----------
         name : str
             The name of the tag variable to perform the add operation on.
-        tag : int | None
-            The integer to value of the tag. If None is provided, the tag layers will be reset to zero
+        tag : str | None
+            The value of the tag. If None is provided, the tag layers will be reset to empty strings
         long_name : str | None
             The long name of the tag variable. This is only used if the tag variable doesn't exist in the surface dataset. If None, no long name will be added.
         **kwargs : Any
@@ -426,16 +523,16 @@ class Surface(ComponentBase):
         """
         return self._full().add_tag(name=name, tag=tag, long_name=long_name, **kwargs)
 
-    def remove_tag(self, name: str, tag: int, **kwargs: Any) -> None:
+    def remove_tag(self, name: str, tag: str, **kwargs: Any) -> None:
         """
-        Removes an integer tag from the surface.
+        Removes a string tag from the surface.
 
         Parameters
         ----------
         name : str
             The name of the tag variable to perform the remove operation on.
-        tag : int
-            The integer tag to be removed.
+        tag : str
+            The tag to be removed.
         **kwargs : Any
             |kwargs|
         """
@@ -642,7 +739,29 @@ class Surface(ComponentBase):
         -----
         This method is a wrapper for :py:meth:`cratermaker.utils.montecarlo_utils.get_random_location_on_face`.
         """
-        return get_random_location_on_face(self.uxgrid, face_index, rng=self.rng, **kwargs)
+        from uxarray.grid import coordinates
+
+        # Extract node indices for the given face(s)
+        face_index = np.atleast_1d(face_index)
+        size = len(face_index)
+        node_indices = self.face_node_connectivity[face_index, :]
+
+        # Prepare index arrays
+        locations = np.empty(size, dtype=[("lon", "f8"), ("lat", "f8")])
+
+        node_x = self.node_x
+        node_y = self.node_y
+        node_z = self.node_z
+        rng_vals = self.rng.random((size, 3))
+        for i in range(size):
+            ind = node_indices[i]
+            ind = ind[ind >= 0]
+            p = _get_one_random_location(ind, node_x, node_y, node_z, rng_vals=rng_vals[i, :])
+            lon, lat = coordinates._xyz_to_lonlat_deg(*p)
+            locations["lon"][i] = np.float64(lon)
+            locations["lat"][i] = np.float64(lat)
+
+        return locations
 
     def elevation_to_cartesian(self, element="face") -> NDArray[np.float64]:
         """
@@ -1383,7 +1502,7 @@ class Surface(ComponentBase):
                 return
             else:
                 uxgrid = self.uxgrid
-        self._face_area = uxgrid.face_areas.values * self.radius**2
+        self._face_area = uxgrid.face_areas.data * self.radius**2
         self._face_size = np.sqrt(self._face_area)
         self._pix_mean = float(self._face_size.mean().item())
         self._pix_std = float(self._face_size.std().item())
@@ -1553,74 +1672,86 @@ class Surface(ComponentBase):
     @property
     def face_lat(self) -> NDArray[np.float64]:
         """Latitude of the center of each face in degrees."""
-        return self.uxgrid.face_lat.values
+        if self._face_lat is None:
+            self._face_lat = self.uxgrid.face_lat.data
+        return self._face_lat
 
     @property
     def face_lon(self) -> NDArray[np.float64]:
         """Longitude of the center of each face in degrees."""
-        return self.uxgrid.face_lon.values
+        if self._face_lon is None:
+            self._face_lon = self.uxgrid.face_lon.data
+        return self._face_lon
 
     @property
     def face_x(self) -> NDArray[np.float64]:
         """Cartesian x location of the center of each face in meters."""
         if self._face_x is None:
-            self._face_x = self.uxgrid.face_x.values * self.radius
+            self._face_x = self.uxgrid.face_x.data * self.radius
         return self._face_x
 
     @property
     def face_y(self) -> NDArray[np.float64]:
         """Cartesian y location of the center of each face in meters."""
         if self._face_y is None:
-            self._face_y = self.uxgrid.face_y.values * self.radius
+            self._face_y = self.uxgrid.face_y.data * self.radius
         return self._face_y
 
     @property
     def face_z(self) -> NDArray[np.float64]:
         """Cartesian z location of the center of each face in meters."""
         if self._face_z is None:
-            self._face_z = self.uxgrid.face_z.values * self.radius
+            self._face_z = self.uxgrid.face_z.data * self.radius
         return self._face_z
 
     @property
     def node_lat(self) -> NDArray[np.float64]:
         """Latitude of each node in degrees."""
-        return self.uxgrid.node_lat.values
+        if self._node_lat is None:
+            self._node_lat = self.uxgrid.node_lat.data
+        return self._node_lat
 
     @property
     def node_lon(self) -> NDArray[np.float64]:
         """Longitude of each node in degrees."""
-        return self.uxgrid.node_lon.values
+        if self._node_lon is None:
+            self._node_lon = self.uxgrid.node_lon.data
+        return self._node_lon
 
     @property
     def node_x(self) -> NDArray[np.float64]:
         """Cartesian x location of each node in meters."""
         if self._node_x is None:
-            self._node_x = self.uxgrid.node_x.values * self.radius
+            self._node_x = self.uxgrid.node_x.data * self.radius
         return self._node_x
 
     @property
     def node_y(self) -> NDArray[np.float64]:
         """Cartesian y location of each node in meters."""
         if self._node_y is None:
-            self._node_y = self.uxgrid.node_y.values * self.radius
+            self._node_y = self.uxgrid.node_y.data * self.radius
         return self._node_y
 
     @property
     def node_z(self) -> NDArray[np.float64]:
         """Cartesian z location of each node in meters."""
         if self._node_z is None:
-            self._node_z = self.uxgrid.node_z.values * self.radius
+            self._node_z = self.uxgrid.node_z.data * self.radius
         return self._node_z
 
     @property
     def face_indices(self) -> NDArray[np.int64]:
         """The indices of the faces of the surface."""
-        return self.uxds.n_face.values
+        if self._face_indices is None:
+            self._face_indices = self.uxds.n_face.data
+        return self._face_indices
 
     @property
     def node_indices(self) -> NDArray[np.int64]:
         """The indices of the nodes of the surface."""
-        return self.uxds.n_node.values
+        if self._node_indices is None:
+            self._node_indices = self.uxds.n_node.data
+        return self._node_indices
 
     @property
     def edge_indices(self) -> NDArray[np.int64]:
@@ -1748,12 +1879,16 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_node, )`
         """
-        return self.uxgrid.n_nodes_per_face.values
+        if self._n_nodes_per_face is None:
+            self._n_nodes_per_face = self.uxgrid.n_nodes_per_face.data
+        return self._n_nodes_per_face
 
     @property
     def n_max_face_faces(self) -> int:
         """The maximum number of faces that surround a face."""
-        return int(self.uxgrid.n_max_face_faces)
+        if self._n_max_face_faces is None:
+            self._n_max_face_faces = int(self.uxgrid.n_max_face_faces)
+        return self._n_max_face_faces
 
     @property
     def edge_face_distance(self) -> NDArray[np.float64]:
@@ -1794,7 +1929,9 @@ class Surface(ComponentBase):
 
         Nodes are in counter-clockwise order.
         """
-        return self.uxgrid.face_node_connectivity.values
+        if self._face_node_connectivity is None:
+            self._face_node_connectivity = self.uxgrid.face_node_connectivity.data
+        return self._face_node_connectivity
 
     @property
     def face_face_connectivity(self) -> NDArray[np.int64]:
@@ -1803,7 +1940,9 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_face, n_max_face_faces)`
         """
-        return self.uxgrid.face_face_connectivity.values
+        if self._face_face_connectivity is None:
+            self._face_face_connectivity = self.uxgrid.face_face_connectivity.data
+        return self._face_face_connectivity
 
     @property
     def face_edge_connectivity(self) -> NDArray[np.int64]:
@@ -1813,7 +1952,9 @@ class Surface(ComponentBase):
         Dimensions (n_face, n_max_face_edges)
 
         """
-        return self.uxgrid.face_edge_connectivity.values
+        if self._face_edge_connectivity is None:
+            self._face_edge_connectivity = self.uxgrid.face_edge_connectivity.data
+        return self._face_edge_connectivity
 
     @property
     def node_face_connectivity(self) -> NDArray[np.int64]:
@@ -1822,7 +1963,9 @@ class Surface(ComponentBase):
 
         Dimensions: `(n_node, n_max_node_faces)`
         """
-        return self.uxgrid.node_face_connectivity.values
+        if self._node_face_connectivity is None:
+            self._node_face_connectivity = self.uxgrid.node_face_connectivity.data
+        return self._node_face_connectivity
 
     @property
     def edge_face_connectivity(self) -> NDArray[np.int64]:
@@ -1832,7 +1975,9 @@ class Surface(ComponentBase):
         Dimensions (n_edge, 2)
 
         """
-        return self.uxgrid.edge_face_connectivity.values
+        if self._edge_face_connectivity is None:
+            self._edge_face_connectivity = self.uxgrid.edge_face_connectivity.data
+        return self._edge_face_connectivity
 
     @property
     def edge_node_connectivity(self) -> NDArray[np.int64]:
@@ -1842,7 +1987,9 @@ class Surface(ComponentBase):
         Dimensions (n_edge, 2)
 
         """
-        return self.uxgrid.edge_node_connectivity.values
+        if self._edge_node_connectivity is None:
+            self._edge_node_connectivity = self.uxgrid.edge_node_connectivity.data
+        return self._edge_node_connectivity
 
     @property
     def face_tree(self):
@@ -2110,7 +2257,8 @@ class LocalSurface(CratermakerBase):
         """
         uxds = self.surface.uxds
         if name in uxds:
-            arr = uxds[name].values
+            # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+            arr = uxds.variables[name].data
             if arr.ndim >= 1:
                 if arr.shape[0] == self.surface.n_face:
                     return arr[self.face_indices, ...]
@@ -2194,27 +2342,25 @@ class LocalSurface(CratermakerBase):
                 name, data=fill_value, long_name=long_name, units=units, isfacedata=isfacedata, dtype=dtype, **kwargs
             )
             overwrite = True
-        elif overwrite:
-            if long_name is not None:
-                self.surface.uxds[name].attrs["long_name"] = long_name
-            if units is not None:
-                self.surface.uxds[name].attrs["units"] = units
+        # Access the underlying Variable directly; uxds[name] constructs a new UxDataArray on every call, which is slow.
+        # As documented, long_name and units are only used when creating new data; they are ignored for existing data.
+        variable = self.surface.uxds.variables[name]
 
         if np.any(np.isnan(data)):
             if np.all(np.isnan(data)):
                 return
             if overwrite:
-                data[np.isnan(data)] = self.surface.uxds[name].data[indices][np.isnan(data)]
+                data[np.isnan(data)] = variable.data[indices][np.isnan(data)]
             else:
                 data[np.isnan(data)] = 0.0
 
         if overwrite:
-            self.surface.uxds[name].data[indices] = data
+            variable.data[indices] = data
         else:
-            self.surface.uxds[name].data[indices] += data
+            variable.data[indices] += data
 
         if positive_only:
-            self.surface.uxds[name].data[indices] = np.maximum(0.0, self.surface.uxds[name].data[indices])
+            variable.data[indices] = np.maximum(0.0, variable.data[indices])
 
         return
 
@@ -2289,12 +2435,12 @@ class LocalSurface(CratermakerBase):
     def add_tag(
         self,
         name: str,
-        tag: int | None = None,
+        tag: str | None = None,
         long_name: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
-        Adds an integer tag to the surface.
+        Adds a string tag to the surface.
 
         Used primarily for tracking crater ids.
 
@@ -2302,8 +2448,8 @@ class LocalSurface(CratermakerBase):
         ----------
         name : str
             The name of the tag to be added.
-        tag : int | None
-            The integer to apply the tag. If None is provided, the tag layers will be reset to zero
+        tag : str | None
+            The value of the tag. If None is provided, the tag layers will be reset to empty strings
         long_name : str | None
             The long name of the tag to be added. If None, no long name will be added.
         **kwargs : Any
@@ -2335,7 +2481,7 @@ class LocalSurface(CratermakerBase):
         # Find the first layer that contains a contiguous set of empty spots
         for attempt in range(2):
             for i in range(_N_TAG_LAYERS):
-                if np.all(self.uxds[name].data[:, i] == 0):
+                if np.all(self.uxds[name].data[:, i] == ""):
                     insert_layer = i
                     break
             if insert_layer == -1:  # If at first we don't succed, try sorting the tags and try again.
@@ -2353,21 +2499,21 @@ class LocalSurface(CratermakerBase):
 
         return
 
-    def remove_tag(self, name: str, tag: int) -> None:
+    def remove_tag(self, name: str, tag: str) -> None:
         """
-        Removes an integer tag from the local surface.
+        Removes a string tag from the local surface.
 
         Parameters
         ----------
-        tag : int
-            The integer tag to be removed.
+        tag : str
+            The tag to be removed.
         """
         if name not in self.uxds:
             raise ValueError(f"Tag {name} does not exist on the surface")
 
         data = self.uxds[name].data
         if tag in data:
-            data[data == tag] = 0
+            data[data == tag] = np.uint64(0)
             self.surface.uxds[name].data[self.face_indices, :] = data
 
         return
@@ -2536,11 +2682,8 @@ class LocalSurface(CratermakerBase):
             raise ValueError("location must be a single pair of (longitude, latitude).")
         if validate:
             location = validate_and_normalize_location(location)
-        node_locations = np.vstack((self.node_lon, self.node_lat)).T
-        face_locations = np.vstack((self.face_lon, self.face_lat)).T
-        return self.compute_distances(
-            locations=face_locations, reference_location=location, validate=False
-        ), self.compute_distances(locations=node_locations, reference_location=location, validate=False)
+        result = self._compute_distances_and_bearings(distance_origin=location)
+        return result["face"][0], result["node"][0]
 
     def calculate_face_and_node_bearings(self, location: tuple[float, float] | None = None) -> tuple[NDArray, NDArray]:
         """
@@ -2569,21 +2712,70 @@ class LocalSurface(CratermakerBase):
         if len(location) != 2:
             raise ValueError("location must be a single pair of (longitude, latitude).")
         location = validate_and_normalize_location(location)
-        face_bearing, node_bearing = (
-            surface_bindings.compute_bearings(
-                lon1=np.radians(location[0]),
-                lat1=np.radians(location[1]),
-                lon2=np.radians(self.face_lon),
-                lat2=np.radians(self.face_lat),
-            ),
-            surface_bindings.compute_bearings(
-                lon1=np.radians(location[0]),
-                lat1=np.radians(location[1]),
-                lon2=np.radians(self.node_lon),
-                lat2=np.radians(self.node_lat),
-            ),
+        result = self._compute_distances_and_bearings(bearing_origin=location)
+        return result["face"][1], result["node"][1]
+
+    def _compute_distances_and_bearings(
+        self,
+        distance_origin: tuple[float, float] | None = None,
+        bearing_origin: tuple[float, float] | None = None,
+        with_projection: bool = False,
+    ) -> dict[str, tuple[NDArray | None, NDArray | None, NDArray | None, NDArray | None]]:
+        """
+        Compute distances, initial bearings, and projected coordinates from origin points to the faces and nodes of the view.
+
+        Each of the faces and nodes is handled by a single Rust call.
+
+        Parameters
+        ----------
+        distance_origin : tuple[float, float], optional
+            The (longitude, latitude) in degrees to measure distances from. If None, distances are not computed.
+        bearing_origin : tuple[float, float], optional
+            The (longitude, latitude) in degrees to measure bearings from. If None, bearings are not computed.
+        with_projection : bool, optional
+            If True, also compute the projected coordinates x = distance * sin(bearing) and y = distance * cos(bearing). This
+            requires both origins. Default is False.
+
+        Returns
+        -------
+        dict
+            Maps "face" and "node" to (distances in m, bearings in degrees, projected x in m, projected y in m), with None in
+            place of any output that was not requested.
+        """
+        surface = self.surface
+        result = {}
+        for key, lon, lat, indices, n_total in (
+            ("face", surface.face_lon, surface.face_lat, self.face_indices, surface.n_face),
+            ("node", surface.node_lon, surface.node_lat, self.node_indices, surface.n_node),
+        ):
+            if isinstance(indices, slice):
+                indices = None if indices == slice(None) else np.arange(n_total)[indices]
+            result[key] = surface_bindings.compute_distances_and_bearings(
+                lon=lon,
+                lat=lat,
+                radius=surface.radius,
+                indices=None if indices is None else np.ascontiguousarray(indices, dtype=np.int64),
+                distance_origin=None if distance_origin is None else tuple(map(float, distance_origin)),
+                bearing_origin=None if bearing_origin is None else tuple(map(float, bearing_origin)),
+                with_projection=with_projection,
+            )
+        return result
+
+    def _set_distances_and_bearings(self) -> None:
+        """
+        Compute and cache the face and node distances, bearings, and projected coordinates from the view's location together.
+
+        Only values that are not already cached are filled in, so values that were set explicitly are kept.
+        """
+        location = self.location
+        result = self._compute_distances_and_bearings(
+            distance_origin=location, bearing_origin=validate_and_normalize_location(location), with_projection=True
         )
-        return np.degrees(face_bearing), np.degrees(node_bearing)
+        for key in ("face", "node"):
+            names = (f"_{key}_distance", f"_{key}_bearing", f"_{key}_proj_x", f"_{key}_proj_y")
+            for name, value in zip(names, result[key], strict=True):
+                if getattr(self, name) is None:
+                    setattr(self, name, value)
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
@@ -2621,60 +2813,31 @@ class LocalSurface(CratermakerBase):
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
 
-        def _find_reference_coeffs(x: NDArray, y: NDArray, z: NDArray) -> NDArray:
-            """
-            Compute the coefficients of the mean plane that fits the points given by the projected x, projected y, and elevation array.
-
-            Parameters
-            ----------
-            region_points : NDArray
-                An array of shape (3) containing the [A,B,C] values
-
-            Returns
-            -------
-            NDArray
-                An array of elevation values corresponding to the mean plane for each projected x and y point.
-            """
-            # Create the design matrix for the plane fitting
-            A = np.vstack([x, y, np.ones(len(x))]).T
-
-            # Solve for the coefficients of the plane (Ax + By + C = z)
-            coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
-
-            return coeffs
-
         if reference_radius is None:
             reference_radius = self.region_radius
-        # Find cells within the crater radius
-        faces_within_region = self.face_distance <= reference_radius
-        if only_faces:
-            points_within_region = faces_within_region
-            elevation = self.face_elevation
-            n_reference = np.sum(faces_within_region)
-        else:
-            elevation = np.concatenate([self.face_elevation, self.node_elevation])
-            nodes_within_region = self.node_distance <= reference_radius
-            if not nodes_within_region.any():
-                return elevation
-            points_within_region = np.concatenate([faces_within_region, nodes_within_region])
-            n_reference = np.sum(faces_within_region) + np.sum(nodes_within_region)
-
-        # if there are not points within the radius, return the original elevations and use that as the reference
-        if n_reference < 5:
-            return elevation
 
         self.set_face_proj()
         if only_faces:
-            x, y, z = self.face_proj_x, self.face_proj_y, self.face_elevation
+            x, y, z, distance = self.face_proj_x, self.face_proj_y, self.face_elevation, self.face_distance
         else:
+            # If no nodes fall within the reference radius, the original elevations are used as the reference
+            if not np.any(self.node_distance <= reference_radius):
+                return np.concatenate([self.face_elevation, self.node_elevation])
             self.set_node_proj()
             x = np.concatenate([self.face_proj_x, self.node_proj_x])
             y = np.concatenate([self.face_proj_y, self.node_proj_y])
             z = np.concatenate([self.face_elevation, self.node_elevation])
-        coeffs = _find_reference_coeffs(x[points_within_region], y[points_within_region], z[points_within_region])
-        reference_elevation = np.where(points_within_region, coeffs[0] * x + coeffs[1] * y + coeffs[2], elevation)
+            distance = np.concatenate([self.face_distance, self.node_distance])
 
-        return reference_elevation
+        # Fit a mean plane to the points within the reference radius and evaluate it there. If fewer than 5 points fall within
+        # the radius, the original elevations are returned.
+        return surface_bindings.reference_surface(
+            x=np.ascontiguousarray(x, dtype=np.float64),
+            y=np.ascontiguousarray(y, dtype=np.float64),
+            elevation=np.ascontiguousarray(z, dtype=np.float64),
+            distance=np.ascontiguousarray(distance, dtype=np.float64),
+            reference_radius=float(reference_radius),
+        )
 
     def extract_subregion(self, subregion_radius: FloatLike, **kwargs) -> LocalSurface | None:
         """
@@ -2701,22 +2864,9 @@ class LocalSurface(CratermakerBase):
             if face_indices.size == 0:
                 return None
 
-            # First select edges and nodes that are attached to these faces
-            edge_indices = np.unique(self.surface.face_edge_connectivity[face_indices].ravel())
-            edge_indices = edge_indices[edge_indices != INT_FILL_VALUE]
-
-            node_indices = np.unique(self.surface.face_node_connectivity[face_indices].ravel())
-            node_indices = node_indices[node_indices != INT_FILL_VALUE]
-
-            # Now add in all faces that are connected to anything inside the region, so that the outermost border of the local region has a buffer of faces
-            # These are needed for diffusion calculations
-            neighbor_faces = self.surface.face_face_connectivity[face_indices]
-            neighbor_faces = neighbor_faces[neighbor_faces != INT_FILL_VALUE]
-            node_faces = self.surface.node_face_connectivity[node_indices]
-            node_faces = node_faces[node_faces != INT_FILL_VALUE]
-            edge_faces = self.surface.edge_face_connectivity[edge_indices]
-            edge_faces = edge_faces[edge_faces != INT_FILL_VALUE]
-            face_indices = np.unique(np.concatenate((face_indices, neighbor_faces, node_faces, edge_faces)))
+            # Build the region exactly as extract_region does: the edges of these faces, a buffer of every face connected to them
+            # (needed for diffusion calculations), and all nodes attached to the buffered faces
+            face_indices, node_indices, edge_indices = self.surface._region_indices(face_indices)
 
         else:
             face_indices = self.face_indices
@@ -2936,6 +3086,12 @@ class LocalSurface(CratermakerBase):
             if driver == "ESRI Shapefile":
                 gdf = gdf.rename(columns={col: shp_key_fix(col) for col in gdf.columns})
 
+            # OGR has no unsigned 64-bit field type, so uint64 values >= 2**63 (e.g. hashed crater ids) overflow on write.
+            # Reinterpret the bits as int64, which is lossless: recover the original ids with `.to_numpy().view(np.uint64)`.
+            for col in gdf.columns:
+                if gdf[col].dtype == np.uint64:
+                    gdf[col] = gdf[col].to_numpy().view(np.int64)
+
             print(f"Exporting to {filename} using driver {driver}")
             if not self._overwrite_check(filename):
                 return
@@ -2967,7 +3123,7 @@ class LocalSurface(CratermakerBase):
             raise ValueError("Cannot infer file extension from driver {driver}.")
 
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
 
         for interval in interval_numbers:
             uxdsi = uxds.sel(interval=interval).load()
@@ -3114,7 +3270,7 @@ class LocalSurface(CratermakerBase):
             return
 
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
         if interval is not None:
             if interval < 0:
                 interval = interval_numbers[interval]
@@ -3193,13 +3349,18 @@ class LocalSurface(CratermakerBase):
         else:
             gdf = uxda.to_geodataframe(engine="geopandas", periodic_elements="ignore").set_crs(self.surface.crs).to_crs(self.crs)
             pix = self.pix
-            R = (
-                self.region_radius + 4 * pix
-            )  # Add a 4 * pix border to enswure that the pixels along the border of the local region are plotted in full
+            # The raster pixels are exactly the mesh spacing, with an odd number of them so that one is centered on the
+            # region's center. The local mesh is a nearly square lattice of faces centered there, so this puts pixel centers on
+            # face centers. If the pixels are a different size than the faces, the two grids drift in and out of alignment, and
+            # if pixel edges fall on rows of face centers, pixels along those rows are assigned inconsistently. Either way the
+            # result is a grid of lines (a moire pattern) in hillshaded plots.
+            # A border of 4 * pix ensures that the pixels along the border of the local region are plotted in full.
+            n_half = int(np.ceil((self.region_radius + 4 * pix) / pix))
+            W = H = 2 * n_half + 1
+            xres = yres = pix
+            R = 0.5 * W * pix
             xmin, xmax = -R, R
             ymin, ymax = -R, R
-            # pixel size (meters/pixel)
-            xres = yres = (2.0 * R) / W
             # upper-left at (-R, +R); y increases downward in rasters
             transform = Affine.translation(-R, R) * Affine.scale(xres, -yres)
 
@@ -3212,13 +3373,17 @@ class LocalSurface(CratermakerBase):
         ]
         extent = (xmin, xmax, ymin, ymax)
 
+        # For a local region, the pixels are centered on the faces and the same size, so assigning each pixel the face that
+        # contains its center gives every pixel exactly its own face. With all_touched, each face would also claim the pixels
+        # around its edges, and those pixels would take the value of whichever neighboring face happened to be drawn last,
+        # which creates seams. A global raster can have faces smaller than a pixel, so it uses all_touched to avoid gaps.
         raster = rasterize(
             shapes=shapes,
             out_shape=(H, W),
             transform=transform,
             fill=np.nan,
             dtype=np.float32,
-            all_touched=True,
+            all_touched=self.is_global,
         )
         return raster, extent, transform, gdf.crs
 
@@ -3305,7 +3470,7 @@ class LocalSurface(CratermakerBase):
 
         # load data and select the face-based variables
         uxds = self.read_saved_output(interval=interval, reset=False)
-        interval_numbers = uxds.interval.values
+        interval_numbers = uxds.interval.data
         file_extension = "tif"
 
         for interval in interval_numbers:
@@ -3470,7 +3635,7 @@ class LocalSurface(CratermakerBase):
             uxds = self.uxds
         else:
             uxds = self.read_saved_output(interval=interval, reset=False)
-            interval = uxds.interval.values.item()
+            interval = uxds.interval.data.item()
             uxds = uxds.sel(interval=interval)
 
         if variable_name is not None and variable_name not in uxds:
@@ -3548,11 +3713,16 @@ class LocalSurface(CratermakerBase):
             dpi = max(minimum_plot_width, W)
 
         # Plot with (1, 1) inch figure and dpi=resolution for exact pixel size
+        ax_width_inches = 1.0
         if ax is None:
             _, ax = plt.subplots(figsize=(1, 1), dpi=dpi, frameon=False, layout="constrained")
+        else:
+            # An axes supplied by the caller can be any size, so scale the text and line elements to its actual width
+            ax_width_inches = ax.get_position().width * ax.figure.get_figwidth()
 
-        # This helps scale plot elements that are sized in points, because we're using a somewhat non-standard dpi and figure size to plot the rasterio-genrated surface data
-        scale_fraction = 72 / dpi
+        # This helps scale plot elements that are sized in points, because we're using a somewhat non-standard dpi and figure size to plot the rasterio-genrated surface data.
+        # Elements are sized relative to the width of the plot, the same way on a supplied axes as on the default 1-inch figure.
+        scale_fraction = 72 * ax_width_inches / dpi
         scaled_params = {
             k: v * scale_fraction
             for k, v in rcParams.items()
@@ -3624,7 +3794,7 @@ class LocalSurface(CratermakerBase):
                         filename = self.plot_dir / f"{file_prefix}.{self.output_image_file_extension}"
                 else:
                     uxds = self.read_saved_output(interval=interval, reset=False)
-                    interval = uxds.interval.values.item()
+                    interval = uxds.interval.data.item()
                     uxds = uxds.sel(interval=interval)
                     if filename is None:
                         filename = self.plot_dir / f"{file_prefix}{interval:06d}.{self.output_image_file_extension}"
@@ -4053,16 +4223,55 @@ class LocalSurface(CratermakerBase):
         if isinstance(row_indices, slice) and row_indices == slice(None):  # This is a global slice. Just return the original array
             return connectivity_array
         if isinstance(value_indices, slice):
-            value_indices = np.arange(total_value_size)[value_indices]
+            value_indices = np.arange(*value_indices.indices(total_value_size))
+        else:
+            value_indices = np.asarray(value_indices)
+        if isinstance(row_indices, slice):
+            row_indices = np.arange(*row_indices.indices(connectivity_array.shape[0]))
+        else:
+            row_indices = np.asarray(row_indices)
 
-        # Build global-to-local index mapping
-        mapping = np.full(total_value_size, fill_value, dtype=np.int64)
-        mapping[value_indices] = np.arange(value_indices.size)
+        if (
+            connectivity_array.dtype == np.int64
+            and connectivity_array.ndim == 2
+            and row_indices.dtype.kind in "iu"
+            and value_indices.dtype.kind in "iu"
+        ):
+            # Fast path: one pass in Rust using a reusable global-to-local lookup table, with the same semantics as the code below.
+            return surface_bindings.remap_connectivity_to_local(
+                connectivity=connectivity_array,
+                row_indices=row_indices.astype(np.int64, copy=False).ravel(),
+                value_indices=value_indices.astype(np.int64, copy=False).ravel(),
+                total_value_size=total_value_size,
+                fill_value=fill_value,
+            )
 
         subset = connectivity_array[row_indices]
         remapped = np.full_like(subset, fill_value)
         valid = subset != fill_value
-        remapped[valid] = mapping[subset[valid]]
+        values = subset[valid]
+        if value_indices.size == 0 or values.size == 0:
+            return remapped
+
+        # Avoid allocating a lookup table the size of the global mesh: the table only needs to span the range of indices
+        # actually involved. When that span is still large compared to the amount of work, use a binary search instead.
+        lo = min(int(value_indices.min()), int(values.min()))
+        span = max(int(value_indices.max()), int(values.max())) - lo + 1
+        if span <= 64 * values.size:
+            mapping = np.full(span, fill_value, dtype=np.int64)
+            mapping[value_indices - lo] = np.arange(value_indices.size)
+            remapped[valid] = mapping[values - lo]
+        else:
+            if value_indices.size > 1 and not np.all(value_indices[1:] > value_indices[:-1]):
+                sorter = np.argsort(value_indices, kind="stable")
+                sorted_values = value_indices[sorter]
+            else:
+                sorter = None
+                sorted_values = value_indices
+            pos = np.searchsorted(sorted_values, values)
+            np.minimum(pos, sorted_values.size - 1, out=pos)
+            local = pos if sorter is None else sorter[pos]
+            remapped[valid] = np.where(sorted_values[pos] == values, local, fill_value)
 
         return remapped
 
@@ -4182,28 +4391,28 @@ class LocalSurface(CratermakerBase):
     def face_bearing(self) -> NDArray:
         """The initial bearing from the location to the faces measured clockwise relative to North in degrees."""
         if self._location is not None and self._face_bearing is None:
-            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
+            self._set_distances_and_bearings()
         return self._face_bearing
 
     @property
     def node_bearing(self) -> NDArray:
         """The initial bearing from the location to the nodes measured clockwise relative to North in degrees."""
         if self._location is not None and self._node_bearing is None:
-            self._face_bearing, self._node_bearing = self.calculate_face_and_node_bearings()
+            self._set_distances_and_bearings()
         return self._node_bearing
 
     @property
     def face_distance(self) -> NDArray:
         """The distance from the location to the faces in meters."""
         if self._location is not None and self._face_distance is None:
-            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._set_distances_and_bearings()
         return self._face_distance
 
     @property
     def node_distance(self) -> NDArray:
         """The distance from the location to the nodes in meters."""
         if self._location is not None and self._node_distance is None:
-            self._face_distance, self._node_distance = self.calculate_face_and_node_distances()
+            self._set_distances_and_bearings()
         return self._node_distance
 
     @property
@@ -4297,8 +4506,7 @@ class LocalSurface(CratermakerBase):
     def node_indices(self) -> NDArray:
         """The indices of the nodes in the view."""
         if self._node_indices is None:
-            self._node_indices = np.unique(self.surface.face_node_connectivity[self.face_indices].ravel())
-            self._node_indices = self._node_indices[self._node_indices != INT_FILL_VALUE]
+            self._node_indices = _unique_indices(self.surface.face_node_connectivity[self.face_indices], self.surface.n_node)
 
         return self._node_indices
 
@@ -4306,9 +4514,39 @@ class LocalSurface(CratermakerBase):
     def edge_indices(self) -> NDArray:
         """The indices of the edges in the view."""
         if self._edge_indices is None:
-            self._edge_indices = np.unique(self.surface.face_edge_connectivity[self.face_indices].ravel())
-            self._edge_indices = self._edge_indices[self._edge_indices != INT_FILL_VALUE]
+            self._edge_indices = _unique_indices(self.surface.face_edge_connectivity[self.face_indices], self.surface.n_edge)
         return self._edge_indices
+
+    def _build_local_connectivity(self) -> bool:
+        """
+        Build all six local connectivity arrays at once with a single Rust call, if the view's indices allow it.
+
+        Each array is identical to what `_remap_connectivity_to_local` produces for it individually. Building them together means
+        the global-to-local map of each index domain (faces, nodes, edges) is only built once.
+
+        Returns
+        -------
+        bool
+            True if the arrays were built, or False if the indices are not all integer arrays (e.g. a slice for a global view),
+            in which case the caller should fall back to `_remap_connectivity_to_local`.
+        """
+        face_indices, node_indices, edge_indices = self.face_indices, self.node_indices, self.edge_indices
+        if not all(isinstance(idx, np.ndarray) and idx.dtype.kind in "iu" for idx in (face_indices, node_indices, edge_indices)):
+            return False
+        (
+            self._face_edge_connectivity,
+            self._face_node_connectivity,
+            self._face_face_connectivity,
+            self._node_face_connectivity,
+            self._edge_face_connectivity,
+            self._edge_node_connectivity,
+        ) = surface_bindings.build_local_connectivity(
+            face_indices=np.ascontiguousarray(face_indices.ravel(), dtype=np.int64),
+            node_indices=np.ascontiguousarray(node_indices.ravel(), dtype=np.int64),
+            edge_indices=np.ascontiguousarray(edge_indices.ravel(), dtype=np.int64),
+            **self.surface._global_connectivity_args,
+        )
+        return True
 
     @property
     def edge_face_connectivity(self) -> NDArray:
@@ -4317,7 +4555,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_edge, 2)`
         """
-        if self._edge_face_connectivity is None:
+        if self._edge_face_connectivity is None and not self._build_local_connectivity():
             self._edge_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.edge_face_connectivity,
                 row_indices=self.edge_indices,
@@ -4333,7 +4571,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_face, n_max_face_edges)`
         """
-        if self._face_edge_connectivity is None:
+        if self._face_edge_connectivity is None and not self._build_local_connectivity():
             self._face_edge_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_edge_connectivity,
                 row_indices=self.face_indices,
@@ -4351,7 +4589,7 @@ class LocalSurface(CratermakerBase):
 
         Nodes are in counter-clockwise order.
         """
-        if self._face_node_connectivity is None:
+        if self._face_node_connectivity is None and not self._build_local_connectivity():
             self._face_node_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_node_connectivity,
                 row_indices=self.face_indices,
@@ -4367,7 +4605,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_face, n_max_face_faces)`
         """
-        if self._face_face_connectivity is None:
+        if self._face_face_connectivity is None and not self._build_local_connectivity():
             self._face_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.face_face_connectivity,
                 row_indices=self.face_indices,
@@ -4383,7 +4621,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_node, n_max_node_faces)`
         """
-        if self._node_face_connectivity is None:
+        if self._node_face_connectivity is None and not self._build_local_connectivity():
             self._node_face_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.node_face_connectivity,
                 row_indices=self.node_indices,
@@ -4399,7 +4637,7 @@ class LocalSurface(CratermakerBase):
 
         Dimensions: `(n_edge, 2)`
         """
-        if self._edge_node_connectivity is None:
+        if self._edge_node_connectivity is None and not self._build_local_connectivity():
             self._edge_node_connectivity = self._remap_connectivity_to_local(
                 connectivity_array=self.surface.edge_node_connectivity,
                 row_indices=self.edge_indices,
@@ -4582,7 +4820,10 @@ class LocalSurface(CratermakerBase):
         """
         Set the projected x and y coordinates of the faces relative to the LocalSurface center.
         """
-        if self.face_distance is not None and self.face_bearing is not None and self._face_proj_x is None:
+        if self._face_proj_x is None and self._location is not None:
+            self._set_distances_and_bearings()
+        if self._face_proj_x is None and self.face_distance is not None and self.face_bearing is not None:
+            # Distances and bearings were set explicitly without a location
             self._face_proj_x = self.face_distance * np.sin(np.radians(self.face_bearing))
             self._face_proj_y = self.face_distance * np.cos(np.radians(self.face_bearing))
         return
@@ -4591,7 +4832,10 @@ class LocalSurface(CratermakerBase):
         """
         Set the projected x and y coordinates of the nodes relative to the LocalSurface center.
         """
-        if self.node_distance is not None and self.node_bearing is not None and self._node_proj_x is None:
+        if self._node_proj_x is None and self._location is not None:
+            self._set_distances_and_bearings()
+        if self._node_proj_x is None and self.node_distance is not None and self.node_bearing is not None:
+            # Distances and bearings were set explicitly without a location
             self._node_proj_x = self.node_distance * np.sin(np.radians(self.node_bearing))
             self._node_proj_y = self.node_distance * np.cos(np.radians(self.node_bearing))
         return
