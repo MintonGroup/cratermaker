@@ -220,8 +220,8 @@ pub fn degradation_function_array<'py>(
 ///
 /// # Returns
 ///
-/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if no ejecta was
-///   formed.
+/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if the crater was
+///   not formed because its excavated volume was not negative.
 #[pyfunction]
 #[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
