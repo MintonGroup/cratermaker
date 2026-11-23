@@ -28,6 +28,7 @@ class Production(ComponentBase):
 
     def __init__(
         self,
+        target: str | Target | None = None,
         quasimc_file: str | Path | None = None,
         quasimc_craters: list[Crater] | None = None,
         diameter_range: PairOfFloats | None = None,
@@ -43,6 +44,8 @@ class Production(ComponentBase):
 
         Parameters
         ----------
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         quasimc_file : str | Path, optional
             Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
         quasimc_craters : list[Crater], optional
@@ -70,6 +73,8 @@ class Production(ComponentBase):
         object.__setattr__(self, "_D_conversion_factor", None)
         object.__setattr__(self, "_diameter_range", None)
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_target", None)
+        self._target = Target.maker(target, **kwargs)
         self.diameter_range = diameter_range
 
         if quasimc_file is not None and quasimc_craters is not None:
@@ -1560,6 +1565,13 @@ class Production(ComponentBase):
         This is set by the Simulation object when initializing a crater.
         """
         return self._Crater if self._Crater is not None else Crater
+
+    @property
+    def target(self) -> Target:
+        """
+        The Target class associated with this Production moddel.
+        """
+        return self._target
 
 
 import_components(__name__, __path__)
