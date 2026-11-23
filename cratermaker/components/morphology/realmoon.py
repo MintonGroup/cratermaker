@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 from collections.abc import Callable
 from pathlib import Path
@@ -9,7 +10,6 @@ import numpy as np
 import xarray as xr
 from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
-from scipy import fft
 
 from cratermaker.bindings import realmoon_bindings
 from cratermaker.components.crater import Crater
@@ -409,13 +409,52 @@ def register_psd1d_parameters(*features: str):
     return decorator
 
 
+# Keyword arguments that set a crater's PSD data directly
+_PSD_DATA_KEYWORDS = tuple(f"{name}_{kind}" for name in _PSD1D_PARAMETERS for kind in ("control", "psd"))
+
+
+def _copy_psd_data(source: Crater, target: Crater) -> None:
+    """
+    Copy the PSD control points and PSD objects that `source` has already generated to `target`.
+
+    The data for each feature is generated from the crater radius, the morphology type, and the feature's own value, so it is
+    copied only for the features where these are the same in both craters. Data that `source` has not generated yet is left to
+    be generated when it is first accessed, so copying a crater does not draw any random numbers.
+
+    Parameters
+    ----------
+    source : Crater
+        The crater being copied.
+    target : Crater
+        The new crater. Any PSD data it already has is kept.
+    """
+    if not isinstance(source, RealMoonCrater):
+        return
+    if source.radius != target.radius or source.morphology_type != target.morphology_type:
+        return
+    for name in _PSD1D_PARAMETERS:
+        if getattr(source, name) != getattr(target, name):
+            continue
+        for kind in ("control", "psd"):
+            attr = f"_{name}_{kind}"
+            value = getattr(source._var, attr, None)
+            if value is not None and getattr(target._var, attr, None) is None:
+                setattr(target._var, attr, copy.deepcopy(value))
+
+
 @Crater.register("realmooncrater")
 @register_psd1d_parameters(*_PSD1D_PARAMETERS)
 class RealMoonCrater(BasicMoonCrater):
     def __init__(
         self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
+        # PSD data passed explicitly, as <feature>_psd or <feature>_control
+        psd_data = {key: kwargs.pop(key) for key in _PSD_DATA_KEYWORDS if kwargs.get(key) is not None}
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
+        for key, value in psd_data.items():
+            setattr(self._var, f"_{key}", value)
+        if crater is not None:
+            _copy_psd_data(crater, self)
 
     def __str__(self) -> str:
         str_repr = super().__str__()
@@ -450,13 +489,7 @@ class RealMoonCrater(BasicMoonCrater):
         """
         from cratermaker.components.morphology import Morphology
 
-        # This is a copy operation, to use old values for any un-specified arguments
-        if crater is not None and isinstance(crater, RealMoonCrater):
-            for param in _PSD1D_PARAMETERS:
-                var = f"{param}_psd"
-                if var not in kwargs and hasattr(crater, var):
-                    kwargs[var] = getattr(crater, var)
-
+        source = crater
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, **kwargs)
 
@@ -467,11 +500,12 @@ class RealMoonCrater(BasicMoonCrater):
                 ring = cls(crater=ring, morphology=morphology)
                 crater.rings[i] = ring
 
-        return cls(
-            crater=crater,
-            morphology=morphology,
-            **kwargs,
-        )
+        if not isinstance(crater, cls):
+            crater = cls(crater=crater, morphology=morphology, **kwargs)
+        # Keep the PSD data the source crater has already generated, where it still applies
+        if source is not None:
+            _copy_psd_data(source, crater)
+        return crater
 
 
 @Morphology.register("realmoon")
@@ -499,6 +533,26 @@ class RealMoonMorphology(BasicMoonMorphology):
         |kwargs|
 
     """
+
+    # The compiled function that forms a batch of RealMoonCrater objects
+    _form_craters_binding = staticmethod(realmoon_bindings.form_craters)
+
+    def _prepare_crater(self, crater: RealMoonCrater) -> None:
+        """
+        Generate the PSD objects of the crater and its rings.
+
+        Each PSD object draws a seed from the morphology's random number generator on first access. They are accessed in the
+        order the compiled `form_craters` reads them (each PSD parameter of the crater, then of each ring), so random numbers
+        are drawn in the same order as when the profile is computed directly.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The crater about to be formed.
+        """
+        for c in [crater, *(crater.rings or [])]:
+            for name in _PSD1D_PARAMETERS:
+                getattr(c, f"{name}_psd")
 
     def __init__(
         self,
@@ -601,7 +655,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         self,
         crater: RealMoonCrater,
         radial_distances: ArrayLike,
-        bearing: ArrayLike,
+        bearings: ArrayLike,
         crater_cls: type[Crater] = RealMoonCrater,
         profile_func: Callable = realmoon_bindings.realmoon_profile,
         **kwargs: Any,
@@ -615,8 +669,8 @@ class RealMoonMorphology(BasicMoonMorphology):
             The crater object containing the parameters for the ejecta profile.
         radial_distances : ArrayLike
             Radial distances from the crater center (in meters).
-        bearing : ArrayLike
-            bearing (in degrees) corresponding to the radial distances.
+        bearings : ArrayLike
+            Bearings (in degrees) corresponding to the radial distances.
         crater_cls : type[Crater], optional
             The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
         profile_func: Callable, optional
@@ -634,7 +688,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         return super().ejecta_profile(
             crater=crater,
             radial_distances=radial_distances,
-            bearing=bearing,
+            bearings=bearings,
             crater_cls=crater_cls,
             profile_func=profile_func,
             **kwargs,

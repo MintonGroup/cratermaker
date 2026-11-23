@@ -46,7 +46,6 @@ def plot_sfd(interval, **kwargs):
     nsig = np.sqrt(n)
     ax.errorbar(ds.diameter * 1e-3, n, yerr=nsig, label="Observed")
     ax.legend(loc="lower left")
-    # plt.savefig(f"sfd{interval:02d}.pdf")
     plt.show()
     return
 

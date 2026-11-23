@@ -1,7 +1,6 @@
 use crate::ArrayResult;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
 use crate::morphology::blend_band;
-use interp::{InterpMode, interp};
 use numpy::ndarray::prelude::*;
 use paste::paste;
 use rand::SeedableRng;
@@ -55,29 +54,74 @@ define_crater_structs! {
     psds: [ radius, floor_radius, rim_width, rim_height]
 }
 
-/// Holds pre-computed bearing profiles for a parameter to avoid nested tuples
+/// Evaluates a periodic bearing profile generated from a PSD by piecewise-linear interpolation.
+///
+/// The PSD profile is sampled at `nprofile` uniformly spaced bearings over [0, 2π), so the last sample sits one interval short of
+/// 2π. The profile is periodic, so the grid is padded with one wrapped sample on each side (the last sample shifted by -2π in
+/// front and the first sample shifted by +2π at the end). Together with wrapping each query bearing into [0, 2π), this makes the
+/// interpolation continuous across the 0/2π seam instead of extrapolating past the last sample.
+///
+/// The segment slopes are computed once at construction, so each evaluation is a binary search plus one multiply-add.
 pub struct ProfileEvaluator {
-    pub bearing_grid: Vec<f64>,
-    pub profile_values: Vec<f64>,
+    /// Padded bearing grid: [x[n-1] - 2π, x[0], ..., x[n-1], x[0] + 2π]
+    bearing_grid: Vec<f64>,
+    /// Profile values matching `bearing_grid`: [y[n-1], y[0], ..., y[n-1], y[0]]
+    profile_values: Vec<f64>,
+    /// slopes[i] is the slope of the segment between bearing_grid[i] and bearing_grid[i + 1]
+    slopes: Vec<f64>,
 }
 
 impl ProfileEvaluator {
     pub fn new(psd: &PSD1DView) -> Self {
-        let (bearing_grid, profile_values) = profile_from_psd(psd);
+        let (bearing, profile) = profile_from_psd(psd);
+        Self::from_samples(&bearing, &profile)
+    }
+
+    /// Builds an evaluator from one period of uniformly ordered samples over [0, 2π).
+    pub fn from_samples(bearing: &[f64], profile: &[f64]) -> Self {
+        let n = bearing.len().min(profile.len());
+        if n == 0 {
+            return Self {
+                bearing_grid: Vec::new(),
+                profile_values: Vec::new(),
+                slopes: Vec::new(),
+            };
+        }
+        let mut bearing_grid = Vec::with_capacity(n + 2);
+        let mut profile_values = Vec::with_capacity(n + 2);
+        bearing_grid.push(bearing[n - 1] - TAU);
+        profile_values.push(profile[n - 1]);
+        bearing_grid.extend_from_slice(&bearing[..n]);
+        profile_values.extend_from_slice(&profile[..n]);
+        bearing_grid.push(bearing[0] + TAU);
+        profile_values.push(profile[0]);
+
+        let slopes = bearing_grid
+            .windows(2)
+            .zip(profile_values.windows(2))
+            .map(|(x, y)| (y[1] - y[0]) / (x[1] - x[0]))
+            .collect();
         Self {
             bearing_grid,
             profile_values,
+            slopes,
         }
     }
 
     #[inline(always)]
     pub fn eval(&self, bearing: f64) -> f64 {
-        interp(
-            &self.bearing_grid,
-            &self.profile_values,
-            bearing,
-            &InterpMode::default(),
-        )
+        if self.slopes.is_empty() {
+            return self.profile_values.first().copied().unwrap_or(0.0);
+        }
+        // Wrap into [0, 2π]. rem_euclid can round up to exactly 2π for tiny negative inputs, which the padded grid also covers.
+        let b = bearing.rem_euclid(TAU);
+        // Index of the segment containing b, clamped to the valid range of segments
+        let i = self
+            .bearing_grid
+            .partition_point(|&probe| probe <= b)
+            .saturating_sub(1)
+            .min(self.slopes.len() - 1);
+        self.profile_values[i] + (b - self.bearing_grid[i]) * self.slopes[i]
     }
 }
 
@@ -418,4 +462,73 @@ pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
     }
 
     (amplitude, phase)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use interp::{InterpMode, interp};
+
+    /// One period of a random PSD profile, sampled on the uniform [0, 2π) grid used by profile_from_psd.
+    fn random_profile(nfreq: usize, rng: &mut ChaCha12Rng) -> (Vec<f64>, Vec<f64>) {
+        let normal = Normal::<f64>::new(0.0, 1.0).unwrap();
+        let nprofile = 2 * (nfreq - 1);
+        let wavelength = Array1::from_iter((0..nfreq).map(|i| TAU / i.max(1) as f64));
+        let amplitude = Array1::from_iter((0..nfreq).map(|_| normal.sample(rng).abs()));
+        let phase = Array1::from_iter((0..nfreq).map(|_| normal.sample(rng)));
+        let psd = PSD1DView {
+            nprofile,
+            nfreq,
+            normalization_length: 1234.5,
+            mean: amplitude[0],
+            pix: 1.0,
+            wavelength: wavelength.view(),
+            amplitude: amplitude.view(),
+            phase: phase.view(),
+        };
+        profile_from_psd(&psd)
+    }
+
+    #[test]
+    fn profile_evaluator_is_exact_at_samples_and_periodic() {
+        let mut rng = ChaCha12Rng::seed_from_u64(42);
+        for &nfreq in &[2usize, 3, 9, 33, 257] {
+            let (x, y) = random_profile(nfreq, &mut rng);
+            let n = x.len();
+            let evaluator = ProfileEvaluator::from_samples(&x, &y);
+
+            // Exact at every sample, including one period either side
+            for k in 0..n {
+                assert_eq!(evaluator.eval(x[k]), y[k], "nfreq={nfreq}, sample {k}");
+            }
+
+            // Continuous across the seam: just below 2π approaches y[0], and the last interval interpolates toward y[0]
+            let dx = TAU / n as f64;
+            let tol = 1e-9 * y.iter().fold(1.0f64, |a, &v| a.max(v.abs()));
+            assert!((evaluator.eval(TAU.next_down()) - y[0]).abs() < tol, "nfreq={nfreq}: no continuity at 2π");
+            assert!((evaluator.eval(TAU) - y[0]).abs() < tol);
+            let mid_last = x[n - 1] + 0.5 * dx;
+            assert!((evaluator.eval(mid_last) - 0.5 * (y[n - 1] + y[0])).abs() < tol, "nfreq={nfreq}: seam interval");
+
+            // Matches a periodically padded linear-interpolation reference, and is periodic outside [0, 2π)
+            let mut xp = vec![x[n - 1] - TAU];
+            xp.extend_from_slice(&x);
+            xp.push(x[0] + TAU);
+            let mut yp = vec![y[n - 1]];
+            yp.extend_from_slice(&y);
+            yp.push(y[0]);
+            for _ in 0..5000 {
+                let b: f64 = rng.random_range(0.0..TAU);
+                let got = evaluator.eval(b);
+                let expected = interp(&xp, &yp, b, &InterpMode::Extrapolate);
+                assert!((got - expected).abs() < tol, "nfreq={nfreq}, bearing={b}: {got} != {expected}");
+                for shift in [-2.0 * TAU, -TAU, TAU, 3.0 * TAU] {
+                    assert!((evaluator.eval(b + shift) - got).abs() < tol, "nfreq={nfreq}: not periodic at {b}+{shift}");
+                }
+            }
+            // Tiny negative bearings wrap to just below 2π, which must be close to y[0]
+            assert!((evaluator.eval(-1e-300) - y[0]).abs() < tol);
+            assert!((evaluator.eval(-0.0) - y[0]).abs() < tol);
+        }
+    }
 }

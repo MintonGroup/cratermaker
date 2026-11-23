@@ -58,8 +58,10 @@ class Simulation(CratermakerBase):
         If True, the user will be prompted before overwriting any existing files. Default is True.
     reset : bool, optional
         Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
-    do_counting : bool, optional
-        If True, the counting component will keep track of observable craters during the simulation. If False, emplaced craters that are large enoug to be observable are saved, but the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
+    save_observed : bool, optional
+        If True, the counting component will keep track of observable craters during the simulation. If False, the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
+    save_emplaced : bool, optional
+        If True, any craters large enough to be emplaced onto the surface in each interval are stored.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved. Set to None to disable or "default" to use the default save actions.
     **kwargs : Any
@@ -82,7 +84,8 @@ class Simulation(CratermakerBase):
         rng_state: dict | None = None,
         reset: bool = None,
         ask_overwrite: bool = True,
-        do_counting: bool = True,
+        save_observed: bool = True,
+        save_emplaced: bool = True,
         save_actions: list[dict[str, dict]] | None | str = "default",
         **kwargs: Any,
     ):
@@ -103,6 +106,11 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_max_crater_diameter_range", None)
 
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
+
+        # Added for backwards compatability
+        if "do_counting" in kwargs:
+            save_observed = kwargs.pop("do_counting")
+            save_emplaced = save_observed
 
         if reset is None:
             if self.ask_overwrite and self.config_file.exists():
@@ -209,7 +217,7 @@ class Simulation(CratermakerBase):
             **counting_config,
         )
 
-        morphology_config = {**morphology_config, **kwargs, "do_counting": do_counting}
+        morphology_config = {**morphology_config, **kwargs, "save_observed": save_observed, "save_emplaced": save_emplaced}
         self.morphology = Morphology.maker(
             self.morphology,
             surface=self.surface,
@@ -1827,7 +1835,7 @@ class Simulation(CratermakerBase):
             }
 
     @property
-    def do_counting(self) -> bool:
+    def save_observed(self) -> bool:
         """
         A boolean flag indicating whether or not counting is enabled for the simulation. This is determined by whether or not a counting model is present and has counting enabled.
 
@@ -1836,14 +1844,14 @@ class Simulation(CratermakerBase):
         bool
             True if counting is enabled, False otherwise.
         """
-        return self.counting is not None and self.morphology.do_counting if self.morphology is not None else False
+        return self.counting is not None and self.morphology.save_observed if self.morphology is not None else False
 
     @property
     def observed(self) -> dict[Crater] | None:
         """
         Pass-through to retrieve the current observed craters from the counting model, if it is enabled.
         """
-        if self.do_counting:
+        if self.save_observed:
             return self.counting.observed
         else:
             return None
@@ -1860,7 +1868,7 @@ class Simulation(CratermakerBase):
         """
         Pass-through to retrieve the current number of observed craters from the counting model, if it is enabled.
         """
-        if self.do_counting:
+        if self.save_observed:
             return self.counting.n_observed
         else:
             return None

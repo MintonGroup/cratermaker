@@ -21,7 +21,7 @@ sim = cm.Simulation(
     local_location=(0, 0),
     pix=10.0,
     local_radius=2000.0,
-    do_counting=False,
+    save_observed=False,
     ask_overwrite=False,
     reset=True,
 )

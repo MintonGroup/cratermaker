@@ -5,6 +5,7 @@ import numpy as np
 from numpy.random import Generator
 from scipy.optimize import root_scalar
 
+from cratermaker.bindings import scaling_bindings
 from cratermaker.components.projectile import Projectile
 from cratermaker.components.scaling import Scaling
 from cratermaker.components.target import Target
@@ -335,32 +336,9 @@ class MonteCarloScaling(Scaling):
         if not isinstance(projectile_diameter, FloatLike) or projectile_diameter <= 0 or not np.isfinite(projectile_diameter):
             raise ValueError("projectile_diameter must be a positive finite number")
 
-        # Compute some auxiliary quantites
-        projectile_radius = projectile_diameter / 2
-        projectile_mass = (4.0 / 3.0) * math.pi * (projectile_radius**3) * self.projectile.density
-
-        c1 = 1.0 + 0.5 * self.mu
-        c2 = (-3 * self.mu) / (2.0 + self.mu)
-
-        # Find dimensionless quantities
-        pitwo = (self.target.gravity * projectile_radius) / (self.projectile.vertical_velocity**2)
-        pithree = self.Ybar / (self.target.density * (self.projectile.vertical_velocity**2))
-        pifour = self.target.density / self.projectile.density
-        pivol = self.K1 * ((pitwo * (pifour ** (-1.0 / 3.0))) + (pithree**c1)) ** c2
-        pivolg = self.K1 * (pitwo * (pifour ** (-1.0 / 3.0))) ** c2
-
-        # find transient crater volume and radii (depth = 1/3 diameter)
-        cvol = pivol * (projectile_mass / self.target.density)
-        cvolg = pivolg * (projectile_mass / self.target.density)
-        transient_radius = (3 * cvol / math.pi) ** (1.0 / 3.0)
-        # TODO: transient_radius_gravscale = (3 * cvolg / math.pi)**(1.0/3.0)
-
-        transient_diameter = transient_radius * 2
-
-        if transient_diameter < projectile_diameter:
-            transient_diameter = projectile_diameter
-
-        return transient_diameter
+        return scaling_bindings.projectile_to_transient(
+            projectile_diameter=float(projectile_diameter), **self._transient_scaling_args()
+        )
 
     def transient_to_projectile(self, transient_diameter: FloatLike, **kwargs: Any) -> float:
         """
@@ -384,16 +362,21 @@ class MonteCarloScaling(Scaling):
         if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
             raise ValueError("transient_diameter must be a positive finite number")
 
-        def root_func(projectile_diameter) -> float:
-            value = self.projectile_to_transient(projectile_diameter)
-            return value - transient_diameter
-
-        sol = root_scalar(
-            lambda x, *args: root_func(x, *args),
-            bracket=(1e-5 * transient_diameter, 1.2 * transient_diameter),
+        return scaling_bindings.transient_to_projectile(
+            transient_diameter=float(transient_diameter), **self._transient_scaling_args()
         )
 
-        return sol.root
+    def _transient_scaling_args(self) -> dict[str, float]:
+        """The target, projectile, and material properties used by the compiled transient crater scaling functions."""
+        return {
+            "k1": float(self.K1),
+            "mu": float(self.mu),
+            "ybar": float(self.Ybar),
+            "target_density": float(self.target.density),
+            "projectile_density": float(self.projectile.density),
+            "gravity": float(self.target.gravity),
+            "vertical_velocity": float(self.projectile.vertical_velocity),
+        }
 
     @property
     def material_catalogue(self):

@@ -9,6 +9,10 @@ from cratermaker.components.crater import Crater, CraterFixed, CraterVariable
 from cratermaker.constants import PairOfFloats
 from cratermaker.utils.general_utils import format_large_units
 
+# Relative difference below which the crater and ejecta region radii are treated as the same, so the crater region is reused as
+# the ejecta region. The two radii come from separate root searches that agree to within a few units in the last place.
+_SAME_REGION_RADIUS_RTOL = 16 * np.finfo(np.float64).eps
+
 if TYPE_CHECKING:
     from cratermaker.components.morphology import Morphology
     from cratermaker.components.surface import LocalSurface
@@ -16,10 +20,9 @@ if TYPE_CHECKING:
 
 from abc import abstractmethod
 from collections.abc import Callable
-from math import pi
 from typing import TYPE_CHECKING
 
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from tqdm import tqdm
 
 from cratermaker.constants import FloatLike
@@ -54,8 +57,8 @@ class MorphologyCraterVariable(CraterVariable):
         if rings is not None:
             if isinstance(rings, list):
                 self._rings = rings
-            elif isinstance(rings, self._CraterType):
-                self._ring = [rings]
+            elif isinstance(rings, Crater):
+                self._rings = [rings]
             else:
                 raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
@@ -146,13 +149,13 @@ class MorphologyCraterVariable(CraterVariable):
         return self._ejecta_rmax
 
     @property
-    def affected_face_indices(self) -> set[int] | None:
-        """The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
+    def affected_face_indices(self) -> NDArray[np.int64] | None:
+        """The sorted, unique face indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_face_indices
 
     @property
-    def affected_node_indices(self) -> set[int] | None:
-        """The set of node indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
+    def affected_node_indices(self) -> NDArray[np.int64] | None:
+        """The sorted, unique node indices on the surface mesh that are affected by this crater, which is determined based on the crater region and is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously."""
         return self._affected_node_indices
 
     @property
@@ -166,10 +169,44 @@ class MorphologyCraterVariable(CraterVariable):
         return self._crater_region
 
 
+def _region_indices_array(region: LocalSurface | None, attr: str, n_total: int) -> NDArray[np.int64]:
+    """
+    Return the global face or node indices of a region as an integer array.
+
+    Parameters
+    ----------
+    region : LocalSurface or None
+        The region whose indices are returned. If None, an empty array is returned.
+    attr : str
+        Either "face_indices" or "node_indices".
+    n_total : int
+        The total number of faces or nodes on the surface, used to expand a slice into explicit indices.
+
+    Returns
+    -------
+    NDArray[np.int64]
+        The indices covered by the region.
+    """
+    if region is None:
+        return np.empty(0, dtype=np.int64)
+    indices = getattr(region, attr)
+    if isinstance(indices, slice):
+        return np.arange(n_total, dtype=np.int64)[indices]
+    return np.asarray(indices)
+
+
 @Crater.register("morphologycrater")
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
+        # A copy gets its own copies of the rings, so that changing the rings of one crater does not change the other
+        if (
+            crater is not None
+            and "rings" not in kwargs
+            and self.nrings > 0
+            and self._var._rings is getattr(crater._var, "_rings", None)
+        ):
+            self._var._rings = [type(ring)(crater=ring, morphology=ring.morphology) for ring in self._var._rings]
 
     def __str__(self) -> str:
         horiz_line = "-" * 40 + "\n"
@@ -230,13 +267,11 @@ class MorphologyCrater(Crater):
         crater = super().maker(
             crater=crater, scaling=morphology.scaling, location=location, check_redundant_inputs=check_redundant_inputs, **kwargs
         )
-        args = {}
-
-        return cls(
-            crater=crater,
-            morphology=morphology,
-            **args,
-        )
+        # Crater.maker builds an instance of this class, so only the morphology needs to be attached rather than copying it
+        if isinstance(crater, cls) and isinstance(crater._var, MorphologyCraterVariable):
+            object.__setattr__(crater._var, "_morphology", morphology)
+            return crater
+        return cls(crater=crater, morphology=morphology)
 
     def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
         """
@@ -298,10 +333,18 @@ class MorphologyCrater(Crater):
         This is extracted from the morphology's associated Surface object based on the location of the crater and the ejecta_rmax distance. If the ejecta region cannot be extracted (e.g. if it is smaller than a single face of the mesh) this property will be set to None and the crater will be marked as not emplaceable.
         """
         if self._var._ejecta_region is None and self.crater_region is not None:
-            self._var._ejecta_region = self.morphology.surface.extract_region(
-                location=self.location,
-                region_radius=self.ejecta_rmax,
-            )
+            if self.ejecta_rmax <= self.crater_region.radius * (1.0 + _SAME_REGION_RADIUS_RTOL):
+                # The ejecta region would be extracted with the same location and (to within rounding) the same radius as the crater
+                # region. This is common: ejecta_rmax is never smaller than the crater region radius, and the rim and ejecta
+                # profiles usually cross the threshold at the same radius, with the two root searches differing only in the last
+                # bit. Reuse the crater region rather than extracting an identical region and recomputing its distances, bearings,
+                # and connectivity.
+                self._var._ejecta_region = self.crater_region
+            else:
+                self._var._ejecta_region = self.morphology.surface.extract_region(
+                    location=self.location,
+                    region_radius=self.ejecta_rmax,
+                )
         return self._var._ejecta_region
 
     @property
@@ -317,43 +360,29 @@ class MorphologyCrater(Crater):
         return self._var._crater_region
 
     @property
-    def affected_face_indices(self) -> set[int] | None:
+    def affected_face_indices(self) -> NDArray[np.int64] | None:
         """
-        The set of face indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
+        The sorted, unique face indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
 
-        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
+        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously. The array is the ejecta region's own index array (not a copy), so it must not be modified.
         """
         if self._var._affected_face_indices is None and self._has_initialized_surface_data and self.emplaceable:
-            if self.ejecta_region is not None:
-                if isinstance(self.ejecta_region.face_indices, slice):
-                    self._var._affected_face_indices = set(
-                        np.arange(self.morphology.surface.n_face)[self.ejecta_region.face_indices]
-                    )
-                else:
-                    self._var._affected_face_indices = set(self.ejecta_region.face_indices)
-            else:
-                self._var._affected_face_indices = set()
-
+            self._var._affected_face_indices = _region_indices_array(
+                self.ejecta_region, "face_indices", self.morphology.surface.n_face
+            )
         return self._var._affected_face_indices
 
     @property
-    def affected_node_indices(self) -> set[int] | None:
+    def affected_node_indices(self) -> NDArray[np.int64] | None:
         """
-        The set of node indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
+        The sorted, unique node indices on the surface mesh that are affected by this crater, which is determined based on the crater region.
 
-        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously.
+        This is used by the morphology's queue manager to determine if craters overlap and can be emplaced simultaneously. The array is the ejecta region's own index array (not a copy), so it must not be modified.
         """
         if self._var._affected_node_indices is None and self._has_initialized_surface_data and self.emplaceable:
-            if self.ejecta_region is not None:
-                if isinstance(self.ejecta_region.node_indices, slice):
-                    self._var._affected_node_indices = set(
-                        np.arange(self.morphology.surface.n_node)[self.ejecta_region.node_indices]
-                    )
-                else:
-                    self._var._affected_node_indices = set(self.ejecta_region.node_indices)
-            else:
-                self._var._affected_node_indices = set()
-
+            self._var._affected_node_indices = _region_indices_array(
+                self.ejecta_region, "node_indices", self.morphology.surface.n_node
+            )
         return self._var._affected_node_indices
 
     def reset(self):
@@ -422,7 +451,8 @@ class Morphology(ComponentBase):
         conserve_volume: bool = True,
         do_subpixel_degradation: bool = True,
         do_slope_collapse: bool = True,
-        do_counting: bool | None = None,
+        save_observed: bool | None = None,
+        save_emplaced: bool | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -444,8 +474,10 @@ class Morphology(ComponentBase):
             If True, subpixel degradation will be performed during the emplacement of craters. Default is True.
         do_slope_collapse : bool, optional
             If True, slope collapse will be performed during the emplacement of craters. Default is True.
-        do_counting : bool or None, optional
+        save_observed : bool or None, optional
             If True, counting will be performed during emplacement if a Counting object is provided. If False, no counting will be performed even if a Counting object is provided. If None (default), the presence or absence of a Counting object will determine whether counting is performed.
+        save_emplaced : bool, optional
+            If True, any craters large enough to be emplaced onto the surface in each interval are stored. If False, emplaced craters will not be tracked and saved, even if a Counting object is provided. If None (default), thye presence or abscence of a Counting objecdt will determine whether emplaced craters are saved.
         **kwargs : Any
             |kwargs|
 
@@ -460,8 +492,8 @@ class Morphology(ComponentBase):
         object.__setattr__(self, "_counting", None)
         object.__setattr__(self, "_scaling", None)
         object.__setattr__(self, "_conserve_volume", None)
-        object.__setattr__(self, "_do_counting", None)
-        object.__setattr__(self, "_excavated_volume", None)
+        object.__setattr__(self, "_save_observed", None)
+        object.__setattr__(self, "_save_emplaced", None)
         object.__setattr__(self, "_Crater", None)
 
         # Because a Surface object is associated with a Counting object, we should first check to see if we are receiving a Counting object first so that we don't end up creating a spurious Surface object that we don't want.
@@ -480,11 +512,8 @@ class Morphology(ComponentBase):
 
         self.scaling = Scaling.maker(scaling, **kwargs)
 
-        if do_counting is not None:
-            if do_counting and self.counting is None:
-                raise ValueError("do_counting is True but no counting object was provided or created.")
-            else:
-                self.do_counting = do_counting
+        self.save_observed = save_observed
+        self.save_emplaced = save_emplaced
 
         self.conserve_volume = conserve_volume
         self.do_subpixel_degradation = do_subpixel_degradation
@@ -498,7 +527,9 @@ class Morphology(ComponentBase):
 
     def __str__(self) -> str:
         str_repr = super().__str__()
-        if self.do_counting:
+        str_repr += f"Count observed craters: {self.save_observed}\n"
+        str_repr += f"Save emplaced craters: {self.save_emplaced}\n"
+        if self.counting is not None:
             str_repr += f"Counting : <{self.counting.component_name}>\n"
         str_repr += f"Do slope collapse: {self.do_slope_collapse}\n"
         str_repr += f"Do subpixel degradation: {self.do_subpixel_degradation}\n"
@@ -654,9 +685,17 @@ class Morphology(ComponentBase):
 
         return craters
 
+    @abstractmethod
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
-        Form the interior of the crater by altering the elevation variable of the surface mesh.
+        Form a crater and its ejecta blanket on the surface.
+
+        Implementations alter the face and node elevations and the ejecta thickness of the surface within the crater's region,
+        and record the crater with the `counting` component if there is one. They must only change the faces and nodes of the
+        region returned by `overlap_function`, which is what allows non-overlapping craters to be processed as a batch.
+
+        Morphology models implement this as a wrapper around a compiled Rust function that runs the whole formation sequence
+        (see `BasicMoonMorphology.form_crater`).
 
         Parameters
         ----------
@@ -665,83 +704,41 @@ class Morphology(ComponentBase):
         **kwargs : Any
             |kwargs|
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater, **kwargs)
-        if not crater.emplaceable:
-            return
+        ...
 
-        crater_area = pi * crater.crater_region.radius**2
-
-        # Check to make sure that the face at the crater location is not smaller than the crater area
-        if crater_area > self.surface.face_area[crater.face_index]:
-            elevation_change = self.crater_shape(crater, crater.crater_region)
-            self._excavated_volume = crater.crater_region.compute_volume(elevation_change[: crater.crater_region.n_face])
-
-            # Remove any ejecta from the interior of the crater
-            inner_crater_region = crater.crater_region.extract_subregion(crater.radius)
-            if inner_crater_region is not None:
-                inner_crater_region.add_data(
-                    name="ejecta_thickness",
-                    long_name="ejecta thickness",
-                    units="m",
-                    data=0.0,
-                    overwrite=True,
-                )
-
-            # Record the crater to the counting layer
-            if self.counting is not None:
-                self.counting.add(crater, add_to_observed=self.do_counting, **kwargs)
-
-            ejecta_thickness, _ = self.compute_ejecta(crater, **kwargs)
-            if ejecta_thickness is not None:
-                elevation_change += ejecta_thickness
-
-            # Apply the elevation change to the surface only after the ejecta formation has been run, to preven tthe crater from self-degrading
-            crater.crater_region.update_elevation(elevation_change)
-            if self.do_slope_collapse:
-                crater.crater_region.slope_collapse()
-        # Remove the saved regions now that the crater is emplaced
-        crater.reset()
-        return
-
-    def compute_ejecta(self, crater: Crater, **kwargs: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    def form_craters(self, craters: list[Crater], **kwargs: Any) -> None:
         """
-        Computes the ejecta blanket of the crater and returns its thickness and intensity values to be applied to the mesh later.
+        Form a batch of craters whose regions do not overlap.
 
-        Ejecta burial and the diffusive degradation function are applied to the pre-existing surface.
+        The emplacement queue calls this once per batch of non-overlapping craters. This default forms them one at a time with
+        `form_crater`. Models override it to form the craters of a batch in parallel (see `BasicMoonMorphology.form_craters`).
+
+        Parameters
+        ----------
+        craters : list of Crater
+            The craters to be formed, in emplacement order. Their regions (see `overlap_function`) must not share any faces or
+            nodes.
+        **kwargs : Any
+            |kwargs|
+        """
+        for crater in craters:
+            self.form_crater(crater, **kwargs)
+
+    @staticmethod
+    def _scale_ejecta_rim(crater: Crater, conservation_factor: float) -> None:
+        """
+        Scale the ejecta fraction of the rim height of a crater and its rings by the ejecta volume conservation factor.
+
+        The fraction is capped at 1.
 
         Parameters
         ----------
         crater : Crater
-            The crater object whose ejecta is to be formed.
-        **kwargs : Any
-            |kwargs|
-
-        Returns
-        -------
-        tuple[NDArray[np.float64], NDArray[np.float64]]
-            The computed ejecta thickness and intensity at the face and node elevations.
+            The crater whose ejecta was scaled.
+        conservation_factor : float
+            The factor the ejecta thickness was multiplied by.
         """
-        if not isinstance(crater, Crater):
-            raise TypeError("crater must be an instance of Crater")
-
-        conserve_volume = kwargs.pop("conserve_volume", self.conserve_volume)
-        if not isinstance(crater, self._CraterType):
-            crater = self.Crater.maker(crater=crater, conserve_volume=conserve_volume)
-
-        if not self._excavated_volume or crater.ejecta_region is None:
-            return None, None
-        ejecta_thickness, ejecta_intensity = self.ejecta_shape(crater, crater.ejecta_region)
-        ejecta_thickness = np.maximum(ejecta_thickness, 0.0)
-        ejecta_volume = crater.ejecta_region.compute_volume(ejecta_thickness[: crater.ejecta_region.n_face])
-        if conserve_volume:
-            conservation_factor = max(-self._excavated_volume / ejecta_volume, 0.0)
-        else:
-            conservation_factor = 1.0
         ejrim = crater.frac_ejrim * crater.rim_height
-        ejecta_thickness *= conservation_factor
         ejrim *= conservation_factor
         crater.frac_ejrim = min(ejrim / crater.rim_height, 1.0)
         if crater.nrings > 0:
@@ -749,17 +746,7 @@ class Morphology(ComponentBase):
                 if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
                     ejrim = ring.frac_ejrim * ring.rim_height
                     ejrim *= conservation_factor
-                    ring.frac_ejrim = max(ejrim / ring.rim_height, 1.0)
-
-        crater.ejecta_region.add_data(
-            name="ejecta_thickness",
-            long_name="ejecta thickness",
-            units="m",
-            data=ejecta_thickness[: crater.ejecta_region.n_face],
-            overwrite=False,
-        )
-
-        return ejecta_thickness, ejecta_intensity
+                    ring.frac_ejrim = min(ejrim / ring.rim_height, 1.0)
 
     def _init_queue_manager(self) -> None:
         """
@@ -808,18 +795,15 @@ class Morphology(ComponentBase):
         if not hasattr(self, "_queue_manager"):
             raise RuntimeError("Queue manager has not been initialized. Call _init_queue_manager first.")
 
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         def _batch_process(pbar=None):
             tally_cadence = 2000
             nacumulated = 0
             while not self._queue_manager.is_empty:
                 batch = self._queue_manager.peek_next_batch()
 
-                for crater in batch:
-                    self.form_crater(crater)
-                    if pbar is not None:
-                        pbar.update(1)
+                self.form_craters(batch)
+                if pbar is not None:
+                    pbar.update(len(batch))
 
                 if self.do_subpixel_degradation and len(batch) > 1:
                     # If the craters have time values attached to them, we can perform subpixel degradation between time values
@@ -832,7 +816,7 @@ class Morphology(ComponentBase):
 
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
-                if self.do_counting and nacumulated >= tally_cadence:
+                if self.save_observed and nacumulated >= tally_cadence:
                     measure_rim = kwargs.pop("measure_rim", False)
                     self.counting.tally(measure_rim=measure_rim, quiet=False, **kwargs)
                     nacumulated = 0
@@ -855,25 +839,9 @@ class Morphology(ComponentBase):
 
         if self.do_subpixel_degradation:
             self.apply_subpixel_degradation(**kwargs)
-        if self.do_counting:
+        if self.save_observed:
             self.counting.tally(**kwargs)
         return
-
-    @abstractmethod
-    def crater_shape(
-        self,
-        crater: Crater,
-        region: LocalSurface,
-        **kwarg: Any,
-    ) -> NDArray[np.float64]: ...
-
-    @abstractmethod
-    def ejecta_shape(
-        self,
-        crater: Crater,
-        region: LocalSurface,
-        **kwarg: Any,
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
     @abstractmethod
     def rmax(
@@ -887,7 +855,7 @@ class Morphology(ComponentBase):
     @abstractmethod
     def overlap_function(
         crater: Crater,
-    ) -> tuple[set[int], set[int]]: ...
+    ) -> tuple[ArrayLike, ArrayLike]: ...
 
     @property
     def surface(self) -> Surface:
@@ -938,12 +906,12 @@ class Morphology(ComponentBase):
         elif isinstance(counting, str):
             self._counting = Counting.maker(counting, surface=self.surface, Crater=self.Crater)
         elif counting is None:
-            self.do_counting = False
+            self.save_observed = False
             self._counting = None
             return
         else:
             raise TypeError("counting must be an instance of Counting or a string")
-        self.do_counting = True
+        self.save_observed = True
         self._counting.morphology = self
 
     @parameter
@@ -980,15 +948,36 @@ class Morphology(ComponentBase):
         self._do_slope_collapse = value
 
     @parameter
-    def do_counting(self) -> bool:
+    def save_observed(self) -> bool:
         """Whether to perform crater counting during crater emplacement."""
-        return self._do_counting
+        if self._save_observed is None:
+            return self.counting is not None
+        else:
+            return self._save_observed
 
-    @do_counting.setter
-    def do_counting(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            raise TypeError("do_counting must be a boolean value")
-        self._do_counting = value
+    @save_observed.setter
+    def save_observed(self, value: bool | None) -> None:
+        if not isinstance(value, (bool | None)):
+            raise TypeError("save_observed must be a boolean value or None")
+        if value and self.counting is None:
+            raise ValueError("save_observed cannot be True with no counting object was provided or created.")
+        self._save_observed = value
+
+    @parameter
+    def save_emplaced(self) -> bool:
+        """Whether to save a record of emplaced craters."""
+        if self._save_emplaced is None:
+            return self.counting is not None
+        else:
+            return self._save_emplaced
+
+    @save_emplaced.setter
+    def save_emplaced(self, value: bool) -> None:
+        if not isinstance(value, (bool | None)):
+            raise TypeError("save_emplaced must be a boolean value or None")
+        if value and self.counting is None:
+            raise ValueError("save_emplaced cannot be True with no counting object was provided or created.")
+        self._save_emplaced = value
 
     @property
     def scaling(self):
@@ -1033,13 +1022,36 @@ class Morphology(ComponentBase):
 
         Parameters
         ----------
-        overlap_fn : Callable[[Crater], tuple[set[int], set[int]]]
-            A function that takes a crater and returns a tuple of (node indices, face indices) affected.
+        overlap_fn : Callable[[Crater], tuple[ArrayLike, ArrayLike]]
+            A function that takes a crater and returns a tuple of (node indices, face indices) affected. Each may be an integer
+            array of global indices or a set of ints.
         """
 
-        def __init__(self, overlap_fn: Callable[[Crater], tuple[set[int], set[int]]]):
+        def __init__(self, overlap_fn: Callable[[Crater], tuple[ArrayLike, ArrayLike]]):
             self._queue: list[Crater] = []
             self._overlap_fn = overlap_fn
+            # Reusable reservation masks over the global node and face indices. They are grown as needed and are always left
+            # all-False between calls to peek_next_batch.
+            self._reserved_nodes = np.zeros(0, dtype=bool)
+            self._reserved_faces = np.zeros(0, dtype=bool)
+
+        @staticmethod
+        def _as_index_array(indices: ArrayLike) -> NDArray[np.intp]:
+            """Convert the output of an overlap function (array or set of ints) to an integer index array."""
+            if isinstance(indices, (set, frozenset)):
+                return np.fromiter(indices, dtype=np.intp, count=len(indices))
+            return np.asarray(indices, dtype=np.intp)
+
+        @staticmethod
+        def _fit_mask(mask: NDArray[np.bool_], indices: NDArray[np.intp]) -> NDArray[np.bool_]:
+            """Return `mask`, grown with False entries if needed so that every index in `indices` is valid."""
+            if indices.size:
+                needed = int(indices.max()) + 1
+                if needed > mask.size:
+                    grown = np.zeros(max(needed, 2 * mask.size), dtype=bool)
+                    grown[: mask.size] = mask
+                    return grown
+            return mask
 
         def push(self, crater: Crater) -> None:
             """
@@ -1070,16 +1082,28 @@ class Morphology(ComponentBase):
                 The next batch of craters that can be processed simultaneously without overlap.
             """
             batch = []
-            reserved_nodes = set()
-            reserved_faces = set()
-            for crater in self._queue:
-                node_indices, face_indices = self._overlap_fn(crater)
-                if reserved_nodes.isdisjoint(node_indices) and reserved_faces.isdisjoint(face_indices):
+            touched_nodes = []
+            touched_faces = []
+            try:
+                for crater in self._queue:
+                    node_indices, face_indices = self._overlap_fn(crater)
+                    node_indices = self._as_index_array(node_indices)
+                    face_indices = self._as_index_array(face_indices)
+                    self._reserved_nodes = self._fit_mask(self._reserved_nodes, node_indices)
+                    self._reserved_faces = self._fit_mask(self._reserved_faces, face_indices)
+                    if self._reserved_nodes[node_indices].any() or self._reserved_faces[face_indices].any():
+                        break
                     batch.append(crater)
-                    reserved_nodes.update(node_indices)
-                    reserved_faces.update(face_indices)
-                else:
-                    break
+                    self._reserved_nodes[node_indices] = True
+                    self._reserved_faces[face_indices] = True
+                    touched_nodes.append(node_indices)
+                    touched_faces.append(face_indices)
+            finally:
+                # Clear only the entries that were set, so the masks are all-False for the next call
+                for idx in touched_nodes:
+                    self._reserved_nodes[idx] = False
+                for idx in touched_faces:
+                    self._reserved_faces[idx] = False
             return batch
 
         def pop_batch(self, batch: list[Crater]) -> None:
