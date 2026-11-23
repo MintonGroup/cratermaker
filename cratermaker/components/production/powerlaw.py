@@ -1,9 +1,7 @@
-from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
 from numpy.random import Generator
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike
 
 from cratermaker.components.production import Production
 from cratermaker.constants import FloatLike
@@ -84,51 +82,36 @@ class PowerLawProduction(Production):
         str_repr += f"Slope: {self.slope:.3f}\n"
         return str_repr
 
-    def chronology(
+    def _chronology(
         self,
-        time_start: ArrayLike = (1000.0),
-        time_end: ArrayLike | None = None,
-        validate_inputs: bool = True,
+        time_start: FloatLike | ArrayLike,
+        time_end: FloatLike | ArrayLike,
         **kwargs: Any,
-    ) -> NDArray[np.float64]:
+    ) -> FloatLike | ArrayLike:
         """
         The chronology function, which returns the number of craters relative to the amount produced in the last 1 My.
 
         Parameters
         ----------
-        time_start : FloatLike or ArrayLike, default=1.0
+        time_start : FloatLike or ArrayLike
             Age in the past relative to the present day to compute cumulative SFD in units of My.
-        time_end : FloatLike or ArrayLike, optional
-            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
-        validate_inputs: bool, default
-            If True, the function will check that the validity of age and time_end arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+        time_end : FloatLike or ArrayLike
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD.
         **kwargs: Any
-            Any additional keywords that are passed to the function method.
+            |kwargs|
 
         Returns
         -------
-        NDArray
+        FloatLike or ArrayLike
             The number of craters relative to the amount produced in the last 1 My.
 
         Notes
         -----
         For a simple power law production function, the chronology function assumes a constant impact rate and so crater accumulation is linear with time. Therefore, the chronology function is simply the ratio of the cumulative SFD at the given age to the cumulative SFD at 1 My.
-
         """
-        if "age" in kwargs:
-            time_start = kwargs.pop("age")
-        if validate_inputs:
-            time_start, time_end = self._validate_age(time_start, time_end)
-        else:
-            if time_end is None:
-                if np.isscalar(time_start):
-                    time_end = 0.0
-                else:
-                    time_end = np.zeros_like(time_start)
-
         return time_start - time_end
 
-    def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
+    def _csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
         """
         The cumulative size frequency distribution of craters at a given age relative to age = 1 My ago per m².
 
@@ -136,6 +119,8 @@ class PowerLawProduction(Production):
         ----------
         diameter : FloatLike or ArrayLike
             units of meter
+        **kwargs: Any
+            |kwargs|
 
         Returns
         -------
