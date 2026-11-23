@@ -3,6 +3,43 @@
 What's New
 ==========
 
+:release:`v2026.11.0-alpha`
+---------------------------
+
+.. _whats-new.2026.11.0-alpha:
+
+- Improved performance by moving most of the crater formation into Rust. :issue:`150` :pull:`152` `David Minton`_
+
+   - Crater formation (``form_crater``) is now a single compiled call per crater, using a Rust pipeline shared by the "basicmoon" and "realmoon" morphology models. Each batch of non-overlapping craters is formed in parallel.
+   - Moved the reference surface fit, the degradation function, the search for the extent of a crater's region (``rmax``), and the projectile to transient crater scaling into Rust.
+   - Faster region building for large craters, and the crater region is reused as the ejecta region when the two are the same.
+   - Slope collapse now only revisits the faces near those that changed in the previous iteration, which greatly reduces its cost for large craters.
+   - Faster crater creation, with fewer internal copies of each crater and faster sampling from truncated normal distributions.
+   - The counting component no longer extracts a tagging region for each crater when ``save_observed`` is off.
+   - Removed the Python implementations of ``crater_shape``, ``ejecta_shape``, ``compute_ejecta``, and ``ejecta_burial_degradation`` that are replaced by the Rust pipeline.
+   - Results agree with the previous version to within rounding error, except where noted below.
+
+- Each crater's projectile properties (velocity, impact angle, and direction) are now drawn once instead of twice. This changes the random numbers each crater receives, so a simulation run with the same ``rng_seed`` gives different, but statistically equivalent, results than earlier versions.
+- ``Crater.maker(..., monte_carlo=False)`` now gives a vertical impact due north at the mean velocity, as documented, instead of reusing the angle and direction of an earlier crater.
+- Fixed a bug where the "realmoon" ejecta blanket was always computed at a bearing of 0, so it did not vary with azimuth along with the crater rim. This also fixes a crash when using the "realmoon" model with ``dorays=True``.
+- Fixed a bug where the ejecta fraction of the rim height (``frac_ejrim``) of the rings of complex and multiring craters was limited to be at least 1, rather than at most 1, after volume conservation.
+- Fixed a bug where quasi-Monte Carlo craters read from a file were not reproducible with ``rng_seed``, because they were created without the simulation's random number generator. ``Crater.from_file`` and the related ``from_csv_file``, ``from_scc_file``, and ``from_xarray`` methods now pass their keyword arguments on to ``Crater.maker``.
+- Copying a "realmoon" crater now keeps the PSD data it has already generated and its rings (as independent copies), and no longer draws random numbers.
+- Added a ``morphology_type`` argument to ``Crater.maker`` to set the morphology type of a crater, and a new example showing the basic morphology types.
+- Added the ``save_observed`` and ``save_emplaced`` arguments to separately control the saving of observed and emplaced craters.
+- Emplaced craters are now saved even when counting is turned off. :issue:`142` :pull:`143`
+- Fixed a grid aliasing problem and a resolution limitation of the HiResLocal surface. :issue:`144` :pull:`145`
+- Increased the size of the crater id from uint32 to uint64 to prevent hash collisions, and made the crater id type consistent throughout. Crater ids are stored as int64 when exported to a GeoPackage, which has no unsigned 64-bit type. :issue:`146` :pull:`147`
+- Fixed incorrect values returned by the Neukum production function. :issue:`148` :pull:`149`
+- Fixed aliasing in ``Surface.to_raster``.
+- Fixed a discontinuity in the crater profile.
+- Fixed an artifact in "realmoon" profiles across the 0/360 degree bearing boundary, and improved the performance of the profile interpolation.
+- Fixed ``LocalSurface.extract_subregion``, which was missing the buffer faces and nodes around the subregion.
+- Fixed the value used when removing a crater tag from the surface.
+- Fixed the velocity distribution in the random projectile velocity example.
+- Other performance improvements, including building local surface arrays in Rust and caching the simulation directory.
+
+
 :release:`v2026.10.3-alpha`
 ---------------------------
 

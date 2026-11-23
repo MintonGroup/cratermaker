@@ -158,7 +158,7 @@ class Scaling(ComponentBase):
     def projectile(self, value):
         from cratermaker.components.projectile import Projectile
 
-        self._projectile = Projectile.maker(value, **vars(self.common_args))
+        self._projectile = Projectile.maker(value, target=self.target, **vars(self.common_args))
         return
 
     @property

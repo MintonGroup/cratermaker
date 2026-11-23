@@ -915,7 +915,7 @@ class Production(ComponentBase):
                 time_end=time_end,
             )
             for c, t in zip(untimed_craters, time_vals, strict=True):
-                rnglist.append(self.Crater.maker(crater=c, time=t))
+                rnglist.append(self.Crater.maker(crater=c, time=t, **vars(self.common_args)))
 
             rnglist.sort(key=lambda c: c.diameter, reverse=False)
 
@@ -1235,7 +1235,7 @@ class Production(ComponentBase):
             t = times_by_idx.get(i)
             if t is None:
                 continue
-            processed.append(self.Crater.maker(crater=c, time=t))
+            processed.append(self.Crater.maker(crater=c, time=t, **vars(self.common_args)))
             if self.generator_type == "crater":
                 smallest_diameter = min(smallest_diameter, c.diameter)
             else:
@@ -1300,7 +1300,7 @@ class Production(ComponentBase):
             else:
                 raise TypeError("quasimc_file must be a string or Path")
 
-            self.quasimc_craters = self.Crater.from_file(self._quasimc_file)
+            self.quasimc_craters = self.Crater.from_file(self._quasimc_file, **vars(self.common_args))
         return
 
     @property
