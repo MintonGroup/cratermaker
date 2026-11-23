@@ -253,7 +253,6 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo = monte_carlo if monte_carlo is not None else morphology.scaling.monte_carlo
         compute_nominal = not monte_carlo
         rng = morphology.rng
-        min_valid_diameter = 100.0  # Cutoff where the model is constrained. Smaller craters use the parameters at this cutoff value
 
         # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep)
 
@@ -391,16 +390,13 @@ class BasicMoonCrater(MorphologyCrater):
         }
 
         args = {}
-        diameter_m = crater.diameter if crater.diameter > min_valid_diameter else min_valid_diameter
+        diameter_m = min(max(crater.diameter, morphology.valid_diameter_range[0]), morphology.valid_diameter_range[1])
         fcorrection = crater.diameter / diameter_m
 
         if crater.morphology_type in ["complex", "transitional", "basin", "multiring", "peakring", "ring"]:
             fit_category = "non-simple"
         else:
             fit_category = "simple"
-
-        # Ejecta thickness at the rim nominal value McGetchin, Settle, and Head (1973)
-        # ejrim = 0.14 * (diameter_m / 2) ** 0.74 * fcorrection
 
         if rim_height is None:
             rim_height = (
@@ -824,6 +820,7 @@ class BasicMoonMorphology(Morphology):
         object.__setattr__(self, "_node", None)
         self.ejecta_truncation = ejecta_truncation
         self.dorays = dorays
+
         super().__init__(surface=surface, rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
         return
 
@@ -852,6 +849,10 @@ class BasicMoonMorphology(Morphology):
         `conserve_volume` is set), the pre-existing surface is degraded by ejecta burial and by the crater's degradation function,
         and steep slopes are collapsed (if `do_slope_collapse` is set).
 
+        A crater whose shape removes no net volume from the surface mesh is not formed, and is not recorded by the counting
+        component. This happens to some craters that are only a few faces across, where the sampled rim uplift outweighs the
+        sampled bowl, and keeps the craters and their ejecta from adding volume to the surface.
+
         Parameters
         ----------
         crater : Crater
@@ -870,10 +871,10 @@ class BasicMoonMorphology(Morphology):
         """
         Form a batch of craters whose regions do not overlap.
 
-        Each crater is formed as described in `form_crater`. The bookkeeping that must happen in order (recording each crater
-        with the counting component and drawing its ray seed) is done one crater at a time in Python, and then all of the
-        craters are formed in parallel by a single compiled call. Because their regions do not overlap, the result is the same
-        as forming them one after another.
+        Each crater is formed as described in `form_crater`. The bookkeeping that must happen in order (drawing each crater's
+        random numbers, and then recording the craters that were formed with the counting component) is done one crater at a
+        time in Python, and all of the craters are formed in parallel by a single compiled call in between. Because their
+        regions do not overlap, the result is the same as forming them one after another.
 
         Parameters
         ----------
@@ -915,11 +916,6 @@ class BasicMoonMorphology(Morphology):
             # so that random numbers are drawn in the same order as when the crater shape was computed in Python
             self._prepare_crater(crater)
 
-            # Record the crater to the counting layer. This does not depend on the surface elevation or ejecta thickness, so it
-            # can be done before any of the craters in the batch are formed.
-            if self.counting is not None:
-                self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
-
             formed.append(crater)
             regions.append(region)
             ray_seeds.append(int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None)
@@ -952,9 +948,14 @@ class BasicMoonMorphology(Morphology):
         )
 
         for crater, (_, conservation_factor) in zip(formed, results, strict=True):
+            # A crater that removes no net volume on the mesh (one the mesh barely resolves) is not formed, and is not recorded
             if conservation_factor is not None:
                 self._scale_ejecta_rim(crater, conservation_factor)
-            # Remove the saved regions now that the crater is emplaced
+                # Record the crater to the counting layer, in emplacement order. This does not depend on the surface elevation
+                # or ejecta thickness, so it can be done after the batch is formed.
+                if self.counting is not None:
+                    self.counting.add(crater, add_to_observed=self.save_observed, add_to_emplaced=self.save_emplaced, **kwargs)
+            # Remove the saved regions now that the crater has been processed
             crater.reset()
         return
 
@@ -1503,3 +1504,12 @@ class BasicMoonMorphology(Morphology):
         The class definition of the associated Crater type.
         """
         return BasicMoonCrater
+
+    @property
+    def valid_diameter_range(self) -> tuple[float, float]:
+        """
+        Valid diameter range for the morphometric property models.
+
+        Craters with diameters outside the range will use the morphometric property models at the nearest boundary diameter.
+        """
+        return (100.0, 1000.0e3)

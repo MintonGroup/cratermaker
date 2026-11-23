@@ -227,6 +227,31 @@ class TestSimulation(unittest.TestCase):
             self.assertEqual(len(scc_out), 2 * (ninterval + 1))
         return
 
+    def test_volume_conservation(self):
+        # Craters and their ejecta, and the degradation they cause, only move material around, so a simulation should not change
+        # the total volume of the surface beyond rounding error. Craters that the mesh resolves so poorly that their sampled shape
+        # removes no material are skipped, as their ejecta could not balance them. (Modeled on example 1.2.)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(
+                target="Moon",
+                morphology="basicmoon",
+                gridlevel=self.gridlevel,
+                save_observed=False,
+                save_emplaced=False,
+                simdir=simdir,
+                ask_overwrite=False,
+                reset=True,
+                rng_seed=3234653,
+            )
+            area = np.asarray(sim.surface.face_area)
+            initial_elevation = np.array(sim.surface.face_elevation, dtype=float)
+            sim.run(age=4310)
+            change = np.asarray(sim.surface.face_elevation) - initial_elevation
+            net = np.sum(change * area)
+            gross = np.sum(np.abs(change) * area)
+            self.assertGreater(gross, 0.0)
+            self.assertLess(abs(net) / gross, 1e-12, f"net volume change {net:.3e} m3 out of {gross:.3e} m3 moved")
+
     def test_quasimc_reproducible(self):
         # The quasi-Monte Carlo craters must be created with the simulation's random number generator, so that two simulations
         # with the same seed produce the same craters (including the randomly drawn projectile properties).
