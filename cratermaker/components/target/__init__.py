@@ -200,7 +200,24 @@ class Target(ComponentBase):
         -----
         - The `radius` and `diameter` parameters are mutually exclusive. Only one of them should be provided.
         - Parameters set explicitly using keyword arguments will override those drawn from the catalogue.
+        - The names used before the target_ prefix was added (radius, diameter, mass, material, density) are still accepted,
+          so that simulations saved with them can be loaded. An argument given with its current name takes precedence.
         """
+        legacy = {
+            "radius": target_radius,
+            "diameter": target_diameter,
+            "mass": target_mass,
+            "material": target_material,
+            "density": target_density,
+        }
+        for name, value in list(legacy.items()):
+            old_value = kwargs.pop(name, None)
+            legacy[name] = value if value is not None else old_value
+        target_radius = legacy["radius"]
+        target_diameter = legacy["diameter"]
+        target_mass = legacy["mass"]
+        target_material = legacy["material"]
+        target_density = legacy["density"]
         if target is None:
             try:
                 target = cls(
