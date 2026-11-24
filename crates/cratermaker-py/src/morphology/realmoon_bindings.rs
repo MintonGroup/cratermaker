@@ -14,6 +14,11 @@ pub struct PyPSD1D<'py> {
     pub normalization_length: f64,
     pub mean: f64,
     pub pix: f64,
+    pub skewness: f64,
+    pub log_scale: f64,
+    pub log_ratio_min: f64,
+    pub log_ratio_max: f64,
+    pub max_radius_fraction: f64,
     pub wavelength: PyReadonlyArray1<'py, f64>,
     pub amplitude: PyReadonlyArray1<'py, f64>,
     pub phase: PyReadonlyArray1<'py, f64>,
@@ -27,12 +32,22 @@ impl<'py> PyPSD1D<'py> {
         let normalization_length: f64 = obj.getattr("normalization_length")?.extract()?;
         let mean: f64 = obj.getattr("mean")?.extract()?;
         let pix: f64 = obj.getattr("pix")?.extract()?;
+        let skewness: f64 = obj.getattr("skewness")?.extract()?;
+        let log_scale: f64 = obj.getattr("log_scale")?.extract()?;
+        let log_ratio_min: f64 = obj.getattr("log_ratio_min")?.extract()?;
+        let log_ratio_max: f64 = obj.getattr("log_ratio_max")?.extract()?;
+        let max_radius_fraction: f64 = obj.getattr("max_radius_fraction")?.extract()?;
         Ok(Self {
             nprofile,
             nfreq,
             normalization_length,
             mean,
             pix,
+            skewness,
+            log_scale,
+            log_ratio_min,
+            log_ratio_max,
+            max_radius_fraction,
             wavelength: obj.getattr("wavelength")?.extract()?,
             amplitude: obj.getattr("amplitude")?.extract()?,
             phase: obj.getattr("phase")?.extract()?,
@@ -47,6 +62,11 @@ impl<'py> PyPSD1D<'py> {
             normalization_length: self.normalization_length,
             mean: self.mean,
             pix: self.pix,
+            skewness: self.skewness,
+            log_scale: self.log_scale,
+            log_ratio_min: self.log_ratio_min,
+            log_ratio_max: self.log_ratio_max,
+            max_radius_fraction: self.max_radius_fraction,
             wavelength: self.wavelength.as_array(),
             amplitude: self.amplitude.as_array(),
             phase: self.phase.as_array(),

@@ -21,6 +21,15 @@ pub struct PSD1DView<'a> {
     pub normalization_length: f64,
     pub mean: f64,
     pub pix: f64,
+    /// Target skewness of the log profile. Zero leaves the phases as they are.
+    pub skewness: f64,
+    /// Factor applied to the log profile (to all of its non-mean Fourier amplitudes)
+    pub log_scale: f64,
+    /// Bounds on ln(profile / mean profile); values beyond them are clamped
+    pub log_ratio_min: f64,
+    pub log_ratio_max: f64,
+    /// Largest value of the profile as a fraction of the crater radius at the same bearing
+    pub max_radius_fraction: f64,
     pub wavelength: ArrayView1<'a, f64>,
     pub amplitude: ArrayView1<'a, f64>,
     pub phase: ArrayView1<'a, f64>,
@@ -162,6 +171,11 @@ macro_rules! define_evaluator_bundle {
                     let rim_width_val = blend_band(r, rim_width_raw, base_crater.rim_width, rtrans_rim, rwidth_rim);
                     let rim_height_val = blend_band(r, rim_height_raw, base_crater.rim_height, rtrans_rim, rwidth_rim);
                     let floor_radius_val = blend_band(r, floor_radius_raw, base_crater.floor_radius, rtrans_floor, rwidth_floor);
+
+                    // Geometric guards: no value a larger fraction of the radius than in any measured profile
+                    let floor_radius_val = floor_radius_val.min(base_crater.floor_radius_psd.max_radius_fraction * radius_val);
+                    let rim_width_val = rim_width_val.min(base_crater.rim_width_psd.max_radius_fraction * radius_val);
+                    let rim_height_val = rim_height_val.min(base_crater.rim_height_psd.max_radius_fraction * radius_val);
 
                     let diameter_val = 2.0 * radius_val;
                     BasicMoonCrater {
@@ -447,7 +461,7 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
 
     // The AC components
     for k in 1..nyquist_limit {
-        let amp = amplitude[k] * nprofile as f64 / 2.0;
+        let amp = psd.log_scale * amplitude[k] * nprofile as f64 / 2.0;
         let complex_val = Complex::from_polar(amp, phase[k]);
         buffer[k] = complex_val;
         buffer[nprofile - k] = complex_val.conj();
@@ -456,20 +470,27 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
     // The Nyquist component is at index nfreq - 1
     if nprofile % 2 == 0 {
         buffer[nyquist_limit] = Complex::from_polar(
-            amplitude[nyquist_limit] * nprofile as f64,
+            psd.log_scale * amplitude[nyquist_limit] * nprofile as f64,
             phase[nyquist_limit],
         );
     }
+    // The target spectrum, kept for imposing skewness
+    let target_magnitude: Vec<f64> = buffer.iter().map(|val| val.norm()).collect();
     ifft.process(&mut buffer);
+    let mut log_profile: Vec<f64> = buffer.iter().map(|val| val.re / nprofile as f64).collect();
+    if psd.skewness != 0.0 && nprofile >= 4 {
+        log_profile = impose_skewness(&log_profile, &target_magnitude, psd.skewness, &mut planner);
+    }
 
     // Exponentiate the log profile, then rescale so the arithmetic mean is amplitude[0] in units of normalization_length
-    let mut out: Vec<f64> = buffer
-        .iter()
-        .map(|val| (val.re / nprofile as f64).exp())
-        .collect();
+    let mut out: Vec<f64> = log_profile.iter().map(|val| val.exp()).collect();
     let exp_mean = out.iter().sum::<f64>() / nprofile as f64;
-    let scale_factor = amplitude[0] * psd.normalization_length / exp_mean;
-    out.iter_mut().for_each(|v| *v *= scale_factor);
+    let target_mean = amplitude[0] * psd.normalization_length;
+    let scale_factor = target_mean / exp_mean;
+    // Guard against extremes: no value further from the mean than the bounds allow
+    let (vmin, vmax) = (target_mean * psd.log_ratio_min.exp(), target_mean * psd.log_ratio_max.exp());
+    // max/min rather than clamp, which would panic on a NaN bound (e.g. 0 * inf for a zero mean)
+    out.iter_mut().for_each(|v| *v = (*v * scale_factor).max(vmin).min(vmax));
 
     // Generate the corresponding bearing values for this profile
     let mut bearing: Vec<f64> = Vec::with_capacity(nprofile);
@@ -477,6 +498,129 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
         bearing.push(TAU * (i as f64 / nprofile as f64));
     }
     (bearing, out)
+}
+
+/// Number of iterations used to impose a target skewness on a log profile while keeping its spectrum
+const SKEWNESS_ITERATIONS: usize = 20;
+
+/// Sample skewness (biased, m3 / m2^1.5) of a set of values
+fn sample_skewness(values: &[f64]) -> f64 {
+    let n = values.len() as f64;
+    let mean = values.iter().sum::<f64>() / n;
+    let (m2, m3) = values.iter().fold((0.0, 0.0), |(m2, m3), &v| {
+        let d = v - mean;
+        (m2 + d * d, m3 + d * d * d)
+    });
+    let (m2, m3) = (m2 / n, m3 / n);
+    if m2 > 0.0 { m3 / m2.powf(1.5) } else { 0.0 }
+}
+
+/// Values of the skewing transform (e^(λz) - 1)/λ, up to a positive affine change, which does not affect their skewness or
+/// their standardized values. Shifting the exponent by the extreme value of z keeps it from overflowing.
+fn skew_transform(z: &[f64], lambda: f64) -> Vec<f64> {
+    if lambda.abs() < 1e-12 {
+        return z.to_vec();
+    }
+    let shift = if lambda > 0.0 {
+        z.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+    } else {
+        z.iter().cloned().fold(f64::INFINITY, f64::min)
+    };
+    // Dividing by λ makes the transform increasing for either sign of λ
+    z.iter().map(|&v| (lambda * (v - shift)).exp() / lambda).collect()
+}
+
+/// Finds λ such that the skewness of the transformed values is the target, by bisection. The skewness increases
+/// monotonically with λ. If the target is beyond what the values can reach, the closest reachable skewness is used.
+fn solve_skew_lambda(z: &[f64], target: f64) -> f64 {
+    const LAMBDA_MAX: f64 = 64.0;
+    let skew_at = |lambda: f64| sample_skewness(&skew_transform(z, lambda));
+    let (mut lo, mut hi) = if target > sample_skewness(z) { (0.0, 1.0) } else { (-1.0, 0.0) };
+    while skew_at(hi) < target && hi < LAMBDA_MAX {
+        lo = hi;
+        hi *= 2.0;
+    }
+    while skew_at(lo) > target && lo > -LAMBDA_MAX {
+        hi = lo;
+        lo *= 2.0;
+    }
+    for _ in 0..60 {
+        let mid = 0.5 * (lo + hi);
+        if skew_at(mid) < target {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+/// Imposes a target skewness on a zero-mean log profile while keeping its spectrum.
+///
+/// Profiles synthesized with random phases have symmetric distributions of values, but measured crater profiles are skewed
+/// (rim heights have dips but not comparable peaks, crater radii have outward bulges). The values are passed through the
+/// transform (e^(λz) - 1)/λ, with λ chosen to give the target skewness, which defines the target distribution of values.
+/// The profile is then iterated between the target spectrum and the target distribution (the IAAFT method): impose the
+/// target Fourier magnitudes while keeping the phases, then replace the values by the target values of the same rank. The
+/// result has exactly the target distribution, and so the target skewness, and a spectrum within a few percent of the
+/// target. The phase coupling this produces gives the measured relation between skewness and kurtosis.
+///
+/// # Arguments
+/// * `log_profile` - The zero-mean log profile synthesized from the PSD
+/// * `target_magnitude` - The magnitudes of the full (two-sided) unnormalized DFT of the log profile
+/// * `skewness` - The target skewness
+/// * `planner` - FFT planner
+fn impose_skewness(
+    log_profile: &[f64],
+    target_magnitude: &[f64],
+    skewness: f64,
+    planner: &mut FftPlanner<f64>,
+) -> Vec<f64> {
+    let n = log_profile.len();
+    let mean = log_profile.iter().sum::<f64>() / n as f64;
+    let sd = (log_profile.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+    if sd == 0.0 {
+        return log_profile.to_vec();
+    }
+    let z: Vec<f64> = log_profile.iter().map(|v| (v - mean) / sd).collect();
+
+    // Target values: the transformed values, standardized and rescaled to the spread of the profile
+    let lambda = solve_skew_lambda(&z, skewness);
+    let mut target = skew_transform(&z, lambda);
+    let tmean = target.iter().sum::<f64>() / n as f64;
+    let tsd = (target.iter().map(|v| (v - tmean).powi(2)).sum::<f64>() / n as f64).sqrt();
+    target.iter_mut().for_each(|v| *v = (*v - tmean) / tsd * sd);
+    target.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let fft = planner.plan_fft_forward(n);
+    let ifft = planner.plan_fft_inverse(n);
+    let mut order: Vec<usize> = (0..n).collect();
+    let rank_remap = |values: &mut Vec<f64>, order: &mut Vec<usize>| {
+        order.sort_by(|&a, &b| values[a].partial_cmp(&values[b]).unwrap());
+        for (rank, &i) in order.iter().enumerate() {
+            values[i] = target[rank];
+        }
+    };
+
+    let mut values = log_profile.to_vec();
+    rank_remap(&mut values, &mut order);
+    let mut buffer: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); n];
+    for _ in 0..SKEWNESS_ITERATIONS {
+        for (b, &v) in buffer.iter_mut().zip(values.iter()) {
+            *b = Complex::new(v, 0.0);
+        }
+        fft.process(&mut buffer);
+        for (b, &m) in buffer.iter_mut().zip(target_magnitude.iter()) {
+            let norm = b.norm();
+            *b = if norm > 0.0 { *b * (m / norm) } else { Complex::new(m, 0.0) };
+        }
+        ifft.process(&mut buffer);
+        for (v, b) in values.iter_mut().zip(buffer.iter()) {
+            *v = b.re / n as f64;
+        }
+        rank_remap(&mut values, &mut order);
+    }
+    values
 }
 
 pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
@@ -531,6 +675,11 @@ mod tests {
             normalization_length: 1234.5,
             mean: amplitude[0],
             pix: 1.0,
+            skewness: 0.0,
+            log_scale: 1.0,
+            log_ratio_min: f64::NEG_INFINITY,
+            log_ratio_max: f64::INFINITY,
+            max_radius_fraction: f64::INFINITY,
             wavelength: wavelength.view(),
             amplitude: amplitude.view(),
             phase: phase.view(),
@@ -604,6 +753,90 @@ mod tests {
     }
 
     #[test]
+    fn imposed_skewness_is_exact_and_keeps_spectrum() {
+        let mut rng = ChaCha12Rng::seed_from_u64(11);
+        let nfreq = 181;
+        let wavelength = Array1::from_iter((0..nfreq).map(|i| TAU / i.max(1) as f64));
+        let mut amplitude = Array1::from_iter((0..nfreq).map(|k| 0.1 * (k.max(1) as f64).powf(-0.8)));
+        amplitude[0] = 0.2;
+        let phase = Array1::from_iter((0..nfreq).map(|_| rng.random_range(0.0..TAU)));
+        let nprofile = 2 * (nfreq - 1);
+        for &target in &[-2.0, -0.5, 0.7] {
+            let psd = PSD1DView {
+                nprofile,
+                nfreq,
+                normalization_length: 1000.0,
+                mean: 0.2,
+                pix: 1.0,
+                skewness: target,
+                log_scale: 1.0,
+                log_ratio_min: f64::NEG_INFINITY,
+                log_ratio_max: f64::INFINITY,
+                max_radius_fraction: f64::INFINITY,
+                wavelength: wavelength.view(),
+                amplitude: amplitude.view(),
+                phase: phase.view(),
+            };
+            let (_, y) = profile_from_psd(&psd);
+            let ymean = y.iter().sum::<f64>() / y.len() as f64;
+            assert!((ymean / 200.0 - 1.0).abs() < 1e-12, "mean not preserved");
+            let s: Vec<f64> = y.iter().map(|v| v.ln()).collect();
+            assert!((sample_skewness(&s) - target).abs() < 1e-6, "skewness {} != {target}", sample_skewness(&s));
+            // The spectrum of the log profile stays close to the target
+            let mut buffer: Vec<Complex<f64>> = s.iter().map(|&v| Complex::new(v, 0.0)).collect();
+            FftPlanner::new().plan_fft_forward(nprofile).process(&mut buffer);
+            let (mut err, mut norm) = (0.0, 0.0);
+            for k in 1..nfreq - 1 {
+                let a = 2.0 * buffer[k].norm() / nprofile as f64;
+                err += (a - amplitude[k]).powi(2);
+                norm += amplitude[k].powi(2);
+            }
+            let rel = (err / norm).sqrt();
+            assert!(rel < 0.05, "spectrum error {rel} for skewness {target}");
+        }
+    }
+
+    #[test]
+    fn profile_respects_ratio_bounds_and_log_scale() {
+        let mut rng = ChaCha12Rng::seed_from_u64(5);
+        let nfreq = 181;
+        let wavelength = Array1::from_iter((0..nfreq).map(|i| TAU / i.max(1) as f64));
+        let mut amplitude = Array1::from_iter((0..nfreq).map(|k| 0.5 * (k.max(1) as f64).powf(-0.3)));
+        amplitude[0] = 0.1;
+        let phase = Array1::from_iter((0..nfreq).map(|_| rng.random_range(0.0..TAU)));
+        let make = |log_scale: f64, lo: f64, hi: f64| {
+            let psd = PSD1DView {
+                nprofile: 2 * (nfreq - 1),
+                nfreq,
+                normalization_length: 1000.0,
+                mean: 0.1,
+                pix: 1.0,
+                skewness: 0.0,
+                log_scale,
+                log_ratio_min: lo,
+                log_ratio_max: hi,
+                max_radius_fraction: f64::INFINITY,
+                wavelength: wavelength.view(),
+                amplitude: amplitude.view(),
+                phase: phase.view(),
+            };
+            profile_from_psd(&psd).1
+        };
+        let sd = |y: &[f64]| {
+            let s: Vec<f64> = y.iter().map(|v| v.ln()).collect();
+            let m = s.iter().sum::<f64>() / s.len() as f64;
+            (s.iter().map(|v| (v - m).powi(2)).sum::<f64>() / s.len() as f64).sqrt()
+        };
+        // Scaling the log profile scales its spread
+        let (y1, y2) = (make(1.0, f64::NEG_INFINITY, f64::INFINITY), make(0.5, f64::NEG_INFINITY, f64::INFINITY));
+        assert!((sd(&y2) / sd(&y1) - 0.5).abs() < 1e-9);
+        // Bounds hold, relative to the target mean of 100
+        let y = make(1.0, -0.5, 0.4);
+        assert!(y.iter().all(|&v| v >= 100.0 * (-0.5f64).exp() * (1.0 - 1e-12) && v <= 100.0 * 0.4f64.exp() * (1.0 + 1e-12)));
+        assert!(y1.iter().any(|&v| v < 100.0 * (-0.5f64).exp()), "test should exercise the lower bound");
+    }
+
+    #[test]
     fn rayleigh_noise_has_zero_mean_log() {
         let mut rng = ChaCha12Rng::seed_from_u64(3);
         let unit = Uniform::new(0.0, 1.0).unwrap();
@@ -632,6 +865,11 @@ mod tests {
                 normalization_length,
                 mean,
                 pix: 1.0,
+            skewness: 0.0,
+            log_scale: 1.0,
+            log_ratio_min: f64::NEG_INFINITY,
+            log_ratio_max: f64::INFINITY,
+            max_radius_fraction: f64::INFINITY,
                 wavelength: wavelength.view(),
                 amplitude: amplitude.view(),
                 phase: phase.view(),

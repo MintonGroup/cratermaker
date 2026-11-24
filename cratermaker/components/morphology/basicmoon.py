@@ -298,10 +298,12 @@ class BasicMoonCrater(MorphologyCrater):
                 "fit_scale": "loglog",
             },
         }
-        # Smallest rim_width / radius measured in the fresh crater data set, used as the floor of the sampled rim width
-        min_rim_width_ratio = {
-            "simple": 0.1489,  # Cauchy
-            "non-simple": 0.0520,  # Orientale
+        # Smallest value / radius measured in the fresh crater data set, used as the floor of the sampled values. The
+        # sampled values have additive noise, so without a floor they can occasionally reach zero or become negative.
+        min_radius_fraction = {
+            "rim_width": {"simple": 0.1489, "non-simple": 0.0520},  # Cauchy, Orientale
+            "rim_height": {"simple": 0.0291, "non-simple": 0.0041},  # D123.9m in RUMKERDOME6, Orientale
+            "floor_radius": {"simple": 0.0119, "non-simple": 0.2850},  # D51.2m in NEWCRATER6, Mandel'shtam F
         }
         floor_radius_params = {
             "simple": {
@@ -404,11 +406,12 @@ class BasicMoonCrater(MorphologyCrater):
             fit_category = "simple"
 
         if rim_height is None:
-            rim_height = (
+            rim_height = max(
                 sample_logfit_heteroskedastic(
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[fit_category]
                 )[0]
-                * fcorrection
+                * fcorrection,
+                min_radius_fraction["rim_height"][fit_category] * 0.5 * crater.diameter,
             )
         args["rim_height"] = rim_height
 
@@ -418,7 +421,7 @@ class BasicMoonCrater(MorphologyCrater):
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[fit_category]
                 )[0]
                 * fcorrection,
-                min_rim_width_ratio[fit_category] * 0.5 * crater.diameter,
+                min_radius_fraction["rim_width"][fit_category] * 0.5 * crater.diameter,
             )
         args["rim_width"] = rim_width
 
@@ -452,7 +455,7 @@ class BasicMoonCrater(MorphologyCrater):
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_radius_params[fit_category]
                 )[0]
                 * fcorrection,
-                0.0,
+                min_radius_fraction["floor_radius"][fit_category] * 0.5 * crater.diameter,
             )
         args["floor_radius"] = min(floor_radius, 0.8 * crater.radius)
 

@@ -26,14 +26,45 @@ from cratermaker.utils.general_utils import parameter
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
 _PSD1D_MIN_POINTS = 64
-# Profile values are clamped to this fraction of the profile mean before taking the log when computing a PSD from a profile
+# Profile values below this fraction of the profile mean are treated as missing when computing a PSD from a profile
 _PSD1D_LOG_FLOOR = 0.05
+# Highest wavenumber constrained by the measured profiles (360 bearings). Must match PSD_DATA_KMAX in realmoon.rs.
+_PSD1D_DATA_KMAX = 180
 _PSD1D_PARAMETERS = (
     "radius",
     "floor_radius",
     "rim_width",
     "rim_height",
 )
+
+
+def fill_collapsed_log_profile(profile: ArrayLike) -> tuple[NDArray[np.float64], int]:
+    """
+    The natural log of a periodic profile, with collapsed values treated as missing.
+
+    Values below _PSD1D_LOG_FLOOR times the mean of the profile are fitter collapses in the measured profiles: isolated
+    bearings that are numerically zero or pinned at the fitter's lower bound between neighbors with ordinary values. They are
+    replaced by periodic linear interpolation of ln(profile) between the neighboring points, assuming uniform spacing.
+
+    Parameters
+    ----------
+    profile : ArrayLike
+        The profile values, uniformly spaced around a full circle. The mean must be positive.
+
+    Returns
+    -------
+    logy : NDArray[np.float64]
+        ln(profile) with the collapsed values filled in.
+    nmissing : int
+        The number of values that were filled in.
+    """
+    y = np.asarray(profile, dtype=np.float64)
+    missing = y < _PSD1D_LOG_FLOOR * y.mean()
+    logy = np.log(np.where(missing, 1.0, y))
+    if missing.any():
+        index = np.arange(len(y), dtype=np.float64)
+        logy[missing] = np.interp(index[missing], index[~missing], logy[~missing], period=len(y))
+    return logy, int(missing.sum())
 
 
 class PSD1D(CratermakerBase):
@@ -48,6 +79,7 @@ class PSD1D(CratermakerBase):
         pix: FloatLike | None = None,
         nprofile: int | None = None,
         add_noise: bool = False,
+        skewness: FloatLike = 0.0,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -75,7 +107,10 @@ class PSD1D(CratermakerBase):
         nprofile : int, optional
             Defines the number of profile points to define the PSD. Only used for control_points method
         add_noise : bool, optional
-            Whether to add Gaussian noise to the log amplitudes of a PSD generated from control points. Default is False.
+            Whether to add Rayleigh noise to the amplitudes of a PSD generated from control points. Default is False.
+        skewness : FloatLike, optional
+            Target skewness of the log profile synthesized from the PSD. Zero (the default) leaves the phases as they are, which
+            for random phases gives a symmetric distribution of log values.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -97,8 +132,15 @@ class PSD1D(CratermakerBase):
         object.__setattr__(self, "_phase", None)
         object.__setattr__(self, "_wavelength", None)
         object.__setattr__(self, "_add_noise", None)
+        object.__setattr__(self, "_skewness", 0.0)
+        # Defaults that leave the synthesized profile unchanged. RealMoonMorphology sets these from its coefficient file.
+        object.__setattr__(self, "log_scale", 1.0)
+        object.__setattr__(self, "log_ratio_min", -np.inf)
+        object.__setattr__(self, "log_ratio_max", np.inf)
+        object.__setattr__(self, "max_radius_fraction", np.inf)
 
         self.add_noise = add_noise
+        self.skewness = skewness
         self.normalization_length = normalization_length
         if profile is not None:
             min_pix = 2 * math.pi * np.abs(profile.mean().item()) / len(profile)
@@ -128,7 +170,7 @@ class PSD1D(CratermakerBase):
             wavelength : NDArray[np.float64]
                 An array of corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
             amplitude : NDArray[np.float64]
-                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The first (DC) element is the arithmetic mean of the profile in units of normalization_length. The remaining (AC) elements are the one-sided Fourier amplitudes of ln(profile), which are dimensionless. Profile values below _PSD1D_LOG_FLOOR times the mean are clamped to that value before taking the log. Synthesizing a profile from these values exponentiates the log profile and rescales it to the mean, so generated profiles are always positive.
+                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The first (DC) element is the arithmetic mean of the profile in units of normalization_length. The remaining (AC) elements are the one-sided Fourier amplitudes of ln(profile), which are dimensionless. Profile values below _PSD1D_LOG_FLOOR times the mean are treated as missing (see `fill_collapsed_log_profile`). Synthesizing a profile from these values exponentiates the log profile and rescales it to the mean, so generated profiles are always positive.
             phases : NDArray[np.float64]
                 An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
 
@@ -143,9 +185,8 @@ class PSD1D(CratermakerBase):
         self.mean = np.mean(y)
         if self.mean <= 0.0:
             raise ValueError("The mean of the profile must be positive to compute its log-space PSD")
-        # The AC components describe the spectrum of ln(profile). Values below a floor are clamped to it so that
-        # occasional collapsed values in the measured profiles don't dominate the log spectrum.
-        logy = np.log(np.maximum(y, _PSD1D_LOG_FLOOR * self.mean))
+        # The AC components describe the spectrum of ln(profile), with collapsed values in the measured profiles filled in
+        logy, _ = fill_collapsed_log_profile(y)
         amplitude, phase = realmoon_bindings.psd_from_profile(logy)
         amplitude = np.asarray(amplitude)
         phase = np.asarray(phase)
@@ -155,6 +196,41 @@ class PSD1D(CratermakerBase):
         self.amplitude = amplitude[0 : self.nfreq]
         self.phase = phase[0 : self.nfreq]
         return
+
+    def log_sd(self, kmax: int = _PSD1D_DATA_KMAX) -> float:
+        """
+        Standard deviation of the log profile from the wavenumbers up to kmax, including log_scale.
+
+        By default this includes only the wavenumbers resolved by the measured profiles, so that it is comparable to the
+        roughness measured from them.
+
+        Parameters
+        ----------
+        kmax : int, optional
+            Highest wavenumber to include.
+
+        Returns
+        -------
+        float
+        """
+        amplitude = np.asarray(self.amplitude, dtype=np.float64)
+        nyquist = self.nprofile // 2 if self.nprofile % 2 == 0 else None
+        k = np.arange(1, min(kmax, len(amplitude) - 1) + 1)
+        variance = np.where(k == nyquist, 1.0, 0.5) * amplitude[k] ** 2
+        return float(self.log_scale * np.sqrt(variance.sum()))
+
+    @property
+    def skewness(self) -> float:
+        """
+        Target skewness of the log profile synthesized from the PSD.
+        """
+        return self._skewness
+
+    @skewness.setter
+    def skewness(self, value: FloatLike):
+        if not np.isfinite(value):
+            raise ValueError("skewness must be finite")
+        self._skewness = float(value)
 
     def to_xarray(self) -> xr.Dataset:
         """
@@ -414,6 +490,7 @@ def register_psd1d_parameters(*features: str):
                             add_noise=self.morphology.add_noise,
                             **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
                         )
+                        self.morphology.configure_psd(crater=self, feature=feat_name, psd=val)
                         setattr(self._var, private_attr, val)
                     return getattr(self._var, private_attr)
 
@@ -621,7 +698,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         params = [str(p) for p in ds.param.data]
         self._psd1d_coef = {}
         for var in ds.data_vars:
-            if set(ds[var].dims) != {"term", "fit_category", "param"}:
+            if set(ds[var].dims) != {"term", "fit_category", "param"}:  # Skewness and anchor variables are read below
                 continue
             self._psd1d_coef[var] = {}
             for fit_category in fit_categories:
@@ -632,6 +709,22 @@ class RealMoonMorphology(BasicMoonMorphology):
                         self._psd1d_coef[var][fit_category][term][param] = (
                             ds[var].sel(fit_category=fit_category, term=term, param=param).data.item()
                         )
+            # Model of the skewness of the log profile
+            # Guards against extreme values
+            if f"{var}_log_ratio_bounds" in ds.data_vars:
+                bounds = ds[f"{var}_log_ratio_bounds"]
+                self._psd1d_coef[var]["log_ratio_bounds"] = (float(bounds.sel(bound="min")), float(bounds.sel(bound="max")))
+            if f"{var}_max_radius_fraction" in ds.data_vars:
+                self._psd1d_coef[var]["max_radius_fraction"] = float(ds[f"{var}_max_radius_fraction"])
+            skewness_var = f"{var}_skewness"
+            if skewness_var in ds.data_vars:
+                self._psd1d_coef[var]["skewness"] = {
+                    fit_category: {
+                        str(param): ds[skewness_var].sel(fit_category=fit_category, skew_param=param).data.item()
+                        for param in ds.skew_param.data
+                    }
+                    for fit_category in fit_categories
+                }
             # Measured control points of large craters, used in place of the fit for large non-simple craters
             anchor_var = f"{var}_anchor"
             if anchor_var in ds.data_vars:
@@ -641,6 +734,12 @@ class RealMoonMorphology(BasicMoonMorphology):
                     "radius": ds["anchor_radius"].to_numpy().astype(np.float64)[order],
                     "terms": {term: ds[anchor_var].sel(term=term).to_numpy().astype(np.float64)[order] for term in terms},
                 }
+                anchor_skewness_var = f"{var}_anchor_skewness"
+                if anchor_skewness_var in ds.data_vars:
+                    self._psd1d_coef[var]["anchors"]["skewness"] = ds[anchor_skewness_var].to_numpy().astype(np.float64)[order]
+                anchor_sdln_var = f"{var}_anchor_sdln"
+                if anchor_sdln_var in ds.data_vars:
+                    self._psd1d_coef[var]["anchors"]["sdln"] = ds[anchor_sdln_var].to_numpy().astype(np.float64)[order]
 
         self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
         self.psd_pix = psd_pix
@@ -777,6 +876,121 @@ class RealMoonMorphology(BasicMoonMorphology):
                 control_points[term] = self.rng.normal(control_points[term], noise_scale * c["sigma"])
 
         return control_points
+
+    def configure_psd(self, crater: Crater, feature: str, psd: PSD1D) -> None:
+        """
+        Apply the morphology's model of the profile shape to a PSD generated from control points.
+
+        This sets the guards against extreme values (log_ratio_min, log_ratio_max, max_radius_fraction), then the roughness
+        scale (log_scale), then the target skewness, which depends on the roughness.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater the profile belongs to.
+        feature : str
+            The name of the feature (e.g. "rim_width").
+        psd : PSD1D
+            The PSD of the feature, generated from the crater's control points.
+        """
+        coef = self.psd1d_coef[feature]
+        psd.log_ratio_min, psd.log_ratio_max = coef.get("log_ratio_bounds", (-np.inf, np.inf))
+        psd.max_radius_fraction = coef.get("max_radius_fraction", np.inf)
+        psd.log_scale = 1.0
+        psd.log_scale = self.get_log_scale(crater=crater, feature=feature, psd=psd)
+        psd.skewness = self.get_skewness(crater=crater, feature=feature, psd=psd)
+
+    def get_log_scale(self, crater: Crater, feature: str, psd: PSD1D) -> float:
+        """
+        The factor applied to the log profile of a crater feature to set its roughness.
+
+        For non-simple craters larger than the anchor transition radius, the roughness (the standard deviation of the log
+        profile over the wavenumbers resolved by the measured profiles) is interpolated in ln(radius) from the crater's own
+        roughness at the transition radius to the measured roughness of the anchor craters, and held at that of the largest
+        one beyond it, consistent with the control points and the skewness. Otherwise the factor is 1.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater the profile belongs to.
+        feature : str
+            The name of the feature (e.g. "rim_width").
+        psd : PSD1D
+            The PSD of the feature, with its amplitudes defined and log_scale equal to 1.
+
+        Returns
+        -------
+        float
+        """
+        anchors = self.psd1d_coef[feature].get("anchors")
+        if crater.morphology_type == "simple" or anchors is None or "sdln" not in anchors:
+            return 1.0
+        radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
+        rt = anchors["transition_radius"]
+        own = psd.log_sd()
+        if radius_m <= rt or own <= 0.0:
+            return 1.0
+        lnr = np.concatenate(([np.log(rt)], np.log(anchors["radius"])))
+        target = np.exp(np.interp(np.log(radius_m), lnr, np.concatenate(([np.log(own)], np.log(anchors["sdln"])))))
+        return float(target / own)
+
+    def get_skewness(self, crater: Crater, feature: str, psd: PSD1D) -> float:
+        """
+        Draw the target skewness of the log profile of a crater feature.
+
+        The skewness of measured profiles is modeled as a + b * ln(sdln) + c * ln(radius) with normally distributed residuals
+        of standard deviation sigma, where sdln is the standard deviation of the log profile (its roughness). The roughness
+        is computed from the PSD over the wavenumbers resolved by the measured profiles. As for the control points (see
+        `control_point_means` and `control_point_noise_scale`), for non-simple craters larger than the anchor transition
+        radius the mean is instead interpolated in ln(radius) from the model at the transition radius to the measured
+        skewness of the anchor craters, and the noise is tapered to zero at the largest anchor crater. If add_noise is
+        False, the mean value is returned.
+
+        Parameters
+        ----------
+        crater : Crater
+            The crater the profile belongs to.
+        feature : str
+            The name of the feature (e.g. "rim_height").
+        psd : PSD1D
+            The PSD of the feature, with its amplitudes defined.
+
+        Returns
+        -------
+        float
+            The target skewness, or 0 if the coefficient file has no skewness model.
+        """
+        model = self.psd1d_coef[feature].get("skewness")
+        if model is None:
+            return 0.0
+        fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
+        c = model[fit_category]
+        sdln = psd.log_sd()
+        if sdln <= 0.0:
+            return 0.0
+        radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
+
+        def model_value(r):
+            return c["a"] + c["b_ln_sdln"] * np.log(sdln) + c["c_ln_radius"] * np.log(r)
+
+        # As for the control points, large non-simple craters are based on the measured anchor craters instead of the model
+        anchors = self.psd1d_coef[feature].get("anchors")
+        if (
+            fit_category != "simple"
+            and anchors is not None
+            and "skewness" in anchors
+            and radius_m > anchors["transition_radius"]
+        ):
+            rt = anchors["transition_radius"]
+            lnr = np.concatenate(([np.log(rt)], np.log(anchors["radius"])))
+            values = np.concatenate(([model_value(rt)], anchors["skewness"]))
+            skewness = float(np.interp(np.log(radius_m), lnr, values))
+        else:
+            skewness = model_value(radius_m)
+        if self.add_noise:
+            noise_scale = self.control_point_noise_scale(self.psd1d_coef[feature], fit_category, radius_m)
+            skewness = self.rng.normal(skewness, noise_scale * c["sigma"])
+        return float(skewness)
 
     @staticmethod
     def control_point_noise_scale(psd1d_coef: dict, fit_category: str, radius: float) -> float:
