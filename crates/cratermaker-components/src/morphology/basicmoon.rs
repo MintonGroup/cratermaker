@@ -12,6 +12,21 @@ use rand_chacha::ChaCha12Rng;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::f64::consts::{PI, SQRT_2, TAU};
 
+/// Minimum number of points per parallel work item in `basicmoon_profile`.
+const PROFILE_PAR_MIN_LEN: usize = 2048;
+
+/// Radial half-width of the smooth cap that limits the wall to the rim height, as a fraction of the rim width. It sets how
+/// gradually the wall rounds over into the rim crest.
+const RIM_CAP_WIDTH: f64 = 0.05;
+
+/// Half-width of the smoothing at each end of the clamp that assigns the upper rim to the ejecta, as a fraction of the ejecta
+/// rim height.
+const SPLIT_CLAMP_SMOOTHING: f64 = 0.25;
+
+/// Half-width of the blend across the rim from the inside to the outside form of the ejecta part, as a fraction of the rim
+/// width.
+const SPLIT_RIM_BLEND: f64 = 0.05;
+
 const NRAYMAX: i32 = 5;
 const NPATT: i32 = 8;
 const FRAYREDUCTION: f64 = 0.90;
@@ -114,9 +129,6 @@ pub fn basicmoon_profile(
         .collect();
     Ok(Array1::from_vec(profile))
 }
-
-/// Minimum number of points per parallel work item in `basicmoon_profile`.
-const PROFILE_PAR_MIN_LEN: usize = 2048;
 
 // Computes a either a crater and/or ejecta 1D profile at a single point using the model of  Minton et al. (2026)
 //
@@ -332,14 +344,6 @@ pub fn basicmoon_profile_one(
     if final_val.is_nan() { href } else { final_val }
 }
 
-/// Half-width of the smoothing at each end of the clamp that assigns the upper rim to the ejecta, as a fraction of the ejecta
-/// rim height.
-const SPLIT_CLAMP_SMOOTHING: f64 = 0.5;
-
-/// Half-width of the blend across the rim from the inside to the outside form of the ejecta part, as a fraction of the rim
-/// width.
-const SPLIT_RIM_BLEND: f64 = 0.25;
-
 /// Returns the ejecta part of a crater profile `hcrat` at radius `r`; the crater part is `hcrat` minus this.
 ///
 /// Inside the rim, the upper part of the rim (above a narrower Gaussian of height `(1 - frac_ejrim) * rim_height`) is ejecta, up
@@ -541,10 +545,6 @@ pub fn crater_profile_function(
 
     (1.0 - phi_rim) * hwall + phi_rim * hrim
 }
-
-/// Radial half-width of the smooth cap that limits the wall to the rim height, as a fraction of the rim width. It sets how
-/// gradually the wall rounds over into the rim crest.
-const RIM_CAP_WIDTH: f64 = 0.05;
 
 /// Quintic Hermite interpolation on `u` in [0, 1] over an interval of length `length`, matching the (value, slope, curvature)
 /// given at each end, so that a curve joined with it is continuous in elevation, slope, and curvature.

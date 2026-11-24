@@ -28,6 +28,7 @@ class Production(ComponentBase):
 
     def __init__(
         self,
+        target: str | Target | None = None,
         quasimc_file: str | Path | None = None,
         quasimc_craters: list[Crater] | None = None,
         diameter_range: PairOfFloats | None = None,
@@ -43,6 +44,8 @@ class Production(ComponentBase):
 
         Parameters
         ----------
+        target : Target or str.
+            The name of the target body for the impact. Default is "Moon"
         quasimc_file : str | Path, optional
             Path to a file (CSV or NetCDF) containing the parameters used for craters emplaced using the quasi-Monte Carlo method. This file should contain at a minimum the diameter (or radius) of each crater, its location (lon, lat), and one of either production_time or production_D and production_N (D in km, N in units given by the N_conversion_factor attribute).
         quasimc_craters : list[Crater], optional
@@ -70,6 +73,8 @@ class Production(ComponentBase):
         object.__setattr__(self, "_D_conversion_factor", None)
         object.__setattr__(self, "_diameter_range", None)
         object.__setattr__(self, "_Crater", None)
+        object.__setattr__(self, "_target", None)
+        self._target = Target.maker(target, **kwargs)
         self.diameter_range = diameter_range
 
         if quasimc_file is not None and quasimc_craters is not None:
@@ -191,6 +196,162 @@ class Production(ComponentBase):
             **kwargs,
         )
 
+    def chronology(
+        self,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike:
+        """
+        Returns the number of craters produced over a given age range relative to the number produced in the last 1 My.
+
+        This validates the inputs and then calls the model-specific :py:meth:`_chronology` method, which derived classes must implement.
+
+        Parameters
+        ----------
+        time_start : FloatLike or ArrayLike, default=1.0
+            Age in the past relative to the present day to compute cumulative SFD in units of My.
+        time_end : FloatLike or ArrayLike, optional
+            The ending age in the past relative to the present day to compute cumulative SFD in units of My. The default is 0 (present day).
+        validate_inputs: bool, default=True
+            If True, the function will check the validity of the time_start and time_end arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or ArrayLike
+            The number of craters relative to the amount produced in the last 1 My between time_start and time_end.
+        """
+        if "age" in kwargs:
+            time_start = kwargs.pop("age")
+        if validate_inputs:
+            time_start, time_end = self._validate_age(time_start, time_end)
+        elif time_end is None:
+            time_end = 0.0 if np.isscalar(time_start) else np.zeros_like(time_start)
+        return self._chronology(time_start=time_start, time_end=time_end, **kwargs)
+
+    def csfd(self, diameter: FloatLike | ArrayLike, validate_inputs: bool = True, **kwargs: Any) -> FloatLike | ArrayLike:
+        """
+        Return the cumulative size frequency distribution of craters or projectiles (depending on generator_type) larger than diameter in m relative to age = 1 My ago per m².
+
+        This validates the inputs and then calls the model-specific :py:meth:`_csfd` method, which derived classes must implement.
+
+        Parameters
+        ----------
+        diameter : FloatLike or ArrayLike
+            units of meter
+        validate_inputs: bool, default=True
+            If True, the function will check the validity of the diameter argument. If False, no check is performed, and the argument is assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or numpy array
+           Cumulative number density of per m² greater than the input diameter in m relative to the reference age of 1 My.
+        """
+        if validate_inputs:
+            diameter, _ = self._validate_csfd(diameter=diameter)
+        return self._csfd(diameter=diameter, **kwargs)
+
+    @abstractmethod
+    def _chronology(
+        self,
+        time_start: FloatLike | ArrayLike,
+        time_end: FloatLike | ArrayLike,
+        **kwargs: Any,
+    ) -> FloatLike | ArrayLike:
+        """
+        Model-specific chronology function. Derived classes must implement this.
+
+        This is called by :py:meth:`chronology` after the inputs have been validated, so implementations can assume that time_start and time_end are valid and that time_end is not None.
+
+        Parameters
+        ----------
+        time_start : FloatLike or ArrayLike
+            Age in the past relative to the present day in units of My.
+        time_end : FloatLike or ArrayLike
+            The ending age in the past relative to the present day in units of My.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or ArrayLike
+            The number of craters relative to the amount produced in the last 1 My between time_start and time_end.
+        """
+        ...
+
+    @abstractmethod
+    def _csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike:
+        """
+        Model-specific cumulative size-frequency distribution. Derived classes must implement this.
+
+        This is called by :py:meth:`csfd` after the inputs have been validated, so implementations can assume that diameter is valid.
+
+        Parameters
+        ----------
+        diameter : FloatLike or ArrayLike
+            Diameter in units of meters.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or ArrayLike
+           Cumulative number density per m² greater than the input diameter relative to the reference age of 1 My.
+        """
+        ...
+
+    def function(
+        self,
+        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
+        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        age: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
+        validate_inputs: bool = True,
+        **kwargs: Any,
+    ) -> NDArray[np.float64]:
+        """
+        Return the cumulative size-frequency distribution of impactors or craters over a given age range and diameter.
+
+        Parameters
+        ----------
+        diameter : FloatLike or numpy array
+            Diameter(s) in units of meters to compute corresponding cumulative number density value.
+        time_start : FloatLike or ArrayLike, default=1.0
+            Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
+        age : FloatLike or ArrayLike, optional
+            Equilvalent to time_start. Passing this overrides the value of time_start.
+        time_end : FloatLike or ArrayLike, optional
+            The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
+        validate_inputs: bool, default=True
+            If True, the function will check that the validity of age, time_end, and diameter arguments. If False, no check is performed, and the arguments are assumed to be valid. This can be used to speed up the function, particularly if it is called as part of a solver or optimization routine where the inputs are already known to be valid.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        FloatLike or numpy array of FloatLike
+            The cumulative number of craters per square meter greater than the input diameter that would be expected to form on a
+            surface over the given age range.
+        """
+        if age is not None:
+            time_start = age
+        if validate_inputs:
+            time_start, time_end = self._validate_age(time_start, time_end)
+            diameter, _ = self._validate_csfd(diameter=diameter)
+
+        n_array = np.asarray(self.csfd(diameter, validate_inputs=False, **kwargs))
+        age_difference = np.asarray(self.chronology(time_start=time_start, time_end=time_end, validate_inputs=False, **kwargs))
+
+        if n_array.ndim > 0 and age_difference.ndim > 0:
+            return n_array[:, None] * age_difference
+        else:
+            return n_array * age_difference
+
     def sample(
         self,
         time_start: FloatLike | None = None,
@@ -284,6 +445,30 @@ class Production(ComponentBase):
 
         return diameters, timevals
 
+    def spatial_weight(self, lon: ArrayLike, lat: ArrayLike, **kwargs: Any) -> NDArray[np.float64]:
+        """
+        Return the relative production rate as a function of location on the surface.
+
+        The weight multiplies the spatially averaged production function, so it should be normalized such that its area-weighted
+        mean over the whole surface is 1. The default implementation is spatially uniform. Derived classes can override this to
+        model non-uniform cratering, such as latitudinal or apex/antapex asymmetries.
+
+        Parameters
+        ----------
+        lon : ArrayLike
+            Longitude(s) in degrees.
+        lat : ArrayLike
+            Latitude(s) in degrees.
+        **kwargs : Any
+            |kwargs|
+
+        Returns
+        -------
+        NDArray[np.float64]
+            The relative production rate at each location, with the same shape as `lon`.
+        """
+        return np.ones_like(np.asarray(lon, dtype=np.float64))
+
     def compute_time(self, diameters: ArrayLike, time_start: float, time_end: float = 0.0, **kwargs: Any) -> np.ndarray:
         """
         Compute the ages of craters with given diameters based on the production function.
@@ -361,15 +546,6 @@ class Production(ComponentBase):
             timevals = timevals[sort_indices]
 
         return timevals
-
-    @abstractmethod
-    def function(
-        self,
-        diameter: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_end: FloatLike | Sequence[FloatLike] | ArrayLike | None = None,
-        **kwargs: Any,
-    ) -> NDArray[np.float64]: ...
 
     def age_from_D_N(
         self,
@@ -522,18 +698,6 @@ class Production(ComponentBase):
             raise ValueError(
                 f"The root finding algorithm did not converge for all values of cumulative_number and age. Flag {flag}"
             )
-
-    @abstractmethod
-    def chronology(
-        self,
-        time_start: FloatLike | Sequence[FloatLike] | ArrayLike = 1.0,
-        time_end: FloatLike | Sequence[FloatLike] | ArrayLike = 0.0,
-        validate_inputs: bool = True,
-        **kwargs: Any,
-    ) -> FloatLike | ArrayLike: ...
-
-    @abstractmethod
-    def csfd(self, diameter: FloatLike | ArrayLike, **kwargs: Any) -> FloatLike | ArrayLike: ...
 
     def _validate_csfd(
         self,
@@ -1425,6 +1589,13 @@ class Production(ComponentBase):
         This is set by the Simulation object when initializing a crater.
         """
         return self._Crater if self._Crater is not None else Crater
+
+    @property
+    def target(self) -> Target:
+        """
+        The Target class associated with this Production moddel.
+        """
+        return self._target
 
 
 import_components(__name__, __path__)

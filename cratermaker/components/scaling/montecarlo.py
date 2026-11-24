@@ -342,10 +342,7 @@ class MonteCarloScaling(Scaling):
 
     def transient_to_projectile(self, transient_diameter: FloatLike, **kwargs: Any) -> float:
         """
-        Estimate the characteristics of the projectile that could have created a given crater.
-
-        This method approximates the properties of a hypothetical projectile based on the characteristics
-        of a known crater.
+        Compute of the projectile that could have created a given transient crater.
 
         Parameters
         ----------
@@ -356,8 +353,8 @@ class MonteCarloScaling(Scaling):
 
         Returns
         -------
-        Crater
-            The computed projectile for the crater.
+        float
+            The computed projectile diameter for the crater.
         """
         if not isinstance(transient_diameter, FloatLike) or transient_diameter <= 0 or not np.isfinite(transient_diameter):
             raise ValueError("transient_diameter must be a positive finite number")

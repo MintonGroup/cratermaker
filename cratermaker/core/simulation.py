@@ -728,7 +728,15 @@ class Simulation(CratermakerBase):
 
         # Process each bin
         for i, face_indices in enumerate(self.surface.face_bin_indices):
-            total_bin_area = self.surface.face_bin_area[i]
+            # Weight each face's area by the relative production rate at its location. The weighted area sets both the expected
+            # number of craters in the bin and the probability that any given face is hit.
+            weight = self.production.spatial_weight(
+                self.surface.face_lon[face_indices], self.surface.face_lat[face_indices], **kwargs
+            )
+            weighted_face_area = self.surface.face_area[face_indices] * weight
+            total_bin_area = weighted_face_area.sum()
+            if total_bin_area <= 0.0:
+                continue
             area_ratio = total_bin_area / self.surface.area
             smallest_crater = self.surface.face_bin_min_sizes[i]
 
@@ -760,7 +768,7 @@ class Simulation(CratermakerBase):
                 impact_times.extend(times.tolist())
 
                 # Get the relative probability of impact onto any particular face then get the locations of the impacts
-                p = self.surface.face_area[face_indices] / total_bin_area
+                p = weighted_face_area / total_bin_area
                 face_indices = self.rng.choice(face_indices, size=diameters.shape, p=p)
                 locations = self.surface.get_random_location_on_face(face_indices)
                 impact_locations.extend(np.array(locations).T.tolist())
