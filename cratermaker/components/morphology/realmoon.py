@@ -709,6 +709,14 @@ class RealMoonMorphology(BasicMoonMorphology):
                         self._psd1d_coef[var][fit_category][term][param] = (
                             ds[var].sel(fit_category=fit_category, term=term, param=param).data.item()
                         )
+            # Correlations between the control points of a crater
+            correlation_var = f"{var}_correlation"
+            if correlation_var in ds.data_vars:
+                self._psd1d_coef[var]["correlation_terms"] = [str(t) for t in ds.term2.data]
+                self._psd1d_coef[var]["correlation"] = {
+                    fit_category: ds[correlation_var].sel(fit_category=fit_category).to_numpy().astype(np.float64)
+                    for fit_category in fit_categories
+                }
             # Model of the skewness of the log profile
             # Guards against extreme values
             if f"{var}_log_ratio_bounds" in ds.data_vars:
@@ -864,16 +872,25 @@ class RealMoonMorphology(BasicMoonMorphology):
 
         Notes
         -----
-        If the morphology's add_noise is True, each control point is drawn from a normal distribution centered on its mean value with the intrinsic crater-to-crater sigma of the fit. Otherwise the mean values are returned.
+        If the morphology's add_noise is True, the control points are drawn jointly from a multivariate normal distribution centered on their mean values, with the intrinsic crater-to-crater sigma of each fit and the correlations between the measured control points (scaled by `control_point_noise_scale`). Otherwise the mean values are returned.
         """
         fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
         radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
         control_points = self.control_point_means(psd1d_coef, fit_category, radius_m)
         if self.add_noise:
             noise_scale = self.control_point_noise_scale(psd1d_coef, fit_category, radius_m)
-            for term, c in psd1d_coef[fit_category].items():
-                # The intrinsic sigma of the fit reproduces the crater-to-crater scatter of the measured control points
-                control_points[term] = self.rng.normal(control_points[term], noise_scale * c["sigma"])
+            terms = list(psd1d_coef[fit_category].keys())
+            # The intrinsic sigma of the fit reproduces the crater-to-crater scatter of each measured control point
+            sigma = np.array([noise_scale * psd1d_coef[fit_category][term]["sigma"] for term in terms])
+            correlation = psd1d_coef.get("correlation", {}).get(fit_category)
+            if correlation is None:
+                z = self.rng.standard_normal(len(terms))
+            else:
+                # The control points of a crater are correlated (a crater tends to be smooth or rough at all wavelengths)
+                order = [psd1d_coef["correlation_terms"].index(term) for term in terms]
+                z = self.rng.multivariate_normal(np.zeros(len(terms)), correlation[np.ix_(order, order)], method="cholesky")
+            for term, s, zi in zip(terms, sigma, z, strict=True):
+                control_points[term] += s * zi
 
         return control_points
 
