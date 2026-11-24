@@ -26,6 +26,8 @@ from cratermaker.utils.general_utils import parameter
 _PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
 _PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
 _PSD1D_MIN_POINTS = 64
+# Profile values are clamped to this fraction of the profile mean before taking the log when computing a PSD from a profile
+_PSD1D_LOG_FLOOR = 0.05
 _PSD1D_PARAMETERS = (
     "radius",
     "floor_radius",
@@ -122,7 +124,7 @@ class PSD1D(CratermakerBase):
             wavelength : NDArray[np.float64]
                 An array of corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
             amplitude : NDArray[np.float64]
-                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The PSD values are normalized by the interval and the number of points in the input signal, so amplitude is in units such that the mean=1.0. The normalization is done by multiplying the squared magnitude of the Fourier coefficients by 2 and dividing by the product of the interval and the number of points in the input signal. The factor of 2 accounts for the fact that we are using a one-sided PSD (i.e., only considering positive frequencies).
+                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The first (DC) element is the arithmetic mean of the profile in units of normalization_length. The remaining (AC) elements are the one-sided Fourier amplitudes of ln(profile), which are dimensionless. Profile values below _PSD1D_LOG_FLOOR times the mean are clamped to that value before taking the log. Synthesizing a profile from these values exponentiates the log profile and rescales it to the mean, so generated profiles are always positive.
             phases : NDArray[np.float64]
                 An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
 
@@ -135,7 +137,17 @@ class PSD1D(CratermakerBase):
         y = np.asarray(profile, dtype=np.float64) / self.normalization_length
         self.nprofile = len(y)
         self.mean = np.mean(y)
-        amplitude, phase = realmoon_bindings.psd_from_profile(y)
+        if self.mean <= 0.0:
+            raise ValueError("The mean of the profile must be positive to compute its log-space PSD")
+        # The AC components describe the spectrum of ln(profile). Values below a floor are clamped to it so that
+        # occasional collapsed values in the measured profiles don't dominate the log spectrum.
+        logy = np.log(np.maximum(y, _PSD1D_LOG_FLOOR * self.mean))
+        amplitude, phase = realmoon_bindings.psd_from_profile(logy)
+        amplitude = np.asarray(amplitude)
+        phase = np.asarray(phase)
+        # The DC component holds the arithmetic mean of the profile itself, in units of normalization_length
+        amplitude[0] = self.mean
+        phase[0] = 0.0
         self.amplitude = amplitude[0 : self.nfreq]
         self.phase = phase[0 : self.nfreq]
         return
@@ -744,7 +756,7 @@ class RealMoonMorphology(BasicMoonMorphology):
             control_points[term] = c["m"] / np.log(radius_m) ** 2 + c["b"]
             if self.add_noise:
                 sigma = (
-                    c["sigma"] / len(coef[term])
+                    c["sigma"] / len(coef)
                 )  # There are too many correlations in the breakpoints for the control points to be random. Dividing by the number of terms suppresses the noise in the control points a bit so that the PSDs don't become extreme
                 cmid = control_points[term]
                 control_points[term] = self.rng.normal(cmid, sigma)

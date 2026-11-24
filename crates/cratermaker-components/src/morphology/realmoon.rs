@@ -382,6 +382,11 @@ pub fn get_1d_psd_from_control_points(
 ///
 /// Generates a surface profile based on a 1D power spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
 ///
+/// The AC components (index 1 and up) describe the spectrum of the natural log of the profile, and the DC component
+/// (`amplitude[0]`) is the arithmetic mean of the profile in units of `normalization_length`. The log profile is synthesized
+/// with zero mean, exponentiated, and rescaled so that its arithmetic mean equals `amplitude[0]`. This keeps the profile
+/// positive for any spectrum, and gives it the right-skewed distribution seen in measured crater profiles.
+///
 /// # Arguments
 /// * `psd` - The struct containing wavelength, amplitude, and phase, which define the variability of the profile.
 /// # Returns
@@ -399,8 +404,8 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
 
     let mut planner = FftPlanner::new();
     let ifft = planner.plan_fft_inverse(nprofile);
+    // The log profile has zero mean. The mean of the profile itself is applied after exponentiating.
     let mut buffer: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); nprofile];
-    buffer[0] = Complex::from_polar(amplitude[0] * nprofile as f64, phase[0]);
 
     // The AC components
     for k in 1..nyquist_limit {
@@ -418,10 +423,15 @@ pub fn profile_from_psd(psd: &PSD1DView) -> (Vec<f64>, Vec<f64>) {
         );
     }
     ifft.process(&mut buffer);
-    let scale_factor = psd.normalization_length / nprofile as f64;
 
-    // The mean is now part of the signal, so we just scale the result.
-    let out: Vec<f64> = buffer.iter().map(|val| val.re * scale_factor).collect();
+    // Exponentiate the log profile, then rescale so the arithmetic mean is amplitude[0] in units of normalization_length
+    let mut out: Vec<f64> = buffer
+        .iter()
+        .map(|val| (val.re / nprofile as f64).exp())
+        .collect();
+    let exp_mean = out.iter().sum::<f64>() / nprofile as f64;
+    let scale_factor = amplitude[0] * psd.normalization_length / exp_mean;
+    out.iter_mut().for_each(|v| *v *= scale_factor);
 
     // Generate the corresponding bearing values for this profile
     let mut bearing: Vec<f64> = Vec::with_capacity(nprofile);
@@ -529,6 +539,34 @@ mod tests {
             // Tiny negative bearings wrap to just below 2π, which must be close to y[0]
             assert!((evaluator.eval(-1e-300) - y[0]).abs() < tol);
             assert!((evaluator.eval(-0.0) - y[0]).abs() < tol);
+        }
+    }
+
+    #[test]
+    fn profile_from_psd_is_positive_and_keeps_mean() {
+        let mut rng = ChaCha12Rng::seed_from_u64(7);
+        for &nfreq in &[3usize, 9, 33, 257, 2049] {
+            let mean = 0.3;
+            let normalization_length = 1234.5;
+            // Large log amplitudes that would drive a linear synthesis well below zero
+            let wavelength = Array1::from_iter((0..nfreq).map(|i| TAU / i.max(1) as f64));
+            let mut amplitude = Array1::from_iter((0..nfreq).map(|_| 0.5 + rng.random_range(0.0..0.5)));
+            amplitude[0] = mean;
+            let phase = Array1::from_iter((0..nfreq).map(|_| rng.random_range(0.0..TAU)));
+            let psd = PSD1DView {
+                nprofile: 2 * (nfreq - 1),
+                nfreq,
+                normalization_length,
+                mean,
+                pix: 1.0,
+                wavelength: wavelength.view(),
+                amplitude: amplitude.view(),
+                phase: phase.view(),
+            };
+            let (_, y) = profile_from_psd(&psd);
+            assert!(y.iter().all(|&v| v > 0.0), "nfreq={nfreq}: profile has non-positive values");
+            let ymean = y.iter().sum::<f64>() / y.len() as f64;
+            assert!((ymean / (mean * normalization_length) - 1.0).abs() < 1e-12, "nfreq={nfreq}: mean not preserved");
         }
     }
 }
