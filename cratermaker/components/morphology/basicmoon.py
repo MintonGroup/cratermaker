@@ -298,6 +298,11 @@ class BasicMoonCrater(MorphologyCrater):
                 "fit_scale": "loglog",
             },
         }
+        # Smallest rim_width / radius measured in the fresh crater data set, used as the floor of the sampled rim width
+        min_rim_width_ratio = {
+            "simple": 0.1489,  # Cauchy
+            "non-simple": 0.0520,  # Orientale
+        }
         floor_radius_params = {
             "simple": {
                 "coefficients": [-0.900242255950584, 0.455179909117242, 0.04575920054549337],
@@ -413,7 +418,7 @@ class BasicMoonCrater(MorphologyCrater):
                     diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_width_params[fit_category]
                 )[0]
                 * fcorrection,
-                0.0,
+                min_rim_width_ratio[fit_category] * 0.5 * crater.diameter,
             )
         args["rim_width"] = rim_width
 

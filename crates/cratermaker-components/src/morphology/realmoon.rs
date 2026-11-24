@@ -6,7 +6,7 @@ use paste::paste;
 use rand::SeedableRng;
 use rand::prelude::*;
 use rand_chacha::ChaCha12Rng;
-use rand_distr::{Normal, Uniform};
+use rand_distr::Uniform;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
@@ -300,9 +300,35 @@ pub fn realmoon_profile(
     Ok(Array1::from_vec(out))
 }
 
+/// Highest wavenumber constrained by the measured profiles, which are sampled at 360 bearings (Nyquist at k = 180)
+const PSD_DATA_KMAX: usize = 180;
+
+/// Minimum log-log slope of ln(amplitude) vs ln(wavelength) used to extend the spectrum beyond PSD_DATA_KMAX.
+///
+/// The variance contributed by wavenumbers above the data limit scales as Σ k^(-2s), which only converges for s > 0.5. Many
+/// measured slopes are shallower than that, so extending them unchanged would make the profile variance grow without bound
+/// as the surface resolution increases. Steepening the tail to at least this slope keeps the structure finer than the data
+/// resolution while making the profile statistics independent of resolution once it is fine enough.
+const PSD_MIN_EXTRAPOLATION_SLOPE: f64 = 2.0;
+
+/// Euler-Mascheroni constant
+const EULER_GAMMA: f64 = 0.577_215_664_901_532_9;
+
+/// Mean of ln(R) for a Rayleigh variate R with unit scale: E[ln R] = ln(2)/2 - γ/2
+const LN_RAYLEIGH_MEAN: f64 = 0.5 * std::f64::consts::LN_2 - 0.5 * EULER_GAMMA;
+
+/// Converts a uniform variate u in [0, 1) into a Rayleigh variate scaled so that the mean of its log is zero.
+///
+/// The log of the result has standard deviation π/√24 ≈ 0.641 and skewness ≈ -1.14.
+#[inline]
+fn rayleigh_log_centered(u: f64) -> f64 {
+    let r = (-2.0 * (1.0 - u).ln()).sqrt();
+    r * (-LN_RAYLEIGH_MEAN).exp()
+}
+
 ///
 ///
-/// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Gaussian noise added to the log amplitude values.
+/// Computes a target 1D power spectral density distribution based on control points defining a piecewise linear function in log-log space, with optional Rayleigh noise applied to the amplitudes of the power-law part of the spectrum.
 ///
 /// # Arguments
 /// * `control_points` - A dictionary containing the control points for the piecewise linear function. The expected keys are:
@@ -314,7 +340,7 @@ pub fn realmoon_profile(
 /// - "y4": The y-coordinate of the highest wavelength in ln(amplitude).
 /// - "y5": The y-coordinate of the highest wavelength in ln(amplitude).
 ///  * `nprofile` - The number of points in the output PSD, which determines the wavelength resolution and the Nyquist frequency.
-///  * `add_noise` - Whether to add Gaussian noise to the ln(amplitude) values to simulate natural variability in the PSD.
+///  * `add_noise` - Whether to multiply the amplitudes from index 6 up by Rayleigh variates (scaled to zero mean log) to simulate the natural variability of the PSD.
 ///  * `seed` - The random seed for reproducibility of the noise if `add_noise` is true.
 ///
 ///
@@ -361,19 +387,31 @@ pub fn get_1d_psd_from_control_points(
     amplitude[4] = y4.exp();
     amplitude[5] = y5.exp();
 
+    // Power law with slope sn up to the data limit, continued beyond it with a slope of at least PSD_MIN_EXTRAPOLATION_SLOPE
     let xn = wavelength[6].ln();
+    let x_data = (base / PSD_DATA_KMAX as f64).ln();
+    let y_data = yn + sn * (x_data - xn);
+    let s_ext = sn.max(PSD_MIN_EXTRAPOLATION_SLOPE);
     for i in 6..nfreq {
         let log_x = wavelength[i].ln();
-        amplitude[i] = (yn + sn * (log_x - xn)).exp();
+        let log_amplitude = if i <= PSD_DATA_KMAX {
+            yn + sn * (log_x - xn)
+        } else {
+            y_data + s_ext * (log_x - x_data)
+        };
+        amplitude[i] = log_amplitude.exp();
     }
 
-    // Optional Gaussian noise in log amplitude
+    // Optional noise in the amplitudes. The Fourier amplitudes of a random profile are Rayleigh distributed, and the
+    // residuals of the measured log amplitudes about each crater's power law match this (sd ≈ 0.61, skew ≈ -1.1, with no
+    // dependence on feature, crater size, or wavenumber). Each amplitude is multiplied by a Rayleigh variate scaled so that
+    // the mean of its log is zero, so the power law remains the mean of ln(amplitude). The first five components are
+    // control points themselves, whose noise already carries their measured scatter, so the noise is only added to the
+    // power-law part of the spectrum.
     if add_noise {
-        let normal = Normal::new(0.0, 0.55).expect("valid normal distribution");
-        for i in 1..nfreq {
-            let log_amplitude = amplitude[i].ln();
-            let noisy_log_amplitude = log_amplitude + normal.sample(&mut rng);
-            amplitude[i] = (noisy_log_amplitude).exp();
+        let unit = Uniform::new(0.0, 1.0).expect("valid uniform distribution");
+        for i in 6..nfreq {
+            amplitude[i] *= rayleigh_log_centered(unit.sample(&mut rng));
         }
     }
     Ok((wavelength, amplitude, phase))
@@ -478,6 +516,7 @@ pub fn psd_from_profile(profile: &ArrayView1<'_, f64>) -> (Vec<f64>, Vec<f64>) {
 mod tests {
     use super::*;
     use interp::{InterpMode, interp};
+    use rand_distr::Normal;
 
     /// One period of a random PSD profile, sampled on the uniform [0, 2π) grid used by profile_from_psd.
     fn random_profile(nfreq: usize, rng: &mut ChaCha12Rng) -> (Vec<f64>, Vec<f64>) {
@@ -540,6 +579,40 @@ mod tests {
             assert!((evaluator.eval(-1e-300) - y[0]).abs() < tol);
             assert!((evaluator.eval(-0.0) - y[0]).abs() < tol);
         }
+    }
+
+    #[test]
+    fn extrapolated_variance_converges_with_resolution() {
+        // A shallow slope whose variance would diverge if the power law were extended unchanged
+        let control_points: HashMap<String, f64> = [("sn", 0.2), ("yn", -3.0), ("y1", -3.0), ("y2", -3.0), ("y3", -3.0), ("y4", -3.0), ("y5", -3.0)]
+            .iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect();
+        let variance = |nprofile: usize| {
+            let (_, amplitude, _) = get_1d_psd_from_control_points(&control_points, 1.0, nprofile, false, 0).unwrap();
+            amplitude.iter().skip(1).map(|a| 0.5 * a * a).sum::<f64>()
+        };
+        let (v_data, v_fine, v_finer) = (variance(2 * PSD_DATA_KMAX), variance(20_000), variance(200_000));
+        assert!(v_fine > v_data, "the tail beyond the data limit should add variance");
+        assert!((v_finer / v_fine - 1.0).abs() < 0.01, "variance not converged: {v_fine} vs {v_finer}");
+        // Unchanged up to the data limit
+        let (_, a_data, _) = get_1d_psd_from_control_points(&control_points, 1.0, 2 * PSD_DATA_KMAX, false, 0).unwrap();
+        let (_, a_fine, _) = get_1d_psd_from_control_points(&control_points, 1.0, 20_000, false, 0).unwrap();
+        for k in 1..=PSD_DATA_KMAX {
+            assert!((a_data[k] / a_fine[k] - 1.0).abs() < 1e-12, "k={k}");
+        }
+    }
+
+    #[test]
+    fn rayleigh_noise_has_zero_mean_log() {
+        let mut rng = ChaCha12Rng::seed_from_u64(3);
+        let unit = Uniform::new(0.0, 1.0).unwrap();
+        let n = 1_000_000;
+        let logs: Vec<f64> = (0..n).map(|_| rayleigh_log_centered(unit.sample(&mut rng)).ln()).collect();
+        let mean = logs.iter().sum::<f64>() / n as f64;
+        let sd = (logs.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+        assert!(mean.abs() < 3e-3, "mean of log = {mean}");
+        assert!((sd - std::f64::consts::PI / 24f64.sqrt()).abs() < 3e-3, "sd of log = {sd}");
     }
 
     #[test]

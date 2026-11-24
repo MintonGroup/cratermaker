@@ -47,6 +47,7 @@ class PSD1D(CratermakerBase):
         mean: FloatLike | None = None,
         pix: FloatLike | None = None,
         nprofile: int | None = None,
+        add_noise: bool = False,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         rng_state: dict | None = None,
@@ -73,6 +74,8 @@ class PSD1D(CratermakerBase):
             Defines the limiting resolution of the signal. Ignored when profile input is used.
         nprofile : int, optional
             Defines the number of profile points to define the PSD. Only used for control_points method
+        add_noise : bool, optional
+            Whether to add Gaussian noise to the log amplitudes of a PSD generated from control points. Default is False.
         rng : numpy.random.Generator | None
             |rng|
         rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -95,6 +98,7 @@ class PSD1D(CratermakerBase):
         object.__setattr__(self, "_wavelength", None)
         object.__setattr__(self, "_add_noise", None)
 
+        self.add_noise = add_noise
         self.normalization_length = normalization_length
         if profile is not None:
             min_pix = 2 * math.pi * np.abs(profile.mean().item()) / len(profile)
@@ -229,12 +233,16 @@ class PSD1D(CratermakerBase):
     def nprofile(self) -> int:
         """
         The number of points in the linear profile that defines the PSD, which is 2x the number of points in the spectral density (nfreq).
+
+        By default this samples the circle of radius normalization_length (the crater radius) at two points per pixel, so
+        every parameter of a crater gets a spectrum of the same length regardless of the size of the parameter itself.
         """
         if self._nprofile is None:
             if self._amplitude is not None:
                 return 2 * (len(self._amplitude) - 1)
             elif self.pix is not None:
-                return max(int(4 * math.pi * self.mean / self.pix), _PSD1D_MIN_POINTS)
+                # pix is in units of normalization_length, so this is 4π * radius / pix
+                return max(int(4 * math.pi / self.pix), _PSD1D_MIN_POINTS)
         return self._nprofile
 
     @nprofile.setter
@@ -594,7 +602,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         object.__setattr__(self, "_psd1d_coef", None)
         object.__setattr__(self, "_psd2d_coef", None)
         object.__setattr__(self, "_psd_pix", None)
-        self.add_noise = kwargs.pop("add_noise", False)  # Can be disabled for testing
+        self.add_noise = kwargs.pop("add_noise", True)  # Can be disabled for testing
 
         psd1d_coef_file = Path(psd1d_coef_file)
         if not psd1d_coef_file.exists():
@@ -613,6 +621,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         params = [str(p) for p in ds.param.data]
         self._psd1d_coef = {}
         for var in ds.data_vars:
+            if set(ds[var].dims) != {"term", "fit_category", "param"}:
+                continue
             self._psd1d_coef[var] = {}
             for fit_category in fit_categories:
                 self._psd1d_coef[var][fit_category] = {}
@@ -622,6 +632,15 @@ class RealMoonMorphology(BasicMoonMorphology):
                         self._psd1d_coef[var][fit_category][term][param] = (
                             ds[var].sel(fit_category=fit_category, term=term, param=param).data.item()
                         )
+            # Measured control points of large craters, used in place of the fit for large non-simple craters
+            anchor_var = f"{var}_anchor"
+            if anchor_var in ds.data_vars:
+                order = np.argsort(ds["anchor_radius"].to_numpy())
+                self._psd1d_coef[var]["anchors"] = {
+                    "transition_radius": float(ds.attrs["anchor_transition_radius"]),
+                    "radius": ds["anchor_radius"].to_numpy().astype(np.float64)[order],
+                    "terms": {term: ds[anchor_var].sel(term=term).to_numpy().astype(np.float64)[order] for term in terms},
+                }
 
         self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
         self.psd_pix = psd_pix
@@ -742,26 +761,95 @@ class RealMoonMorphology(BasicMoonMorphology):
         crater : Crater
             The crater for which to compute the control points.
         psd1d_coef : dict
-            A nested dict containing the coefficients and sigma values for the control points. The expected structure is psd1d_coef[fit_category][term][param], where fit_category is "simple" or "non-simple", term is ["y1","y2","y3","y4","y5","yn","sn"], and param is ["m","b","sigma"] (e.g., mean and sigma for the control points).
-        add_noise : bool
-            Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
-        """
-        control_points = {}
-        sigma = {}
-        fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
+            A nested dict containing the coefficients and sigma values for the control points. The expected structure is psd1d_coef[fit_category][term][param], where fit_category is "simple" or "non-simple", term is ["y1","y2","y3","y4","y5","yn","sn"], and param is ["m","b","sigma"] (e.g., mean and sigma for the control points). It may also contain an "anchors" entry; see `control_point_means`.
 
-        coef = psd1d_coef[fit_category]
+        Notes
+        -----
+        If the morphology's add_noise is True, each control point is drawn from a normal distribution centered on its mean value with the intrinsic crater-to-crater sigma of the fit. Otherwise the mean values are returned.
+        """
+        fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
         radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
-        for term, c in coef.items():
-            control_points[term] = c["m"] / np.log(radius_m) ** 2 + c["b"]
-            if self.add_noise:
-                sigma = (
-                    c["sigma"] / len(coef)
-                )  # There are too many correlations in the breakpoints for the control points to be random. Dividing by the number of terms suppresses the noise in the control points a bit so that the PSDs don't become extreme
-                cmid = control_points[term]
-                control_points[term] = self.rng.normal(cmid, sigma)
+        control_points = self.control_point_means(psd1d_coef, fit_category, radius_m)
+        if self.add_noise:
+            noise_scale = self.control_point_noise_scale(psd1d_coef, fit_category, radius_m)
+            for term, c in psd1d_coef[fit_category].items():
+                # The intrinsic sigma of the fit reproduces the crater-to-crater scatter of the measured control points
+                control_points[term] = self.rng.normal(control_points[term], noise_scale * c["sigma"])
 
         return control_points
+
+    @staticmethod
+    def control_point_noise_scale(psd1d_coef: dict, fit_category: str, radius: float) -> float:
+        """
+        The factor applied to the sigma of the control point noise for a crater of a given radius.
+
+        The sigmas are calibrated on the whole population of a fit category, which for non-simple craters is dominated by
+        complex craters tens of km across. The few large craters cannot show how much they vary from one another, so across
+        the anchor range the noise is tapered linearly in ln(radius), from its full value at the anchor transition radius to
+        zero at the largest anchor crater, so that large craters vary about the anchors through the amplitude noise alone.
+
+        Parameters
+        ----------
+        psd1d_coef : dict
+            The coefficients of one feature, as stored in `psd1d_coef[feature]`.
+        fit_category : str
+            "simple" or "non-simple"
+        radius : float
+            Crater radius in meters.
+
+        Returns
+        -------
+        float
+            A factor between 0 and 1.
+        """
+        anchors = psd1d_coef.get("anchors")
+        if fit_category == "simple" or anchors is None:
+            return 1.0
+        lnr0 = np.log(anchors["transition_radius"])
+        lnr1 = np.log(anchors["radius"][-1])
+        return float(np.clip((lnr1 - np.log(radius)) / (lnr1 - lnr0), 0.0, 1.0))
+
+    @staticmethod
+    def control_point_means(psd1d_coef: dict, fit_category: str, radius: float) -> dict[str, float]:
+        """
+        The mean value of each PSD control point for a crater of a given radius.
+
+        This is the fit function m / ln(radius)^2 + b. There are too few fresh large craters to constrain the fit at the large
+        end, so for non-simple craters larger than the anchor transition radius, the values are instead interpolated in
+        ln(radius) from the fit at the transition radius to the measured control points of the anchor craters (e.g.
+        Schrödinger and Orientale), holding the values of the largest anchor crater beyond it.
+
+        Parameters
+        ----------
+        psd1d_coef : dict
+            The coefficients of one feature, as stored in `psd1d_coef[feature]`.
+        fit_category : str
+            "simple" or "non-simple"
+        radius : float
+            Crater radius in meters.
+
+        Returns
+        -------
+        dict[str, float]
+            The mean value of each control point.
+        """
+
+        def fit_value(c, r):
+            return c["m"] / np.log(r) ** 2 + c["b"]
+
+        coef = psd1d_coef[fit_category]
+        anchors = psd1d_coef.get("anchors")
+        use_anchors = fit_category != "simple" and anchors is not None and radius > anchors["transition_radius"]
+        means = {}
+        for term, c in coef.items():
+            if use_anchors:
+                rt = anchors["transition_radius"]
+                lnr = np.concatenate(([np.log(rt)], np.log(anchors["radius"])))
+                values = np.concatenate(([fit_value(c, rt)], anchors["terms"][term]))
+                means[term] = float(np.interp(np.log(radius), lnr, values))
+            else:
+                means[term] = fit_value(c, radius)
+        return means
 
     @property
     def psd1d_coef(self) -> dict:
