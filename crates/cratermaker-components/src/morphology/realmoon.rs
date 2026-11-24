@@ -515,19 +515,40 @@ fn sample_skewness(values: &[f64]) -> f64 {
     if m2 > 0.0 { m3 / m2.powf(1.5) } else { 0.0 }
 }
 
-/// Values of the skewing transform (e^(λz) - 1)/λ, up to a positive affine change, which does not affect their skewness or
-/// their standardized values. Shifting the exponent by the extreme value of z keeps it from overflowing.
+/// Curvature of the skewing transform on the compressed side of the median, as a fraction of its curvature on the stretched
+/// side. With equal curvatures (1) the transform is (e^(λz) - 1)/λ, which compresses one side so strongly that profiles
+/// dominated by a few long-wavelength components develop flat plateaus, which measured profiles do not have. With 0 the
+/// compressed side is left unchanged, which gives profiles that are too peaked. 0.25 matches the measured profiles in both
+/// respects (tested on the 852 measured profiles with 360 bearings, each with its own spectrum and skewness).
+const SKEW_COMPRESSED_CURVATURE: f64 = 0.25;
+
+/// Largest exponent used on the stretched side of the skewing transform, which keeps it from overflowing. Realistic
+/// skewness targets never come close to it.
+const SKEW_MAX_EXPONENT: f64 = 50.0;
+
+/// Values of the skewing transform of z (standardized about its median).
+///
+/// On the side of the median being stretched (below it for λ < 0, which gives deep dips; above it for λ > 0, which gives
+/// tall peaks) the transform is (e^(λz) - 1)/λ. On the other side it is the same function with curvature
+/// SKEW_COMPRESSED_CURVATURE * λ, which compresses it more gently. The transform is increasing and continuous with a
+/// continuous slope (1 at the median) for either sign of λ.
 fn skew_transform(z: &[f64], lambda: f64) -> Vec<f64> {
     if lambda.abs() < 1e-12 {
         return z.to_vec();
     }
-    let shift = if lambda > 0.0 {
-        z.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
-    } else {
-        z.iter().cloned().fold(f64::INFINITY, f64::min)
-    };
-    // Dividing by λ makes the transform increasing for either sign of λ
-    z.iter().map(|&v| (lambda * (v - shift)).exp() / lambda).collect()
+    let lambda_compressed = SKEW_COMPRESSED_CURVATURE * lambda;
+    z.iter()
+        .map(|&v| {
+            let stretched = (lambda < 0.0 && v < 0.0) || (lambda > 0.0 && v > 0.0);
+            if stretched {
+                (lambda * v).min(SKEW_MAX_EXPONENT).exp_m1() / lambda
+            } else if lambda_compressed.abs() < 1e-12 {
+                v
+            } else {
+                (lambda_compressed * v).exp_m1() / lambda_compressed
+            }
+        })
+        .collect()
 }
 
 /// Finds λ such that the skewness of the transformed values is the target, by bisection. The skewness increases
@@ -559,7 +580,7 @@ fn solve_skew_lambda(z: &[f64], target: f64) -> f64 {
 ///
 /// Profiles synthesized with random phases have symmetric distributions of values, but measured crater profiles are skewed
 /// (rim heights have dips but not comparable peaks, crater radii have outward bulges). The values are passed through the
-/// transform (e^(λz) - 1)/λ, with λ chosen to give the target skewness, which defines the target distribution of values.
+/// skewing transform (see `skew_transform`), with λ chosen to give the target skewness, which defines the target distribution.
 /// The profile is then iterated between the target spectrum and the target distribution (the IAAFT method): impose the
 /// target Fourier magnitudes while keeping the phases, then replace the values by the target values of the same rank. The
 /// result has exactly the target distribution, and so the target skewness, and a spectrum within a few percent of the
@@ -582,7 +603,11 @@ fn impose_skewness(
     if sd == 0.0 {
         return log_profile.to_vec();
     }
-    let z: Vec<f64> = log_profile.iter().map(|v| (v - mean) / sd).collect();
+    // Standardize about the median, which divides the profile into the stretched and compressed sides of the transform
+    let mut sorted = log_profile.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = if n % 2 == 0 { 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]) } else { sorted[n / 2] };
+    let z: Vec<f64> = log_profile.iter().map(|v| (v - median) / sd).collect();
 
     // Target values: the transformed values, standardized and rescaled to the spread of the profile
     let lambda = solve_skew_lambda(&z, skewness);
