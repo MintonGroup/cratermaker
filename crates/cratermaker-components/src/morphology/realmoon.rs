@@ -1,6 +1,6 @@
 use crate::ArrayResult;
-use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one};
-use crate::morphology::blend_band;
+use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile_one_local, crater_elevation};
+use crate::morphology::smootherstep;
 use numpy::ndarray::prelude::*;
 use paste::paste;
 use rand::SeedableRng;
@@ -12,7 +12,6 @@ use rustfft::{FftPlanner, num_complex::Complex};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
 
-const BLEND_WIDTH_FRACTION: f64 = 0.05; // Relative width of the blending region between PSD-derived parameter values and their means
 
 /// Represents a local region of a surface mesh with various attributes accessible as array views.
 pub struct PSD1DView<'a> {
@@ -151,51 +150,17 @@ macro_rules! define_evaluator_bundle {
                     }
                 }
 
-                /// Evaluates all dynamic properties at a given bearing, returning
-                /// a customized BasicMoonCrater mapping to this slice of the profile.
+                /// The parameters of the crater (or ring) along one bearing, from its PSD profiles.
                 #[inline]
-                pub fn eval_to_basic(&self, base_crater: &RealMoonCrater, r: f64, bearing: f64) -> BasicMoonCrater {
-                    // Evaluate all dynamic PSD profiles
+                pub fn at_bearing(&self, base_crater: &RealMoonCrater, bearing: f64) -> BearingFeature {
                     $(
                         let [<$psd_field _raw>] = self.[<$psd_field _eval>].eval(bearing);
                     )*
-
-                    // Blend PSD-derived parameters with their means when the radius value is far from its boundary
-                    // This smooths out the sharp radial features in the full crater profile
-                    let rtrans_rim = radius_raw;
-                    let rwidth_rim = BLEND_WIDTH_FRACTION * rtrans_rim;
-                    let rtrans_floor = floor_radius_raw;
-                    let rwidth_floor = 2.0 * BLEND_WIDTH_FRACTION * rtrans_floor;
-
-                    let radius_val = blend_band(r, radius_raw, base_crater.radius, rtrans_rim, rwidth_rim);
-                    let rim_width_val = blend_band(r, rim_width_raw, base_crater.rim_width, rtrans_rim, rwidth_rim);
-                    let rim_height_val = blend_band(r, rim_height_raw, base_crater.rim_height, rtrans_rim, rwidth_rim);
-                    let floor_radius_val = blend_band(r, floor_radius_raw, base_crater.floor_radius, rtrans_floor, rwidth_floor);
-
                     // Geometric guards: no value a larger fraction of the radius than in any measured profile
-                    let floor_radius_val = floor_radius_val.min(base_crater.floor_radius_psd.max_radius_fraction * radius_val);
-                    let rim_width_val = rim_width_val.min(base_crater.rim_width_psd.max_radius_fraction * radius_val);
-                    let rim_height_val = rim_height_val.min(base_crater.rim_height_psd.max_radius_fraction * radius_val);
-
-                    let diameter_val = 2.0 * radius_val;
-                    BasicMoonCrater {
-                        diameter: diameter_val,
-                        radius: radius_val,
-                        floor_radius: floor_radius_val,
-                        rim_height: rim_height_val,
-                        rim_width: rim_width_val,
-                        // Static non-PSD fields
-                        frac_ejrim: base_crater.frac_ejrim,
-                        ejprofile: base_crater.ejprofile,
-                        floor_elevation: base_crater.floor_elevation,
-                        peak_height: base_crater.peak_height,
-                        peak_width: base_crater.peak_width,
-                        peak_ring_radius: base_crater.peak_ring_radius,
-                        peak_center_distance: base_crater.peak_center_distance,
-                        peak_center_bearing: base_crater.peak_center_bearing,
-                        wall_curvature: base_crater.wall_curvature,
-                        floor_blend: base_crater.floor_blend,
-                    }
+                    let floor_radius = floor_radius_raw.min(base_crater.floor_radius_psd.max_radius_fraction * radius_raw);
+                    let rim_width = rim_width_raw.min(base_crater.rim_width_psd.max_radius_fraction * radius_raw);
+                    let rim_height = rim_height_raw.min(base_crater.rim_height_psd.max_radius_fraction * radius_raw);
+                    BearingFeature::new(base_crater, radius_raw, floor_radius, rim_width, rim_height)
                 }
             }
         }
@@ -287,23 +252,38 @@ pub fn realmoon_profile(
             let href = reference_elevations[i];
             let bearing = bearings[i];
 
-            // Generate the Basic representation dynamically at this local bearing
-            let icrater = main_evaluators.eval_to_basic(crater, r, bearing);
+            // The parameters of the crater and its rings along this bearing
+            let main = main_evaluators.at_bearing(crater, bearing);
+            let ring_features: Vec<BearingFeature> = rings_evaluators
+                .as_ref()
+                .map(|evals_vec| evals_vec.iter().map(|(evaluator, ring)| evaluator.at_bearing(ring, bearing)).collect())
+                .unwrap_or_default();
 
-            // Generate Basic representations for all sub-rings at this bearing
-            let irings: Option<Vec<BasicMoonCrater>> = rings_evaluators.as_ref().map(|evals_vec| {
-                evals_vec
-                    .iter()
-                    .map(|(evaluator, ring)| evaluator.eval_to_basic(ring, r, bearing))
-                    .collect()
-            });
+            // Each feature is its mean profile evaluated at its own warped radial coordinate
+            let (icrater, r_main) = main.at(crater, r);
+            let (irings, ring_r): (Vec<BasicMoonCrater>, Vec<f64>) = rings
+                .as_ref()
+                .map(|rings_vec| ring_features.iter().zip(rings_vec).map(|(f, ring)| f.at(ring, r)).unzip())
+                .unwrap_or_default();
 
-            // Compute the profile using the basic profile function using the values at this bearing value
-            let h =
-                basicmoon_profile_one(r, href, &icrater, &irings, include_crater, include_ejecta);
+            // Each ring sits at the elevation of the feature around it (the crater for the outermost ring, otherwise the next
+            // ring out) where the ring's rim is along this bearing
+            let offsets: Vec<f64> = match rings {
+                Some(rings_vec) => (0..rings_vec.len())
+                    .map(|j| {
+                        let rj = ring_features[j].radius;
+                        let (c, rc) = if j == 0 { main.at(crater, rj) } else { ring_features[j - 1].at(&rings_vec[j - 1], rj) };
+                        crater_elevation(&c, rc)
+                    })
+                    .collect(),
+                None => Vec::new(),
+            };
+
+            let irings = if irings.is_empty() { None } else { Some(irings) };
+            let h = basicmoon_profile_one_local(r_main, &ring_r, href, &icrater, &irings, &offsets, include_crater, include_ejecta);
 
             // Enforce minimum crater floor constraint
-            if r <= icrater.radius {
+            if r_main <= icrater.radius {
                 h.max(min_elevation)
             } else {
                 h
@@ -312,6 +292,157 @@ pub fn realmoon_profile(
         .collect();
 
     Ok(Array1::from_vec(out))
+}
+
+/// Distance, in mean rim widths of a crater (or ring), over which the effect of its parameters along a bearing fades out:
+/// beyond its rim zone the rim height and rim width return to their means, and away from its rim and floor edge the radial
+/// warp that places them returns to the identity.
+const LOCALITY_RIM_WIDTHS: f64 = 2.0;
+
+/// The parameters of a crater (or ring) along one bearing, and how they enter its profile.
+///
+/// The profile along a bearing is the mean profile of the crater evaluated at a warped radial coordinate. The warp moves the
+/// mean floor edge and rim to where they are along this bearing, and is the identity away from them, so the position of a
+/// feature affects the profile only near that feature, and each feature appears exactly once. The rim height and rim width
+/// take their values along this bearing across the rim zone and return to their means away from it, so they too affect the
+/// profile only near the rim.
+#[derive(Clone, Copy, Debug)]
+pub struct BearingFeature {
+    pub radius: f64,
+    pub floor_radius: f64,
+    pub rim_width: f64,
+    pub rim_height: f64,
+    warp: RadialWarp,
+}
+
+impl BearingFeature {
+    pub fn new(base: &RealMoonCrater, radius: f64, floor_radius: f64, rim_width: f64, rim_height: f64) -> Self {
+        let scale = (LOCALITY_RIM_WIDTHS * base.rim_width).max(1e-6 * base.radius);
+        Self {
+            radius,
+            floor_radius,
+            rim_width,
+            rim_height,
+            warp: RadialWarp::new(floor_radius, base.floor_radius, radius, base.radius, scale),
+        }
+    }
+
+    /// The crater to evaluate at radial distance `r` along this bearing, and the radial coordinate to evaluate it at.
+    #[inline]
+    pub fn at(&self, base: &RealMoonCrater, r: f64) -> (BasicMoonCrater, f64) {
+        let rw = self.warp.eval(r);
+        let scale = (LOCALITY_RIM_WIDTHS * base.rim_width).max(1e-6 * base.radius);
+        let beyond = ((rw - base.radius).abs() - base.rim_width).max(0.0);
+        let phi = smootherstep(beyond / scale);
+        let crater = BasicMoonCrater {
+            diameter: 2.0 * base.radius,
+            radius: base.radius,
+            floor_radius: base.floor_radius,
+            rim_height: (1.0 - phi) * self.rim_height + phi * base.rim_height,
+            rim_width: (1.0 - phi) * self.rim_width + phi * base.rim_width,
+            frac_ejrim: base.frac_ejrim,
+            ejprofile: base.ejprofile,
+            floor_elevation: base.floor_elevation,
+            peak_height: base.peak_height,
+            peak_width: base.peak_width,
+            peak_ring_radius: base.peak_ring_radius,
+            peak_center_distance: base.peak_center_distance,
+            peak_center_bearing: base.peak_center_bearing,
+            wall_curvature: base.wall_curvature,
+            floor_blend: base.floor_blend,
+        };
+        (crater, rw)
+    }
+}
+
+/// A smooth, monotone map of the radial distance along a bearing to the radial coordinate of the mean crater profile.
+///
+/// It maps the floor radius along the bearing to the mean floor radius and the rim radius along the bearing to the mean rim
+/// radius, and is the identity inside `floor_radius - l_floor` and beyond `radius + l_rim`, where each length is `scale`, or
+/// twice the shift of its feature if that is larger (which keeps the map monotone). Between the knots it is a monotone cubic
+/// Hermite interpolant (Fritsch-Butland slopes, with slope 1 where it joins the identity).
+#[derive(Clone, Copy, Debug)]
+struct RadialWarp {
+    x: [f64; 5],
+    y: [f64; 5],
+    d: [f64; 5],
+    n: usize,
+}
+
+impl RadialWarp {
+    fn new(floor_radius: f64, mean_floor_radius: f64, radius: f64, mean_radius: f64, scale: f64) -> Self {
+        let l_floor = scale.max(2.0 * (floor_radius - mean_floor_radius).abs());
+        let l_rim = scale.max(2.0 * (radius - mean_radius).abs());
+        let mut x = [0.0; 5];
+        let mut y = [0.0; 5];
+        let mut fixed = [false; 5];
+        let mut n = 0;
+        let inner = floor_radius - l_floor;
+        if inner > 0.0 {
+            x[n] = inner;
+            y[n] = inner;
+            fixed[n] = true;
+        } else {
+            x[n] = 0.0;
+            y[n] = 0.0;
+        }
+        n += 1;
+        for (xi, yi) in [(floor_radius, mean_floor_radius), (radius, mean_radius)] {
+            // Keep the knots strictly increasing (the floor edge can only coincide with the rim in degenerate profiles)
+            if xi > x[n - 1] && yi > y[n - 1] {
+                x[n] = xi;
+                y[n] = yi;
+                n += 1;
+            }
+        }
+        x[n] = radius + l_rim;
+        y[n] = radius + l_rim;
+        fixed[n] = true;
+        n += 1;
+
+        let mut sec = [0.0; 4];
+        for k in 0..n - 1 {
+            sec[k] = (y[k + 1] - y[k]) / (x[k + 1] - x[k]);
+        }
+        let mut d = [0.0; 5];
+        for k in 0..n {
+            d[k] = if fixed[k] {
+                1.0
+            } else if k == 0 {
+                sec[0]
+            } else if k == n - 1 {
+                sec[n - 2]
+            } else {
+                // Weighted harmonic mean of the neighboring secants (Fritsch-Butland), which keeps the interpolant monotone
+                let (h0, h1) = (x[k] - x[k - 1], x[k + 1] - x[k]);
+                let (w0, w1) = (2.0 * h1 + h0, h1 + 2.0 * h0);
+                (w0 + w1) / (w0 / sec[k - 1] + w1 / sec[k])
+            };
+        }
+        Self { x, y, d, n }
+    }
+
+    #[inline]
+    fn eval(&self, r: f64) -> f64 {
+        if r <= self.x[0] {
+            // Inside the first knot the map is the identity, or a scaling if the first knot is at the center
+            return if self.x[0] > 0.0 { r } else { r * self.d[0] };
+        }
+        if r >= self.x[self.n - 1] {
+            return r;
+        }
+        let mut k = 0;
+        while r > self.x[k + 1] {
+            k += 1;
+        }
+        let h = self.x[k + 1] - self.x[k];
+        let t = (r - self.x[k]) / h;
+        let (t2, t3) = (t * t, t * t * t);
+        (2.0 * t3 - 3.0 * t2 + 1.0) * self.y[k]
+            + (t3 - 2.0 * t2 + t) * h * self.d[k]
+            + (-2.0 * t3 + 3.0 * t2) * self.y[k + 1]
+            + (t3 - t2) * h * self.d[k + 1]
+    }
 }
 
 /// Highest wavenumber constrained by the measured profiles, which are sampled at 360 bearings (Nyquist at k = 180)
@@ -686,6 +817,27 @@ mod tests {
     use super::*;
     use interp::{InterpMode, interp};
     use rand_distr::Normal;
+
+    /// The radial warp maps the floor edge and rim of a bearing onto those of the mean profile, is the identity away from them,
+    /// and is strictly increasing, for small and large shifts in either direction.
+    #[test]
+    fn radial_warp_is_local_and_monotone() {
+        let (mean_rf, mean_r, scale) = (300.0, 1000.0, 200.0);
+        for (rf, r) in [(300.0, 1000.0), (250.0, 1150.0), (380.0, 820.0), (100.0, 1400.0), (600.0, 700.0)] {
+            let w = RadialWarp::new(rf, mean_rf, r, mean_r, scale);
+            assert!((w.eval(rf) - mean_rf).abs() < 1e-9, "floor edge {rf} maps to {}", w.eval(rf));
+            assert!((w.eval(r) - mean_r).abs() < 1e-9, "rim {r} maps to {}", w.eval(r));
+            let far = r + scale.max(2.0 * (r - mean_r).abs()) + 1.0;
+            assert!((w.eval(far) - far).abs() < 1e-12);
+            let mut prev = w.eval(0.0);
+            for i in 1..=4000 {
+                let x = 2.0 * mean_r * i as f64 / 4000.0;
+                let y = w.eval(x);
+                assert!(y > prev, "not increasing at {x} for rf {rf}, r {r}");
+                prev = y;
+            }
+        }
+    }
 
     /// One period of a random PSD profile, sampled on the uniform [0, 2π) grid used by profile_from_psd.
     fn random_profile(nfreq: usize, rng: &mut ChaCha12Rng) -> (Vec<f64>, Vec<f64>) {

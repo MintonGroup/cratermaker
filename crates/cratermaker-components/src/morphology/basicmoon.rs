@@ -144,6 +144,69 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
+    let (offsets, ring_r) = match rings {
+        Some(rings) => (ring_elevation_offsets(crater, rings), vec![r; rings.len()]),
+        None => (Vec::new(), Vec::new()),
+    };
+    basicmoon_profile_one_local(r, &ring_r, href, crater, rings, &offsets, include_crater, include_ejecta)
+}
+
+/// The elevation offset of each ring: the elevation of the feature it sits in (the crater for the outermost ring, otherwise
+/// the next ring out) at the ring's radius.
+pub fn ring_elevation_offsets(crater: &BasicMoonCrater, rings: &[BasicMoonCrater]) -> Vec<f64> {
+    rings
+        .iter()
+        .enumerate()
+        .map(|(i, ring)| {
+            if i == 0 {
+                elevation_offset_func(crater, ring)
+            } else {
+                elevation_offset_func(&rings[i - 1], ring)
+            }
+        })
+        .collect()
+}
+
+/// The elevation of a crater's own profile (without rings) at radial distance `r`.
+#[inline]
+pub fn crater_elevation(crater: &BasicMoonCrater, r: f64) -> f64 {
+    crater_profile_function(
+        r,
+        crater.radius,
+        crater.floor_elevation,
+        crater.floor_radius,
+        crater.wall_curvature,
+        crater.floor_blend,
+        crater.rim_width,
+        crater.rim_height,
+        crater.frac_ejrim,
+        crater.ejprofile,
+        crater.peak_height,
+        crater.peak_width,
+        crater.peak_ring_radius,
+    )
+}
+
+/// `basicmoon_profile_one` for models in which the crater and each of its rings are evaluated at their own radial coordinate
+/// and the elevation offsets of the rings are given (see `ring_elevation_offsets`).
+///
+/// # Arguments
+///
+/// * `r` - The radial coordinate at which the main crater is evaluated.
+/// * `ring_r` - The radial coordinate at which each ring is evaluated.
+/// * `ring_offsets` - The elevation offset of each ring.
+/// * The others are as in `basicmoon_profile_one`.
+#[allow(clippy::too_many_arguments)]
+pub fn basicmoon_profile_one_local(
+    r: f64,
+    ring_r: &[f64],
+    href: f64,
+    crater: &BasicMoonCrater,
+    rings: &Option<Vec<BasicMoonCrater>>,
+    ring_offsets: &[f64],
+    include_crater: bool,
+    include_ejecta: bool,
+) -> f64 {
     // Prevent invalid values of parameters
     let radius = crater.radius.max(1e-8);
     let floor_elevation = crater.floor_elevation.min(-1e-8);
@@ -215,11 +278,7 @@ pub fn basicmoon_profile_one(
     match rings {
         Some(rings) => {
             for (i, ring) in rings.iter().enumerate() {
-                let elevation_offset = if i == 0 {
-                    elevation_offset_func(crater, ring)
-                } else {
-                    elevation_offset_func(&rings[i - 1], ring)
-                };
+                let elevation_offset = ring_offsets[i];
                 let mut ring_floor_elevation = crater.floor_elevation - elevation_offset;
                 ring_floor_elevation = ring_floor_elevation.min(-1e-8);
 
@@ -245,7 +304,7 @@ pub fn basicmoon_profile_one(
                 };
 
                 let hring = crater_profile_function(
-                    r,
+                    ring_r[i],
                     ring_radius,
                     ring_floor_elevation,
                     ring_floor_radius,
@@ -259,7 +318,14 @@ pub fn basicmoon_profile_one(
                     peak_width,
                     peak_ring_radius,
                 ) + elevation_offset;
-                hcrat = hcrat.max(hring);
+                // Outside its rim a ring is flat at its offset (the elevation of the feature around it at the ring's radius).
+                // That surface only belongs inside the rim of that feature: beyond it, it would be a plateau standing above the
+                // ejecta wherever the ring sits high on the wall. Inside the rim, the wall of the surrounding feature rises
+                // above it towards the crest, so dropping the ring there leaves the profile continuous.
+                let inside_parent = if i == 0 { r <= radius } else { ring_r[i - 1] <= rings[i - 1].radius };
+                if inside_parent {
+                    hcrat = hcrat.max(hring);
+                }
             }
         }
         None => (),
@@ -276,20 +342,16 @@ pub fn basicmoon_profile_one(
                 let ring_ejprofile = ring.ejprofile.max(-6.0).min(-0.25);
 
                 let mut hejring = ejecta_profile_function(
-                    r,
+                    ring_r[i],
                     ring_radius,
                     ring_frac_ejrim,
                     ring_rim_height,
                     ring_ejprofile,
                     ring_rim_width,
                 );
-                let elevation_offset = if i == 0 {
-                    elevation_offset_func(crater, ring)
-                } else {
-                    elevation_offset_func(&rings[i - 1], ring)
-                };
+                let elevation_offset = ring_offsets[i];
                 let hrel = hcrat - elevation_offset;
-                if r <= ring.radius && hrel >= 0.0 {
+                if ring_r[i] <= ring.radius && hrel >= 0.0 {
                     let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
                     let max_clamp = (ring_frac_ejrim * ring_rim_height).max(0.0);
                     if !hup.is_nan() && !max_clamp.is_nan() {
@@ -372,21 +434,7 @@ fn smooth_crater_ejecta_split(
 #[inline]
 fn elevation_offset_func(crater: &BasicMoonCrater, ring: &BasicMoonCrater) -> f64 {
     // Returns the offset in elevation for the ring, which is taken to be the elevation of the crater at the ring radius.
-    crater_profile_function(
-        ring.radius,
-        crater.radius,
-        crater.floor_elevation,
-        crater.floor_radius,
-        crater.wall_curvature,
-        crater.floor_blend,
-        crater.rim_width,
-        crater.rim_height,
-        crater.frac_ejrim,
-        crater.ejprofile,
-        crater.peak_height,
-        crater.peak_width,
-        crater.peak_ring_radius,
-    )
+    crater_elevation(crater, ring.radius)
 }
 
 /// Computes the integrand of the axisymmetric volume integral, r * h(r), at an array of radial distances.

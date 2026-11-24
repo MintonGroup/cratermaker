@@ -46,29 +46,6 @@ pub fn blend_step(x: f64, yinner: f64, youter: f64, xtransition: f64, xwidth: f6
     (1.0 - phi) * yinner + phi * youter
 }
 
-// Blends a perturbed value to a background mean value within an annular band near a boundary.
-//
-//
-/// # Arguments
-///
-/// * `r` - The evaluation distance or coordinate.
-/// * `yinband` - The perturbed value returned exactly on the boundary (where r == xtransition).
-/// * `youtband` - The unperturbed background value returned far from the boundary (where |r - xtransition| >= xwidth).
-/// * `xtransition` - The location of the boundary midpoint around which the band is centered.
-/// * `xwidth` - The total distance from the boundary at which the perturbation decays completely to the mean value.
-///
-/// # Returns
-///
-/// * A smoothly blended value that retains the yinband perturbation on the boundary and transitions symmetrically to youtband away from it.
-///
-#[inline]
-pub fn blend_band(x: f64, yinband: f64, youtband: f64, xtransition: f64, xwidth: f64) -> f64 {
-    let dist = (x - xtransition).abs();
-    let t = (dist / xwidth).clamp(0.0, 1.0);
-    let phi = smootherstep(t);
-    (1.0 - phi) * yinband + phi * youtband
-}
-
 // A smooth (C3) version of the positive part max(x, 0).
 //
 // Its derivative is the smootherstep function across [-w, w], so it is exactly 0 for x <= -w, exactly x for x >= w, and never
