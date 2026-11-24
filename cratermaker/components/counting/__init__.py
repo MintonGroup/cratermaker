@@ -397,6 +397,8 @@ class Counting(ComponentBase):
                 crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
             Kd = self.measure_degradation_state(crater, **kwargs)
             Kv = self.visibility_function(crater, **kwargs)
+            # Free the regions extracted for the measurement now, rather than holding every observed crater's regions until the loop ends
+            crater.remove_complex_data()
             if Kd >= Kv:
                 remove_ids.append(id)
             else:
