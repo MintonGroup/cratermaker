@@ -148,7 +148,16 @@ pub fn basicmoon_profile_one(
         Some(rings) => (ring_elevation_offsets(crater, rings), vec![r; rings.len()]),
         None => (Vec::new(), Vec::new()),
     };
-    basicmoon_profile_one_local(r, &ring_r, href, crater, rings, &offsets, include_crater, include_ejecta)
+    basicmoon_profile_one_local(
+        r,
+        &ring_r,
+        href,
+        crater,
+        rings,
+        &offsets,
+        include_crater,
+        include_ejecta,
+    )
 }
 
 /// The elevation offset of each ring: the elevation of the feature it sits in (the crater for the outermost ring, otherwise
@@ -322,7 +331,11 @@ pub fn basicmoon_profile_one_local(
                 // That surface only belongs inside the rim of that feature: beyond it, it would be a plateau standing above the
                 // ejecta wherever the ring sits high on the wall. Inside the rim, the wall of the surrounding feature rises
                 // above it towards the crest, so dropping the ring there leaves the profile continuous.
-                let inside_parent = if i == 0 { r <= radius } else { ring_r[i - 1] <= rings[i - 1].radius };
+                let inside_parent = if i == 0 {
+                    r <= radius
+                } else {
+                    ring_r[i - 1] <= rings[i - 1].radius
+                };
                 if inside_parent {
                     hcrat = hcrat.max(hring);
                 }
@@ -552,8 +565,7 @@ pub fn crater_profile_function(
     // The rim and ejecta, blended in from the interior across [radius - rw, radius + rw]. Beyond that zone only this term is
     // needed (and the wall formula's exponentials would eventually overflow far from the crater).
     let phi_rim = smootherstep((r - (radius - rw)) / (2.0 * rw));
-    let hrim =
-        rimfunc(r, radius, hr - he, 0.0, rw) + ejecta_rim_function(r, radius, fe, hr, pej, rw);
+    let hrim = upliftfunc(r, radius, hr - he, rw) + ejecta_rim_function(r, radius, fe, hr, pej, rw);
     if phi_rim >= 1.0 {
         return hrim;
     }
@@ -657,6 +669,37 @@ fn wallfunc_derivatives(
     let q1 = (n1 * d - n * d1) / (d * d);
     let q2 = (n2 * d - n * d2) / (d * d) - 2.0 * d1 * (n1 * d - n * d1) / (d * d * d);
     (c * q + hr, c * q1 / span, c * q2 / (span * span))
+}
+
+/// Decay length of the structural rim uplift outside the rim, as a fraction of the crater radius.
+///
+/// Measured on the mean profiles of fresh lunar craters with flat surroundings (out to 4.4 R against the far-field surface):
+/// fitted with an exponential uplift plus a power-law ejecta deposit, the decay length is 0.245 R with a spread of 0.04 R,
+/// with no trend with crater size, and fixing it costs no misfit. With it, the deposit falls off as the -3 power law of
+/// McGetchin et al. (1973); with a Gaussian uplift of the width of the rim crest, the deposit has to fall off as about r^-4.3
+/// to carry the volume near the rim.
+const UPLIFT_DECAY: f64 = 0.25;
+
+/// Length over which the crest of the uplift is rounded on its outer side, as a fraction of the decay length.
+const UPLIFT_CREST_ROUNDING: f64 = 0.2;
+
+/// The structural uplift of the rim, of height `hu` at the rim crest.
+///
+/// Inside the rim it is a Gaussian of standard deviation `rw` (as `rimfunc`). Outside, it decays exponentially with distance,
+/// with decay length `L = UPLIFT_DECAY * radius`: `hu * exp(-(sqrt(d^2 + s^2) - s) / L)` with d = r - radius and a rounding
+/// length s = UPLIFT_CREST_ROUNDING * L. The crest is smooth (zero slope on both sides); its outer side is rounded over the
+/// short length s, so that the uplift beyond the crest is the exponential fitted to the profiles of fresh craters (a rounding
+/// as wide as the inner Gaussian would add a broad Gaussian core to it, and for simple craters, whose rims are wide, about
+/// double its volume).
+#[inline]
+fn upliftfunc(r: f64, radius: f64, hu: f64, rw: f64) -> f64 {
+    let d = r - radius;
+    if d <= 0.0 {
+        return hu * (-(d * d) / (2.0 * rw * rw)).exp();
+    }
+    let decay = UPLIFT_DECAY * radius;
+    let s = UPLIFT_CREST_ROUNDING * decay;
+    hu * (-((d * d + s * s).sqrt() - s) / decay).exp()
 }
 
 #[inline]

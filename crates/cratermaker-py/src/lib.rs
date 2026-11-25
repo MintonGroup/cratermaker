@@ -36,10 +36,7 @@ mod cratermaker {
     #[pymodule]
     mod realmoon_bindings {
         #[pymodule_export]
-        use crate::morphology::realmoon_bindings::{
-            form_craters, get_1d_psd_from_control_points, profile_from_psd, psd_from_profile,
-            realmoon_profile,
-        };
+        use crate::morphology::realmoon_bindings::{form_craters, realmoon_profile};
     }
 
     #[pymodule]

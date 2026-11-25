@@ -19,6 +19,24 @@ from cratermaker.constants import FloatLike
 from cratermaker.utils.general_utils import format_large_units, parameter
 
 _EJPROFILE = -3.0
+_FRAC_EJRIM = 0.3
+# Multiring basins: there is a single fresh example (Orientale), so their profile is that of its ringless fit (Lunar_Morphometry_
+# Revisited: scripts/hfield_orientale.py, data/hfield/orientale_fit.json), with every length in proportion to the diameter and no
+# scatter between basins. The rim is the Cordillera ring. Basins have no nested rings: their inner rings, like the terraces of
+# complex craters, are variation about the axisymmetric profile (supplied by the H-field morphology).
+_MULTIRING = {
+    "rim_height_over_D": 0.0024257424017583478,
+    "floor_depth_over_D": 0.0035002369929710403,
+    "floor_radius_over_R": 0.5549200338965832,
+    "rim_width_over_R": 0.050237481313031816,
+    "wall_curvature": 0.7053256849099748,
+    "floor_blend": 0.9664521313336694,
+}
+
+# Range of the ejecta profile exponent allowed by volume conservation (the volume budget of fresh craters gives -2.7 to -3.9)
+_EJPROFILE_RANGE = (-4.0, -2.5)
+# The steepest exponent allowed when no balance is possible within _EJPROFILE_RANGE
+_EJPROFILE_LIMIT = -6.0
 
 # The crater properties that define the axisymmetric profile, as read by the compiled profile and volume functions
 _PROFILE_PARAMETERS = (
@@ -212,7 +230,7 @@ class BasicMoonCrater(MorphologyCrater):
         monte_carlo : bool or None, optional
             If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         make_rings : bool, optional
-            If True, then rings will be generated for complex and multiring craters. Default is True for new craters and False for copied craters unless a parameter was changed.
+            Kept for compatibility: no crater type is given rings by default. Default is True for new craters and False for copied craters unless a parameter was changed.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -254,48 +272,76 @@ class BasicMoonCrater(MorphologyCrater):
         compute_nominal = not monte_carlo
         rng = morphology.rng
 
-        # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep)
+        # The following are derived based on fitting profiles to fresh craters (Minton et al. 2026 in prep). The floor elevation,
+        # rim height, rim width, floor radius, wall curvature and floor blend relations are the fits of the ringless baseline
+        # profiles of the fresh craters (Lunar_Morphometry_Revisited: scripts/hfield_baseline.py and heteroskedastic_fit.py,
+        # data/morphometry_params.json), with the scatter between craters separated from their measurement uncertainty and
+        # modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data (x_min, x_max) they are
+        # extrapolated by geometric similarity. Wall curvature and floor blend only smooth the profile. Multiring basins are not
+        # part of these fits.
 
         floor_elevation_params = {
             "simple": {
-                "coefficients": [-4.167687018033455, 1.6001202454523342, -0.03747552110388699],
-                "c": -2.274464155672326,
-                "alpha": 1.455516197513936,
+                "coefficients": [-4.039152399083589, 1.559680547853005, -0.034268582615113036],
+                "c": -4.042528766791945,
+                "alpha": -0.24133146607207862,
                 "fit_scale": "loglog",
+                "scatter_model": "lognormal",
+                "x_ref": 8.314440212581927,
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [5.4915689253420545, 0.23298682432901896, -0.0022430661802085037],
-                "c": -3.7362261125113427,
-                "alpha": 1.866447443526078,
+                "coefficients": [6.95672909822485, -0.09386637724894485, 0.015500259151656277],
+                "c": -3.8791329035095163,
+                "alpha": -0.5205017645072286,
                 "fit_scale": "loglog",
+                "scatter_model": "lognormal",
+                "x_ref": 10.305659331228172,
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         rim_height_params = {
             "simple": {
-                "coefficients": [-4.461857399058903, 1.2645885691929473, -0.011531387005605066],
-                "c": -4.218604205452387,
-                "alpha": 1.72797341370465,
+                "coefficients": [-4.889081926606256, 1.4567012350693642, -0.02814425662948884],
+                "c": -3.1967365551955274,
+                "alpha": 0.11017424903895509,
                 "fit_scale": "loglog",
+                "scatter_model": "lognormal",
+                "x_ref": 8.314440212581927,
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [-5.10327300754197, 1.8991299658269363, -0.0711637556510648],
-                "c": -6.080795135614891,
-                "alpha": 2.0966521781546383,
+                "coefficients": [-19.163380351778166, 4.511271351047153, -0.19288941569241727],
+                "c": -3.2616514761340927,
+                "alpha": 1.996545805573635,
                 "fit_scale": "loglog",
+                "scatter_model": "normal",
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         rim_width_params = {
             "simple": {
-                "coefficients": [-3.0877789815769905, 1.4473834897759599, -0.036680803391976054],
-                "c": -5.504615471104058,
-                "alpha": 2.1143223655406027,
+                "coefficients": [-2.9948286953415764, 1.4158608586589883, -0.03542451351721944],
+                "c": -3.8809215435381943,
+                "alpha": 2.0888300811976244,
                 "fit_scale": "loglog",
+                "scatter_model": "normal",
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [-0.13959296561846923, 0.6920030607817031, 0.006073402057851526],
-                "c": -6.197739434603876,
-                "alpha": 2.3569121813546987,
+                "coefficients": [34.47686422502093, -5.861111473586803, 0.31495611118736866],
+                "c": -2.454768658530737,
+                "alpha": -0.39632246596747767,
                 "fit_scale": "loglog",
+                "scatter_model": "lognormal",
+                "x_ref": 10.305659331228172,
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         # Smallest value / radius measured in the fresh crater data set, used as the floor of the sampled values. The
@@ -307,44 +353,63 @@ class BasicMoonCrater(MorphologyCrater):
         }
         floor_radius_params = {
             "simple": {
-                "coefficients": [-0.900242255950584, 0.455179909117242, 0.04575920054549337],
-                "c": -0.3616562884185268,
-                "alpha": 1.4684589969693498,
+                "coefficients": [-2.116419389426042, 0.8020442843001678, 0.022761132692392883],
+                "c": -2.906577309462868,
+                "alpha": -0.5306417017854466,
                 "fit_scale": "loglog",
+                "scatter_model": "lognormal",
+                "x_ref": 8.314440212581927,
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [-12.34730111609687, 2.8374446646267857, -0.07447326061389413],
-                "c": -2.377257077688099,
-                "alpha": 1.752512234751084,
+                "coefficients": [-15.605505545928114, 3.534534167571122, -0.11190439982161003],
+                "c": 1.6725075969933354,
+                "alpha": 1.35719627581891,
                 "fit_scale": "loglog",
+                "scatter_model": "normal",
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         wall_curvature_params = {
             "simple": {
-                "coefficients": [-0.25824388040970825, 0.17625334392925013, -0.014915775447250382],
-                "c": -0.008556260200970858,
-                "alpha": 0.10594060062350721,
+                "coefficients": [0.041388599977528986, 0.08312835522258216, -0.008287488408703336],
+                "c": -5.0469674651065874,
+                "alpha": 0.0,
                 "fit_scale": "logx",
+                "scatter_model": "normal",
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [0.18987288872317, -0.08418984102324649, 0.007551647630654395],
-                "c": 0.001958457521099688,
-                "alpha": 0.04951276138707961,
+                "coefficients": [8.753793996266458, -1.731369142024903, 0.08615954236840613],
+                "c": -5.767575068546278,
+                "alpha": 0.0,
                 "fit_scale": "logx",
+                "scatter_model": "normal",
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         floor_blend_params = {
             "simple": {
-                "coefficients": [1.059340070020194, -0.13182446192525693, 0.00902946332988967],
-                "c": 0.1404880414615158,
-                "alpha": -0.17880038251603678,
+                "coefficients": [1.2556620117169528, -0.17360549388756277, 0.011355917502714308],
+                "c": -3.319935671096921,
+                "alpha": 0.0,
                 "fit_scale": "logx",
+                "scatter_model": "normal",
+                "x_min": 114.19072175303937,
+                "x_max": 15827.411018073266,
             },
             "non-simple": {
-                "coefficients": [0.5808979959114502, 0.03860715120274549, -0.0037083300328609988],
-                "c": -0.05625078483323789,
-                "alpha": 0.13327426573917356,
+                "coefficients": [-7.965997647752269, 1.7323627368515848, -0.08524512987449426],
+                "c": -3.9157397835769197,
+                "alpha": 0.0,
                 "fit_scale": "logx",
+                "scatter_model": "normal",
+                "x_min": 11913.654624364592,
+                "x_max": 137622.23649050223,
             },
         }
         peak_height_params = {
@@ -405,6 +470,15 @@ class BasicMoonCrater(MorphologyCrater):
         else:
             fit_category = "simple"
 
+        if crater.morphology_type == "multiring" and not crater.isring:
+            # The parameters not given are those of Orientale in proportion to the diameter (see _MULTIRING)
+            rim_height = _MULTIRING["rim_height_over_D"] * crater.diameter if rim_height is None else rim_height
+            rim_width = _MULTIRING["rim_width_over_R"] * crater.radius if rim_width is None else rim_width
+            floor_elevation = -_MULTIRING["floor_depth_over_D"] * crater.diameter if floor_elevation is None else floor_elevation
+            floor_radius = _MULTIRING["floor_radius_over_R"] * crater.radius if floor_radius is None else floor_radius
+            wall_curvature = _MULTIRING["wall_curvature"] if wall_curvature is None else wall_curvature
+            floor_blend = _MULTIRING["floor_blend"] if floor_blend is None else floor_blend
+
         if rim_height is None:
             rim_height = max(
                 sample_logfit_heteroskedastic(
@@ -429,14 +503,11 @@ class BasicMoonCrater(MorphologyCrater):
         args["ejprofile"] = _EJPROFILE if ejprofile is None else ejprofile
 
         # This is an initial guess of the ejecta rim. We will adjust it later by integrating the volume of the crater and ejecta profiles
+        # The ejecta parameters are not well determined by crater profiles (the topography near the rim mixes structural uplift,
+        # ejecta and inherited terrain); the volume budget of fresh craters supports an ejecta thickness at the rim of ~0.3 of the
+        # rim height with a -3 power law fall-off (_EJPROFILE), which volume conservation then adjusts
         if frac_ejrim is None:
-            if rim_height > 0.0:
-                if monte_carlo:
-                    frac_ejrim = rng.uniform(low=0.3, high=0.7, size=1)[0]  # Temporary until a morphometric analysis ic complete
-                else:
-                    frac_ejrim = 0.5
-            else:
-                frac_ejrim = 0.0
+            frac_ejrim = _FRAC_EJRIM if rim_height > 0.0 else 0.0
         args["frac_ejrim"] = min(max(frac_ejrim, 0.0), 1.0)
 
         if floor_elevation is None:
@@ -524,12 +595,9 @@ class BasicMoonCrater(MorphologyCrater):
         if not make_rings and crater.nrings == 0 and isinstance(source, MorphologyCrater) and source.nrings > 0:
             object.__setattr__(crater._var, "_rings", [type(ring)(crater=ring, morphology=morphology) for ring in source.rings])
 
+        # No crater type is given nested rings by default: the rings of basins and the terraces of complex craters are variation
+        # about the axisymmetric profile. Rings given explicitly (add_ring) are still drawn.
         num_new_rings = 0
-        if make_rings and not crater.isring and crater.nrings == 0:
-            if crater.morphology_type == "complex":
-                num_new_rings = 1
-            elif crater.morphology_type == "multiring":
-                num_new_rings = 3
 
         if num_new_rings > 0:
             for i in range(num_new_rings):
@@ -579,34 +647,53 @@ class BasicMoonCrater(MorphologyCrater):
                     ring = cls(crater=ring, morphology=morphology)
                     crater.rings[i] = ring
 
-        # Adjust frac_ejrim value(s) in order to get closer to a volume-conserving solution for the ejecta
+        # Adjust the ejecta so that its volume matches the volume excavated by the crater. Only the ejecta parameters are changed:
+        # first the exponent of the thickness profile, within the range supported by the volume budget of fresh craters
+        # (_EJPROFILE_RANGE); if the exponent needed is outside that range, it is held at the nearest end and the rim thickness
+        # (frac_ejrim) is solved for instead. The rim height and the rest of the crater are never changed. The structural uplift
+        # of the rim, (1 - frac_ejrim) * rim_height, is part of the crater, so its volume depends on frac_ejrim: the solution is
+        # iterated.
         if conserve_volume and not crater.isring:
-            # The search only changes the rim height and the ejecta profile exponent, so the volumes are evaluated on a copy of
-            # the profile parameters and the crater is rebuilt once with the final values.
             params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
+            lo, hi = _EJPROFILE_RANGE
 
-            def ejvol(p):
-                return 2 * np.pi * p.frac_ejrim * p.rim_height * p.radius**2 / (-p.ejprofile - 2)
+            rim_area = 2 * np.pi * params.rim_height * params.radius**2
+            frac0 = params.frac_ejrim
 
-            for _ in range(10):
-                excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
-                while excavated_volume > 0.0:
-                    # This occurs when rim_height is too high
-                    kwargs["rim_height"] *= 0.9
-                    params.rim_height = kwargs["rim_height"]
-                    excavated_volume = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+            def candidate(frac_ejrim):
+                """
+                The exponent that balances the volume for a rim thickness, the remaining imbalance, and whether it excavates.
 
-                conservation_factor = -ejvol(params) / excavated_volume
+                The exponent is limited to [_EJPROFILE_LIMIT, hi]; the imbalance is the deposit plus the net volume of the
+                crater part, relative to the crater part.
+                """
+                params.frac_ejrim = frac_ejrim
+                excavated = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+                if excavated >= 0.0:
+                    return np.nan, np.inf, False
+                ejprofile = -2.0 - frac_ejrim * rim_area / -excavated if frac_ejrim > 0 else lo
+                ejprofile = min(max(ejprofile, _EJPROFILE_LIMIT), hi)
+                deposit = frac_ejrim * rim_area / (-ejprofile - 2)
+                return ejprofile, abs(deposit + excavated) / -excavated, True
 
-                ejprofile = -2.0 + conservation_factor * (params.ejprofile + 2)
-                if ejprofile < -4:
-                    kwargs["rim_height"] *= 0.9
+            if params.rim_height > 0.0:
+                # The rim thickness and the exponent are chosen together. For each rim thickness on a grid, the exponent that
+                # balances the volume is found; the choice is, in order of preference: (1) an exact balance with the exponent
+                # in _EJPROFILE_RANGE, with the rim thickness closest to its initial value; (2) otherwise, the smallest
+                # imbalance among those whose crater part removes net volume (the exponent may then go to _EJPROFILE_LIMIT).
+                # Raising frac_ejrim moves volume from the structural uplift (part of the crater) to the ejecta, so a crater
+                # whose rim holds more volume than its cavity removes can still be balanced.
+                grid = np.unique(np.concatenate([[frac0], np.linspace(0.0, 1.0, 21)]))
+                results = [(f, *candidate(f)) for f in grid]
+                exact = [r for r in results if r[3] and r[2] < 1e-9 and lo <= r[1] <= hi]
+                if exact:
+                    best = min(exact, key=lambda r: abs(r[0] - frac0))
                 else:
-                    kwargs["ejprofile"] = ejprofile
-                params.rim_height = kwargs["rim_height"]
-                params.ejprofile = kwargs["ejprofile"]
-                if ejprofile > -4:
-                    break
+                    valid = [r for r in results if r[3]]
+                    best = min(valid, key=lambda r: (r[2], abs(r[0] - frac0))) if valid else (frac0, params.ejprofile, 0, False)
+                params.frac_ejrim, params.ejprofile = best[0], best[1]
+            kwargs["ejprofile"] = params.ejprofile
+            kwargs["frac_ejrim"] = params.frac_ejrim
             crater = cls(crater=crater, morphology=morphology, **kwargs)
 
         return crater

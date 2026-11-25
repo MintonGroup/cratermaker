@@ -19,12 +19,20 @@ What's New
    - Removed the Python implementations of ``crater_shape``, ``ejecta_shape``, ``compute_ejecta``, and ``ejecta_burial_degradation`` that are replaced by the Rust pipeline.
    - Results agree with the previous version to within rounding error, except where noted below.
 
+- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater warped by an irregular rim outline, plus a random field of variation around it (terraces, slumps, wall and floor texture, and the texture of the ejecta), drawn from an empirical model of fresh lunar craters as a function of size and morphology type (the H-field, distributed as ``hfield_model.nc``). The earlier model based on the power spectra of profile parameters (``PSD1D``, ``psd1d_coeffs.nc`` and ``psd2d_coeffs.nc``) is removed. `David Minton`_
+- Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
+
+   - The size relations of the floor elevation, rim height, rim width, floor radius, wall curvature, and floor blend are new fits to fresh craters, with the scatter between craters modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data they are extrapolated by geometric similarity.
+   - The structural uplift of the rim now decays exponentially with distance outside the rim (with a decay length of 0.25 crater radii).
+   - Complex craters and multiring basins no longer have nested rings. Multiring basins take the profile of Orientale, in proportion to their diameter.
+   - The ejecta thickness at the rim defaults to 0.3 of the rim height, and volume conservation now adjusts only the ejecta (``frac_ejrim`` and ``ejprofile``), never the rim height.
+
 - Each crater's projectile properties (velocity, impact angle, and direction) are now drawn once instead of twice. This changes the random numbers each crater receives, so a simulation run with the same ``rng_seed`` gives different, but statistically equivalent, results than earlier versions.
 - ``Crater.maker(..., monte_carlo=False)`` now gives a vertical impact due north at the mean velocity, as documented, instead of reusing the angle and direction of an earlier crater.
 - Fixed a bug where the "realmoon" ejecta blanket was always computed at a bearing of 0, so it did not vary with azimuth along with the crater rim. This also fixes a crash when using the "realmoon" model with ``dorays=True``.
 - Fixed a bug where the ejecta fraction of the rim height (``frac_ejrim``) of the rings of complex and multiring craters was limited to be at least 1, rather than at most 1, after volume conservation.
 - Fixed a bug where quasi-Monte Carlo craters read from a file were not reproducible with ``rng_seed``, because they were created without the simulation's random number generator. ``Crater.from_file`` and the related ``from_csv_file``, ``from_scc_file``, and ``from_xarray`` methods now pass their keyword arguments on to ``Crater.maker``.
-- Copying a "realmoon" crater now keeps the PSD data it has already generated and its rings (as independent copies), and no longer draws random numbers.
+- Copying a "realmoon" crater now keeps the field it has already drawn, and no longer draws random numbers.
 - Added a ``morphology_type`` argument to ``Crater.maker`` to set the morphology type of a crater, and a new example showing the basic morphology types.
 - Added the ``save_observed`` and ``save_emplaced`` arguments to separately control the saving of observed and emplaced craters.
 - Emplaced craters are now saved even when counting is turned off. :issue:`142` :pull:`143`

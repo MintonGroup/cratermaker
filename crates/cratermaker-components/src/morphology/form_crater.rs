@@ -19,7 +19,7 @@ use crate::ArrayResult;
 use crate::morphology::basicmoon::{
     BasicMoonCrater, basicmoon_profile, degradation_function, ray_intensity,
 };
-use crate::morphology::realmoon::{RealMoonCrater, realmoon_profile};
+use crate::morphology::realmoon::{RealMoonField, realmoon_profile};
 use crate::surface::{
     LocalSurfaceView, apply_diffusion, interpolate_node_elevation_from_faces, reference_surface,
     slope_collapse,
@@ -117,13 +117,14 @@ impl CraterProfile for BasicMoonModel<'_> {
     }
 }
 
-/// The lunar crater model with bearing-dependent shape parameters (Du et al. 2025).
-pub struct RealMoonModel<'c, 'a> {
-    pub crater: &'c RealMoonCrater<'a>,
-    pub rings: &'c Option<Vec<RealMoonCrater<'a>>>,
+/// The realistic lunar crater model: the basic profile warped by the rim outline, plus the field of variation of the crater.
+pub struct RealMoonModel<'a> {
+    pub crater: &'a BasicMoonCrater,
+    pub rings: &'a Option<Vec<BasicMoonCrater>>,
+    pub field: RealMoonField<'a>,
 }
 
-impl CraterProfile for RealMoonModel<'_, '_> {
+impl CraterProfile for RealMoonModel<'_> {
     fn diameter(&self) -> f64 {
         self.crater.diameter
     }
@@ -146,6 +147,7 @@ impl CraterProfile for RealMoonModel<'_, '_> {
             reference_elevations,
             self.crater,
             self.rings,
+            &self.field,
             include_crater,
             include_ejecta,
         )

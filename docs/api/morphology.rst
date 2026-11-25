@@ -84,11 +84,6 @@ See `Morphology`_ for inherited methods and attributes.
    :undoc-members:
    :no-index-entry:
 
-.. autoclass:: cratermaker.components.morphology.realmoon.PSD1D
-   :members:
-   :undoc-members:
-   :no-index-entry:
-
 Usage example
 =============
 

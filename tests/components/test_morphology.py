@@ -141,7 +141,8 @@ class TestMorphology(unittest.TestCase):
             surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
             for model_name in morphology_models:
                 morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=7)
-                expected = {1e3: ("simple", 0), 30e3: ("complex", 1), 600e3: ("multiring", 3)}
+                # No crater type has nested rings by default: rings and terraces are variation about the axisymmetric profile
+                expected = {1e3: ("simple", 0), 30e3: ("complex", 0), 600e3: ("multiring", 0)}
                 for diameter, (morphology_type, nrings) in expected.items():
                     crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
                     self.assertEqual(crater.morphology_type, morphology_type, f"{model_name} D={diameter}")
@@ -149,38 +150,26 @@ class TestMorphology(unittest.TestCase):
                 explicit = morphology.Crater.maker(diameter=15e3, location=(0.0, 0.0), morphology_type="complex")
                 self.assertEqual(explicit.morphology_type, "complex")
 
-    def test_realmoon_copy_keeps_everything(self):
-        # Copying a crater (with the constructor or with maker) keeps its rings, as independent copies, and the PSD data it has
-        # already generated, without drawing any random numbers
+    def test_realmoon_copy_keeps_field(self):
+        # Copying a crater (with the constructor or with maker) keeps the field it has already drawn, without drawing any random
+        # numbers; a copy with a different size is a different crater, which draws its own
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
             morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=7)
             crater = morphology.Crater.maker(diameter=600e3, location=(10.0, 5.0))
-            for c in [crater, *crater.rings]:
-                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
-                    getattr(c, f"{name}_psd")
+            rim, field, _ = crater.hfield
             rng_state = morphology.rng.bit_generator.state
             copies = [type(crater)(crater=crater, morphology=morphology), morphology.Crater.maker(crater=crater)]
-            self.assertEqual(morphology.rng.bit_generator.state, rng_state, "copying drew random numbers")
             for c in copies:
                 self.assertEqual(c.id, crater.id)
                 self.assertEqual(c.morphology_type, crater.morphology_type)
                 self.assertEqual(c.rim_height, crater.rim_height)
-                self.assertEqual(c.frac_ejrim, crater.frac_ejrim)
-                self.assertEqual(c.nrings, crater.nrings)
-                for ring, original in zip(c.rings, crater.rings, strict=True):
-                    self.assertIsNot(ring, original)
-                    self.assertEqual(ring.radius, original.radius)
-                    self.assertEqual(ring.rim_height, original.rim_height)
-                    np.testing.assert_array_equal(ring.rim_height_psd.amplitude, original.rim_height_psd.amplitude)
-                for name in ("radius", "floor_radius", "rim_width", "rim_height"):
-                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").amplitude, getattr(crater, f"{name}_psd").amplitude)
-                    np.testing.assert_array_equal(getattr(c, f"{name}_psd").phase, getattr(crater, f"{name}_psd").phase)
-
-            # A copy with a different size is a different crater: it is classified again and its PSD data is not carried over
+                np.testing.assert_array_equal(c.hfield[0], rim)
+                np.testing.assert_array_equal(c.hfield[1], field)
+            self.assertEqual(morphology.rng.bit_generator.state, rng_state, "copying drew random numbers")
             resized = morphology.Crater.maker(crater=crater, diameter=5e3)
             self.assertEqual(resized.morphology_type, "simple")
-            self.assertIsNone(getattr(resized._var, "_rim_height_psd", None))
+            self.assertIsNone(getattr(resized._var, "_hfield", None))
 
     def test_crater_depth_surface(self):
         # Tests that the surface elevations are expected
@@ -246,18 +235,66 @@ class TestMorphology(unittest.TestCase):
                         delta=delta,
                         msg=f"Failed for {name} with diameter {diameter}",
                     )
-                    self.assertAlmostEqual(
-                        sim.surface.node_elevation.max() / crater.rim_height,
-                        1.0,
-                        delta=2 * delta,
-                        msg=f"Failed for {name} with diameter {diameter}",
-                    )
-                    self.assertAlmostEqual(
-                        sim.surface.face_elevation.max() / crater.rim_height,
-                        1.0,
-                        delta=2 * delta,
-                        msg=f"Failed for {name} with diameter {diameter}",
-                    )
+                    # The rim height can only be measured where the surface contains the rim and its mesh resolves it (basins
+                    # have narrow rims)
+                    if crater.rim_width >= 2 * sim.surface.pix and getattr(sim.surface, "local_radius", np.inf) > crater.radius:
+                        self.assertAlmostEqual(
+                            sim.surface.node_elevation.max() / crater.rim_height,
+                            1.0,
+                            delta=2 * delta,
+                            msg=f"Failed for {name} with diameter {diameter}",
+                        )
+                        self.assertAlmostEqual(
+                            sim.surface.face_elevation.max() / crater.rim_height,
+                            1.0,
+                            delta=2 * delta,
+                            msg=f"Failed for {name} with diameter {diameter}",
+                        )
+
+
+class TestRealMoon(unittest.TestCase):
+    """The realistic lunar morphology: the basic crater warped by a rim outline, plus a field of variation (the H-field)."""
+
+    def test_volume_conserved_and_field_kept_on_copy(self):
+        import cratermaker
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(
+                simdir=simdir,
+                surface="hireslocal",
+                morphology="realmoon",
+                local_location=(0, 0),
+                local_radius=40e3,
+                pix=400.0,
+                ask_overwrite=False,
+                reset=True,
+                rng_seed=5,
+                save_observed=False,
+                save_emplaced=False,
+            )
+            area = np.asarray(sim.surface.face_area)
+            before = np.array(sim.surface.face_elevation)
+            crater = sim.Crater.maker(diameter=25e3, location=(0, 0))
+            rim, field, rho_max = crater.hfield
+            copy = type(crater)(crater=crater)
+            np.testing.assert_array_equal(copy.hfield[1], field)
+            self.assertEqual(rho_max, 2.0)
+            self.assertTrue(np.all(rim > 0))
+            self.assertGreater(np.std(field), 0.0)
+            sim.emplace(crater)
+            change = np.asarray(sim.surface.face_elevation) - before
+            self.assertGreater(np.sum(np.abs(change) * area), 0.0)
+            self.assertLess(abs(np.sum(change * area)) / np.sum(np.abs(change) * area), 1e-10)
+
+    def test_field_resolution_follows_the_mesh(self):
+        from cratermaker.components.morphology import Morphology
+
+        fine = Morphology.maker("realmoon", hfield_pix=20.0, rng_seed=1)
+        coarse = Morphology.maker("realmoon", hfield_pix=2000.0, rng_seed=1)
+        f = fine.Crater.maker(diameter=20e3, location=(0, 0)).hfield[1]
+        c = coarse.Crater.maker(diameter=20e3, location=(0, 0)).hfield[1]
+        self.assertGreater(f.shape[0], c.shape[0])
+        self.assertGreater(f.shape[1], c.shape[1])
 
 
 if __name__ == "__main__":
