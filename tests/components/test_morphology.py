@@ -296,6 +296,51 @@ class TestRealMoon(unittest.TestCase):
         self.assertGreater(f.shape[0], c.shape[0])
         self.assertGreater(f.shape[1], c.shape[1])
 
+    def test_central_peak(self):
+        """A complex crater gets a central peak of its height that changes nothing beyond the floor and conserves volume."""
+        import cratermaker
+
+        D = 60e3
+        surfaces = {}
+        for peak in (True, False):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                sim = cratermaker.Simulation(
+                    simdir=simdir,
+                    surface="hireslocal",
+                    morphology="realmoon",
+                    local_location=(0, 0),
+                    local_radius=1.5 * D,
+                    pix=D / 200,
+                    ask_overwrite=False,
+                    reset=True,
+                    rng_seed=7,
+                    save_observed=False,
+                    save_emplaced=False,
+                )
+                crater = sim.Crater.maker(diameter=D, location=(0, 0), morphology_type="complex")
+                self.assertGreater(crater.peak_height, 0.0)
+                self.assertAlmostEqual(crater.peak_width, 0.08 * crater.radius)
+                if not peak:
+                    crater = sim.Crater.maker(crater=crater, peak_height=0.0)
+                    self.assertEqual(crater.peak_height, 0.0)
+                region = sim.surface.extract_region((0, 0), 0.75 * D)
+                sim.emplace(crater)
+                surfaces[peak] = (
+                    np.asarray(region.face_distance),
+                    np.asarray(region.face_area),
+                    np.array(region.face_elevation),
+                    crater,
+                )
+        r, area, with_peak, crater = surfaces[True]
+        without = surfaces[False][2]
+        change = with_peak - without
+        # The relaxed peak reaches its height above the floor, within the tolerance of the amplitude iteration and the slight
+        # lowering of the floor
+        self.assertAlmostEqual(change.max() / crater.peak_height, 1.0, delta=0.05)
+        # Nothing changes beyond the floor, and the peak's volume is taken from the floor
+        np.testing.assert_allclose(change[r > crater.floor_radius * 1.05], 0.0, atol=1e-6)
+        self.assertLess(abs(np.sum(change * area)) / np.sum(np.abs(change) * area), 1e-8)
+
 
 if __name__ == "__main__":
     unittest.main()

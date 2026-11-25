@@ -27,6 +27,45 @@ _KMAX_RIM = 8  # the rim outline has azimuthal wavenumbers k <= 8
 # Morphology types without a node of their own use those of complex craters
 _TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex"}
 
+# Central peaks (built on the surface by the central peak model of the Rust crate, see central_peak.rs). The height of the
+# relaxed peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
+# craters of 36-139 km measured at the native SLDEM2015 spacing: 0.259 (D / 60 km)^0.89 with lognormal scatter 0.44. Above
+# the fitted range it is held at its value at 139 km (it would otherwise exceed the relief by 300 km); below it, it is
+# extrapolated, giving the smaller peaks of transitional craters. The envelope of the peak is a Gaussian of standard deviation
+# 0.08 R. Multiring basins have no central peak.
+_PEAKED = ("transitional", "complex")
+_PEAK_HEIGHT_RELIEF = 0.259
+_PEAK_HEIGHT_D_REF = 60e3
+_PEAK_HEIGHT_EXPONENT = 0.89
+_PEAK_HEIGHT_SIGMA_LN = 0.44
+_PEAK_HEIGHT_D_MAX = 139e3
+_PEAK_WIDTH = 0.08
+
+
+def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None) -> float:
+    """
+    Draw the height of a central peak.
+
+    Parameters
+    ----------
+    diameter : float
+        The diameter of the crater (m).
+    relief : float
+        The relief of the crater (rim height + floor depth, m).
+    rng : numpy.random.Generator or None
+        The random number generator. If None, the nominal height is returned.
+
+    Returns
+    -------
+    float
+        The height of the relaxed peak above the floor (m).
+    """
+    d = min(diameter, _PEAK_HEIGHT_D_MAX)
+    height = _PEAK_HEIGHT_RELIEF * (d / _PEAK_HEIGHT_D_REF) ** _PEAK_HEIGHT_EXPONENT * relief
+    if rng is not None:
+        height *= float(np.exp(_PEAK_HEIGHT_SIGMA_LN * rng.standard_normal()))
+    return max(height, 0.0)
+
 
 def _copy_hfield(source: Crater | None, target: Crater) -> None:
     """
@@ -73,6 +112,18 @@ class RealMoonCrater(BasicMoonCrater):
         RealMoonCrater
         """
         new = super().maker(crater=crater, morphology=morphology, **kwargs)
+        # A new crater (not a copy of a realmoon crater) gets a central peak from the central peak model, unless one is given
+        if kwargs.get("peak_height") is None and not isinstance(crater, RealMoonCrater):
+            peaked = new.morphology_type in _PEAKED and not new.isring
+            relief = new.rim_height - new.floor_elevation
+            rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+            new = super().maker(
+                crater=new,
+                morphology=morphology,
+                peak_height=_peak_height(new.diameter, relief, rng) if peaked else 0.0,
+                peak_width=_PEAK_WIDTH * new.radius if peaked else 0.0,
+                peak_ring_radius=kwargs.get("peak_ring_radius") or 0.0,
+            )
         _copy_hfield(crater, new)
         return new
 
@@ -96,7 +147,10 @@ class RealMoonMorphology(BasicMoonMorphology):
     floor and walls, and the texture of the ejecta). The outline and field are drawn from the H-field model of fresh lunar
     craters: for each morphology type and size, the covariance between warped radii of the azimuthal Fourier components of
     the variation, decomposed into radial modes (empirical orthogonal functions). Central peaks and peak rings are not part of
-    the field. The field is described in the morphometry of fresh lunar craters by Minton et al. (2026, in prep.).
+    the field: transitional and complex craters get a central peak built on the surface as a patchy population of columns
+    (where noise exceeds a threshold, raised to a Gaussian envelope of standard deviation `peak_width`, offset to radius
+    `peak_ring_radius` for a peak ring) relaxed by slope collapse to the height `peak_height`. The model is described in the
+    morphometry of fresh lunar craters by Minton et al. (2026, in prep.).
 
     Parameters
     ----------

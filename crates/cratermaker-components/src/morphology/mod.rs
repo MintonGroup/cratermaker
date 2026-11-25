@@ -1,4 +1,5 @@
 pub mod basicmoon;
+pub mod central_peak;
 pub mod form_crater;
 pub mod realmoon;
 

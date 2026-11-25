@@ -10,7 +10,8 @@
 //! 4. Compute the ejecta blanket (optionally modulated by rays), scale it to conserve volume, and record its thickness.
 //! 5. Degrade the pre-existing surface by ejecta burial and by the crater's degradation function (two diffusion steps).
 //! 6. Add the crater and ejecta to the surface.
-//! 7. Optionally collapse slopes steeper than the critical slope.
+//! 7. Add the crater's central peak or peak ring, if its model has one (see [`crate::morphology::central_peak`]).
+//! 8. Optionally collapse slopes steeper than the critical slope.
 //!
 //! Each step follows the original Python implementation (`Morphology.form_crater` together with
 //! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls).
@@ -19,6 +20,7 @@ use crate::ArrayResult;
 use crate::morphology::basicmoon::{
     BasicMoonCrater, basicmoon_profile, degradation_function, ray_intensity,
 };
+use crate::morphology::central_peak::{CentralPeak, central_peak};
 use crate::morphology::realmoon::{RealMoonField, realmoon_profile};
 use crate::surface::{
     LocalSurfaceView, apply_diffusion, interpolate_node_elevation_from_faces, reference_surface,
@@ -80,6 +82,11 @@ pub trait CraterProfile: Sync {
     /// Degradation state caused by burial under an ejecta layer of the given thickness.
     fn burial_degradation(&self, ejecta_thickness: f64) -> f64 {
         EJECTA_SOFTEN_FACTOR * (ejecta_thickness * ejecta_thickness)
+    }
+
+    /// The crater's central peak or peak ring, if the model builds one on the surface (rather than in its profile).
+    fn central_peak(&self) -> Option<CentralPeak> {
+        None
     }
 }
 
@@ -151,6 +158,16 @@ impl CraterProfile for RealMoonModel<'_> {
             include_crater,
             include_ejecta,
         )
+    }
+
+    fn central_peak(&self) -> Option<CentralPeak> {
+        let peak = CentralPeak {
+            height: self.crater.peak_height,
+            width: self.crater.peak_width,
+            ring_radius: self.crater.peak_ring_radius,
+            floor_radius: self.crater.floor_radius,
+        };
+        peak.is_present().then_some(peak)
     }
 }
 
@@ -238,7 +255,7 @@ impl CraterRegionView<'_> {
 
     /// A view of the region for the surface kernels (diffusion, slope collapse, node interpolation), with the given current
     /// elevations. Fields those kernels do not use are left empty.
-    fn kernel_view<'v>(
+    pub(crate) fn kernel_view<'v>(
         &'v self,
         face_elevation: ArrayView1<'v, f64>,
         node_elevation: ArrayView1<'v, f64>,
@@ -441,7 +458,22 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     state.face_elevation += &elevation_change.slice(s![..nf]);
     state.node_elevation += &elevation_change.slice(s![nf..]);
 
-    // 7. Slope collapse
+    // 7. Central peak or peak ring. It is not ejecta, so the ejecta thickness is left unchanged.
+    if let Some(peak) = model.central_peak() {
+        // A seed for the peak's noise that differs from the ray seed but is reproducible from it
+        let seed = options
+            .ray_seed
+            .unwrap_or_else(|| model.diameter().to_bits())
+            ^ 0x9E37_79B9_7F4A_7C15;
+        let change = central_peak(region, &peak, seed)?;
+        state.face_elevation += &change;
+        state.node_elevation = {
+            let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());
+            interpolate_node_elevation_from_faces(&view)?
+        };
+    }
+
+    // 8. Slope collapse
     if let Some(critical_slope) = options.critical_slope {
         let delta = {
             let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());

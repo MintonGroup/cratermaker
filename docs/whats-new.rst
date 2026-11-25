@@ -20,6 +20,9 @@ What's New
    - Results agree with the previous version to within rounding error, except where noted below.
 
 - Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater warped by an irregular rim outline, plus a random field of variation around it (terraces, slumps, wall and floor texture, and the texture of the ejecta), drawn from an empirical model of fresh lunar craters as a function of size and morphology type (the H-field, distributed as ``hfield_model.nc``). The earlier model based on the power spectra of profile parameters (``PSD1D``, ``psd1d_coeffs.nc`` and ``psd2d_coeffs.nc``) is removed. `David Minton`_
+
+   - Transitional and complex realmoon craters get a central peak built on the surface: the faces where turbulence noise exceeds a threshold are raised to a Gaussian envelope (of standard deviation ``peak_width``, 0.08 crater radii; offset to ``peak_ring_radius`` for a peak ring), and the columns are relaxed by slope collapse at 34 degrees, with the amplitude iterated so the peak reaches ``peak_height``. Peak heights follow the peaks of fresh lunar craters, 0.26 (D / 60 km)^0.89 of the crater's relief with lognormal scatter. The peak's volume is taken from the crater floor, so crater formation still conserves volume.
+
 - Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
 
    - The size relations of the floor elevation, rim height, rim width, floor radius, wall curvature, and floor blend are new fits to fresh craters, with the scatter between craters modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data they are extrapolated by geometric similarity.
@@ -29,6 +32,7 @@ What's New
 
 - Each crater's projectile properties (velocity, impact angle, and direction) are now drawn once instead of twice. This changes the random numbers each crater receives, so a simulation run with the same ``rng_seed`` gives different, but statistically equivalent, results than earlier versions.
 - ``Crater.maker(..., monte_carlo=False)`` now gives a vertical impact due north at the mean velocity, as documented, instead of reusing the angle and direction of an earlier crater.
+- Fixed the face gradient on the mesh (used by ``compute_slope``, ``slope_collapse``, and the radial and azimuthal gradients), which returned half the true gradient. Slope collapse now limits slopes to the requested critical angle; previously a critical angle of 35 degrees allowed slopes of about 54 degrees. Simulations with slope collapse now collapse more of the surface.
 - Fixed a bug where the "realmoon" ejecta blanket was always computed at a bearing of 0, so it did not vary with azimuth along with the crater rim. This also fixes a crash when using the "realmoon" model with ``dorays=True``.
 - Fixed a bug where the ejecta fraction of the rim height (``frac_ejrim``) of the rings of complex and multiring craters was limited to be at least 1, rather than at most 1, after volume conservation.
 - Fixed a bug where quasi-Monte Carlo craters read from a file were not reproducible with ``rng_seed``, because they were created without the simulation's random number generator. ``Crater.from_file`` and the related ``from_csv_file``, ``from_scc_file``, and ``from_xarray`` methods now pass their keyword arguments on to ``Crater.maker``.

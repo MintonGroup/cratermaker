@@ -109,10 +109,14 @@ pub fn realmoon_profile(
         .map(|(&r, &b)| r / (radius * data.rim_at(b)))
         .collect();
     let warped = Array1::from_iter(rho.iter().map(|&x| x * radius));
+    // The central peak is built on the surface by the central peak model (see `central_peak`), not by the basic profile's
+    // Gaussian peak
+    let mut basic = *crater;
+    basic.peak_height = 0.0;
     let mut h = basicmoon_profile(
         warped.view(),
         reference_elevations,
-        crater,
+        &basic,
         rings,
         include_crater,
         include_ejecta,
