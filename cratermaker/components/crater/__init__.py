@@ -513,8 +513,8 @@ class Crater(ComponentBase):
         Expose delegated attributes for autocomplete/introspection.
         """
         base = set(super().__dir__())
-        base.update(dir(self.fixed))
-        base.update(dir(self.var))
+        base.update(dir(self._fixed))
+        base.update(dir(self._var))
         return sorted(base)
 
     def __str__(self):
