@@ -53,7 +53,7 @@ mod cratermaker {
             compute_distances, compute_distances_and_bearings, compute_edge_distances,
             compute_location_from_distance_bearing, compute_radial_gradient, compute_slope,
             interpolate_node_elevation_from_faces, reference_surface, remap_connectivity_to_local,
-            reset_radial_distances, slope_collapse, turbulence_noise,
+            reset_radial_distances, slope_collapse, slope_collapse_field, turbulence_noise,
         };
     }
 }

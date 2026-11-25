@@ -454,9 +454,27 @@ pub fn compute_slope(region: &LocalSurfaceView<'_>) -> ArrayResult {
 ///
 /// The change in elevation of each face.
 pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> ArrayResult {
+    let critical = Array1::<f64>::from_elem(region.n_face, critical_slope);
+    slope_collapse_field(critical.view(), region)
+}
+
+/// Collapses slopes steeper than a critical slope that varies from face to face (see [`slope_collapse`]).
+///
+/// # Arguments
+///
+/// * `critical_slope` - Maximum allowable slope of each face (rise over run).
+/// * `region` - Reference to the local surface data structure containing mesh information.
+///
+/// # Returns
+///
+/// The change in elevation of each face.
+pub fn slope_collapse_field(critical_slope: ArrayView1<'_, f64>, region: &LocalSurfaceView<'_>) -> ArrayResult {
     const LOOP_LIMIT: usize = 1000;
     let n_face = region.n_face;
-    let critical_slope_sq = critical_slope * critical_slope;
+    if critical_slope.len() != n_face {
+        return Err("critical_slope must have one value per face".into());
+    }
+    let critical_slope_sq: Vec<f64> = critical_slope.iter().map(|&c| c * c).collect();
     // The diffusivity that is stable with a time step of 1
     let diffmax = compute_dt_max(Array1::<f64>::ones(n_face).view(), region);
 
@@ -469,7 +487,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
         .map(|f| compute_face_slope_squared(f, elevation.view(), region))
         .collect();
     let mut steep: Vec<usize> = (0..n_face)
-        .filter(|&f| slope_sq[f] > critical_slope_sq)
+        .filter(|&f| slope_sq[f] > critical_slope_sq[f])
         .collect();
     if steep.is_empty() {
         return Ok(total_delta);
@@ -485,7 +503,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
             break;
         }
         for &f in &steep {
-            kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq) * 10.0;
+            kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq[f]) * 10.0;
         }
         let touched = diffuse_active_edges(
             &steep,
@@ -531,7 +549,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
         steep.clear();
         for (&f, &s) in candidates.iter().zip(new_slopes.iter()) {
             slope_sq[f] = s;
-            if s > critical_slope_sq {
+            if s > critical_slope_sq[f] {
                 steep.push(f);
             }
         }
