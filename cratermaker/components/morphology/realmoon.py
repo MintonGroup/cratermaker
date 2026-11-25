@@ -35,7 +35,22 @@ _PSD1D_PARAMETERS = (
     "floor_radius",
     "rim_width",
     "rim_height",
+    "wall_curvature",
+    "floor_blend",
+    "frac_ejrim",
+    "ejprofile",
 )
+# Parameters whose PSD describes the negative of the parameter, so that it is a positive quantity that can be modeled in log
+# space like the others (the ejecta profile exponent is negative). Must match the negation in realmoon.rs (at_bearing).
+_PSD1D_NEGATED = ("ejprofile",)
+# Control points for parameters that have no PSD model in the coefficient file. Their PSDs are given a roughness scale
+# (log_scale) of zero, so these values do not matter: the profile is constant at the crater's value.
+_PSD1D_CONSTANT_CONTROL_POINTS = {"y1": 0.0, "y2": 0.0, "y3": 0.0, "y4": 0.0, "y5": 0.0, "yn": 0.0, "sn": 2.0}
+
+
+def _psd_sign(feature: str) -> float:
+    """The sign that converts a parameter to the (positive) quantity its PSD describes."""
+    return -1.0 if feature in _PSD1D_NEGATED else 1.0
 
 
 def fill_collapsed_log_profile(profile: ArrayLike) -> tuple[NDArray[np.float64], int]:
@@ -467,7 +482,10 @@ def register_psd1d_parameters(*features: str):
                 @property
                 def control_prop(self):
                     if getattr(self._var, private_attr, None) is None:
-                        val = self.morphology.get_control_points(crater=self, psd1d_coef=self.morphology.psd1d_coef[feat_name])
+                        if feat_name in self.morphology.psd1d_coef:
+                            val = self.morphology.get_control_points(crater=self, psd1d_coef=self.morphology.psd1d_coef[feat_name])
+                        else:
+                            val = dict(_PSD1D_CONSTANT_CONTROL_POINTS)
                         setattr(self._var, private_attr, val)
                     return getattr(self._var, private_attr)
 
@@ -484,7 +502,7 @@ def register_psd1d_parameters(*features: str):
                     if getattr(self._var, private_attr, None) is None:
                         val = PSD1D(
                             normalization_length=self.radius,
-                            mean=getattr(self, feat_name),
+                            mean=_psd_sign(feat_name) * getattr(self, feat_name),
                             pix=self.morphology.psd_pix,
                             control_points=getattr(self, f"{feat_name}_control"),
                             add_noise=self.morphology.add_noise,
@@ -503,7 +521,7 @@ def register_psd1d_parameters(*features: str):
 
                 def profile_method(self, bearing: ArrayLike) -> NDArray[np.float64]:
                     bearing = np.radians(bearing)
-                    return realmoon_bindings.profile_from_psd(
+                    return _psd_sign(feat_name) * realmoon_bindings.profile_from_psd(
                         psd=getattr(self, f"{feat_name}_psd"),
                         bearing=bearing,
                     )
@@ -910,6 +928,11 @@ class RealMoonMorphology(BasicMoonMorphology):
         psd : PSD1D
             The PSD of the feature, generated from the crater's control points.
         """
+        if feature not in self.psd1d_coef:
+            # No model of this feature's variation around the crater: its profile is constant at the crater's value
+            psd.log_scale = 0.0
+            psd.skewness = 0.0
+            return
         coef = self.psd1d_coef[feature]
         psd.log_ratio_min, psd.log_ratio_max = coef.get("log_ratio_bounds", (-np.inf, np.inf))
         psd.max_radius_fraction = coef.get("max_radius_fraction", np.inf)

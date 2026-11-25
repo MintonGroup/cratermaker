@@ -59,7 +59,7 @@ define_crater_structs! {
         peak_height, peak_width, peak_ring_radius, peak_center_distance,
         peak_center_bearing
     ],
-    psds: [ radius, floor_radius, rim_width, rim_height]
+    psds: [ radius, floor_radius, rim_width, rim_height, wall_curvature, floor_blend, frac_ejrim, ejprofile ]
 }
 
 /// Evaluates a periodic bearing profile generated from a PSD by piecewise-linear interpolation.
@@ -160,7 +160,14 @@ macro_rules! define_evaluator_bundle {
                     let floor_radius = floor_radius_raw.min(base_crater.floor_radius_psd.max_radius_fraction * radius_raw);
                     let rim_width = rim_width_raw.min(base_crater.rim_width_psd.max_radius_fraction * radius_raw);
                     let rim_height = rim_height_raw.min(base_crater.rim_height_psd.max_radius_fraction * radius_raw);
-                    BearingFeature::new(base_crater, radius_raw, floor_radius, rim_width, rim_height)
+                    // The PSD of the ejecta profile exponent describes its negative (a positive quantity; see _PSD1D_NEGATED)
+                    let shape = BearingShape {
+                        wall_curvature: wall_curvature_raw,
+                        floor_blend: floor_blend_raw,
+                        frac_ejrim: frac_ejrim_raw,
+                        ejprofile: -ejprofile_raw,
+                    };
+                    BearingFeature::new(base_crater, radius_raw, floor_radius, rim_width, rim_height, shape)
                 }
             }
         }
@@ -169,7 +176,7 @@ macro_rules! define_evaluator_bundle {
 
 // Generate the dynamic bundle automatically for all psd-controlled parameters
 define_evaluator_bundle! {
-    psds: [ radius, floor_radius, rim_width, rim_height]
+    psds: [ radius, floor_radius, rim_width, rim_height, wall_curvature, floor_blend, frac_ejrim, ejprofile ]
 }
 
 // Creates a profile of the crater
@@ -299,6 +306,20 @@ pub fn realmoon_profile(
 /// warp that places them returns to the identity.
 const LOCALITY_RIM_WIDTHS: f64 = 2.0;
 
+/// Radial range, in mean crater radii, over which the ejecta parameters of a bearing (frac_ejrim and ejprofile) return to the
+/// crater's means: they take their values along the bearing out to the first distance (the range of the measured profiles)
+/// and the crater's means beyond the second, so that they do not draw spokes across the whole ejecta blanket.
+const EJECTA_LOCALITY_RADII: (f64, f64) = (1.5, 2.0);
+
+/// The parameters of a bearing that set the shape of the wall, floor and ejecta.
+#[derive(Clone, Copy, Debug)]
+pub struct BearingShape {
+    pub wall_curvature: f64,
+    pub floor_blend: f64,
+    pub frac_ejrim: f64,
+    pub ejprofile: f64,
+}
+
 /// The parameters of a crater (or ring) along one bearing, and how they enter its profile.
 ///
 /// The profile along a bearing is the mean profile of the crater evaluated at a warped radial coordinate. The warp moves the
@@ -312,17 +333,19 @@ pub struct BearingFeature {
     pub floor_radius: f64,
     pub rim_width: f64,
     pub rim_height: f64,
+    pub shape: BearingShape,
     warp: RadialWarp,
 }
 
 impl BearingFeature {
-    pub fn new(base: &RealMoonCrater, radius: f64, floor_radius: f64, rim_width: f64, rim_height: f64) -> Self {
+    pub fn new(base: &RealMoonCrater, radius: f64, floor_radius: f64, rim_width: f64, rim_height: f64, shape: BearingShape) -> Self {
         let scale = (LOCALITY_RIM_WIDTHS * base.rim_width).max(1e-6 * base.radius);
         Self {
             radius,
             floor_radius,
             rim_width,
             rim_height,
+            shape,
             warp: RadialWarp::new(floor_radius, base.floor_radius, radius, base.radius, scale),
         }
     }
@@ -334,22 +357,26 @@ impl BearingFeature {
         let scale = (LOCALITY_RIM_WIDTHS * base.rim_width).max(1e-6 * base.radius);
         let beyond = ((rw - base.radius).abs() - base.rim_width).max(0.0);
         let phi = smootherstep(beyond / scale);
+        // The wall curvature and floor blend only shape the interior, so they take their values along the bearing everywhere;
+        // the ejecta parameters return to the crater's means far from the crater
+        let (e0, e1) = EJECTA_LOCALITY_RADII;
+        let phi_ej = smootherstep((rw / base.radius - e0) / (e1 - e0));
         let crater = BasicMoonCrater {
             diameter: 2.0 * base.radius,
             radius: base.radius,
             floor_radius: base.floor_radius,
             rim_height: (1.0 - phi) * self.rim_height + phi * base.rim_height,
             rim_width: (1.0 - phi) * self.rim_width + phi * base.rim_width,
-            frac_ejrim: base.frac_ejrim,
-            ejprofile: base.ejprofile,
+            frac_ejrim: (1.0 - phi_ej) * self.shape.frac_ejrim + phi_ej * base.frac_ejrim,
+            ejprofile: (1.0 - phi_ej) * self.shape.ejprofile + phi_ej * base.ejprofile,
             floor_elevation: base.floor_elevation,
             peak_height: base.peak_height,
             peak_width: base.peak_width,
             peak_ring_radius: base.peak_ring_radius,
             peak_center_distance: base.peak_center_distance,
             peak_center_bearing: base.peak_center_bearing,
-            wall_curvature: base.wall_curvature,
-            floor_blend: base.floor_blend,
+            wall_curvature: self.shape.wall_curvature,
+            floor_blend: self.shape.floor_blend,
         };
         (crater, rw)
     }
