@@ -931,7 +931,7 @@ class LocalHiResLocalSurface(LocalSurface):
             self.local_overlap.apply_diffusion(kdiff)
         return
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> NDArray:
         """
         Collapse all slopes larger than the critical slope angle.
 

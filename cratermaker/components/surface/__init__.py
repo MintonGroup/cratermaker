@@ -552,7 +552,7 @@ class Surface(ComponentBase):
         """
         return self._full().apply_diffusion(kdiff)
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> None:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> None:
         """
         Collapse all slopes larger than the critical slope angle.
 
@@ -2569,7 +2569,7 @@ class LocalSurface(CratermakerBase):
         )
         return
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> NDArray:
         """
         Collapse all slopes larger than the critical slope angle.
 
@@ -2812,7 +2812,6 @@ class LocalSurface(CratermakerBase):
         NDArray[np.float64]
             The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
         """
-
         if reference_radius is None:
             reference_radius = self.region_radius
 
@@ -4005,8 +4004,13 @@ class LocalSurface(CratermakerBase):
             "name": self.target.name,
             "show_edges": False,
             "show_scalar_bar": False,
-            "color": "grey",
-            "pbr": True,
+            # A light grey, matte (purely diffuse) surface, which shows the topography with more contrast against the dark
+            # background than a physically based material under the camera lights
+            "color": "#e0e0e0",
+            "pbr": False,
+            "ambient": 0.05,
+            "diffuse": 1.0,
+            "specular": 0.0,
             "smooth_shading": True,
             **add_mesh_kwargs,
         }

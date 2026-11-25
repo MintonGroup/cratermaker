@@ -932,8 +932,11 @@ class BasicMoonMorphology(Morphology):
     # override this.
     _form_craters_binding = staticmethod(basicmoon_bindings.form_craters)
 
-    # The angle of repose used for slope collapse after a crater forms, in degrees
-    _CRITICAL_SLOPE_ANGLE = 35.0
+    # The critical angle used for slope collapse after a crater forms, in degrees. The interiors of fresh lunar craters measured
+    # with the same mesh gradient (Lunar_Morphometry_Revisited, scripts/interior_slopes.py) sit at the angle of repose, about 35
+    # degrees on their walls, but rarely exceed 40 degrees (0.1% of the interior of simple craters at the SLDEM spacing), so
+    # collapse removes only slopes steeper than real craters have.
+    _CRITICAL_SLOPE_ANGLE = 40.0
 
     def form_crater(self, crater: Crater, **kwargs: Any) -> None:
         """
