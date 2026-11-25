@@ -372,8 +372,12 @@ fn compute_one_face_gradient(
         return (0.0, 0.0);
     }
 
-    // Loop over neighbors to compute gradient contributions
-    for (_i, &(other, distance, length)) in neighbors.iter().enumerate() {
+    // Weighted least squares for the gradient g: each neighbor gives the directional derivative dz / distance = g . u along the
+    // unit vector u towards it, weighted by the length of the shared edge. Solving the normal equations M g = b, with
+    // M = sum(w u u^T) and b = sum(w (dz / distance) u), is exact for a linear field on any mesh (normalizing b by sum(w) alone
+    // instead would give half the gradient on a regular mesh, since sum(w u u^T) = sum(w) / 2 I there).
+    let (mut m_zz, mut m_zm, mut m_mm) = (0.0, 0.0, 0.0);
+    for &(other, distance, length) in neighbors.iter() {
         let theta = compute_one_bearing(
             lon_f.to_radians(),
             lat_f.to_radians(),
@@ -382,18 +386,22 @@ fn compute_one_face_gradient(
         );
         let dir_zonal = theta.sin();
         let dir_meridional = theta.cos();
-        let dz = variable[other] - variable[f];
-        let flux = dz * length / distance;
+        let derivative = (variable[other] - variable[f]) / distance;
 
-        dh_zonal += flux * dir_zonal;
-        dh_meridional += flux * dir_meridional;
+        m_zz += length * dir_zonal * dir_zonal;
+        m_zm += length * dir_zonal * dir_meridional;
+        m_mm += length * dir_meridional * dir_meridional;
+        dh_zonal += length * derivative * dir_zonal;
+        dh_meridional += length * derivative * dir_meridional;
         weight_sum += length;
     }
 
-    if weight_sum > 0.0 {
-        dh_zonal /= weight_sum;
-        dh_meridional /= weight_sum;
-        return (dh_zonal, dh_meridional);
+    let det = m_zz * m_mm - m_zm * m_zm;
+    if weight_sum > 0.0 && det > 1e-12 * weight_sum * weight_sum {
+        return (
+            (m_mm * dh_zonal - m_zm * dh_meridional) / det,
+            (m_zz * dh_meridional - m_zm * dh_zonal) / det,
+        );
     }
 
     (0.0, 0.0)
