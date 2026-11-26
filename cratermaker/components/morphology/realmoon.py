@@ -154,9 +154,6 @@ class RealMoonMorphology(BasicMoonMorphology):
 
     Parameters
     ----------
-    hfield_model_file : str or Path, optional
-        The H-field model file. Default: the CRATERMAKER_HFIELD_MODEL environment variable if set, otherwise the model
-        distributed with the package (hfield_model.nc next to this module).
     hfield_pix : float, optional
         The resolution (m) the field is drawn to. Default: the size of the face at the center of each crater.
     **kwargs : Any
@@ -318,6 +315,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         """
         Compute the elevation of a realistic lunar crater (see `BasicMoonMorphology.crater_profile`).
 
+        The profile does not include the central peak, which is built on the surface when the crater is formed.
+
         Parameters
         ----------
         crater : RealMoonCrater
@@ -329,7 +328,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         reference_elevations : ArrayLike, optional
             Reference elevations modified by the crater. Default is 0.
         crater_cls : type[Crater], optional
-            Ignored: the crater is always cast to an `RealMoonCrater`.
+            Ignored: the crater is always cast to a `RealMoonCrater`.
         include_crater, include_ejecta : bool, optional
             Which parts of the profile to include. The field belongs to the crater inside the rim and to the ejecta outside.
         **kwargs : Any

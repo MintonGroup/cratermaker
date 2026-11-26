@@ -8,7 +8,7 @@
     cleanup()
 
 .. image:: ../_images/crater_icon.svg
-    :alt: Production
+    :alt: Crater
     :align: center
     :width: 300px
     :class: dark-light
@@ -18,7 +18,7 @@
 Crater
 ======
 
-The |Crater| class is one of the core components of Cratermaker. It is a dataclass that represents the properties of a crater and the projectile that formed it. Like all other components, it is instantiated with its `maker` factory method. You can create a crater by either specifying either its size or the size of a projectile. In either case, the crater and projectile properties will be computed using :ref:`Target <ug-scaling>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. These can be provided to |Crater.maker|, but if not, then the :ref:`default <ug-defaults>` values will be used. 
+The |Crater| class is one of the core components of Cratermaker. It is a dataclass that represents the properties of a crater and the projectile that formed it. Like all other components, it is instantiated with its `maker` factory method. You can create a crater by specifying either its size or the size of a projectile. In either case, the crater and projectile properties will be computed using :ref:`Target <ug-target>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. These can be provided to |Crater.maker|, but if not, then the :ref:`default <ug-defaults>` values will be used. 
 
 At a minimum, you need to specify exactly one size input, which can be one of the following:
 
@@ -30,7 +30,7 @@ At a minimum, you need to specify exactly one size input, which can be one of th
 - `projectile_radius`: The radius of the projectile that formed the crater in meters.
 - `projectile_mass`: The mass of the projectile that formed the crater in kilograms.
 
-All other parameters are optional, and if not specified, will be determined by the provided (or default) :ref:`Target <ug-target>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. We can demonstrate this behavior by specifiying the minimum set of arguments for a Crater, in which we define a crater with a final rim-to-rim diameter of 100 meters and then printing the resulting crater object to show its full set of properties:
+All other parameters are optional, and if not specified, will be determined by the provided (or default) :ref:`Target <ug-target>`, :ref:`Scaling <ug-scaling>`, and :ref:`Projectile <ug-projectile>` objects. We can demonstrate this behavior by specifying the minimum set of arguments for a Crater, in which we define a crater with a final rim-to-rim diameter of 100 meters and then printing the resulting crater object to show its full set of properties:
 
 .. ipython:: python
 
@@ -45,7 +45,7 @@ As we can see, the Crater object contains values for the transient crater diamet
 Crater from Projectile
 ----------------------
 
-You can also create a crater by specifying the projectile size, which will then compute the crater size based on the projectile properties and the target body. For example, if we want to create a crater on Europa with a projectile diameter of 1.5 km , we can do so as follows:
+You can also create a crater by specifying the projectile size, which will then compute the crater size based on the projectile properties and the target body. For example, if we want to create a crater on Europa with a projectile diameter of 1.5 km, we can do so as follows:
 
 .. ipython:: python
 
@@ -60,7 +60,7 @@ Because we chose Europa as a target, the default projectile population is "comet
 Specifying Crater Properties 
 --------------------------------
 
-Besides the crater or projectile sizes values, which are required, there are a number of optional arguments you can pass to |Crater.maker|, including
+Besides the crater or projectile size values, which are required, there are a number of optional arguments you can pass to |Crater.maker|, including
 
 - `projectile_density`: The density of the projectile in kg/m\ :sup:`3`. If not provided, it will be defined through the Projectile component provided. (e.g., "asteroids" or "comets").
 - `projectile_mean_velocity`: The mean velocity in m/s from which to sample a projectile velocity. This will override the value from the Projectile model.
@@ -69,11 +69,11 @@ Besides the crater or projectile sizes values, which are required, there are a n
 - `projectile_angle`: The impact angle in degrees (0-90). If not provided, it is drawn from a distribution that peaks at 45 degrees.
 - `projectile_direction`: The direction of the impact in degrees (0-360) relative to true north. If not provided, it is drawn from a uniform distribution.
 - `location`: The (longitude, latitude) location of the crater in degrees.
-- `projectile_location`: The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
-- `age`: The age of the crater in My. If not provided, it is not set. This is used by the :ref:`Simulation <ug-simulation>` for tracking the age at which a crater formed during the simulation. Setting it has no effect on the crater properties.
+- `projectile_location`: The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence.
+- `time`: The time of the crater impact in My before present. If not provided, it is not set. This is used by the :ref:`Simulation <ug-simulation>` for tracking the age at which a crater formed during the simulation. Setting it has no effect on the crater properties.
 
 
-Suppose we wish to create a crater with a 10km transient diameter on Europa, but want to specify that it formed from an impactor with a density of 900 kg/m\ :sup:`3`, an impact velocity of 30 km/s, an impact angle of 25°, and a location at 45° S, 150° E. We can do so as follows:
+Suppose we wish to create a crater with a 10 km transient diameter on Europa, but want to specify that it formed from an impactor with a density of 900 kg/m\ :sup:`3`, an impact velocity of 30 km/s, an impact angle of 25°, and a location at 45° S, 150° E. We can do so as follows:
 
 .. ipython:: python
 
@@ -114,12 +114,12 @@ The following example uses a custom-defined :ref:`Target <ug-target>` object. He
         target_material="Ice",
         transition_scale_type="ice",
         ask_overwrite=False,
-        rest=True,
+        reset=True,
         gridlevel=0, # Setting this to 0 makes a very lightweight Surface object for situations when we aren't modeling topography explicitly
     )
     print(sim.target)
 
-Next we will use the |Crater.maker| method associated with the Simulation to create a crater on our custom target. We will use a rocky projectile with a diameter of 500 m, an impact velocity of 5 km/s. All other properties will be computed.
+Next we will use the |Crater.maker| method associated with the Simulation to create a crater on our custom target. We will use a rocky projectile with a diameter of 500 m and an impact velocity of 5 km/s. All other properties will be computed.
 
 .. ipython:: python
     :okwarning:

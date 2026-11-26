@@ -6,7 +6,7 @@ Run a simulation of the Moon with basins emplaced using QuasiMC mode
 
 This example shows how to run a lunar simulation in 'Quasi-Monte Carlo' mode, where the largest craters are read from a csv file that gives their diameters and locations, along with one or more columns that indicate an emplacement time or time range.  For details, see :ref:`ug-production-quasimc`.
 
-We will use the |sim.run| method in a Cratermaker Simulation object for an age of 4.31 billion years using the default Neukum production function [#]_. The largest craters (aka basins) will not follow this production function, but instead will be emplaced according to the csv file with given values of N(D), which represents the time needed to produce N craters larger than D diameter in kilometers, per 10⁶ km² of surface area, its age, and/or a stratigraphic sequence number.  Like example 1.2, we also reduce the gridlevel to 6 to speed up the simulation for this example. Even at low resolution, it will take several minutes to run the simulation. We will plot using a reversed grayscale colormap to somewhat mimic the appearance of the lunar surface. The constraints on basin are provided below, and are similar to those used in Blevins et al. (2025) [#]_, but with a few updates.
+We will use the |sim.run| method in a Cratermaker Simulation object for an age of 4.31 billion years using the default Neukum production function [#]_. The largest craters (aka basins) will not follow this production function, but instead will be emplaced according to the csv file with given values of N(D), which represents the time needed to produce N craters larger than D diameter in kilometers, per 10⁶ km² of surface area, its age, and/or a stratigraphic sequence number.  Like example 1.2, we also reduce the gridlevel to 6 to speed up the simulation for this example. Even at low resolution, it will take several minutes to run the simulation. We will plot using a reversed grayscale colormap to somewhat mimic the appearance of the lunar surface. The constraints on basins are provided below, and are similar to those used in Blevins et al. (2025) [#]_, but with a few updates.
 
 Sources
 -------
@@ -20,7 +20,7 @@ Sources
 - Imbrium is set to 3922±12 My based on U-Pb ages of Apollo 14 and 15 impact breccias from Nemchin et al. (2021) [#]_.
 - The age of Copernicus of 800±15 My is from Bogard et al. (1994) [#]_, and is based on :sup:`39`\ Ar - :sup:`40`\ Ar ages of Apollo 12 soil samples that are thought to have been reset by ejecta from Copernicus.
 - The age of Tycho of 109±4 My is based on cosmic ray exposure dating of the South Massif landslide deposit in Taurus Littrow Valley from Apollo 17 by Drozd et al. (1977) [#]_.
-- Serenetatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
+- Serenitatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
 
 References
 ----------
@@ -43,7 +43,7 @@ import cratermaker as cm
 simdir = "simdata-1_8"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 

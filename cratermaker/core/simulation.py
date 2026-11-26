@@ -1190,7 +1190,7 @@ class Simulation(CratermakerBase):
         enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
         interval : int | None, optional
@@ -1240,7 +1240,7 @@ class Simulation(CratermakerBase):
         enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
         interval : int | None, optional

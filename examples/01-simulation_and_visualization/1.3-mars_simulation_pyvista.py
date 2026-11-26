@@ -6,7 +6,7 @@ Run a simulation of a local region on Mars.
 
 This example demonstrates how to use the HiResLocal Surface to run a crater population over a small region of a planet, in this case Mars.
 
-For this example, we will The simulation uses the default Mars configuration and runs for 1 billion years on a local region with a radius of 20 km and resolution of 100 m/pix.  We then visualize the surface using PyVista and a Mars-like colormap.
+For this example, the simulation uses the default Mars configuration and runs for 1 billion years on a local region with a radius of 20 km and resolution of 200 m/pix.  We then visualize the surface using PyVista and a Mars-like colormap.
 We also pass an option that will automatically generate hillshade plots each time the surface is saved. You can also pass in "elevation" to generate elevation plots instead of hillshade plots.
 
 
@@ -19,7 +19,7 @@ from cratermaker import Simulation
 simdir = "simdata-1_3"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 # Run a simple Mars sim

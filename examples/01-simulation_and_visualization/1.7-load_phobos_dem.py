@@ -1,5 +1,5 @@
 """
-Load a DEM of phobos
+Load a DEM of Phobos
 ====================
 
 .. rubric:: By Leo Minton
@@ -13,7 +13,7 @@ from cratermaker import Simulation
 simdir = "simdata-1_7"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cratermaker.cleanup(simdir) will remove all pre-existing output files.
 sim = Simulation(
     target="Phobos",

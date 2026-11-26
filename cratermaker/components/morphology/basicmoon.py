@@ -110,9 +110,9 @@ class BasicMoonCraterFixed(CraterFixed):
     rim_height: float | None = None
     """Original rim height of the crater in meters relative to the reference surface."""
     floor_elevation: float | None = None
-    """Original floor depth of the crater in meters relative to the reference surface."""
+    """Original floor elevation of the crater in meters relative to the reference surface."""
     floor_radius: float | None = None
-    """Original floor diameter of the crater in meters."""
+    """Original floor radius of the crater in meters."""
     wall_curvature: float | None = None
     """A factor that controls the curvature of the crater wall (0 for straight walls, and 1.0 for very curvy walls)."""
     floor_blend: float | None = None
@@ -226,33 +226,42 @@ class BasicMoonCrater(MorphologyCrater):
         rim_height : float, optional
             Original rim height of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_elevation : float, optional
-            Original floor depth of the crater in meters relative to the reference surface. If None, it will be computed.
+            Original floor elevation of the crater in meters relative to the reference surface. If None, it will be computed.
         floor_radius : float, optional
             Original floor radius of the crater in meters. If None, it will be computed.
         wall_curvature : float, optional
             A factor that controls the curvature of the crater wall (0 for straight walls, and 1.0 for very curvy walls). If None, it will be computed based on the morphology type and diameter.
         floor_blend: float, optional
-            A factor that controls how sharply the wall and floor blend (0 for sharp floor-to-wall transition, 1.0 for gentle floor-to-wall transition). If None, it will be set to 0.5.
+            A factor that controls how sharply the wall and floor blend (0 for sharp floor-to-wall transition, 1.0 for gentle floor-to-wall transition). If None, it will be computed based on the morphology type and diameter.
+        rim_width : float, optional
+            Original width of the crater rim in meters. If None, it will be computed.
         frac_ejrim : float, optional
-            Original ejecta rim thickness of the crater in meters. If None, it will be computed.
+            The fraction of the rim height that is ejecta (the ejecta thickness at the rim divided by the rim height). If None, it is 0.3 (or that of Orientale for multiring basins), subject to volume conservation.
+        ejprofile : float, optional
+            The power law exponent of the ejecta thickness profile. If None, it is -3 (or that of Orientale for multiring basins), subject to volume conservation.
         peak_height : float, optional
-            Original central peak height of the crater in meters relative to the reference surface. If None, it will be computed for complex craters and set to 0 for simple craters.
+            Original central peak height of the crater in meters relative to the reference surface. If None, it will be computed for complex craters and set to 0 for all other types.
         peak_width : float, optional
-            Original central peak width of the crater in meters. If None, it will be computed for complex craters and set to 0 for simple craters.
+            Original central peak width of the crater in meters. If None, it will be computed for complex craters and set to 0 for all other types.
         peak_ring_radius : float, optional
-            Original central peak offset of the crater in meters. If None, it will be computed for complex craters and set to 0for simple craters.
+            Original radius of the peak ring of the crater in meters. If None, it is set to 0 (a central peak).
         peak_center_distance: float, optional
             Distance of central peak/peak ring from crater center in meters.
         peak_center_bearing: float, optional
             Bearing angle of central peak/peak ring in degrees.
         conserve_volume: bool, optional
-            If True, then the value of frac_ejrim will be adjusted in order to attempt to conserve volume between excavation and deposition. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
+            If True, then the ejecta parameters (ejprofile and frac_ejrim) will be adjusted in order to attempt to conserve volume between excavation and deposition; the rim height is never changed. Craters with nested rings (multiring basins) are exempt. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
         monte_carlo : bool or None, optional
             If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
         make_rings : bool, optional
-            Kept for compatibility: no crater type is given rings by default. Default is True for new craters and False for copied craters unless a parameter was changed.
+            If True, multiring basins are given the two nested rings of Orientale (no other crater type is given rings). Default is True for new craters and False for copied craters unless a parameter was changed.
         **kwargs : Any
-            The keyword arguments provided are passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            The keyword arguments provided are passed down to :py:meth:`MorphologyCrater.maker() <cratermaker.components.morphology.MorphologyCrater.maker>`.  Refer to its documentation for a detailed description of valid keyword arguments.
+
+        Returns
+        -------
+        BasicMoonCrater
+            The new crater.
 
         References
         ----------

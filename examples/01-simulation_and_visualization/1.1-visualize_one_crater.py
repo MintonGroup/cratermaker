@@ -13,7 +13,7 @@ import cratermaker as cm
 simdir = "simdata-1_1"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 sim = cm.Simulation(gridlevel=6, simdir=simdir, ask_overwrite=False, reset=True)
 sim.emplace(diameter=500e3, location=(45, 60))

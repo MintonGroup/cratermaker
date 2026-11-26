@@ -36,7 +36,7 @@ Any valid arguments for these components can be passed directly to the |Simulati
 Creating craters and populations of craters
 -------------------------------------------
 
-The |Simulation| class has set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are |sim.emplace|, |sim.populate|, and |sim.run|. Each successive method makes use of the others (that is, |sim.populate| calls |sim.emplace| on the craters in generates, and |sim.run| calls |sim.populate| for each interval of time in the simulation). We will discuss each of these in turn:
+The |Simulation| class has a set of core methods that can be used to generate craters, using the requested (or default) Production and Morphology components onto the requested Surface component. These are |sim.emplace|, |sim.populate|, and |sim.run|. Each successive method makes use of the others (that is, |sim.populate| calls |sim.emplace| on the craters it generates, and |sim.run| calls |sim.populate| for each interval of time in the simulation). We will discuss each of these in turn:
 
 
 
@@ -65,17 +65,17 @@ The following example configures a simulation targeting the Moon and runs it for
 
 .. note::
 
-    You may notice that the number of craters emplaced during the Simulation is much larger than the value of true emplaced craters given by ``sim.n_emplaced``. This is because the :ref:`Counting <ug-counting>` object only tracks craters that are potentially countable. Most of the craters that are emplaced during a simulation are too small to be reliably counted, so while they are still modify the surface, they are not tracked by the counting system.
+    You may notice that the number of craters emplaced during the Simulation is much larger than the value of true emplaced craters given by ``sim.n_emplaced``. This is because the :ref:`Counting <ug-counting>` object only tracks craters that are potentially countable. Most of the craters that are emplaced during a simulation are too small to be reliably counted, so while they still modify the surface, they are not tracked by the counting system.
 
 Multi-interval Simulations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The |sim.run| method can also be used to run a simulation in multiple intervals, which is useful for tracking the evolution of the cratered surface over time. To do this, you can pass either the `time_interval` or `ninterval` arguments. These two arguments are mutually exlusive, as they divide up the simulation in different ways. 
+The |sim.run| method can also be used to run a simulation in multiple intervals, which is useful for tracking the evolution of the cratered surface over time. To do this, you can pass either the `time_interval` or `ninterval` arguments. These two arguments are mutually exclusive, as they divide up the simulation in different ways. 
 
 Equal time intervals
 """"""""""""""""""""
 
-When passing the `time_interval` argument, the simulation is divided up into equal intervals of time. Depdning on which production function is enabled (see :ref:`Production <ug-production>`) the rate of cratering may be different at different points in time. For instance, in the default Neukum production function for the Moon, the cratering rate is significantly hire prior to about 3 Ga before present, so a simulation that spans these early times will produce more craters in the early time intervals than in the later ones. 
+When passing the `time_interval` argument, the simulation is divided up into equal intervals of time. Depending on which production function is enabled (see :ref:`Production <ug-production>`) the rate of cratering may be different at different points in time. For instance, in the default Neukum production function for the Moon, the cratering rate is significantly higher prior to about 3 Ga before present, so a simulation that spans these early times will produce more craters in the early time intervals than in the later ones. 
 
 In the example below, we demonstrate how a simulation with `time_interval=1000` would behave by drawing the numbers of craters larger than 10 km between equal time intervals on the surface of the Moon.
 
@@ -107,7 +107,7 @@ In this example the first billion years (from 4000 Ma to 3000 Ma before present)
 Equal number of craters per interval
 """"""""""""""""""""""""""""""""""""
 
-When passing the `ninterval` argument, the simulation is divided up into intervals that each contain approximately the same number of emplaced craters. The true number of craters produced in each interval won't be exactly the same because the number of craters is goverened by the Poisson distribution. 
+When passing the `ninterval` argument, the simulation is divided up into intervals that each contain approximately the same number of emplaced craters. The true number of craters produced in each interval won't be exactly the same because the number of craters is governed by the Poisson distribution. 
 
 In the example below, we will demonstrate how a simulation with equal number intervals would behave by sampling an expected number of 100 craters larger than 10 km: 
 
@@ -119,13 +119,13 @@ In the example below, we will demonstrate how a simulation with equal number int
     diameters2, _ = production.sample(diameter_number=(10e3, 100), diameter_range=(10e3, 10000e3), area=target.surface_area, compute_time=False)
     print(f"Number of craters in sample 2: {len(diameters2)}")
 
-As can be seen, the toltal numbers of craters is somewhat different in each sample, but they are both within the expected variability of the Poisson distribution for a mean of 100 craters in the sample.
+As can be seen, the total numbers of craters is somewhat different in each sample, but they are both within the expected variability of the Poisson distribution for a mean of 100 craters in the sample.
 
 
 Emplace one or more specific craters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The |sim.emplace| method is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to |Crater.maker| to generate a single crater, a single |Crater| object, or a list of |Crater| objects. So for instance, you can emplace a single 300 km crater onto a random location on a surface, you would do:
+The |sim.emplace| method is used to emplace one or more craters onto a surface. The arguments are either the parameters that you would pass to |Crater.maker| to generate a single crater, a single |Crater| object, or a list of |Crater| objects. So for instance, to emplace a single 300 km crater onto a random location on a surface, you would do:
 
 .. code-block:: python
 
@@ -157,7 +157,7 @@ Mix pre-determined impacts with random ones using :ref:`Quasi Monte-Carlo <ug-pr
 Save Actions
 ------------
 
-The |Simulation| class has a |save_actions| parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocesing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial conditions, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
+The |Simulation| class has a |save_actions| parameter that can be set by any component class and is used to invoke specific method calls on the component when its .save() method is called. This is useful to trigger specific postprocessing actions, like plotting or exporting, at the end of each interval of a Simulation run. The save_actions attribute takes a dictionary where each key is a valid method that can be called on the component (such as "plot", "export", "show3d", etc.) and the values are a dictionary of arguments that you would pass to that method. Currently, Cratermaker has a default save action that will run the plot command, which will get called at the beginning of a run in order to save the initial conditions, and at the end of each interval of a multi-interval run or at the end of the simulation's run command. 
 
 .. ipython:: python
     :okwarning:
@@ -181,7 +181,7 @@ If you wanted to automatically export the crater count data to Spatial Crater Co
     sim.counting.add_save_action({"export": {"driver": "SCC"}})
     sim.run(time_start=3000, time_interval=1000)
 
-You can also can have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaied onto the hillshade of the standard suface plot. You could set up a simulation like this:
+You can also have multiple save actions that use the same method, but with different arguments. So for instance, suppose you want to generate a plot with the craters overlaid onto the hillshade of the standard surface plot. You could set up a simulation like this:
 
 
 .. code-block:: python
@@ -229,7 +229,7 @@ If you don't need to pass additional arguments to your custom function, you stil
 Disable save actions
 ^^^^^^^^^^^^^^^^^^^^
 
-The defaults save actions for a |Simulation| object is to plot the surface. However, processing the raster data to generate a plot of the surface can be time consuming and is not always needed. To disable the save actions, simply override the default value with an argument. Passing an empty list will disable all save actions:
+The default save action for a |Simulation| object is to plot the surface. However, processing the raster data to generate a plot of the surface can be time consuming and is not always needed. To disable the save actions, simply override the default value with an argument. Passing an empty list will disable all save actions:
 
 .. code-block:: python
 
