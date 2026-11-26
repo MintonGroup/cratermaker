@@ -18,6 +18,13 @@ from cratermaker.utils.general_utils import (
     parameter,
 )
 
+# The morphology type transitions (see MonteCarloScaling._get_morphology_type): transitional (immature complex) craters set in at
+# the transition diameter and complex (central peak) craters at _COMPLEX_TRANSITION_RATIO times it, each over a logistic step of
+# the given width in ln D
+_SIMPLE_TRANSITION_WIDTH = 0.12
+_COMPLEX_TRANSITION_RATIO = 1.8
+_COMPLEX_TRANSITION_WIDTH = 0.13
+
 
 @Scaling.register("montecarlo")
 class MonteCarloScaling(Scaling):
@@ -170,30 +177,33 @@ class MonteCarloScaling(Scaling):
         if not isinstance(diameter, FloatLike) or diameter <= 0 or not np.isfinite(diameter):
             raise ValueError("diameter must be a positive finite number")
 
-        # Use the 1/2x to 2x the nominal value of the simple->complex transition diameter to get the range of the "transitional" morphology type. This is supported by: Schenk et al. (2004) and Pike (1980) in particular
-        transition_range = (0.5 * self.transition_nominal, 2 * self.transition_nominal)
-
+        # The morphology types follow the staggered transitions of Pike (1980) and Schenk et al. (2021): simple craters give way
+        # to transitional (immature complex) craters at the transition diameter, and those to (mature, central peak) complex
+        # craters at _COMPLEX_TRANSITION_RATIO times it. Each transition is a logistic step in ln D, with the widths fitted to
+        # the morphology types of the curated fresh lunar craters (Lunar_Morphometry_Revisited, scripts/transition_statistics.py:
+        # 50% not simple at 14.4 km, 50% complex at 25.8 km).
         if self._multiring_transition is not None and diameter >= self._multiring_transition:
             morphology_type = "multiring"
-        elif diameter < transition_range[0]:
-            morphology_type = "simple"
-        elif diameter > transition_range[1]:
-            morphology_type = "complex"
         else:
+            x = np.log(diameter / self.transition_nominal)
             if self.monte_carlo:
-                # We'll uses the distance from the nominal transition diameter to set a probability of being either simple, complex, or transitional.
-                if diameter < self.transition_nominal:
-                    p = (self.transition_nominal - diameter) / (self.transition_nominal - transition_range[0])
-                    categories = ["simple", "transitional"]
-                    prob = [p, 1.0 - p]
-                    morphology_type = self.rng.choice(categories, p=prob).item()
+                p_not_simple = 1.0 / (1.0 + np.exp(-x / _SIMPLE_TRANSITION_WIDTH))
+                p_complex = min(
+                    1.0 / (1.0 + np.exp(-(x - np.log(_COMPLEX_TRANSITION_RATIO)) / _COMPLEX_TRANSITION_WIDTH)), p_not_simple
+                )
+                u = self.rng.uniform()
+                if u < p_complex:
+                    morphology_type = "complex"
+                elif u < p_not_simple:
+                    morphology_type = "transitional"
                 else:
-                    p = (diameter - self.transition_nominal) / (transition_range[1] - self.transition_nominal)
-                    categories = ["complex", "transitional"]
-                    prob = [p, 1.0 - p]
-                    morphology_type = self.rng.choice(categories, p=prob).item()
-            else:
+                    morphology_type = "simple"
+            elif x < 0.0:
+                morphology_type = "simple"
+            elif x < np.log(_COMPLEX_TRANSITION_RATIO):
                 morphology_type = "transitional"
+            else:
+                morphology_type = "complex"
 
         return morphology_type
 
@@ -422,15 +432,23 @@ class MonteCarloScaling(Scaling):
         simple_enlargement_std = 0.04  # Just using Pike (1980) fig. 9 the crater depth varies by about the same amount on either side of the transition so this is a reasonable assumption
 
         # These terms are used in the exponent in the final rim radius/ simple crater radius vs  final radius / transition radius relationship
-        # See Holsapple (1993) eq. 28
-        final_exp_mean = 0.079
+        # The enlargement of complex craters relative to the equivalent simple crater, D / D_simple =
+        # complex_enlargement_factor * (D / D_transition)^final_exp, has the form of Holsapple (1993) eq. 28. The values are
+        # measured on the curated fresh lunar craters by the constant-volume argument of Holsapple (1993): the diameter of the
+        # simple crater with the same cavity volume (Lunar_Morphometry_Revisited, volume budget) gives D / D_simple =
+        # 1.10 (D / D_transition)^0.19, within the 0.15 +/- 0.04 of Croft (1985) (Holsapple's 0.079 underpredicts the
+        # enlargement of large craters, 1.6 at 8 transition diameters, by about 25%).
+        final_exp_mean = 0.19
         final_exp_std = 0.0001  # We add noise because this is nature and nature messy
-        complex_enlargement_factor = 1.02
+        complex_enlargement_factor = 1.10
 
         # These terms are used to compute the transition diameter as a function of gravity. They are based on fits to the plot given in Fig. 7 of Schenk et al. (2021)
         if self.target.transition_scale_type == "silicate":
+            # The slope is a fit to the silicate bodies of Fig. 7 of Schenk et al. (2021); the intercept puts the transition on
+            # the Moon at 14.4 km, where the curated fresh lunar craters stop being mostly simple (consistent with the 15 km
+            # depth/diameter transition of Pike (1980) and Croft (1985))
             simple_complex_A = -0.5484575694575697
-            simple_complex_B = 4.201369948094472
+            simple_complex_B = 4.273339
             simple_complex_sigma = 0.0699898822890725
         elif self.target.transition_scale_type == "ice":
             simple_complex_A = -0.7066985617230864

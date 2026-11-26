@@ -3,6 +3,34 @@
 What's New
 ==========
 
+:release:`v2026.11.1-alpha`
+---------------------------
+
+.. _whats-new.2026.11.1-alpha:
+
+- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater warped by an irregular rim outline, plus a random field of variation around it (terraces, slumps, wall and floor texture, and the texture of the ejecta), drawn from an empirical model of fresh lunar craters as a function of size and morphology type (the H-field, distributed as ``hfield_model.nc``). The earlier model based on the power spectra of profile parameters (``PSD1D``, ``psd1d_coeffs.nc`` and ``psd2d_coeffs.nc``) is removed. `David Minton`_
+
+   - Transitional and complex realmoon craters get a central peak built on the surface: the faces where turbulence noise exceeds a threshold are raised to a Gaussian envelope (of standard deviation ``peak_width``, 0.08 crater radii; offset to ``peak_ring_radius`` for a peak ring), and the columns are relaxed by slope collapse at 34 degrees, with the amplitude iterated so the peak reaches ``peak_height``. Peak heights follow the peaks of fresh lunar craters, 0.26 (D / 60 km)^0.89 of the crater's relief with lognormal scatter. The peak's volume is taken from the crater floor, so crater formation still conserves volume.
+
+- Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
+
+   - The size relations of the floor elevation, rim height, rim width, floor radius, wall curvature, and floor blend are new fits to fresh craters, with the scatter between craters modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data they are extrapolated by geometric similarity.
+   - The structural uplift of the rim now decays exponentially with distance outside the rim (with a decay length of 0.25 crater radii).
+   - Complex craters and multiring basins no longer have nested rings. Multiring basins take the profile of Orientale, in proportion to their diameter.
+   - The ejecta thickness at the rim defaults to 0.3 of the rim height, and volume conservation now adjusts only the ejecta (``frac_ejrim`` and ``ejprofile``), never the rim height.
+
+- Recalibrated the simple-to-complex transition and the morphology types from the curated fresh lunar craters. `David Minton`_
+
+   - The transition diameter of silicate bodies (in the "montecarlo" and "ctem" scaling models) is now 14.4 km on the Moon, where fresh craters stop being mostly simple, consistent with the 15 km depth/diameter transition of Pike (1980) and Croft (1985). It was 12.2 km ("montecarlo") and 10 km ("ctem").
+   - Morphology types now follow the staggered transitions of Pike (1980) and Schenk et al. (2021): transitional (immature complex) craters set in at the transition diameter and complex (central peak) craters at 1.8 times it, each over a logistic step in diameter. Previously, transitional craters could occur from half to twice the transition diameter, so many craters of 6-12 km on the Moon were transitional, where fresh craters are almost all simple.
+   - In the "montecarlo" scaling model, the enlargement of complex craters relative to their equivalent simple crater is now 1.10 (D / D_transition)^0.19, measured from the cavity volumes of fresh lunar craters (within the range of Croft 1985), instead of 1.02 (D / D_transition)^0.079 (Holsapple 1993). Transient craters of large complex craters are smaller, by about 14% at 100 km on the Moon.
+
+- ``show3d`` now draws the surface as a light grey, matte material by default, which shows the topography with more contrast against the dark background.
+- Fixed the ``annotations`` and ``pickable`` arguments of ``show3d``, which were not passed on to PyVista.
+- Fixed the face gradient on the mesh (used by ``compute_slope``, ``slope_collapse``, and the radial and azimuthal gradients), which returned half the true gradient. Slope collapse now limits slopes to the requested critical angle; previously a critical angle of 35 degrees allowed slopes of about 54 degrees. The critical angle of slope collapse after crater formation is now 40 degrees, from the measured interior slopes of fresh lunar craters, which sit at about 35 degrees on their walls but rarely exceed 40 degrees.
+- Copying a "realmoon" crater now keeps the field it has already drawn, and no longer draws random numbers.
+
+
 :release:`v2026.11.0-alpha`
 ---------------------------
 
@@ -19,26 +47,12 @@ What's New
    - Removed the Python implementations of ``crater_shape``, ``ejecta_shape``, ``compute_ejecta``, and ``ejecta_burial_degradation`` that are replaced by the Rust pipeline.
    - Results agree with the previous version to within rounding error, except where noted below.
 
-- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater warped by an irregular rim outline, plus a random field of variation around it (terraces, slumps, wall and floor texture, and the texture of the ejecta), drawn from an empirical model of fresh lunar craters as a function of size and morphology type (the H-field, distributed as ``hfield_model.nc``). The earlier model based on the power spectra of profile parameters (``PSD1D``, ``psd1d_coeffs.nc`` and ``psd2d_coeffs.nc``) is removed. `David Minton`_
-
-   - Transitional and complex realmoon craters get a central peak built on the surface: the faces where turbulence noise exceeds a threshold are raised to a Gaussian envelope (of standard deviation ``peak_width``, 0.08 crater radii; offset to ``peak_ring_radius`` for a peak ring), and the columns are relaxed by slope collapse at 34 degrees, with the amplitude iterated so the peak reaches ``peak_height``. Peak heights follow the peaks of fresh lunar craters, 0.26 (D / 60 km)^0.89 of the crater's relief with lognormal scatter. The peak's volume is taken from the crater floor, so crater formation still conserves volume.
-
-- Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
-
-   - The size relations of the floor elevation, rim height, rim width, floor radius, wall curvature, and floor blend are new fits to fresh craters, with the scatter between craters modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data they are extrapolated by geometric similarity.
-   - The structural uplift of the rim now decays exponentially with distance outside the rim (with a decay length of 0.25 crater radii).
-   - Complex craters and multiring basins no longer have nested rings. Multiring basins take the profile of Orientale, in proportion to their diameter.
-   - The ejecta thickness at the rim defaults to 0.3 of the rim height, and volume conservation now adjusts only the ejecta (``frac_ejrim`` and ``ejprofile``), never the rim height.
-
 - Each crater's projectile properties (velocity, impact angle, and direction) are now drawn once instead of twice. This changes the random numbers each crater receives, so a simulation run with the same ``rng_seed`` gives different, but statistically equivalent, results than earlier versions.
 - ``Crater.maker(..., monte_carlo=False)`` now gives a vertical impact due north at the mean velocity, as documented, instead of reusing the angle and direction of an earlier crater.
-- ``show3d`` now draws the surface as a light grey, matte material by default, which shows the topography with more contrast against the dark background.
-- Fixed the ``annotations`` and ``pickable`` arguments of ``show3d``, which were not passed on to PyVista.
-- Fixed the face gradient on the mesh (used by ``compute_slope``, ``slope_collapse``, and the radial and azimuthal gradients), which returned half the true gradient. Slope collapse now limits slopes to the requested critical angle; previously a critical angle of 35 degrees allowed slopes of about 54 degrees. The critical angle of slope collapse after crater formation is now 40 degrees, from the measured interior slopes of fresh lunar craters, which sit at about 35 degrees on their walls but rarely exceed 40 degrees.
 - Fixed a bug where the "realmoon" ejecta blanket was always computed at a bearing of 0, so it did not vary with azimuth along with the crater rim. This also fixes a crash when using the "realmoon" model with ``dorays=True``.
 - Fixed a bug where the ejecta fraction of the rim height (``frac_ejrim``) of the rings of complex and multiring craters was limited to be at least 1, rather than at most 1, after volume conservation.
 - Fixed a bug where quasi-Monte Carlo craters read from a file were not reproducible with ``rng_seed``, because they were created without the simulation's random number generator. ``Crater.from_file`` and the related ``from_csv_file``, ``from_scc_file``, and ``from_xarray`` methods now pass their keyword arguments on to ``Crater.maker``.
-- Copying a "realmoon" crater now keeps the field it has already drawn, and no longer draws random numbers.
+- Copying a "realmoon" crater now keeps the PSD data it has already generated and its rings (as independent copies), and no longer draws random numbers.
 - Added a ``morphology_type`` argument to ``Crater.maker`` to set the morphology type of a crater, and a new example showing the basic morphology types.
 - Added the ``save_observed`` and ``save_emplaced`` arguments to separately control the saving of observed and emplaced craters.
 - Emplaced craters are now saved even when counting is turned off. :issue:`142` :pull:`143`

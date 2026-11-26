@@ -142,7 +142,7 @@ class TestMorphology(unittest.TestCase):
             for model_name in morphology_models:
                 morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=7)
                 # No crater type has nested rings by default: rings and terraces are variation about the axisymmetric profile
-                expected = {1e3: ("simple", 0), 30e3: ("complex", 0), 600e3: ("multiring", 0)}
+                expected = {1e3: ("simple", 0), 60e3: ("complex", 0), 600e3: ("multiring", 0)}
                 for diameter, (morphology_type, nrings) in expected.items():
                     crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
                     self.assertEqual(crater.morphology_type, morphology_type, f"{model_name} D={diameter}")

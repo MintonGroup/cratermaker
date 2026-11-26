@@ -2,19 +2,22 @@
 //!
 //! Turbulence noise evaluated at each face of the crater (in the plane about the crater center) is used as an indicator: where
 //! it is more than [`PEAK_THRESHOLD`] standard deviations above its mean, the face is raised to the height of a Gaussian
-//! envelope (centered, or offset as a ring), and elsewhere it is not raised. Slope collapse at [`PEAK_CRITICAL_ANGLE`] then
-//! relaxes the columns into patchy mounds. The amplitude of the envelope is iterated so that the highest point of the relaxed
+//! envelope (centered, or offset as a ring), scaled up by [`PEAK_TOP_VARIATION`] times the excess of the noise over the
+//! threshold so that the columns have uneven tops, and elsewhere it is not raised. Slope collapse then relaxes the columns
+//! into patchy mounds. The critical angle of the collapse varies from face to face around [`PEAK_CRITICAL_ANGLE`] with a
+//! second, independent noise field ([`PEAK_ANGLE_SPREAD`], [`PEAK_ANGLE_NOISE_WAVELENGTH`]), so that the flanks are not
+//! planar. The amplitude of the envelope is iterated so that the highest point of the relaxed
 //! peak has the peak's height. The relaxation is done on a flat copy of the region, so that it changes only the peak and not
 //! the crater around it, and the volume of the peak is removed from the crater floor as a uniform layer, so that crater
 //! formation still conserves volume.
 //!
 //! The constants are those that reproduce the typical central peak of the fresh lunar craters of 35-140 km measured at the
 //! native SLDEM2015 spacing (59 m): an envelope of standard deviation 0.08 R, columns where the noise is 0.5 standard
-//! deviations above its mean, a noise wavelength of 1.5 envelope widths, and a critical angle of 34 degrees.
+//! deviations above its mean, a noise wavelength of 1.5 envelope widths, and a critical angle of 34 degrees on average.
 
 use crate::ArrayResult;
 use crate::morphology::form_crater::CraterRegionView;
-use crate::surface::{slope_collapse, turbulence_noise};
+use crate::surface::{slope_collapse_field, turbulence_noise};
 use numpy::ndarray::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -27,8 +30,17 @@ pub const PEAK_NOISE_WAVELENGTH: f64 = 1.5;
 pub const PEAK_NOISE_OCTAVES: usize = 3;
 /// Amplitude ratio between successive noise octaves.
 pub const PEAK_NOISE_PERSISTENCE: f64 = 0.5;
-/// Critical slope angle of the collapse of the columns (degrees).
+/// Variability of the column heights: a column is raised to the envelope times 1 + PEAK_TOP_VARIATION x (noise - threshold),
+/// with the noise in standard deviations.
+pub const PEAK_TOP_VARIATION: f64 = 1.0;
+/// Mean critical slope angle of the collapse of the columns (degrees).
 pub const PEAK_CRITICAL_ANGLE: f64 = 34.0;
+/// Standard deviation of the critical slope angle (degrees), which varies with an independent noise field (clipped at
+/// [`PEAK_ANGLE_CLIP`] standard deviations).
+pub const PEAK_ANGLE_SPREAD: f64 = 6.0;
+const PEAK_ANGLE_CLIP: f64 = 2.5;
+/// Wavelength of the largest octave of the critical angle noise, as a multiple of the envelope width.
+pub const PEAK_ANGLE_NOISE_WAVELENGTH: f64 = 0.5;
 /// Extent of the columns from the envelope's center or ring, in envelope widths.
 const PEAK_SUPPORT: f64 = 2.5;
 /// Relative tolerance on the height of the relaxed peak, and the most collapses used to reach it.
@@ -81,38 +93,22 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64
         return Ok(change);
     }
 
-    // Noise in the plane about the crater center, normalized over the support
+    // Two independent noise fields in the plane about the crater center, normalized over the support: one for the columns, and
+    // one for the critical angle of their collapse
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
-    let anchor = Array2::from_shape_fn((PEAK_NOISE_OCTAVES, 3), |_| {
-        rng.random_range(0.0..std::f64::consts::TAU)
-    });
-    let x = Array1::from_iter(support.iter().map(|&f| region.face_proj_x[f]));
-    let y = Array1::from_iter(support.iter().map(|&f| region.face_proj_y[f]));
-    let z = Array1::<f64>::zeros(support.len());
-    let noise = turbulence_noise(
-        x.view(),
-        y.view(),
-        z.view(),
-        1.0,
-        PEAK_NOISE_WAVELENGTH * peak.width,
-        2.0,
-        PEAK_NOISE_PERSISTENCE,
-        anchor.view(),
-        rng.random::<u32>(),
-    )?;
-    let n = noise.len() as f64;
-    let mean = noise.sum() / n;
-    let sd = (noise.mapv(|v| (v - mean).powi(2)).sum() / n).sqrt();
-    if !(sd > 0.0) {
+    let Some(noise) = normalized_noise(region, &support, PEAK_NOISE_WAVELENGTH * peak.width, &mut rng)? else {
         return Ok(change);
-    }
+    };
+    let Some(angle_noise) = normalized_noise(region, &support, PEAK_ANGLE_NOISE_WAVELENGTH * peak.width, &mut rng)? else {
+        return Ok(change);
+    };
 
     // The columns, in units of the envelope's amplitude
     let mut shape = Array1::<f64>::zeros(nf);
     for (i, &f) in support.iter().enumerate() {
-        if (noise[i] - mean) / sd > PEAK_THRESHOLD {
+        if noise[i] > PEAK_THRESHOLD {
             let u = (region.face_distance[f] - peak.ring_radius) / peak.width;
-            shape[f] = (-0.5 * u * u).exp();
+            shape[f] = (-0.5 * u * u).exp() * (1.0 + PEAK_TOP_VARIATION * (noise[i] - PEAK_THRESHOLD));
         }
     }
     if !shape.iter().any(|&s| s > 0.0) {
@@ -121,13 +117,18 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64
 
     // Collapse the columns on a flat region, iterating the amplitude (secant steps in log amplitude and log height) until the
     // relaxed peak has the required height
-    let critical_slope = PEAK_CRITICAL_ANGLE.to_radians().tan();
+    // The critical slope of each face: the mean angle outside the support, varying with the angle noise inside it
+    let mut critical_slope = Array1::<f64>::from_elem(nf, PEAK_CRITICAL_ANGLE.to_radians().tan());
+    for (i, &f) in support.iter().enumerate() {
+        let z = angle_noise[i].clamp(-PEAK_ANGLE_CLIP, PEAK_ANGLE_CLIP);
+        critical_slope[f] = (PEAK_CRITICAL_ANGLE + PEAK_ANGLE_SPREAD * z).to_radians().tan();
+    }
     let zero_nodes = Array1::<f64>::zeros(region.n_node());
     let relax = |amplitude: f64| -> ArrayResult {
         let columns = &shape * amplitude;
         let delta = {
             let view = region.kernel_view(columns.view(), zero_nodes.view());
-            slope_collapse(critical_slope, &view)?
+            slope_collapse_field(critical_slope.view(), &view)?
         };
         Ok(columns + delta)
     };
@@ -166,4 +167,36 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64
         }
     }
     Ok(change)
+}
+
+/// Turbulence noise at the given faces (in the plane about the crater center), normalized to zero mean and unit standard
+/// deviation over them, or `None` if it does not vary.
+fn normalized_noise(
+    region: &CraterRegionView<'_>,
+    faces: &[usize],
+    wavelength: f64,
+    rng: &mut ChaCha8Rng,
+) -> Result<Option<Array1<f64>>, String> {
+    let anchor = Array2::from_shape_fn((PEAK_NOISE_OCTAVES, 3), |_| rng.random_range(0.0..std::f64::consts::TAU));
+    let x = Array1::from_iter(faces.iter().map(|&f| region.face_proj_x[f]));
+    let y = Array1::from_iter(faces.iter().map(|&f| region.face_proj_y[f]));
+    let z = Array1::<f64>::zeros(faces.len());
+    let noise = turbulence_noise(
+        x.view(),
+        y.view(),
+        z.view(),
+        1.0,
+        wavelength,
+        2.0,
+        PEAK_NOISE_PERSISTENCE,
+        anchor.view(),
+        rng.random::<u32>(),
+    )?;
+    let n = noise.len() as f64;
+    let mean = noise.sum() / n;
+    let sd = (noise.mapv(|v| (v - mean).powi(2)).sum() / n).sqrt();
+    if !(sd > 0.0) {
+        return Ok(None);
+    }
+    Ok(Some(noise.mapv(|v| (v - mean) / sd)))
 }
