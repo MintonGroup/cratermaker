@@ -64,6 +64,12 @@ class Simulation(CratermakerBase):
         If True, any craters large enough to be emplaced onto the surface in each interval are stored.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved. Set to None to disable or "default" to use the default save actions.
+    smallest_crater : float, optional
+        The smallest crater diameter (m) of the production population. It is limited to the size of the smallest face of the
+        surface. Default: the smallest face size.
+    largest_crater : float, optional
+        The largest crater diameter (m) of the production population. It is limited to the diameter of the target body. Default:
+        the target's diameter.
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -105,6 +111,10 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_do_quasimc", None)
         object.__setattr__(self, "_max_crater_diameter_range", None)
 
+        # The production size limits can only be applied once the production component and the surface exist (see below)
+        smallest_crater = kwargs.pop("smallest_crater", None)
+        largest_crater = kwargs.pop("largest_crater", None)
+
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
         # Added for backwards compatability
@@ -134,6 +144,11 @@ class Simulation(CratermakerBase):
         if not self.is_new and self.config_file.exists():
             config_file = self.config_file
             object.__setattr__(self, "_config_readonly", True)
+            # The saved production size limits, unless new ones are given (applied with them below)
+            with Path.open(config_file) as f:
+                saved = yaml.safe_load(f) or {}
+            smallest_crater = saved.get("smallest_crater") if smallest_crater is None else smallest_crater
+            largest_crater = saved.get("largest_crater") if largest_crater is None else largest_crater
         else:
             config_file = None
 
@@ -243,6 +258,10 @@ class Simulation(CratermakerBase):
         self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
         self.smallest_crater = max(self.smallest_crater, self._max_crater_diameter_range[0])
         self.largest_crater = min(self.largest_crater, self._max_crater_diameter_range[1])
+        if smallest_crater is not None:
+            self.smallest_crater = smallest_crater
+        if largest_crater is not None:
+            self.largest_crater = largest_crater
         if self.production._Crater is None:
             self.production._Crater = self.Crater
             if self.production.quasimc_craters is not None:
