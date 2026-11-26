@@ -237,6 +237,7 @@ class TestSimulation(unittest.TestCase):
             sim = cratermaker.Simulation(
                 target="Moon",
                 morphology="basicmoon",
+                largest_crater=400e3,
                 gridlevel=self.gridlevel,
                 save_observed=False,
                 save_emplaced=False,
@@ -245,7 +246,6 @@ class TestSimulation(unittest.TestCase):
                 reset=True,
                 rng_seed=3234653,
             )
-            sim.largest_crater = 400e3
             area = np.asarray(sim.surface.face_area)
             initial_elevation = np.array(sim.surface.face_elevation, dtype=float)
             sim.run(age=4310)
@@ -254,6 +254,32 @@ class TestSimulation(unittest.TestCase):
             gross = np.sum(np.abs(change) * area)
             self.assertGreater(gross, 0.0)
             self.assertLess(abs(net) / gross, 1e-12, f"net volume change {net:.3e} m3 out of {gross:.3e} m3 moved")
+
+    def test_crater_size_limits(self):
+        # The smallest and largest crater sizes given to the constructor are applied, limited to the surface and the target, and
+        # kept when the simulation is resumed (unless new ones are given)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(
+                target="Moon",
+                gridlevel=self.gridlevel,
+                simdir=simdir,
+                ask_overwrite=False,
+                reset=True,
+                smallest_crater=100e3,
+                largest_crater=400e3,
+            )
+            self.assertEqual(sim.smallest_crater, 100e3)
+            self.assertEqual(sim.largest_crater, 400e3)
+            sim.save()
+            resumed = cratermaker.Simulation(simdir=simdir, ask_overwrite=False, reset=False)
+            self.assertEqual(resumed.smallest_crater, 100e3)
+            self.assertEqual(resumed.largest_crater, 400e3)
+            overridden = cratermaker.Simulation(simdir=simdir, ask_overwrite=False, reset=False, largest_crater=300e3)
+            self.assertEqual(overridden.largest_crater, 300e3)
+            capped = cratermaker.Simulation(
+                target="Moon", gridlevel=self.gridlevel, simdir=simdir, ask_overwrite=False, reset=True, largest_crater=1e9
+            )
+            self.assertEqual(capped.largest_crater, capped.target.diameter)
 
     def test_quasimc_reproducible(self):
         # The quasi-Monte Carlo craters must be created with the simulation's random number generator, so that two simulations
