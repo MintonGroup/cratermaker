@@ -16,7 +16,7 @@ What's New
 
    - The size relations of the floor elevation, rim height, rim width, floor radius, wall curvature, and floor blend are new fits to fresh craters, with the scatter between craters modeled as normal or lognormal, whichever fits better. Outside the range of diameters of the data they are extrapolated by geometric similarity.
    - The structural uplift of the rim now decays exponentially with distance outside the rim (with a decay length of 0.25 crater radii).
-   - Complex craters and multiring basins no longer have nested rings. Multiring basins take the profile of Orientale, in proportion to their diameter.
+   - Complex craters no longer have nested terrace rings. Multiring basins take the profile of Orientale, in proportion to their diameter: the main rim and two nested rings (the Outer and Inner Rook rings), with Orientale's fitted ejecta. Because a basin's final surface keeps little of its excavation, craters with nested rings are not held to volume conservation.
    - The ejecta thickness at the rim defaults to 0.3 of the rim height, and volume conservation now adjusts only the ejecta (``frac_ejrim`` and ``ejprofile``), never the rim height.
 
 - Recalibrated the simple-to-complex transition and the morphology types from the curated fresh lunar craters. `David Minton`_

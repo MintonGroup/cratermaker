@@ -230,7 +230,9 @@ class TestSimulation(unittest.TestCase):
     def test_volume_conservation(self):
         # Craters and their ejecta, and the degradation they cause, only move material around, so a simulation should not change
         # the total volume of the surface beyond rounding error. Craters that the mesh resolves so poorly that their sampled shape
-        # removes no material are skipped, as their ejecta could not balance them. (Modeled on example 1.2.)
+        # removes no material are skipped, as their ejecta could not balance them. Multiring basins are not held to volume
+        # conservation (their final surface keeps little of their excavation), so craters are limited to sizes below the
+        # multiring transition. (Modeled on example 1.2.)
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(
                 target="Moon",
@@ -243,6 +245,7 @@ class TestSimulation(unittest.TestCase):
                 reset=True,
                 rng_seed=3234653,
             )
+            sim.largest_crater = 400e3
             area = np.asarray(sim.surface.face_area)
             initial_elevation = np.array(sim.surface.face_elevation, dtype=float)
             sim.run(age=4310)

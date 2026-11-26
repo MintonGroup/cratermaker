@@ -88,6 +88,17 @@ pub trait CraterProfile: Sync {
     fn central_peak(&self) -> Option<CentralPeak> {
         None
     }
+
+    /// Whether the crater's ejecta is scaled to balance the volume it excavates (when volume conservation is on).
+    fn conserves_volume(&self) -> bool {
+        true
+    }
+}
+
+/// Whether a crater with these rings is held to volume conservation: a crater with nested rings is a multiring basin, whose
+/// final surface keeps little of its excavation (the floor rebounds and is compensated), so its ejecta is not balanced against it.
+fn conserves_volume_with_rings(rings: &Option<Vec<BasicMoonCrater>>) -> bool {
+    !matches!(rings, Some(v) if !v.is_empty())
 }
 
 /// The basic lunar crater model (Minton et al. 2026).
@@ -99,6 +110,10 @@ pub struct BasicMoonModel<'c> {
 impl CraterProfile for BasicMoonModel<'_> {
     fn diameter(&self) -> f64 {
         self.crater.diameter
+    }
+
+    fn conserves_volume(&self) -> bool {
+        conserves_volume_with_rings(self.rings)
     }
 
     fn radius(&self) -> f64 {
@@ -134,6 +149,10 @@ pub struct RealMoonModel<'a> {
 impl CraterProfile for RealMoonModel<'_> {
     fn diameter(&self) -> f64 {
         self.crater.diameter
+    }
+
+    fn conserves_volume(&self) -> bool {
+        conserves_volume_with_rings(self.rings)
     }
 
     fn radius(&self) -> f64 {
@@ -406,8 +425,9 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
 
     // A crater whose shape on this mesh removes no material (a net volume of zero or more, as happens when the rim uplift
     // outweighs a bowl that the mesh barely resolves) cannot be balanced by its ejecta, so it is not formed and the surface is
-    // left unchanged.
-    if !(excavated_volume < 0.0) {
+    // left unchanged. Craters exempt from volume conservation (multiring basins) are formed regardless.
+    let conserve = options.conserve_volume && model.conserves_volume();
+    if conserve && !(excavated_volume < 0.0) {
         return Ok(FormCraterOutcome {
             excavated_volume,
             conservation_factor: None,
@@ -434,7 +454,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     thickness.mapv_inplace(|t| t.max(0.0));
 
     let ejecta_volume = face_volume(thickness.slice(s![..nf]), region.face_area);
-    let factor = if options.conserve_volume {
+    let factor = if conserve {
         (-excavated_volume / ejecta_volume).max(0.0)
     } else {
         1.0

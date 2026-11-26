@@ -20,17 +20,37 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _EJPROFILE = -3.0
 _FRAC_EJRIM = 0.3
-# Multiring basins: there is a single fresh example (Orientale), so their profile is that of its ringless fit (Lunar_Morphometry_
-# Revisited: scripts/hfield_orientale.py, data/hfield/orientale_fit.json), with every length in proportion to the diameter and no
-# scatter between basins. The rim is the Cordillera ring. Basins have no nested rings: their inner rings, like the terraces of
-# complex craters, are variation about the axisymmetric profile (supplied by the H-field morphology).
+# Multiring basins take the profile of Orientale (Lunar_Morphometry_Revisited, hfield_orientale.py --rings), in proportion to
+# their diameter: the main rim (the Cordillera ring) and two nested rings (the Outer and Inner Rook rings), each a ring crater of
+# the basic profile. With the rings, the profile fits Orientale's mean profile to 6.7% of its relief (12.6% without them).
+# A basin's final surface keeps little of its excavation (Orientale has 0.36e15 m^3 below the surrounding level, against 2.5e15 m^3
+# above it out to two radii: the floor rebounds and is compensated), so its ejecta cannot be balanced against it, and craters with
+# nested rings are not held to volume conservation.
 _MULTIRING = {
-    "rim_height_over_D": 0.0024257424017583478,
-    "floor_depth_over_D": 0.0035002369929710403,
-    "floor_radius_over_R": 0.5549200338965832,
-    "rim_width_over_R": 0.050237481313031816,
-    "wall_curvature": 0.7053256849099748,
-    "floor_blend": 0.9664521313336694,
+    "rim_height_over_D": 0.0024617801830048303,
+    "floor_depth_over_D": 0.003461322194054899,
+    "floor_radius_over_R": 0.6666155219880473,
+    "rim_width_over_R": 0.04964317144559828,
+    "wall_curvature": 0.4849046616944324,
+    "floor_blend": 0.9509393755468296,
+    # The ejecta of the fit. Multiring basins are not held to volume conservation (see BasicMoonCrater.maker), so these are used
+    # as they are
+    "frac_ejrim": 0.38977142582678337,
+    "ejprofile": -2.869906115000327,
+    "rings": [
+        {
+            "radius_over_R": 0.6655813832300491,
+            "floor_radius_over_R": 0.476478395489424,
+            "rim_height_over_D": 0.0027389709709087404,
+            "rim_width_over_R": 0.232033474865558,
+        },
+        {
+            "radius_over_R": 0.4501402081764983,
+            "floor_radius_over_R": 0.33519667054906005,
+            "rim_height_over_D": 0.002938933931695398,
+            "rim_width_over_R": 0.07385662439544854,
+        },
+    ],
 }
 
 # Range of the ejecta profile exponent allowed by volume conservation (the volume budget of fresh craters gives -2.7 to -3.9)
@@ -428,39 +448,6 @@ class BasicMoonCrater(MorphologyCrater):
                 "fit_scale": "logx",
             },
         }
-        ring_radius_params = {
-            "non-simple": {
-                "coefficients": [-6.613689951394371, 1.976602153637156, -0.042115405413714696],
-                "c": -3.610867824558726,
-                "alpha": 1.7741307984706642,
-                "fit_scale": "loglog",
-            },
-        }
-        ring_rim_height_params = {
-            "non-simple": {
-                "coefficients": [-31.93167277655391, 5.496001921151941, -0.19131828795098776],
-                "c": -0.3766269768654428,
-                "alpha": 1.7427748575666637,
-                "fit_scale": "loglog",
-            },
-        }
-        ring_floor_radius_params = {
-            "non-simple": {
-                "coefficients": [-5.551393952731496, 1.6979145956073238, -0.029252203610892827],
-                "c": -6.467424320735284,
-                "alpha": 2.139551688327142,
-                "fit_scale": "loglog",
-            },
-        }
-        ring_rim_width_params = {
-            "non-simple": {
-                "coefficients": [-15.962694436765481, 3.2135115326621557, -0.08918699188536301],
-                "c": -1.0673993551823213,
-                "alpha": 1.7610723251290876,
-                "fit_scale": "loglog",
-            },
-        }
-
         args = {}
         diameter_m = min(max(crater.diameter, morphology.valid_diameter_range[0]), morphology.valid_diameter_range[1])
         fcorrection = crater.diameter / diameter_m
@@ -478,6 +465,8 @@ class BasicMoonCrater(MorphologyCrater):
             floor_radius = _MULTIRING["floor_radius_over_R"] * crater.radius if floor_radius is None else floor_radius
             wall_curvature = _MULTIRING["wall_curvature"] if wall_curvature is None else wall_curvature
             floor_blend = _MULTIRING["floor_blend"] if floor_blend is None else floor_blend
+            frac_ejrim = _MULTIRING["frac_ejrim"] if frac_ejrim is None else frac_ejrim
+            ejprofile = _MULTIRING["ejprofile"] if ejprofile is None else ejprofile
 
         if rim_height is None:
             rim_height = max(
@@ -595,51 +584,19 @@ class BasicMoonCrater(MorphologyCrater):
         if not make_rings and crater.nrings == 0 and isinstance(source, MorphologyCrater) and source.nrings > 0:
             object.__setattr__(crater._var, "_rings", [type(ring)(crater=ring, morphology=morphology) for ring in source.rings])
 
-        # No crater type is given nested rings by default: the rings of basins and the terraces of complex craters are variation
-        # about the axisymmetric profile. Rings given explicitly (add_ring) are still drawn.
-        num_new_rings = 0
-
-        if num_new_rings > 0:
-            for i in range(num_new_rings):
-                if i == 0:
-                    radius_outer = crater.radius
-                    floor_radius_outer = crater.floor_radius
-                else:
-                    radius_outer = crater.rings[i - 1].radius
-                    floor_radius_outer = crater.rings[i - 1].floor_radius
-                radius = min(
-                    sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_radius_params[fit_category]
-                    )[0]
-                    * radius_outer
-                    / crater.radius,
-                    radius_outer,
-                )
-                floor_radius = min(
-                    sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_floor_radius_params[fit_category]
-                    )[0]
-                    * floor_radius_outer
-                    / crater.floor_radius,
-                    floor_radius_outer,
-                )
-                rim_height = max(
-                    sample_logfit_heteroskedastic(
-                        diameter_m, compute_nominal=compute_nominal, rng=rng, **ring_rim_height_params[fit_category]
-                    )[0],
-                    0.0,
-                )
-                if i == 0:
-                    frac_ejrim = crater.frac_ejrim * rim_height / crater.rim_height
-                else:
-                    frac_ejrim = 0.0
+        # Multiring basins get the nested rings of Orientale, in proportion to their diameter (see _MULTIRING). Other crater types
+        # get no nested rings: the terraces of complex craters are variation about the axisymmetric profile. Rings given
+        # explicitly (add_ring) are still drawn.
+        if make_rings and not crater.isring and crater.nrings == 0 and crater.morphology_type == "multiring":
+            for ring in _MULTIRING["rings"]:
                 crater.add_ring(
-                    radius=radius,
-                    floor_radius=floor_radius,
-                    rim_height=rim_height,
-                    frac_ejrim=frac_ejrim,
+                    radius=ring["radius_over_R"] * crater.radius,
+                    floor_radius=ring["floor_radius_over_R"] * crater.radius,
+                    rim_height=ring["rim_height_over_D"] * crater.diameter,
+                    rim_width=ring["rim_width_over_R"] * crater.radius,
+                    frac_ejrim=0.0,
                 )
-        elif crater.nrings > 0:
+        if crater.nrings > 0:
             # Make sure rings are the correct type
             for i in range(crater.nrings):
                 ring = crater.rings[i]
@@ -653,7 +610,8 @@ class BasicMoonCrater(MorphologyCrater):
         # (frac_ejrim) is solved for instead. The rim height and the rest of the crater are never changed. The structural uplift
         # of the rim, (1 - frac_ejrim) * rim_height, is part of the crater, so its volume depends on frac_ejrim: the solution is
         # iterated.
-        if conserve_volume and not crater.isring:
+        # Craters with nested rings (multiring basins) are not held to volume conservation (see _MULTIRING).
+        if conserve_volume and not crater.isring and crater.nrings == 0:
             params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
             lo, hi = _EJPROFILE_RANGE
 
