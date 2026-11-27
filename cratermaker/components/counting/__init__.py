@@ -12,7 +12,6 @@ import xarray as xr
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike
-from shapely.ops import transform
 from shapely.validation import make_valid
 from tqdm import tqdm
 from vtk import vtkPolyData
@@ -885,7 +884,7 @@ class Counting(ComponentBase):
             pdata = pyvista.PolyData(mesh)
             if crater_style in ["points", "impacts", "spheres"]:
                 pdata["size_scale"] = size_scale
-            actor_name = f"{crater_type}_{crater_style}"
+            actor_name = f"{name}_{crater_style}"
             actor = plotter.add_mesh(pdata, name=actor_name, point_size=point_size, **add_mesh_kwargs)
             if crater_style in ["points", "impacts", "spheres"]:
                 actor.mapper.scale_array = "size_scale"
@@ -1222,47 +1221,52 @@ class Counting(ComponentBase):
 
             return _f
 
-        def polygon_xyz_coords(geom, R):
-            """Yield Nx3 arrays for each exterior ring (keep closing vertex)."""
-            g3d = transform(lonlat_to_xyz(R), geom)
-
-            def _rings(g):
-                if g.geom_type == "Polygon":
-                    yield np.asarray(g.exterior.coords)
-                    for i in g.interiors:
-                        yield np.asarray(i.coords)
-                elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
-                    for sub in g.geoms:
-                        yield from _rings(sub)
-                else:
-                    yield np.asarray(g.coords)
-
-            yield from _rings(g3d)
-
         def draw_rings(craters, surface):
-            R = surface.radius
-            geoms = []
+            # The rings follow the topography: each vertex is placed on the surface beneath it (its nearest node), lifted by a tenth
+            # of the size of the face beneath it so that the line is not hidden in the surface it lies on. They are sampled at
+            # about two of the finest faces of the surface, so that the straight segments between their vertices do not cut
+            # through the surface. The elevations of all the rings are looked up at once.
+            finest_face = float(np.min(surface.face_size))
+            rings_lonlat = []
             for crater in craters:
-                geoms.append(
-                    crater.to_geoseries(
-                        surface=surface, split_antimeridian=False, use_measured_properties=use_measured_properties, **kwargs
-                    )
+                radius = crater.measured_radius if use_measured_properties and crater.measured_radius else crater.radius
+                n = int(np.clip(2 * np.pi * radius / (2 * finest_face), 120, 20000)) + 1
+                g = crater.to_geoseries(
+                    n=n,
+                    surface=surface,
+                    split_antimeridian=False,
+                    use_measured_properties=use_measured_properties,
+                    follow_topography=False,
+                    **kwargs,
                 )
+                geom = g.item()
+                parts = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
+                for part in parts:
+                    rings_lonlat.append(np.asarray(part.exterior.coords)[:, :2])
+            if not rings_lonlat:
+                return vtkPolyData()
+
+            lonlat = np.concatenate(rings_lonlat)
+            nodes = surface.find_nearest_nodes(lonlat[:, 0], lonlat[:, 1])
+            faces = surface.find_nearest_faces(lonlat[:, 0], lonlat[:, 1])
+            elevation = np.asarray(surface.node_elevation)[nodes] + 0.1 * np.asarray(surface.face_size)[faces]
+            lon, lat = np.deg2rad(lonlat[:, 0]), np.deg2rad(lonlat[:, 1])
+            r = surface.radius + elevation
+            xyz = np.column_stack([r * np.cos(lat) * np.cos(lon), r * np.cos(lat) * np.sin(lon), r * np.sin(lat)])
 
             points = vtkPoints()
             lines = vtkCellArray()
             point_id = 0  # Keep track of the point ID across all circles
-            for g in geoms:
-                for ring_xyz in polygon_xyz_coords(g.item(), R):
-                    x, y, z = ring_xyz.T  # each is (N,)
-                    for i in range(len(x)):
-                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
-                    polyline = vtkPolyLine()
-                    polyline.GetPointIds().SetNumberOfIds(len(x))
-                    for i in range(len(x)):
-                        polyline.GetPointIds().SetId(i, point_id + i)
-                    point_id += len(x)
-                    lines.InsertNextCell(polyline)
+            for ring in rings_lonlat:
+                ring_xyz = xyz[point_id : point_id + len(ring)]
+                for x, y, z in ring_xyz:
+                    points.InsertNextPoint(float(x), float(y), float(z))
+                polyline = vtkPolyLine()
+                polyline.GetPointIds().SetNumberOfIds(len(ring))
+                for i in range(len(ring)):
+                    polyline.GetPointIds().SetId(i, point_id + i)
+                point_id += len(ring)
+                lines.InsertNextCell(polyline)
 
             # Create a poly_data object and add points and lines to it
             poly_data = vtkPolyData()

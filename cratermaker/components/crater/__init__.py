@@ -1184,10 +1184,14 @@ class Crater(ComponentBase):
         surface: Surface | None = None,
         split_antimeridian: bool = True,
         use_measured_properties: bool = True,
+        follow_topography: bool = True,
         **kwargs: Any,
     ) -> GeoSeries:
         """
         Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
+
+        Each vertex has the elevation of the surface beneath it (that of its nearest node), so the outline follows the topography,
+        unless `follow_topography` is False.
 
         Parameters
         ----------
@@ -1199,6 +1203,9 @@ class Crater(ComponentBase):
             If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        follow_topography : bool, optional
+            If True, each vertex has the elevation of the surface beneath it. If False, the vertices have zero elevation (for
+            callers that set the elevations of many outlines at once). Default is True.
         **kwargs : Any
             |kwargs|
 
@@ -1228,11 +1235,6 @@ class Crater(ComponentBase):
             phi = self.orientation
             radius = self.radius
 
-        # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        region = surface.extract_region(location=(lon, lat), region_radius=radius, at_least_one_face=True)
-        rim_height = np.max(region.face_elevation)
-        z = np.full_like(theta, rim_height)
-
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
         st = np.sin(np.deg2rad(theta))
@@ -1243,6 +1245,12 @@ class Crater(ComponentBase):
 
         # Forward geodesic for each bearing/distance
         poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # The elevation of each vertex is that of the surface beneath it (its nearest node), so the outline follows the topography
+        if follow_topography:
+            z = np.asarray(surface.node_elevation)[surface.find_nearest_nodes(poly_lon, poly_lat)]
+        else:
+            z = np.zeros_like(poly_lon)
 
         # Correct for potential antimeridian crossing
         if split_antimeridian and np.ptp(poly_lon) > 180.0:

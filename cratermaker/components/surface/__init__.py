@@ -78,6 +78,13 @@ def _unique_indices(indices: NDArray, n_total: int) -> NDArray:
     return unique
 
 
+
+def _unit_vectors(lon: ArrayLike, lat: ArrayLike) -> NDArray[np.float64]:
+    """Cartesian unit vectors of points given by longitude and latitude in degrees."""
+    lon = np.deg2rad(np.asarray(lon, dtype=np.float64))
+    lat = np.deg2rad(np.asarray(lat, dtype=np.float64))
+    return np.column_stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+
 class Surface(ComponentBase):
     _registry: dict[str, type[Surface]] = {}
 
@@ -130,6 +137,8 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_edge_indices", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
+        object.__setattr__(self, "_node_kdtree", None)
+        object.__setattr__(self, "_face_kdtree", None)
         object.__setattr__(self, "_face_area", None)
         object.__setattr__(self, "_face_size", None)
         object.__setattr__(self, "_face_bin_indices", None)
@@ -695,6 +704,52 @@ class Surface(ComponentBase):
             face_ind = self.face_tree.query(coords=coords, k=1, return_distance=False)
 
         return face_ind.item()
+
+    def find_nearest_nodes(self, lon: ArrayLike, lat: ArrayLike) -> NDArray[np.int64]:
+        """
+        Find the indices of the nearest nodes to many points at once.
+
+        The nearest node on the sphere is the one whose unit vector is nearest in Cartesian space, so the search uses a k-d tree
+        on the nodes' unit vectors, built on first use. It is much faster than :py:meth:`find_nearest_node` for many points.
+
+        Parameters
+        ----------
+        lon, lat : array-like
+            The longitudes and latitudes of the points in degrees.
+
+        Returns
+        -------
+        NDArray[np.int64]
+            The index of the nearest node to each point.
+        """
+        if self._node_kdtree is None:
+            from scipy.spatial import cKDTree
+
+            self._node_kdtree = cKDTree(np.column_stack([self.node_x, self.node_y, self.node_z]) / self.radius)
+        return self._node_kdtree.query(_unit_vectors(lon, lat))[1]
+
+    def find_nearest_faces(self, lon: ArrayLike, lat: ArrayLike) -> NDArray[np.int64]:
+        """
+        Find the indices of the faces whose centers are nearest to many points at once.
+
+        As with :py:meth:`find_nearest_face`, this can return a neighbor of the face that contains a point. The search uses a
+        k-d tree on the unit vectors of the face centers, built on first use.
+
+        Parameters
+        ----------
+        lon, lat : array-like
+            The longitudes and latitudes of the points in degrees.
+
+        Returns
+        -------
+        NDArray[np.int64]
+            The index of the nearest face to each point.
+        """
+        if self._face_kdtree is None:
+            from scipy.spatial import cKDTree
+
+            self._face_kdtree = cKDTree(np.column_stack([self.face_x, self.face_y, self.face_z]) / self.radius)
+        return self._face_kdtree.query(_unit_vectors(lon, lat))[1]
 
     def interpolate_node_elevation_from_faces(self) -> None:
         """
