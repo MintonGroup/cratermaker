@@ -28,6 +28,15 @@ _RHO_MAX = 2.0
 _DRHO = 0.005
 _KMAX = _N_THETA // 2 - 1
 _KMAX_RIM = 8  # the rim outline has azimuthal wavenumbers k <= 8
+_N_SCARP = 72  # bearings of the variation of the ring scarp of multiring basins (see RealMoonMorphology.scarp_outline_data)
+# The rim outline of craters larger than the largest complex crater of the model (Langrenus, 139 km) does not keep growing in
+# proportion to the radius: the shape of a rim outline is set by the collapse of the rim and wall through local faulting and
+# fracturing, whose scale is that of the rock rather than of the crater. Its rms wobble (in m) follows the outlines of the
+# largest craters measured, traced as rims in the bearings that avoid younger craters (Lunar_Morphometry_Revisited,
+# rim_wobble_large.py): interpolated in ln D from that of the model at Langrenus, through Schrodinger's rim (16.5 km at
+# 373 km) to Orientale's Outer Rook ring (20.4 km at 688 km; the rim of the peak-ring basin inside Orientale), and held at the
+# Outer Rook's beyond it. The ring scarps of multiring basins are drawn as rims, with the same wobble.
+_RIM_WOBBLE_ANCHORS = ((373.0e3, 16.5e3), (688.0e3, 20.4e3))  # (outline diameter, rms wobble), m
 # Morphology types without a node of their own use those of complex craters. Multiring basins do too: the model's only basin
 # (Orientale) is heavily degraded (freshness class D), and its field (about three times rougher in units of its relief than the
 # largest complex crater's on the floor, and 30% rougher on the wall and rim) is mostly the cratering and modification it has
@@ -40,10 +49,12 @@ _TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex", "
 # craters of 36-139 km measured at the native SLDEM2015 spacing: 0.259 (D / 60 km)^0.89 with lognormal scatter 0.44. Above
 # the fitted range it is held at its value at 139 km (it would otherwise exceed the relief by 300 km); below it, it is
 # extrapolated, giving the smaller peaks of transitional craters. The envelope of a central peak is a Gaussian of standard
-# deviation 0.08 R. Central peaks open into peak rings as craters grow from 200 to 300 km (see basicmoon.peak_ring_layout); the
-# envelope of a peak ring is a Gaussian ring whose standard deviation, _PEAK_RING_WIDTH of the rim radius, gives a relaxed ring
-# like that of Schrodinger (Lunar_Morphometry_Revisited, peakring_synth.py). Multiring basins have a peak ring (their innermost
-# ring) with the height of the largest complex craters; the peak ring of Orientale is degraded, so its height is a lower bound.
+# deviation _PEAK_WIDTH of the rim radius. Central peaks open into peak rings as craters grow from 200 to 300 km (see
+# basicmoon.peak_ring_layout), whose envelope is a Gaussian ring of standard deviation _PEAK_RING_WIDTH of the rim radius. The
+# widths are calibrated with the rest of the peak model (central_peak.rs, PeakModel) against the central peaks of fresh craters
+# and the peak rings of Schrodinger and Orientale (Lunar_Morphometry_Revisited, peak_model_calibrate.py). Multiring basins have a
+# peak ring (their innermost ring) with the height of the largest complex craters; the peak ring of Orientale is degraded, so its
+# height is a lower bound.
 _PEAKED = ("transitional", "complex", "multiring")
 _PEAK_HEIGHT_RELIEF = 0.259
 _PEAK_HEIGHT_D_REF = 60e3
@@ -85,9 +96,12 @@ def _copy_hfield(source: Crater | None, target: Crater) -> None:
 
     A copy with a different size or type is a different crater, which draws its own field.
     """
-    field = getattr(getattr(source, "_var", None), "_hfield", None) if source is not None else None
-    if field is not None and source.radius == target.radius and source.morphology_type == target.morphology_type:
-        object.__setattr__(target._var, "_hfield", field)
+    if source is None or source.radius != target.radius or source.morphology_type != target.morphology_type:
+        return
+    for name in ("_hfield", "_scarp_outline"):
+        data = getattr(getattr(source, "_var", None), name, None)
+        if data is not None:
+            object.__setattr__(target._var, name, data)
 
 
 @Crater.register("realmooncrater")
@@ -152,6 +166,16 @@ class RealMoonCrater(BasicMoonCrater):
             object.__setattr__(self._var, "_hfield", data)
         return data
 
+    @property
+    def scarp_outline(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """The variation of the ring scarp around a multiring basin: its radius and height at _N_SCARP bearings, as factors of
+        `scarp_radius` and `scarp_height` (empty for a crater without a scarp; see `RealMoonMorphology.scarp_outline_data`)."""
+        data = getattr(self._var, "_scarp_outline", None)
+        if data is None:
+            data = self.morphology.scarp_outline_data(self)
+            object.__setattr__(self._var, "_scarp_outline", data)
+        return data
+
 
 @Morphology.register("realmoon")
 class RealMoonMorphology(BasicMoonMorphology):
@@ -165,7 +189,7 @@ class RealMoonMorphology(BasicMoonMorphology):
     the variation, decomposed into radial modes (empirical orthogonal functions). Central peaks and peak rings are not part of
     the field: transitional and complex craters get a central peak built on the surface as a patchy population of columns
     (where noise exceeds a threshold, raised to a Gaussian envelope of standard deviation `peak_width`, offset to radius
-    `peak_ring_radius` for a peak ring) relaxed by slope collapse to the height `peak_height`. The model is described in the
+    `peak_ring_radius` for a peak ring), with flanks at the critical slope, to the height `peak_height`. The model is described in the
     morphometry of fresh lunar craters by Minton et al. (2026, in prep.).
 
     Parameters
@@ -199,6 +223,10 @@ class RealMoonMorphology(BasicMoonMorphology):
                 },
             )
         object.__setattr__(self, "_hfield_model_file", hfield_model_file)
+        model = self._hfield_model
+        largest = int(np.argmax(np.where(model["type"] == "complex", model["diameter"], -np.inf)))
+        object.__setattr__(self, "_rim_wobble_diameter", float(model["diameter"][largest]))
+        object.__setattr__(self, "_rim_wobble_ln_rms", self._rim_ln_rms(largest))
         object.__setattr__(self, "_hfield_pix", hfield_pix)
         super().__init__(**kwargs)
 
@@ -283,11 +311,69 @@ class RealMoonMorphology(BasicMoonMorphology):
         rho_max = _RHO_MAX
         elements = np.concatenate(([0], 1 + rows))
 
+        rim, X = self._draw_hfield(crater.morphology_type, crater.diameter, kmax, n_theta, elements)
+        relief = max(crater.rim_height - crater.floor_elevation, 0.0)
+        field = np.ascontiguousarray(X[:, 1:] * relief, dtype=np.float64)
+        return rim, field, float(rho_max)
+
+    def _rim_ln_rms(self, node: int) -> float:
+        """The rms of the rim anomaly ln(R_rim / R) of the model node (wavenumbers 1 to _KMAX_RIM)."""
+        m = self._hfield_model
+        ks = np.arange(1, _KMAX_RIM + 1)
+        nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
+        total = 0.0
+        for k, j in zip(ks, nearest):
+            lam = m["eigenvalue"][node][j]
+            keep = lam > 0
+            if keep.any() and m["variance"][node][k] > 0:
+                share = lam[keep] / lam[keep].sum()
+                total += 2.0 * m["variance"][node][k] * float(np.sum(share * m["eigenvector"][node][j][0, keep].astype(float) ** 2))
+        return float(np.sqrt(total))
+
+    def _rim_wobble_scale(self, diameter: float) -> float:
+        """The factor applied to the drawn rim anomaly of a crater of the given diameter (see _RIM_WOBBLE_ANCHORS): 1 up to the
+        largest complex crater of the model, beyond which the anomaly (whose rms is that of that crater) is scaled to the
+        rms wobble (in m) interpolated between the anchors."""
+        d0 = self._rim_wobble_diameter
+        if diameter <= d0:
+            return 1.0
+        x = [np.log(d0)] + [np.log(d) for d, _ in _RIM_WOBBLE_ANCHORS]
+        y = [np.log(self._rim_wobble_ln_rms * d0 / 2)] + [np.log(w) for _, w in _RIM_WOBBLE_ANCHORS]
+        wobble = float(np.exp(np.interp(np.log(diameter), x, y)))
+        return wobble / (self._rim_wobble_ln_rms * diameter / 2)
+
+    def _draw_hfield(
+        self, morphology_type: str, diameter: float, kmax: int, n_theta: int, elements: NDArray[np.int64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Draw a rim outline and field from the model (see `hfield_data`).
+
+        Parameters
+        ----------
+        morphology_type : str
+            The morphology type whose model nodes are used.
+        diameter : float
+            The diameter the nodes are interpolated to (m).
+        kmax : int
+            The largest azimuthal wavenumber drawn.
+        n_theta : int
+            The number of bearings.
+        elements : NDArray[np.int64]
+            The elements of the model drawn: 0 is ln R_rim, 1 + i is the field at rho = i _DRHO.
+
+        Returns
+        -------
+        rim : NDArray[np.float64]
+            R_rim(theta) / R (k <= _KMAX_RIM, with the wobble held in m beyond the largest complex crater of the model).
+        X : NDArray[np.float64]
+            The drawn elements at each bearing (n_theta x len(elements)); the field in units of the relief.
+        """
+        m = self._hfield_model
         F = np.zeros((n_theta // 2 + 1, len(elements)), dtype=np.complex128)
         ks = np.arange(1, kmax + 1)
         # The wavenumber node whose modes are used at each k
         nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
-        for node, weight in self._nodes(crater.morphology_type, crater.diameter):
+        for node, weight in self._nodes(morphology_type, diameter):
             lam_all, vec_all, var_k = m["eigenvalue"][node], m["eigenvector"][node], m["variance"][node]
             for j in np.unique(nearest):
                 kj = ks[nearest == j]
@@ -308,20 +394,52 @@ class RealMoonMorphology(BasicMoonMorphology):
         X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
         Fr = np.fft.rfft(X[:, 0])
         Fr[_KMAX_RIM + 1 :] = 0.0
+        Fr *= self._rim_wobble_scale(diameter)
         rim = np.exp(np.fft.irfft(Fr, n=n_theta))
-        relief = max(crater.rim_height - crater.floor_elevation, 0.0)
-        field = np.ascontiguousarray(X[:, 1:] * relief, dtype=np.float64)
-        return np.ascontiguousarray(rim, dtype=np.float64), field, float(rho_max)
+        return np.ascontiguousarray(rim, dtype=np.float64), X
+
+    def scarp_outline_data(self, crater: RealMoonCrater) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Draw the variation of the ring scarp of a multiring basin around the basin.
+
+        The scarp is the rim of the peak-ring basin inside the multiring basin, so it varies as the rim of a complex crater of
+        its diameter (2 `scarp_radius`): its radius as that crater's rim outline (with the wobble held in m beyond the largest
+        complex crater of the model, as for rims), and its height as that crater's rim height, the field of the model at the
+        rim crest (in units of the relief) over the basin's rim fraction of the relief, (rim height) / (rim height + floor
+        depth). The height is never negative.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The basin.
+
+        Returns
+        -------
+        radius_factor, height_factor : NDArray[np.float64]
+            The scarp radius and height at _N_SCARP bearings (i + 1/2) 360 / _N_SCARP degrees, as factors of `scarp_radius`
+            and `scarp_height`; both empty for a crater without a scarp.
+        """
+        if not crater.has_scarp:
+            return np.zeros(0), np.zeros(0)
+        i_crest = int(round(1.0 / _DRHO))
+        rim, X = self._draw_hfield("complex", 2.0 * crater.scarp_radius, _KMAX_RIM, _N_SCARP, np.array([0, 1 + i_crest]))
+        relief = crater.rim_height - crater.floor_elevation
+        rim_fraction = crater.rim_height / relief if relief > 0 else 1.0
+        height = np.clip(1.0 + X[:, 1] / max(rim_fraction, 1e-6), 0.0, None)
+        return np.ascontiguousarray(rim, dtype=np.float64), np.ascontiguousarray(height, dtype=np.float64)
 
     def _prepare_crater(self, crater: RealMoonCrater) -> None:
         """Draw the rim outline and field of the crater before the ray seed, so random numbers are drawn in a fixed order."""
         super()._prepare_crater(crater)
         _ = crater.hfield
+        _ = crater.scarp_outline
 
     def _form_craters_binding(self, craters: list[RealMoonCrater], **kwargs: Any):
         data = [crater.hfield for crater in craters]
+        scarps = [crater.scarp_outline for crater in craters]
         return realmoon_bindings.form_craters(
-            craters=craters, rims=[d[0] for d in data], fields=[d[1] for d in data], rho_max=_RHO_MAX, **kwargs
+            craters=craters, rims=[d[0] for d in data], fields=[d[1] for d in data], scarp_radii=[s[0] for s in scarps],
+            scarp_heights=[s[1] for s in scarps], rho_max=_RHO_MAX, **kwargs
         )
 
     def crater_profile(
@@ -378,6 +496,8 @@ class RealMoonMorphology(BasicMoonMorphology):
             crater=crater,
             rim=rim,
             field=field,
+            scarp_radius=crater.scarp_outline[0],
+            scarp_height=crater.scarp_outline[1],
             rho_max=rho_max,
             include_crater=include_crater,
             include_ejecta=include_ejecta,

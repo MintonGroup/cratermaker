@@ -458,6 +458,70 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
     slope_collapse_field(critical.view(), region)
 }
 
+/// The upper envelope of cones dropping from each face at a slope that varies from face to face.
+///
+/// Each face is raised to the highest of its own height and `h(g) - max_slope(f) * d(f, g)` over the faces g it is connected
+/// to through the mesh, where d is the distance between face centers along the path. The cones are propagated from the highest
+/// faces down (as in Dijkstra's algorithm), so the result is exact on the mesh's face graph and takes O(n log n) time. Faces
+/// are never lowered.
+///
+/// # Arguments
+///
+/// * `heights` - The height of each face.
+/// * `max_slope` - The slope (rise over run) at which the cones fall through each face.
+/// * `region` - The mesh.
+///
+/// # Returns
+///
+/// The height of each face.
+pub fn slope_limited_envelope(
+    heights: ArrayView1<'_, f64>,
+    max_slope: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+) -> Result<Array1<f64>, String> {
+    use std::cmp::Ordering;
+    use std::collections::BinaryHeap;
+
+    if heights.len() != region.n_face || max_slope.len() != region.n_face {
+        return Err("heights and max_slope must have one value per face".into());
+    }
+    // A slope that is not positive would make the cones rise instead of fall, and the propagation would not end
+    if max_slope.iter().any(|&m| !(m > 0.0 && m.is_finite())) {
+        return Err("max_slope must be positive and finite".into());
+    }
+    #[derive(PartialEq)]
+    struct Item(f64, usize);
+    impl Eq for Item {}
+    impl PartialOrd for Item {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+    impl Ord for Item {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.0.total_cmp(&other.0)
+        }
+    }
+    let topology = DiffusionTopology::new(region);
+    let mut h = heights.to_owned();
+    let lowest = h.iter().cloned().fold(f64::INFINITY, f64::min);
+    let mut heap: BinaryHeap<Item> = (0..region.n_face).filter(|&f| h[f] > lowest).map(|f| Item(h[f], f)).collect();
+    while let Some(Item(value, f)) = heap.pop() {
+        if value < h[f] {
+            continue; // a stale entry
+        }
+        for &(e, is_second) in topology.incidence_of(f) {
+            let g = topology.edge_faces[e][usize::from(!is_second)];
+            let candidate = value - max_slope[g] * region.edge_face_distance[e];
+            if candidate > h[g] {
+                h[g] = candidate;
+                heap.push(Item(candidate, g));
+            }
+        }
+    }
+    Ok(h)
+}
+
 /// Collapses slopes steeper than a critical slope that varies from face to face (see [`slope_collapse`]).
 ///
 /// # Arguments

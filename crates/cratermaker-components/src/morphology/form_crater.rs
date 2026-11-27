@@ -20,7 +20,7 @@ use crate::ArrayResult;
 use crate::morphology::basicmoon::{
     BasicMoonCrater, basicmoon_profile, degradation_function, ray_intensity,
 };
-use crate::morphology::central_peak::{CentralPeak, central_peak};
+use crate::morphology::central_peak::{CentralPeak, central_peak, PeakModel};
 use crate::morphology::realmoon::{RealMoonField, realmoon_profile};
 use crate::surface::{
     LocalSurfaceView, apply_diffusion, interpolate_node_elevation_from_faces, reference_surface,
@@ -479,7 +479,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
             .ray_seed
             .unwrap_or_else(|| model.diameter().to_bits())
             ^ 0x9E37_79B9_7F4A_7C15;
-        let change = central_peak(region, &peak, seed)?;
+        let change = central_peak(region, &peak, &PeakModel::default(), seed)?;
         state.face_elevation += &change;
         state.node_elevation = {
             let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());

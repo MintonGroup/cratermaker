@@ -85,6 +85,19 @@ _PEAK_RING_SIGMA_LN = 0.086
 _PEAK_RING_WIDTH = 0.092
 
 
+# The largest crater whose rings are measured (Orientale). Beyond it, the ring ratios are held at their values for Orientale
+# rather than extrapolated, and the scatter of the ring radii is held at its size for Orientale in m rather than in proportion
+# to the radius, so that megabasins (South Pole-Aitken) do not get ring positions that vary by tens of km.
+_RING_DATA_MAX_DIAMETER = 1020.1e3
+
+
+def _ring_scatter(diameter: float, sigma_ln: float, rng: Generator | None) -> float:
+    """The lognormal scatter factor of a ring radius, whose spread in m stops growing beyond _RING_DATA_MAX_DIAMETER."""
+    if rng is None:
+        return 1.0
+    return math.exp(sigma_ln * min(1.0, _RING_DATA_MAX_DIAMETER / diameter) * rng.standard_normal())
+
+
 def _smoothstep(x: float) -> float:
     """The smooth step 3x^2 - 2x^3 between 0 (x <= 0) and 1 (x >= 1)."""
     x = min(max(x, 0.0), 1.0)
@@ -98,7 +111,8 @@ def _log_step(diameter: float, bounds: tuple[float, float]) -> float:
 
 def peak_ring_layout(diameter: float, rng: Generator | None = None) -> tuple[float, float]:
     """
-    The layout of the central peak or peak ring of a non-simple crater (see _PEAK_RING_RATIO).
+    The layout of the central peak or peak ring of a non-simple crater (see _PEAK_RING_RATIO). Beyond the diameter of Orientale,
+    the ring ratio is held at its value for Orientale and its scatter in m is held at its size for Orientale.
 
     Parameters
     ----------
@@ -117,15 +131,15 @@ def peak_ring_layout(diameter: float, rng: Generator | None = None) -> tuple[flo
     ring_fraction = _log_step(diameter, _PEAK_RING_ONSET)
     if ring_fraction <= 0.0:
         return 0.0, 0.0
-    ratio = _PEAK_RING_RATIO * (diameter / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT
-    if rng is not None:
-        ratio *= math.exp(_PEAK_RING_SIGMA_LN * rng.standard_normal())
+    ratio = _PEAK_RING_RATIO * (min(diameter, _RING_DATA_MAX_DIAMETER) / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT
+    ratio *= _ring_scatter(diameter, _PEAK_RING_SIGMA_LN, rng)
     return ring_fraction, ring_fraction * ratio * diameter / 2
 
 
 def scarp_layout(diameter: float, morphology_type: str, rng: Generator | None = None) -> tuple[float, float, float]:
     """
-    The ring scarp of a crater (see _SCARP): only multiring basins have one.
+    The ring scarp of a crater (see _SCARP): only multiring basins have one. Beyond the diameter of Orientale, the scatter of its
+    radius in m is held at its size for Orientale.
 
     Parameters
     ----------
@@ -143,9 +157,7 @@ def scarp_layout(diameter: float, morphology_type: str, rng: Generator | None = 
     """
     if morphology_type != "multiring":
         return 0.0, 0.0, 0.0
-    ratio = _SCARP["radius_over_R"]
-    if rng is not None:
-        ratio *= math.exp(_SCARP["radius_sigma_ln"] * rng.standard_normal())
+    ratio = _SCARP["radius_over_R"] * _ring_scatter(diameter, _SCARP["radius_sigma_ln"], rng)
     height = _SCARP["height_over_D"] * diameter * _log_step(diameter, _SCARP["onset"])
     return ratio * diameter / 2, height, _SCARP["width_over_R"] * diameter / 2
 

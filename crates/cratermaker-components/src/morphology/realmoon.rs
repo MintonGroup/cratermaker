@@ -15,15 +15,17 @@
 //!
 //! The field is the variation of the whole topography about the mean profile, so where the basic profile stands above the
 //! reference surface (the rim and the ejecta blanket) it is shared between the crater (structural uplift) and the ejecta in
-//! proportion to their parts of the basic profile's height there: the ejecta thickness is the basic one times
-//! (1 + D / h), where h is the height of the basic profile, or zero where the field takes the topography below the reference
-//! surface, and the crater takes the rest of the field. The ejecta is so never negative, and crater formation never clips it.
+//! proportion to their parts of the basic profile's height there: the ejecta thickness e becomes e + s D, where s = e / h is
+//! the ejecta's share of the height h of the basic profile (at most 1: on the upper inner wall the basic ejecta can be thicker
+//! than the profile is high, and an unbounded share would multiply the field there), or zero where that is negative, and the
+//! crater takes the rest of the field. The ejecta is so never negative, and crater formation never clips it.
 //! (Given to the ejecta alone, the variation of the rim, which is mostly uplift, would make the ejecta negative just outside the
 //! rim, and clipped to zero there it would leave flat patches with a sharp edge at the rim.) Below the reference surface (the
 //! crater's bowl) the field belongs to the crater.
 
 use crate::ArrayResult;
-use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile};
+use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile, scarp_function};
+use crate::morphology::smootherstep;
 use numpy::ndarray::prelude::*;
 use rayon::prelude::*;
 
@@ -35,6 +37,22 @@ pub struct RealMoonField<'a> {
     pub field: ArrayView2<'a, f64>,
     /// The largest warped radius of the field.
     pub rho_max: f64,
+    /// The radius and height of the ring scarp of a multiring basin around the basin, as factors of `scarp_radius` and
+    /// `scarp_height`, at bearings (i + 1/2) 360 / n degrees; empty for a crater without a scarp (or a uniform scarp).
+    pub scarp_radius: ArrayView1<'a, f64>,
+    pub scarp_height: ArrayView1<'a, f64>,
+}
+
+/// A periodic function given at `n` bearings (i + 1/2) 360 / n degrees, interpolated at a bearing (radians) with a periodic
+/// Catmull-Rom cubic.
+#[inline]
+fn periodic_at(values: ArrayView1<'_, f64>, bearing: f64) -> f64 {
+    let n = values.len() as i64;
+    let x = (bearing.to_degrees().rem_euclid(360.0)) * n as f64 / 360.0 - 0.5;
+    let i = x.floor();
+    let w = cubic_weights(x - i);
+    let i = i as i64;
+    (0..4).map(|a| w[a] * values[(i + a as i64 - 1).rem_euclid(n) as usize]).sum()
 }
 
 impl RealMoonField<'_> {
@@ -133,16 +151,31 @@ pub fn realmoon_profile(
     }
     let radius = crater.radius;
     // The warped radius of each point, and the distance at which the basic profile is evaluated
+    // For a multiring basin, the peak-ring basin inside the ring scarp (its floor, inner wall and the scarp itself) follows the
+    // outline of the scarp: inside the scarp's crest, the warped radius is divided by the scarp's radius factor too, and the
+    // factor fades out (a smootherstep in the warped radius) between the crest and the main rim.
+    let varying_scarp = crater.has_scarp() && !data.scarp_radius.is_empty() && data.scarp_radius.len() == data.scarp_height.len();
+    let scarp_rho = crater.scarp_radius / radius;
     let rho: Vec<f64> = radial_distances
         .iter()
         .zip(bearings.iter())
-        .map(|(&r, &b)| r / (radius * data.rim_at(b)))
+        .map(|(&r, &b)| {
+            let rho0 = r / (radius * data.rim_at(b));
+            if !varying_scarp {
+                return rho0;
+            }
+            let weight = 1.0 - smootherstep((rho0 - scarp_rho) / (1.0 - scarp_rho));
+            rho0 / periodic_at(data.scarp_radius, b).powf(weight)
+        })
         .collect();
     let warped = Array1::from_iter(rho.iter().map(|&x| x * radius));
     // The central peak is built on the surface by the central peak model (see `central_peak`), not by the basic profile's
-    // Gaussian peak
+    // Gaussian peak. A ring scarp that varies around the basin is added below, so it is left out of the basic profile.
     let mut basic = *crater;
     basic.peak_height = 0.0;
+    if varying_scarp {
+        basic.scarp_height = 0.0;
+    }
     let mut h = basicmoon_profile(
         warped.view(),
         reference_elevations,
@@ -174,7 +207,8 @@ pub fn realmoon_profile(
             // The change of the ejecta: its thickness becomes e (1 + D / h), or zero where that is negative
             let (t, e) = (total[i], ejecta[i]);
             let ejecta_change = if t > 0.0 && e > 0.0 {
-                (e * (1.0 + field / t)).max(0.0) - e
+                let share = (e / t).min(1.0);
+                (e + share * field).max(0.0) - e
             } else {
                 0.0
             };
@@ -182,6 +216,15 @@ pub fn realmoon_profile(
         })
         .collect();
     h.iter_mut().zip(add.iter()).for_each(|(v, a)| *v += a);
+    // The ring scarp, as the rim of the peak-ring basin inside the multiring basin: its height varies with bearing, and its
+    // radius through the warped radius (above). It is part of the crater.
+    if varying_scarp && include_crater {
+        h.iter_mut().enumerate().for_each(|(i, v)| {
+            let mut local = *crater;
+            local.scarp_height = crater.scarp_height * periodic_at(data.scarp_height, bearings[i]).max(0.0);
+            *v += scarp_function(warped[i], &local);
+        });
+    }
     Ok(h)
 }
 
@@ -206,6 +249,8 @@ mod tests {
             rim: rim.view(),
             field: field.view(),
             rho_max: 2.0,
+            scarp_radius: ArrayView1::from(&[] as &[f64]),
+            scarp_height: ArrayView1::from(&[] as &[f64]),
         };
         // Bearing of grid point 0 is 22.5 degrees; halfway between the last (337.5) and first (22.5) bearings is 0 degrees
         assert!((d.field_at(22.5_f64.to_radians(), 1.0) - 0.0).abs() < 1e-12);
@@ -240,6 +285,8 @@ mod tests {
             rim: rim.view(),
             field: field.view(),
             rho_max: 2.0,
+            scarp_radius: ArrayView1::from(&[] as &[f64]),
+            scarp_height: ArrayView1::from(&[] as &[f64]),
         };
         let r = Array1::linspace(0.0, 20e3, 101);
         let b = Array1::linspace(0.0, 6.0, 101);

@@ -156,6 +156,20 @@ class TestMorphology(unittest.TestCase):
         _, ring_radius = peak_ring_layout(1000e3)
         self.assertAlmostEqual(ring_radius / 500e3, _PEAK_RING_RATIO * (1000e3 / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT)
 
+    def test_ring_layout_capped_at_orientale(self):
+        # Beyond Orientale, the ring ratios are not extrapolated and the scatter of the ring radii stays fixed in m
+        from cratermaker.components.morphology.basicmoon import _RING_DATA_MAX_DIAMETER, peak_ring_layout, scarp_layout
+
+        D0 = _RING_DATA_MAX_DIAMETER
+        self.assertAlmostEqual(peak_ring_layout(3 * D0)[1] / (1.5 * D0), peak_ring_layout(D0)[1] / (0.5 * D0))
+        for layout in (lambda d, rng: peak_ring_layout(d, rng=rng)[1], lambda d, rng: scarp_layout(d, "multiring", rng=rng)[0]):
+            spread = []
+            for d in (D0, 3 * D0):
+                rng = np.random.default_rng(1)
+                radii = np.array([layout(d, rng) for _ in range(2000)])
+                spread.append(np.std(radii - np.mean(radii)))
+            self.assertLess(abs(spread[1] / spread[0] - 1.0), 0.1)
+
     def test_ring_scarp(self):
         # Only multiring basins have a ring scarp; its height grows in from 0 as they grow from 500 to 650 km
         from cratermaker.components.morphology.basicmoon import _SCARP, scarp_layout
@@ -223,7 +237,23 @@ class TestMorphology(unittest.TestCase):
                 crater_part = morphology.crater_profile(crater, r, bearings=b, include_crater=True, include_ejecta=False)
                 ejecta_part = morphology.crater_profile(crater, r, bearings=b, include_crater=False, include_ejecta=True)
                 self.assertGreaterEqual(ejecta_part.min(), 0.0)
+                # The ejecta takes at most the whole field, so it is never thicker than the crater is high
+                self.assertLessEqual(ejecta_part.max(), total.max())
                 np.testing.assert_allclose(crater_part + ejecta_part, total, atol=1e-6)
+
+    def test_realmoon_basin_rim_wobble(self):
+        # Beyond the largest complex crater of the model, the rim wobble (in m) follows the largest measured outlines, and is held
+        # at that of Orientale's Outer Rook ring beyond it
+        from cratermaker.components.morphology.realmoon import _RIM_WOBBLE_ANCHORS
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=3, hfield_pix=5e3)
+            d_max, w_max = _RIM_WOBBLE_ANCHORS[-1]
+            for diameter in (d_max, 3 * d_max):
+                scale = morphology._rim_wobble_scale(diameter)
+                self.assertAlmostEqual(scale * morphology._rim_wobble_ln_rms * diameter / 2, w_max, delta=1.0)
+            self.assertEqual(morphology._rim_wobble_scale(50e3), 1.0)
 
     def test_realmoon_copy_keeps_field(self):
         # Copying a crater (with the constructor or with maker) keeps the field it has already drawn, without drawing any random
