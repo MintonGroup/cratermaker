@@ -255,6 +255,31 @@ class TestSimulation(unittest.TestCase):
             self.assertGreater(gross, 0.0)
             self.assertLess(abs(net) / gross, 1e-12, f"net volume change {net:.3e} m3 out of {gross:.3e} m3 moved")
 
+    def test_count_superdomain(self):
+        # On a hireslocal surface, a crater centered outside the local region is only tagged for counting when count_superdomain
+        # is set, either for the simulation (passed to the Counting model) or for one emplace call, and the setting is kept when
+        # the simulation is resumed
+        def offside_crater(sim, **kwargs):
+            local_radius = sim.surface.local.radius
+            sim.emplace(radius=800e3, relative_location={"distance": local_radius + 200e3, "bearing": 90.0}, **kwargs)
+            return len(sim.counting.observed)
+
+        settings = {"pix": 10e3, "local_radius": 250e3, "ask_overwrite": False, "rng_seed": 234471661}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, **settings)
+            self.assertFalse(sim.counting.count_superdomain)
+            self.assertEqual(offside_crater(sim), 0)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, **settings)
+            self.assertEqual(offside_crater(sim, count_superdomain=True), 1)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, count_superdomain=True, **settings)
+            self.assertTrue(sim.counting.count_superdomain)
+            self.assertEqual(offside_crater(sim), 1)
+            sim.save()
+            resumed = cratermaker.Simulation(simdir=simdir, reset=False, ask_overwrite=False)
+            self.assertTrue(resumed.counting.count_superdomain)
+
     def test_crater_size_limits(self):
         # The smallest and largest crater sizes given to the constructor are applied, limited to the surface and the target, and
         # kept when the simulation is resumed (unless new ones are given)

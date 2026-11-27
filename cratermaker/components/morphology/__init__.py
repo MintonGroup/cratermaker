@@ -801,7 +801,7 @@ class Morphology(ComponentBase):
             while not self._queue_manager.is_empty:
                 batch = self._queue_manager.peek_next_batch()
 
-                self.form_craters(batch)
+                self.form_craters(batch, **kwargs)
                 if pbar is not None:
                     pbar.update(len(batch))
 

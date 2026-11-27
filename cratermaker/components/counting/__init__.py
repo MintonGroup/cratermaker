@@ -23,6 +23,7 @@ from cratermaker.components.crater import _TALLY_LONG_NAME, Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
+from cratermaker.utils.general_utils import parameter
 
 DRIVER_TO_EXTENSION_MAP = {"SCC": "scc", "VTK": "vtp", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP}
 
@@ -52,6 +53,7 @@ class Counting(ComponentBase):
         self,
         surface: Surface | LocalSurface,
         reset: bool = True,
+        count_superdomain: bool = False,
         **kwargs: Any,
     ):
         """
@@ -63,6 +65,9 @@ class Counting(ComponentBase):
             The surface or local surface view to be counted.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
+        count_superdomain : bool, optional
+            If True, craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting as
+            well as those in the local region. Default is False.
         **kwargs : Any
             |kwargs|
         """
@@ -77,6 +82,8 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_surface", None)
         object.__setattr__(self, "_morphology", None)
+        object.__setattr__(self, "_count_superdomain", False)
+        self.count_superdomain = count_superdomain
         object.__setattr__(
             self,
             "_driver_to_extension_map",
@@ -99,6 +106,7 @@ class Counting(ComponentBase):
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
         reset: bool = True,
+        count_superdomain: bool = False,
         **kwargs: Any,
     ) -> Counting:
         """
@@ -112,6 +120,9 @@ class Counting(ComponentBase):
             The surface or local surface view to be counted.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True
+        count_superdomain : bool, optional
+            If True, craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting as
+            well as those in the local region. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -134,6 +145,7 @@ class Counting(ComponentBase):
             component=counting,
             surface=surface,
             reset=reset,
+            count_superdomain=count_superdomain,
             **kwargs,
         )
 
@@ -196,12 +208,12 @@ class Counting(ComponentBase):
         add_to_emplaced : bool, optional
             If True, then craters will be added to the list of emplaced craters if it is big enough. If False, then the crater won't be stored in the emplaced list. Default is True.
         **kwargs : Any
-            |kwargs|
+            |kwargs| ``count_superdomain`` overrides the model's :py:attr:`count_superdomain` for this crater.
 
         Returns
         -------
         MorphologyCrater:
-            The emplacec crater
+            The emplaced crater
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
@@ -227,10 +239,12 @@ class Counting(ComponentBase):
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
         if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING and add_to_observed:
+            count_superdomain = kwargs.pop("count_superdomain", self.count_superdomain)
             crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
+                tag_superdomain=count_superdomain,
                 **kwargs,
             )
 
@@ -1590,6 +1604,17 @@ class Counting(ComponentBase):
         if not isinstance(value, (Surface | LocalSurface)):
             raise TypeError("surface must be an instance of Surface or LocalSurface")
         self._surface = value
+
+    @parameter
+    def count_superdomain(self) -> bool:
+        """Whether craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting."""
+        return self._count_superdomain
+
+    @count_superdomain.setter
+    def count_superdomain(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("count_superdomain must be a boolean value")
+        self._count_superdomain = value
 
     @property
     def n_layer(self) -> int:
