@@ -47,6 +47,13 @@ const PEAK_SUPPORT: f64 = 2.5;
 /// Relative tolerance on the height of the relaxed peak, and the most collapses used to reach it.
 const HEIGHT_TOLERANCE: f64 = 0.01;
 const MAX_ITERATIONS: usize = 10;
+/// The largest factor by which one step of the iteration changes the amplitude.
+const MAX_AMPLITUDE_STEP: f64 = 4.0;
+/// The largest amplitude of the columns, as a multiple of the peak's height. A peak that needs taller columns is narrower than
+/// the mesh can resolve: its columns stand on a few faces, and slope collapse spreads taller columns further, so that the
+/// relaxed peak does not grow with them. (Without a bound, the iteration then drives the amplitude up without limit, and the
+/// slope collapse of the columns, whose number of diffusion steps grows with the square of their slopes, does not finish.)
+const MAX_AMPLITUDE: f64 = 10.0;
 
 /// The parameters of a central peak or peak ring.
 #[derive(Clone, Copy, Debug)]
@@ -133,26 +140,48 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64
         };
         Ok(columns + delta)
     };
+    // The steps are limited to a factor MAX_AMPLITUDE_STEP and the amplitude to MAX_AMPLITUDE times the height. If the height
+    // stops growing with the amplitude, the mesh cannot hold a taller peak, and the iteration stops. The relaxed peak closest
+    // to the required height is kept.
+    let ln_target = peak.height.ln();
+    let ln_max_amplitude = (MAX_AMPLITUDE * peak.height).ln();
+    let ln_max_step = MAX_AMPLITUDE_STEP.ln();
     let mut amplitude = 2.0 * peak.height;
     let mut relaxed = relax(amplitude)?;
     let mut history: Vec<(f64, f64)> = Vec::with_capacity(MAX_ITERATIONS);
+    let mut best: Option<(f64, Array1<f64>)> = None;
     for _ in 0..MAX_ITERATIONS {
         let height = relaxed.fold(f64::NEG_INFINITY, |m, &h| m.max(h));
         if !(height > 0.0) {
-            return Ok(change);
+            break;
         }
-        history.push((amplitude.ln(), height.ln()));
+        let (la, lh) = (amplitude.ln(), height.ln());
+        let miss = (lh - ln_target).abs();
+        if best.as_ref().is_none_or(|(m, _)| miss < *m) {
+            best = Some((miss, relaxed.clone()));
+        }
         if (height / peak.height - 1.0).abs() < HEIGHT_TOLERANCE {
             break;
         }
-        let gain = match history.as_slice() {
-            [.., (a0, h0), (a1, h1)] if (a1 - a0).abs() > 1e-12 => ((h1 - h0) / (a1 - a0)).max(0.1),
+        let gain = match history.last() {
+            Some(&(a0, h0)) if (la - a0).abs() > 1e-12 => (lh - h0) / (la - a0),
             _ => 1.0,
         };
-        let (la, lh) = *history.last().expect("history is not empty");
-        amplitude = (la + (peak.height.ln() - lh) / gain).exp();
+        history.push((la, lh));
+        if !(gain > 0.0) {
+            break; // the height no longer grows with the amplitude
+        }
+        let step = ((ln_target - lh) / gain).clamp(-ln_max_step, ln_max_step);
+        let next = (la + step).min(ln_max_amplitude);
+        if (next - la).abs() < 1e-12 {
+            break; // at the largest amplitude
+        }
+        amplitude = next.exp();
         relaxed = relax(amplitude)?;
     }
+    let Some((_, relaxed)) = best else {
+        return Ok(change);
+    };
 
     // Remove the peak's volume from the floor as a layer that thins to zero at its edge
     let volume: f64 = relaxed.iter().zip(region.face_area.iter()).map(|(&h, &a)| h * a).sum();
