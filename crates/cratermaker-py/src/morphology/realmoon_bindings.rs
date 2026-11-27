@@ -14,14 +14,13 @@ use pyo3::prelude::*;
 /// * `bearings` - Bearings from the crater center (radians, clockwise from north).
 /// * `reference_elevations` - The surface the profile is drawn relative to (m).
 /// * `crater` - The basic crater.
-/// * `rings` - Its rings (multiring basins), or None.
 /// * `rim` - R_rim(theta) / R at the bearings of the field.
 /// * `field` - The field of variation (m), n_theta x n_rho, on bearings (i + 1/2) 360 / n_theta degrees and warped radii from 0
 ///   to `rho_max`.
 /// * `rho_max` - The largest warped radius of the field.
 /// * `include_crater`, `include_ejecta` - Which parts of the profile to include.
 #[pyfunction]
-#[pyo3(signature = (radial_distances, bearings, reference_elevations, crater, rings, rim, field, rho_max, include_crater, include_ejecta))]
+#[pyo3(signature = (radial_distances, bearings, reference_elevations, crater, rim, field, rho_max, include_crater, include_ejecta))]
 #[allow(clippy::too_many_arguments)]
 pub fn realmoon_profile<'py>(
     py: Python<'py>,
@@ -29,7 +28,6 @@ pub fn realmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: BasicMoonCrater,
-    rings: Option<Vec<BasicMoonCrater>>,
     rim: PyReadonlyArray1<'py, f64>,
     field: PyReadonlyArray2<'py, f64>,
     rho_max: f64,
@@ -46,7 +44,6 @@ pub fn realmoon_profile<'py>(
         bearings.as_array(),
         reference_elevations.as_array(),
         &crater,
-        &rings,
         &data,
         include_crater,
         include_ejecta,
@@ -59,16 +56,15 @@ pub fn realmoon_profile<'py>(
 ///
 /// # Arguments
 ///
-/// * `craters`, `rings` - The basic craters and their rings.
+/// * `craters` - The basic craters.
 /// * `rims`, `fields`, `rho_max` - The rim outline and field of each crater (see `realmoon_profile`).
 /// * The other arguments are those of `basicmoon_bindings.form_craters`.
 #[pyfunction]
-#[pyo3(signature = (craters, rings, rims, fields, rho_max, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[pyo3(signature = (craters, rims, fields, rho_max, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn form_craters<'py>(
     py: Python<'py>,
     craters: Vec<BasicMoonCrater>,
-    rings: Vec<Option<Vec<BasicMoonCrater>>>,
     rims: Vec<PyReadonlyArray1<'py, f64>>,
     fields: Vec<PyReadonlyArray2<'py, f64>>,
     rho_max: f64,
@@ -83,15 +79,14 @@ pub fn form_craters<'py>(
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
     let n = craters.len();
-    if rings.len() != n || rims.len() != n || fields.len() != n {
+    if rims.len() != n || fields.len() != n {
         return Err(PyValueError::new_err(
-            "craters, rings, rims and fields must have the same length",
+            "craters, rims and fields must have the same length",
         ));
     }
     let models: Vec<RealMoonModel> = (0..n)
         .map(|i| RealMoonModel {
             crater: &craters[i],
-            rings: &rings[i],
             field: RealMoonField {
                 rim: rims[i].as_array(),
                 field: fields[i].as_array(),

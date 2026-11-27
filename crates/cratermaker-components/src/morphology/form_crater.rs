@@ -95,16 +95,9 @@ pub trait CraterProfile: Sync {
     }
 }
 
-/// Whether a crater with these rings is held to volume conservation: a crater with nested rings is a multiring basin, whose
-/// final surface keeps little of its excavation (the floor rebounds and is compensated), so its ejecta is not balanced against it.
-fn conserves_volume_with_rings(rings: &Option<Vec<BasicMoonCrater>>) -> bool {
-    !matches!(rings, Some(v) if !v.is_empty())
-}
-
 /// The basic lunar crater model (Minton et al. 2026).
 pub struct BasicMoonModel<'c> {
     pub crater: &'c BasicMoonCrater,
-    pub rings: &'c Option<Vec<BasicMoonCrater>>,
 }
 
 impl CraterProfile for BasicMoonModel<'_> {
@@ -112,8 +105,10 @@ impl CraterProfile for BasicMoonModel<'_> {
         self.crater.diameter
     }
 
+    /// A crater with a ring scarp is a multiring basin, whose final surface keeps little of its excavation (the floor rebounds
+    /// and is compensated), so its ejecta is not balanced against it.
     fn conserves_volume(&self) -> bool {
-        conserves_volume_with_rings(self.rings)
+        !self.crater.has_scarp()
     }
 
     fn radius(&self) -> f64 {
@@ -132,7 +127,6 @@ impl CraterProfile for BasicMoonModel<'_> {
             radial_distances,
             reference_elevations,
             self.crater,
-            self.rings,
             include_crater,
             include_ejecta,
         )
@@ -142,7 +136,6 @@ impl CraterProfile for BasicMoonModel<'_> {
 /// The realistic lunar crater model: the basic profile warped by the rim outline, plus the field of variation of the crater.
 pub struct RealMoonModel<'a> {
     pub crater: &'a BasicMoonCrater,
-    pub rings: &'a Option<Vec<BasicMoonCrater>>,
     pub field: RealMoonField<'a>,
 }
 
@@ -151,8 +144,10 @@ impl CraterProfile for RealMoonModel<'_> {
         self.crater.diameter
     }
 
+    /// A crater with a ring scarp is a multiring basin, whose final surface keeps little of its excavation (the floor rebounds
+    /// and is compensated), so its ejecta is not balanced against it.
     fn conserves_volume(&self) -> bool {
-        conserves_volume_with_rings(self.rings)
+        !self.crater.has_scarp()
     }
 
     fn radius(&self) -> f64 {
@@ -172,7 +167,6 @@ impl CraterProfile for RealMoonModel<'_> {
             bearings,
             reference_elevations,
             self.crater,
-            self.rings,
             &self.field,
             include_crater,
             include_ejecta,
@@ -425,7 +419,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
 
     // A crater whose shape on this mesh removes no material (a net volume of zero or more, as happens when the rim uplift
     // outweighs a bowl that the mesh barely resolves) cannot be balanced by its ejecta, so it is not formed and the surface is
-    // left unchanged. Craters exempt from volume conservation (multiring basins) are formed regardless.
+    // left unchanged. Craters exempt from volume conservation (multiring basins, with a ring scarp) are formed regardless.
     let conserve = options.conserve_volume && model.conserves_volume();
     if conserve && !(excavated_volume < 0.0) {
         return Ok(FormCraterOutcome {

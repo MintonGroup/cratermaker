@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -11,11 +10,16 @@ from numpy.typing import ArrayLike, NDArray
 from cratermaker.bindings import realmoon_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
-from cratermaker.components.morphology.basicmoon import BasicMoonCrater, BasicMoonCraterFixed, BasicMoonMorphology
+from cratermaker.components.morphology.basicmoon import (
+    BasicMoonCrater,
+    BasicMoonCraterFixed,
+    BasicMoonMorphology,
+    peak_ring_layout,
+)
 
 # The H-field model of fresh lunar craters (Lunar_Morphometry_Revisited, data/hfield/model.nc), distributed with the package
 # in compact form (the modes packed as 16-bit integers, accurate to ~2e-5). Another model file can be given with the
-# hfield_model_file argument or the CRATERMAKER_HFIELD_MODEL environment variable.
+# hfield_model_file argument.
 _HFIELD_MODEL_FILE = Path(__file__).resolve().parent / "hfield_model.nc"
 
 # The polar grid of the model: 720 bearings and warped radii rho = r / R_rim from 0 to 2 in steps of 0.005
@@ -24,22 +28,30 @@ _RHO_MAX = 2.0
 _DRHO = 0.005
 _KMAX = _N_THETA // 2 - 1
 _KMAX_RIM = 8  # the rim outline has azimuthal wavenumbers k <= 8
-# Morphology types without a node of their own use those of complex craters
-_TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex"}
+# Morphology types without a node of their own use those of complex craters. Multiring basins do too: the model's only basin
+# (Orientale) is heavily degraded (freshness class D), and its field (about three times rougher in units of its relief than the
+# largest complex crater's on the floor, and 30% rougher on the wall and rim) is mostly the cratering and modification it has
+# accumulated, which leaves its rim indistinct. Basins therefore take the field of the largest complex crater of the model
+# (Langrenus, 139 km), scaled to their relief, and keep the ringed profile of Orientale (see basicmoon._MULTIRING).
+_TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex", "multiring": "complex"}
 
 # Central peaks (built on the surface by the central peak model of the Rust crate, see central_peak.rs). The height of the
 # relaxed peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
 # craters of 36-139 km measured at the native SLDEM2015 spacing: 0.259 (D / 60 km)^0.89 with lognormal scatter 0.44. Above
 # the fitted range it is held at its value at 139 km (it would otherwise exceed the relief by 300 km); below it, it is
-# extrapolated, giving the smaller peaks of transitional craters. The envelope of the peak is a Gaussian of standard deviation
-# 0.08 R. Multiring basins have no central peak.
-_PEAKED = ("transitional", "complex")
+# extrapolated, giving the smaller peaks of transitional craters. The envelope of a central peak is a Gaussian of standard
+# deviation 0.08 R. Central peaks open into peak rings as craters grow from 200 to 300 km (see basicmoon.peak_ring_layout); the
+# envelope of a peak ring is a Gaussian ring whose standard deviation, _PEAK_RING_WIDTH of the rim radius, gives a relaxed ring
+# like that of Schrodinger (Lunar_Morphometry_Revisited, peakring_synth.py). Multiring basins have a peak ring (their innermost
+# ring) with the height of the largest complex craters; the peak ring of Orientale is degraded, so its height is a lower bound.
+_PEAKED = ("transitional", "complex", "multiring")
 _PEAK_HEIGHT_RELIEF = 0.259
 _PEAK_HEIGHT_D_REF = 60e3
 _PEAK_HEIGHT_EXPONENT = 0.89
 _PEAK_HEIGHT_SIGMA_LN = 0.44
 _PEAK_HEIGHT_D_MAX = 139e3
 _PEAK_WIDTH = 0.08
+_PEAK_RING_WIDTH = 0.085
 
 
 def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None) -> float:
@@ -114,15 +126,19 @@ class RealMoonCrater(BasicMoonCrater):
         new = super().maker(crater=crater, morphology=morphology, **kwargs)
         # A new crater (not a copy of a realmoon crater) gets a central peak from the central peak model, unless one is given
         if kwargs.get("peak_height") is None and not isinstance(crater, RealMoonCrater):
-            peaked = new.morphology_type in _PEAKED and not new.isring
+            peaked = new.morphology_type in _PEAKED
             relief = new.rim_height - new.floor_elevation
             rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+            # The radius of the peak ring is that of the basic crater (see basicmoon.peak_ring_layout); the envelope widens from
+            # that of a central peak to that of a peak ring as the peak opens
+            ring_fraction, _ = peak_ring_layout(new.diameter)
+            width = ((1.0 - ring_fraction) * _PEAK_WIDTH + ring_fraction * _PEAK_RING_WIDTH) * new.radius
             new = super().maker(
                 crater=new,
                 morphology=morphology,
                 peak_height=_peak_height(new.diameter, relief, rng) if peaked else 0.0,
-                peak_width=_PEAK_WIDTH * new.radius if peaked else 0.0,
-                peak_ring_radius=kwargs.get("peak_ring_radius") or 0.0,
+                peak_width=width if peaked else 0.0,
+                peak_ring_radius=new.peak_ring_radius if peaked else 0.0,
             )
         _copy_hfield(crater, new)
         return new
@@ -163,11 +179,11 @@ class RealMoonMorphology(BasicMoonMorphology):
 
     def __init__(self, hfield_model_file: str | Path | None = None, hfield_pix: float | None = None, **kwargs: Any):
         if hfield_model_file is None:
-            hfield_model_file = os.environ.get("CRATERMAKER_HFIELD_MODEL", _HFIELD_MODEL_FILE)
+            hfield_model_file = _HFIELD_MODEL_FILE
         hfield_model_file = Path(hfield_model_file)
         if not hfield_model_file.exists():
             raise FileNotFoundError(
-                f"H-field model file {hfield_model_file} not found: pass hfield_model_file or set CRATERMAKER_HFIELD_MODEL"
+                f"H-field model file {hfield_model_file} not found"
             )
         with xr.open_dataset(hfield_model_file) as ds:
             object.__setattr__(
@@ -337,7 +353,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         crater_cls : type[Crater], optional
             Ignored: the crater is always cast to a `RealMoonCrater`.
         include_crater, include_ejecta : bool, optional
-            Which parts of the profile to include. The field belongs to the crater inside the rim and to the ejecta outside.
+            Which parts of the profile to include. Where the basic profile stands above the reference surface, the field is shared between the crater and the ejecta in proportion to their parts of its height, so the ejecta thickness is never negative where the topography is above the reference surface.
         **kwargs : Any
             |kwargs|
 
@@ -360,7 +376,6 @@ class RealMoonMorphology(BasicMoonMorphology):
             bearings=np.ascontiguousarray(np.broadcast_to(b, r.shape)),
             reference_elevations=np.ascontiguousarray(np.broadcast_to(ref, r.shape)),
             crater=crater,
-            rings=crater.rings,
             rim=rim,
             field=field,
             rho_max=rho_max,

@@ -11,8 +11,16 @@
 //! where the basic profile is that of `basicmoon_profile` evaluated at the warped radius (so its rim crest follows the outline),
 //! and D is the field, given on a regular grid of `n_theta` bearings (theta_i = (i + 1/2) 360 / n_theta degrees) and `n_rho`
 //! radii from 0 to `rho_max` (inclusive), in meters. The field is drawn in Python from the H-field model of fresh lunar
-//! craters (Lunar_Morphometry_Revisited). Inside the rim (rho <= 1) it is part of the crater; outside, it is the texture of the
-//! ejecta. Beyond `rho_max` it is zero.
+//! craters (Lunar_Morphometry_Revisited). Beyond `rho_max` it is zero.
+//!
+//! The field is the variation of the whole topography about the mean profile, so where the basic profile stands above the
+//! reference surface (the rim and the ejecta blanket) it is shared between the crater (structural uplift) and the ejecta in
+//! proportion to their parts of the basic profile's height there: the ejecta thickness is the basic one times
+//! (1 + D / h), where h is the height of the basic profile, or zero where the field takes the topography below the reference
+//! surface, and the crater takes the rest of the field. The ejecta is so never negative, and crater formation never clips it.
+//! (Given to the ejecta alone, the variation of the rim, which is mostly uplift, would make the ejecta negative just outside the
+//! rim, and clipped to zero there it would leave flat patches with a sharp edge at the rim.) Below the reference surface (the
+//! crater's bowl) the field belongs to the crater.
 
 use crate::ArrayResult;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile};
@@ -100,16 +108,15 @@ fn cubic_weights(t: f64) -> [f64; 4] {
 /// * `radial_distances` - Distances from the crater center (m).
 /// * `bearings` - Bearings from the crater center (radians, clockwise from north).
 /// * `reference_elevations` - The surface the profile is drawn relative to (m).
-/// * `crater`, `rings` - The basic crater (and its rings, for multiring basins).
+/// * `crater` - The basic crater.
 /// * `data` - The rim outline and field.
-/// * `include_crater`, `include_ejecta` - Which parts of the profile to include. The field belongs to the crater inside the
-///   rim (rho <= 1) and to the ejecta outside it.
+/// * `include_crater`, `include_ejecta` - Which parts of the profile to include. The field is shared between them in proportion
+///   to their parts of the height of the basic profile (see the module documentation).
 pub fn realmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
     bearings: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater: &BasicMoonCrater,
-    rings: &Option<Vec<BasicMoonCrater>>,
     data: &RealMoonField,
     include_crater: bool,
     include_ejecta: bool,
@@ -140,20 +147,38 @@ pub fn realmoon_profile(
         warped.view(),
         reference_elevations,
         &basic,
-        rings,
         include_crater,
         include_ejecta,
     )?;
+    // The basic profile's height and its ejecta part, which set the ejecta's share of the field
+    let (total, ejecta) = if include_crater && include_ejecta {
+        (Array1::<f64>::zeros(0), Array1::<f64>::zeros(0)) // the whole field is included, so its split does not matter
+    } else {
+        let zeros = Array1::<f64>::zeros(warped.len());
+        (
+            basicmoon_profile(warped.view(), zeros.view(), &basic, true, true)?,
+            basicmoon_profile(warped.view(), zeros.view(), &basic, false, true)?,
+        )
+    };
     let add: Vec<f64> = (0..rho.len())
         .into_par_iter()
         .with_min_len(4096)
         .map(|i| {
-            let inside = rho[i] <= 1.0;
-            if (inside && include_crater) || (!inside && include_ejecta) {
-                data.field_at(bearings[i], rho[i])
+            if !include_crater && !include_ejecta {
+                return 0.0;
+            }
+            let field = data.field_at(bearings[i], rho[i]);
+            if include_crater && include_ejecta {
+                return field;
+            }
+            // The change of the ejecta: its thickness becomes e (1 + D / h), or zero where that is negative
+            let (t, e) = (total[i], ejecta[i]);
+            let ejecta_change = if t > 0.0 && e > 0.0 {
+                (e * (1.0 + field / t)).max(0.0) - e
             } else {
                 0.0
-            }
+            };
+            if include_ejecta { ejecta_change } else { field - ejecta_change }
         })
         .collect();
     h.iter_mut().zip(add.iter()).for_each(|(v, a)| *v += a);
@@ -206,6 +231,9 @@ mod tests {
             peak_ring_radius: 0.0,
             peak_center_distance: 0.0,
             peak_center_bearing: 0.0,
+            scarp_radius: 0.0,
+            scarp_height: 0.0,
+            scarp_width: 0.0,
         };
         let (rim, field) = data(16, 11, 0.0);
         let d = RealMoonField {
@@ -217,8 +245,8 @@ mod tests {
         let b = Array1::linspace(0.0, 6.0, 101);
         let z = Array1::zeros(101);
         let a =
-            realmoon_profile(r.view(), b.view(), z.view(), &crater, &None, &d, true, true).unwrap();
-        let e = basicmoon_profile(r.view(), z.view(), &crater, &None, true, true).unwrap();
+            realmoon_profile(r.view(), b.view(), z.view(), &crater, &d, true, true).unwrap();
+        let e = basicmoon_profile(r.view(), z.view(), &crater, true, true).unwrap();
         for (x, y) in a.iter().zip(e.iter()) {
             assert!((x - y).abs() < 1e-9);
         }

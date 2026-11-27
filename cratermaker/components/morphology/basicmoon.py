@@ -20,38 +20,158 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _EJPROFILE = -3.0
 _FRAC_EJRIM = 0.3
-# Multiring basins take the profile of Orientale (Lunar_Morphometry_Revisited, hfield_orientale.py --rings), in proportion to
-# their diameter: the main rim (the Cordillera ring) and two nested rings (the Outer and Inner Rook rings), each a ring crater of
-# the basic profile. With the rings, the profile fits Orientale's mean profile to 6.7% of its relief (12.6% without them).
-# A basin's final surface keeps little of its excavation (Orientale has 0.36e15 m^3 below the surrounding level, against 2.5e15 m^3
-# above it out to two radii: the floor rebounds and is compensated), so its ejecta cannot be balanced against it, and craters with
-# nested rings are not held to volume conservation.
-_MULTIRING = {
-    "rim_height_over_D": 0.0024617801830048303,
-    "floor_depth_over_D": 0.003461322194054899,
-    "floor_radius_over_R": 0.6666155219880473,
-    "rim_width_over_R": 0.04964317144559828,
-    "wall_curvature": 0.4849046616944324,
-    "floor_blend": 0.9509393755468296,
-    # The ejecta of the fit. Multiring basins are not held to volume conservation (see BasicMoonCrater.maker), so these are used
-    # as they are
-    "frac_ejrim": 0.38977142582678337,
-    "ejprofile": -2.869906115000327,
-    "rings": [
-        {
-            "radius_over_R": 0.6655813832300491,
-            "floor_radius_over_R": 0.476478395489424,
-            "rim_height_over_D": 0.0027389709709087404,
-            "rim_width_over_R": 0.232033474865558,
-        },
-        {
-            "radius_over_R": 0.4501402081764983,
-            "floor_radius_over_R": 0.33519667054906005,
-            "rim_height_over_D": 0.002938933931695398,
-            "rim_width_over_R": 0.07385662439544854,
-        },
-    ],
+# The profiles of the largest craters. Above the range of the fresh craters the non-simple size relations are fitted to (x_max,
+# 138 km), the profile parameters (in proportion to the diameter or radius) move from those of the relations at x_max to those
+# of the peak-ring basin Schrodinger (368 km) and the multiring basin Orientale (1020 km), interpolated in ln D, and keep those of
+# Orientale beyond it. The values are the medians of fits of the basic profile (with a Gaussian peak ring, and for Orientale its
+# ring scarp, see _SCARP) to narrow wedges of their H-field extracts out to 1.5 rim radii, avoiding younger craters and ray
+# trenches, each wedge with its own background level (Lunar_Morphometry_Revisited, hfield_wedge_fit.py). The relief (rim height
+# plus floor depth) of a wedge is well determined, but not how it divides between rim and floor: the relief is the median of the
+# wedges and the rim height is 0.34 of it, the median of the wedges of Orientale (that of Schrodinger, 0.34, is poorly
+# constrained). Both basins are degraded (freshness class D) and their floors hold later mare and volcanic deposits, so their
+# floor depths and peak-ring heights are lower bounds.
+_BASIN_ANCHORS = {
+    368.18e3: {  # Schrodinger: relief 0.0122 D
+        "rim_height_over_D": 0.00415,
+        "floor_depth_over_D": 0.00805,
+        "floor_radius_over_R": 0.610,
+        "rim_width_over_R": 0.091,
+        "wall_curvature": 1.0,
+        "floor_blend": 0.264,
+    },
+    1020.1e3: {  # Orientale: relief 0.00573 D
+        "rim_height_over_D": 0.00195,
+        "floor_depth_over_D": 0.00378,
+        "floor_radius_over_R": 0.556,
+        "rim_width_over_R": 0.109,
+        "wall_curvature": 0.0,
+        "floor_blend": 0.855,
+    },
 }
+
+# The ejecta of multiring basins: that of the profile fit of Orientale out to 2 rim radii. A basin's final surface keeps little of
+# its excavation (Orientale has 0.36e15 m^3 below the surrounding level, against 2.5e15 m^3 above it out to two radii: the floor
+# rebounds and is compensated), so its ejecta cannot be balanced against it, and craters with a ring scarp (multiring basins) are
+# not held to volume conservation.
+_MULTIRING_EJECTA = {"frac_ejrim": 0.4047612450358902, "ejprofile": -2.8211551267661767}
+
+# The ring scarp of multiring basins: the nested ring fault (Orientale's Outer Rook ring), an asymmetric ridge with an
+# inward-facing face (see basicmoon.rs, scarp_function). Its radius, height and face width are the medians of the wedge fits of
+# Orientale (see _BASIN_ANCHORS); as Orientale is degraded, the height is a lower bound. Its radius (0.674 of the rim radius) has
+# the lognormal scatter of the middle rings of the multiring basins of Neumann et al. (2015) (0.68-0.75 of the main ring in their
+# frame, where Orientale's Outer Rook ring is at 0.682). Multiring basins appear on the Moon from 500 to 650 km (Hertzsprung,
+# 571 km, is the smallest; Neumann et al. 2015, Johnson et al. 2018): the height of the scarp rises from 0 to its full value over
+# that range (a smooth step in ln D).
+_SCARP = {
+    "radius_over_R": 0.674,
+    "radius_sigma_ln": 0.04,
+    "height_over_D": 0.00245,
+    "width_over_R": 0.074,
+    "onset": (500e3, 650e3),
+}
+
+# Peak rings. Central peaks open into peak rings as craters grow from 200 to 300 km (a smooth step in ln D). The ring radius, as
+# a fraction of the rim radius, is 0.442 (D / 368 km)^0.107 with lognormal scatter 0.086: the slope and scatter are those of the
+# inner rings of the peak-ring and multiring basins of Neumann et al. (2015), whose ratio is nearly constant (the innermost ring of
+# a multiring basin is its peak ring), and the normalization is that of the peak rings of Schrodinger (0.441 at 368 km) and
+# Orientale (its Inner Rook ring, 0.493 at 1020 km) in the wedge fits of _BASIN_ANCHORS, whose ratio (1.118) matches the slope.
+_PEAK_RING_ONSET = (200e3, 300e3)
+_PEAK_RING_RATIO = 0.442
+_PEAK_RING_D_REF = 368.18e3
+_PEAK_RING_EXPONENT = 0.107
+_PEAK_RING_SIGMA_LN = 0.086
+# The width (standard deviation) of the Gaussian peak ring of the basic profile, as a fraction of the rim radius: that of the
+# peak ring of Schrodinger (Lunar_Morphometry_Revisited, peakring_measure.py)
+_PEAK_RING_WIDTH = 0.092
+
+
+def _smoothstep(x: float) -> float:
+    """The smooth step 3x^2 - 2x^3 between 0 (x <= 0) and 1 (x >= 1)."""
+    x = min(max(x, 0.0), 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def _log_step(diameter: float, bounds: tuple[float, float]) -> float:
+    """A smooth step in ln D from 0 at bounds[0] to 1 at bounds[1]."""
+    return _smoothstep(math.log(diameter / bounds[0]) / math.log(bounds[1] / bounds[0]))
+
+
+def peak_ring_layout(diameter: float, rng: Generator | None = None) -> tuple[float, float]:
+    """
+    The layout of the central peak or peak ring of a non-simple crater (see _PEAK_RING_RATIO).
+
+    Parameters
+    ----------
+    diameter : float
+        The diameter of the crater (m).
+    rng : numpy.random.Generator, optional
+        The random number generator for the scatter of the ring radius. If None, the nominal radius is returned.
+
+    Returns
+    -------
+    ring_fraction : float
+        How far the central peak has opened into a ring (0 for a central peak, 1 for a peak ring).
+    ring_radius : float
+        The radius of the peak ring (m); 0 for a central peak.
+    """
+    ring_fraction = _log_step(diameter, _PEAK_RING_ONSET)
+    if ring_fraction <= 0.0:
+        return 0.0, 0.0
+    ratio = _PEAK_RING_RATIO * (diameter / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT
+    if rng is not None:
+        ratio *= math.exp(_PEAK_RING_SIGMA_LN * rng.standard_normal())
+    return ring_fraction, ring_fraction * ratio * diameter / 2
+
+
+def scarp_layout(diameter: float, morphology_type: str, rng: Generator | None = None) -> tuple[float, float, float]:
+    """
+    The ring scarp of a crater (see _SCARP): only multiring basins have one.
+
+    Parameters
+    ----------
+    diameter : float
+        The diameter of the crater (m).
+    morphology_type : str
+        The morphology type of the crater.
+    rng : numpy.random.Generator, optional
+        The random number generator for the scatter of the scarp radius. If None, the nominal radius is returned.
+
+    Returns
+    -------
+    scarp_radius, scarp_height, scarp_width : float
+        The radius of the crest of the scarp, its height and the width of its face (m); all 0 for a crater without a scarp.
+    """
+    if morphology_type != "multiring":
+        return 0.0, 0.0, 0.0
+    ratio = _SCARP["radius_over_R"]
+    if rng is not None:
+        ratio *= math.exp(_SCARP["radius_sigma_ln"] * rng.standard_normal())
+    height = _SCARP["height_over_D"] * diameter * _log_step(diameter, _SCARP["onset"])
+    return ratio * diameter / 2, height, _SCARP["width_over_R"] * diameter / 2
+
+
+def _basin_ratio(diameter: float, key: str, top_diameter: float, top_value: float) -> float:
+    """
+    A profile ratio of a crater larger than the range of the non-simple size relations (see _BASIN_ANCHORS).
+
+    Parameters
+    ----------
+    diameter : float
+        The diameter of the crater (m).
+    key : str
+        The ratio (a key of the _BASIN_ANCHORS entries).
+    top_diameter, top_value : float
+        The upper end of the range of the size relations, and the nominal ratio of the relation there.
+
+    Returns
+    -------
+    float
+        The ratio, interpolated in ln D between the anchors.
+    """
+    xs = [math.log(top_diameter), *(math.log(d) for d in _BASIN_ANCHORS)]
+    ys = [top_value, *(anchor[key] for anchor in _BASIN_ANCHORS.values())]
+    return float(np.interp(math.log(diameter), xs, ys))
+
 
 # Range of the ejecta profile exponent allowed by volume conservation (the volume budget of fresh craters gives -2.7 to -3.9)
 _EJPROFILE_RANGE = (-4.0, -2.5)
@@ -75,6 +195,9 @@ _PROFILE_PARAMETERS = (
     "peak_ring_radius",
     "peak_center_distance",
     "peak_center_bearing",
+    "scarp_radius",
+    "scarp_height",
+    "scarp_width",
 )
 
 # Nodes and weights of the 8-point Gauss-Legendre rule on [-1, 1], used for the fixed-order composite quadratures below.
@@ -131,9 +254,12 @@ class BasicMoonCraterFixed(CraterFixed):
     """Distance of central peak/peak ring from crater center in meters."""
     peak_center_bearing: float | None = None
     """Bearing angle of central peak/peak ring in degrees."""
-    isring: bool | None = field(default=False, init=True)
-    """Flag that indicates that this is a ring rather than a crater."""
-    parent: np.uint64 | None = field(default=np.uint64(0), init=True)
+    scarp_radius: float | None = None
+    """Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters. 0 for no scarp."""
+    scarp_height: float | None = None
+    """Height of the crest of the ring scarp above the rest of the profile in meters."""
+    scarp_width: float | None = None
+    """Width of the inward-facing face of the ring scarp in meters."""
 
     @property
     def depth_to_diameter(self) -> float | None:
@@ -159,16 +285,10 @@ class BasicMoonCrater(MorphologyCrater):
         variable_cls=MorphologyCraterVariable,
         **kwargs,
     ):
-        if hasattr(crater, "isring"):
-            isring = crater.isring
-        else:
-            isring = False
-        isring = kwargs.pop("isring", isring)
         super().__init__(
             crater=crater,
             fixed_cls=fixed_cls,
             variable_cls=variable_cls,
-            isring=isring,
             **kwargs,
         )
 
@@ -186,6 +306,9 @@ class BasicMoonCrater(MorphologyCrater):
             f"Central peak height: {format_large_units(self.peak_height, quantity='length') if self.peak_height else 'None'}\n"
             f"Central peak width: {format_large_units(self.peak_width, quantity='length') if self.peak_width else 'None'}\n"
             f"Central peak offset: {format_large_units(self.peak_ring_radius, quantity='length') if self.peak_ring_radius else 'None'}\n"
+            f"Ring scarp radius: {format_large_units(self.scarp_radius, quantity='length') if self.scarp_radius else 'None'}\n"
+            f"Ring scarp height: {format_large_units(self.scarp_height, quantity='length') if self.scarp_radius else 'None'}\n"
+            f"Ring scarp width: {format_large_units(self.scarp_width, quantity='length') if self.scarp_radius else 'None'}\n"
         )
         return str_repr
 
@@ -207,9 +330,11 @@ class BasicMoonCrater(MorphologyCrater):
         peak_ring_radius: float | None = None,
         peak_center_distance: float | None = None,
         peak_center_bearing: float | None = None,
+        scarp_radius: float | None = None,
+        scarp_height: float | None = None,
+        scarp_width: float | None = None,
         conserve_volume: bool = True,
         monte_carlo: bool | None = None,
-        make_rings: bool | None = None,
         **kwargs: Any,
     ) -> BasicMoonCrater:
         """
@@ -240,21 +365,25 @@ class BasicMoonCrater(MorphologyCrater):
         ejprofile : float, optional
             The power law exponent of the ejecta thickness profile. If None, it is -3 (or that of Orientale for multiring basins), subject to volume conservation.
         peak_height : float, optional
-            Original central peak height of the crater in meters relative to the reference surface. If None, it will be computed for complex craters and set to 0 for all other types.
+            Original central peak height of the crater in meters relative to the reference surface. If None, it will be computed for complex craters and multiring basins and set to 0 for all other types.
         peak_width : float, optional
-            Original central peak width of the crater in meters. If None, it will be computed for complex craters and set to 0 for all other types.
+            Original central peak width (standard deviation) of the crater in meters. If None, it will be computed for complex craters and multiring basins (widening to that of the peak ring of Schrodinger as the peak opens into a ring) and set to 0 for all other types.
         peak_ring_radius : float, optional
-            Original radius of the peak ring of the crater in meters. If None, it is set to 0 (a central peak).
+            Original radius of the peak ring of the crater in meters. If None, it follows `peak_ring_layout`: 0 (a central peak) below 200 km, opening into a peak ring between 200 and 300 km, at about 0.4 of the rim radius.
         peak_center_distance: float, optional
             Distance of central peak/peak ring from crater center in meters.
         peak_center_bearing: float, optional
             Bearing angle of central peak/peak ring in degrees.
+        scarp_radius : float, optional
+            Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters; 0 for no scarp. If None, it follows `scarp_layout`: multiring basins have the Outer Rook ring of Orientale, at 0.67 of the rim radius, and other craters none.
+        scarp_height : float, optional
+            Height of the crest of the ring scarp above the rest of the profile in meters. If None, it follows `scarp_layout` (0.0025 of the diameter, rising from 0 as multiring basins grow from 500 to 650 km).
+        scarp_width : float, optional
+            Width of the inward-facing face of the ring scarp in meters; its back slope is three times as wide. If None, it follows `scarp_layout` (0.074 of the rim radius).
         conserve_volume: bool, optional
-            If True, then the ejecta parameters (ejprofile and frac_ejrim) will be adjusted in order to attempt to conserve volume between excavation and deposition; the rim height is never changed. Craters with nested rings (multiring basins) are exempt. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
+            If True, then the ejecta parameters (ejprofile and frac_ejrim) will be adjusted in order to attempt to conserve volume between excavation and deposition; the rim height is never changed. Craters with a ring scarp (multiring basins) are exempt. Note that even when True, further adjustments may be needed when emplacing the crater due to the local topography. Default is True.
         monte_carlo : bool or None, optional
             If True, then crater parameters will be drawn from random distributions. If False, then nominal values will be used for all parameters. If None, then the value of the ``monte_carlo`` of the associated Scaling object will be used. Default is None.
-        make_rings : bool, optional
-            If True, multiring basins are given the two nested rings of Orientale (no other crater type is given rings). Default is True for new craters and False for copied craters unless a parameter was changed.
         **kwargs : Any
             The keyword arguments provided are passed down to :py:meth:`MorphologyCrater.maker() <cratermaker.components.morphology.MorphologyCrater.maker>`.  Refer to its documentation for a detailed description of valid keyword arguments.
 
@@ -273,11 +402,9 @@ class BasicMoonCrater(MorphologyCrater):
         from cratermaker.utils.montecarlo_utils import sample_logfit_heteroskedastic
 
         if crater is not None and isinstance(crater, BasicMoonCrater):
-            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls", "make_rings"]:
+            for k in ["__class__", "kwargs", "morphology", "crater", "conserve_volume", "cls"]:
                 input_args.pop(k, None)
             conserve_volume = conserve_volume and any(list(input_args.values()))
-            if make_rings is None:
-                make_rings = any(list(input_args.values()))
             # This is a copy operation, to use old values for any un-specified arguments
             floor_elevation = crater.floor_elevation if floor_elevation is None else floor_elevation
             floor_radius = crater.floor_radius if floor_radius is None else floor_radius
@@ -292,8 +419,9 @@ class BasicMoonCrater(MorphologyCrater):
             peak_ring_radius = crater.peak_ring_radius if peak_ring_radius is None else peak_ring_radius
             peak_center_distance = crater.peak_center_distance if peak_center_distance is None else peak_center_distance
             peak_center_bearing = crater.peak_center_bearing if peak_center_bearing is None else peak_center_bearing
-        elif make_rings is None:
-            make_rings = True
+            scarp_radius = crater.scarp_radius if scarp_radius is None else scarp_radius
+            scarp_height = crater.scarp_height if scarp_height is None else scarp_height
+            scarp_width = crater.scarp_width if scarp_width is None else scarp_width
 
         morphology = Morphology.maker(morphology, **kwargs)
         crater = super().maker(crater=crater, morphology=morphology, monte_carlo=monte_carlo, **kwargs)
@@ -466,16 +594,26 @@ class BasicMoonCrater(MorphologyCrater):
         else:
             fit_category = "simple"
 
-        if crater.morphology_type == "multiring" and not crater.isring:
-            # The parameters not given are those of Orientale in proportion to the diameter (see _MULTIRING)
-            rim_height = _MULTIRING["rim_height_over_D"] * crater.diameter if rim_height is None else rim_height
-            rim_width = _MULTIRING["rim_width_over_R"] * crater.radius if rim_width is None else rim_width
-            floor_elevation = -_MULTIRING["floor_depth_over_D"] * crater.diameter if floor_elevation is None else floor_elevation
-            floor_radius = _MULTIRING["floor_radius_over_R"] * crater.radius if floor_radius is None else floor_radius
-            wall_curvature = _MULTIRING["wall_curvature"] if wall_curvature is None else wall_curvature
-            floor_blend = _MULTIRING["floor_blend"] if floor_blend is None else floor_blend
-            frac_ejrim = _MULTIRING["frac_ejrim"] if frac_ejrim is None else frac_ejrim
-            ejprofile = _MULTIRING["ejprofile"] if ejprofile is None else ejprofile
+        # Craters larger than the range of the non-simple relations move towards the profiles of Schrodinger and Orientale (see
+        # _BASIN_ANCHORS): each drawn length is scaled by the ratio of the anchor profile to the nominal relation at the top of the
+        # range (so that the scatter of the relations is kept), and the shape factors are shifted by their difference.
+        top_diameter = rim_height_params["non-simple"]["x_max"]
+        is_basin = fit_category == "non-simple" and crater.diameter > top_diameter
+
+        def nominal_at_top(params: dict) -> float:
+            return float(sample_logfit_heteroskedastic(top_diameter, compute_nominal=True, **params["non-simple"])[0])
+
+        def basin_scale(key: str, params: dict, scale_length: float) -> float:
+            top_ratio = nominal_at_top(params) / scale_length
+            return _basin_ratio(crater.diameter, key, top_diameter, top_ratio) / top_ratio
+
+        def basin_shift(key: str, params: dict) -> float:
+            top_value = nominal_at_top(params)
+            return _basin_ratio(crater.diameter, key, top_diameter, top_value) - top_value
+
+        if crater.morphology_type == "multiring":
+            frac_ejrim = _MULTIRING_EJECTA["frac_ejrim"] if frac_ejrim is None else frac_ejrim
+            ejprofile = _MULTIRING_EJECTA["ejprofile"] if ejprofile is None else ejprofile
 
         if rim_height is None:
             rim_height = max(
@@ -485,6 +623,8 @@ class BasicMoonCrater(MorphologyCrater):
                 * fcorrection,
                 min_radius_fraction["rim_height"][fit_category] * 0.5 * crater.diameter,
             )
+            if is_basin:
+                rim_height *= basin_scale("rim_height_over_D", rim_height_params, top_diameter)
         args["rim_height"] = rim_height
 
         if rim_width is None:
@@ -495,6 +635,8 @@ class BasicMoonCrater(MorphologyCrater):
                 * fcorrection,
                 min_radius_fraction["rim_width"][fit_category] * 0.5 * crater.diameter,
             )
+            if is_basin:
+                rim_width *= basin_scale("rim_width_over_R", rim_width_params, top_diameter / 2)
         args["rim_width"] = rim_width
 
         # Try to approximately conserve volume when setting the ejecta thickness at the rim value
@@ -516,6 +658,8 @@ class BasicMoonCrater(MorphologyCrater):
                 * fcorrection
             )
             floor_elevation = min(floor_elevation, 0.0)
+            if is_basin:
+                floor_elevation *= basin_scale("floor_depth_over_D", floor_elevation_params, top_diameter)
         args["floor_elevation"] = floor_elevation
 
         if floor_radius is None:
@@ -526,10 +670,16 @@ class BasicMoonCrater(MorphologyCrater):
                 * fcorrection,
                 min_radius_fraction["floor_radius"][fit_category] * 0.5 * crater.diameter,
             )
+            if is_basin:
+                floor_radius *= basin_scale("floor_radius_over_R", floor_radius_params, top_diameter / 2)
         args["floor_radius"] = min(floor_radius, 0.8 * crater.radius)
 
+        # The peak opens into a peak ring as craters grow (see peak_ring_layout). Complex craters and multiring basins take the
+        # height of the fit to central peaks (the peak ring of Orientale is degraded, so its height is only a lower bound), and the
+        # width of the peak moves from that of the fit to central peaks to that of the peak ring of Schrodinger as it opens.
+        peaked = crater.morphology_type in ("complex", "multiring")
         if peak_height is None:
-            if crater.morphology_type == "complex":
+            if peaked:
                 peak_height = max(
                     sample_logfit_heteroskedastic(
                         diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_height_params[fit_category]
@@ -541,17 +691,23 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_height"] = peak_height
 
         if peak_width is None:
-            if crater.morphology_type == "complex":
-                peak_width = max(
+            if peaked:
+                central_width = max(
                     sample_logfit_heteroskedastic(
                         diameter_m, compute_nominal=compute_nominal, rng=rng, **peak_width_params[fit_category]
                     )[0],
                     0.0,
                 )
+                ring_fraction, _ = peak_ring_layout(crater.diameter)
+                peak_width = (1.0 - ring_fraction) * central_width + ring_fraction * _PEAK_RING_WIDTH * crater.radius
             else:
                 peak_width = 0.0
         args["peak_width"] = peak_width
-        args["peak_ring_radius"] = 0.0 if peak_ring_radius is None else peak_ring_radius
+        if peak_ring_radius is None:
+            peak_ring_radius = 0.0
+            if args["peak_height"] > 0.0:
+                _, peak_ring_radius = peak_ring_layout(crater.diameter, rng=None if compute_nominal else rng)
+        args["peak_ring_radius"] = peak_ring_radius
         args["peak_center_distance"] = 0.0 if peak_center_distance is None else peak_center_distance
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
 
@@ -565,6 +721,8 @@ class BasicMoonCrater(MorphologyCrater):
                 ),
                 1.0,
             )
+            if is_basin:
+                wall_curvature = min(max(wall_curvature + basin_shift("wall_curvature", wall_curvature_params), 0.0), 1.0)
 
         args["wall_curvature"] = wall_curvature
 
@@ -578,8 +736,20 @@ class BasicMoonCrater(MorphologyCrater):
                 ),
                 1.0,
             )
+            if is_basin:
+                floor_blend = min(max(floor_blend + basin_shift("floor_blend", floor_blend_params), 0.0), 1.0)
 
         args["floor_blend"] = floor_blend
+
+        # The ring scarp of multiring basins (see scarp_layout)
+        if scarp_radius is None or scarp_height is None or scarp_width is None:
+            layout = scarp_layout(crater.diameter, crater.morphology_type, rng=None if compute_nominal else rng)
+            scarp_radius = layout[0] if scarp_radius is None else scarp_radius
+            scarp_height = layout[1] if scarp_height is None else scarp_height
+            scarp_width = layout[2] if scarp_width is None else scarp_width
+        args["scarp_radius"] = scarp_radius
+        args["scarp_height"] = scarp_height
+        args["scarp_width"] = scarp_width
 
         kwargs = {**args, **kwargs}
 
@@ -589,38 +759,14 @@ class BasicMoonCrater(MorphologyCrater):
             **kwargs,
         )
 
-        # A copy that does not make new rings keeps copies of the rings of the crater it was made from
-        if not make_rings and crater.nrings == 0 and isinstance(source, MorphologyCrater) and source.nrings > 0:
-            object.__setattr__(crater._var, "_rings", [type(ring)(crater=ring, morphology=morphology) for ring in source.rings])
-
-        # Multiring basins get the nested rings of Orientale, in proportion to their diameter (see _MULTIRING). Other crater types
-        # get no nested rings: the terraces of complex craters are variation about the axisymmetric profile. Rings given
-        # explicitly (add_ring) are still drawn.
-        if make_rings and not crater.isring and crater.nrings == 0 and crater.morphology_type == "multiring":
-            for ring in _MULTIRING["rings"]:
-                crater.add_ring(
-                    radius=ring["radius_over_R"] * crater.radius,
-                    floor_radius=ring["floor_radius_over_R"] * crater.radius,
-                    rim_height=ring["rim_height_over_D"] * crater.diameter,
-                    rim_width=ring["rim_width_over_R"] * crater.radius,
-                    frac_ejrim=0.0,
-                )
-        if crater.nrings > 0:
-            # Make sure rings are the correct type
-            for i in range(crater.nrings):
-                ring = crater.rings[i]
-                if not isinstance(ring, cls):
-                    ring = cls(crater=ring, morphology=morphology)
-                    crater.rings[i] = ring
-
         # Adjust the ejecta so that its volume matches the volume excavated by the crater. Only the ejecta parameters are changed:
         # first the exponent of the thickness profile, within the range supported by the volume budget of fresh craters
         # (_EJPROFILE_RANGE); if the exponent needed is outside that range, it is held at the nearest end and the rim thickness
         # (frac_ejrim) is solved for instead. The rim height and the rest of the crater are never changed. The structural uplift
         # of the rim, (1 - frac_ejrim) * rim_height, is part of the crater, so its volume depends on frac_ejrim: the solution is
         # iterated.
-        # Craters with nested rings (multiring basins) are not held to volume conservation (see _MULTIRING).
-        if conserve_volume and not crater.isring and crater.nrings == 0:
+        # Craters with a ring scarp (multiring basins) are not held to volume conservation (see _MULTIRING_EJECTA).
+        if conserve_volume and not crater.has_scarp:
             params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
             lo, hi = _EJPROFILE_RANGE
 
@@ -664,100 +810,6 @@ class BasicMoonCrater(MorphologyCrater):
             crater = cls(crater=crater, morphology=morphology, **kwargs)
 
         return crater
-
-    def as_dict(self, ignore_keys: list[str] | tuple[str] = (), skip_complex_data: bool = False, **kwargs) -> dict:
-        """
-        Return a dictionary representation of the crater properties, including morphology-specific variable properties.
-
-        Parameters
-        ----------
-        ignore_keys : list[str] or tuple[str], optional
-            A list or tuple of property names to ignore when creating the dictionary representation. Default is an empty tuple unless `skip_complex_data` is True, in which case it will be extended to include ("morphology", "affected_face_indices", "affected_node_indices", "ejecta_region", "ejecta_region", "crater_region").
-        skip_complex_data : bool, optional
-            If True, skip complex data types when creating the dictionary representation. This is useful when serializing the object for saving to a file, as it removes complex data types that may not be serializable. Default is False.
-        """
-        if skip_complex_data:
-            ignore_keys += ("rings",)
-        dict_repr = super().as_dict(ignore_keys=ignore_keys, skip_complex_data=skip_complex_data, **kwargs)
-        return dict_repr
-
-    def add_ring(
-        self,
-        ring: BasicMoonCrater | None = None,
-        radius: float | None = None,
-        floor_radius: float | None = None,
-        wall_curvature: float | None = None,
-        frac_ejrim: float | None = None,
-        rim_width: float | None = None,
-        rim_height: float | None = None,
-        **kwargs: Any,
-    ):
-        """
-        Add a ring to the crater.
-
-        Parameters
-        ----------
-        ring: BasicMoonCrater, optional
-            An existing Crater object that will be converted into a ring object.
-        radius : float, optional
-            The radius of the ring in meters.
-        floor_radius : float, optional
-            The floor radius of the ring in meters.
-        wall_curvature : float, optional
-            The wall curvature of the ring wall (between 0 for straight walls and 1 for very curvy walls).
-        frac_ejrim: float, optional
-            The fraction of the ring rim_height that is ejecta (usually 0 except for maybe the outerost ring of a multiring basin).
-        rim_width : float, optional
-            The rim width of the ring in meters.
-        rim_height : float, optional
-            The rim elevation of the ring in meters.
-        **kwargs : Any
-            Additional keyword arguments that are passed to the .maker() method. Any arguments that are valid for a Crater ar valid for a ring. Otherwise the ring properties are copied from its associated crater.
-        """
-        if ring is not None:
-            crater = ring
-            radius = ring.radius if radius is None else radius
-            floor_radius = ring.floor_radius if floor_radius is None else floor_radius
-            wall_curvature = ring.wall_curvature if wall_curvature is None else wall_curvature
-            frac_ejrim = ring.frac_ejrim if frac_ejrim is None else frac_ejrim
-            rim_width = ring.rim_width if rim_width is None else rim_width
-            rim_height = ring.rim_height if rim_height is None else rim_height
-        else:
-            crater = self
-        frac_ejrim = 0.0 if frac_ejrim is None else frac_ejrim
-
-        # Link together parameters that are controlled by the main crater feature by passing them in as argtuments
-        newring = self.__class__.maker(
-            crater=crater,
-            morphology_type="ring",
-            parent=self.id,
-            morphology=self.morphology,
-            radius=radius,
-            floor_radius=floor_radius,
-            wall_curvature=wall_curvature,
-            rim_width=rim_width,
-            rim_height=rim_height,
-            frac_ejrim=frac_ejrim,
-            isring=True,
-            conserve_volume=False,
-            **kwargs,
-        )
-        if newring.radius > self.radius:
-            raise ValueError("Ring radius cannot be larger than the crater radius!")
-
-        # If there are rings, we need to insert this ring into the correct order. Rings are added in descending order by radius
-        if self.nrings == 0:
-            self._rings.append(newring)
-        else:
-            oldtot = self.nrings
-            for i in range(oldtot):
-                if newring.radius > self.rings[i].radius:
-                    self._rings.insert(i, newring)
-                    break
-                if i == oldtot - 1:
-                    self._rings.append(newring)
-
-        return
 
     @property
     def rim_height(self) -> float | None:
@@ -820,25 +872,29 @@ class BasicMoonCrater(MorphologyCrater):
         return self._fixed.peak_center_bearing
 
     @property
-    def isring(self) -> bool | None:
-        """Flag that indicates that this is a ring rather than a crater."""
-        return self._fixed.isring
+    def scarp_radius(self) -> float | None:
+        """Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters. 0 for no scarp."""
+        return self._fixed.scarp_radius
+
+    @property
+    def scarp_height(self) -> float | None:
+        """Height of the crest of the ring scarp above the rest of the profile in meters."""
+        return self._fixed.scarp_height
+
+    @property
+    def scarp_width(self) -> float | None:
+        """Width of the inward-facing face of the ring scarp in meters."""
+        return self._fixed.scarp_width
+
+    @property
+    def has_scarp(self) -> bool:
+        """Whether the crater has a ring scarp (a multiring basin)."""
+        return bool(self.scarp_radius) and self.scarp_radius > 0.0
 
     @property
     def frac_ejrim(self) -> float | None:
         """Ejecta rim thickness of the crater in meters."""
         return self._var._frac_ejrim
-
-    @property
-    def rings(self) -> list[BasicMoonCrater]:
-        return self._var.rings
-
-    @property
-    def nrings(self) -> int:
-        """
-        Returns the number of rings associated with this Crater.
-        """
-        return self._var.nrings
 
 
 @Morphology.register("basicmoon")
@@ -1000,7 +1056,6 @@ class BasicMoonMorphology(Morphology):
 
         results = self._form_craters_binding(
             craters=formed,
-            rings=[crater.rings for crater in formed],
             regions=regions,
             face_indices=[_global_indices(region.face_indices, surface.n_face) for region in regions],
             node_indices=[_global_indices(region.node_indices, surface.n_node) for region in regions],
@@ -1108,7 +1163,6 @@ class BasicMoonMorphology(Morphology):
             bearings=bearings,
             reference_elevations=reference_elevations,
             crater=crater,
-            rings=crater.rings,
             include_crater=include_crater,
             include_ejecta=include_ejecta,
         )

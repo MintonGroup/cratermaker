@@ -528,15 +528,6 @@ class Counting(ComponentBase):
             d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
             d["id"].attrs["long_name"] = _TALLY_LONG_NAME
             data.append(d)
-            if c.nrings > 0:
-                for ring in c.rings:
-                    d = ring.as_dict(skip_complex_data=True)
-                    d = _convert_tuple_vars(input_dict=d, inverse=False)
-                    d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
-                    d["id"].attrs["long_name"] = _TALLY_LONG_NAME
-                    d["parent"] = c.id
-                    d["parent"].attrs["long_name"] = "id of crater that this ring belongs to"
-                    data.append(d)
 
         return xr.concat(data, dim="id", data_vars="all").sortby("id")
 
@@ -1476,11 +1467,6 @@ class Counting(ComponentBase):
         from cratermaker.components.crater import _convert_tuple_vars
 
         craters = self._validate_export_args(crater_type=crater_type, interval=interval, craters=craters)
-
-        ncraters = len(craters)
-        for i in range(ncraters):
-            if craters[i].nrings > 0:
-                craters.extend(craters[i].rings)
 
         if output_file is None:
             filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")

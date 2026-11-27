@@ -36,6 +36,19 @@ pub struct BasicMoonCrater {
     pub peak_ring_radius: f64,
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
+    /// Radius of the crest of the ring scarp (m); 0 for no scarp.
+    pub scarp_radius: f64,
+    /// Height of the crest of the ring scarp above the rest of the profile (m).
+    pub scarp_height: f64,
+    /// Width of the inward-facing face of the ring scarp (m).
+    pub scarp_width: f64,
+}
+
+impl BasicMoonCrater {
+    /// Whether the crater has a ring scarp (the nested ring fault of a multiring basin).
+    pub fn has_scarp(&self) -> bool {
+        self.scarp_radius > 0.0
+    }
 }
 
 // Computes a either a crater and/or ejecta 1D profile array from input radial distances and reference elevations using the model of
@@ -61,7 +74,6 @@ pub fn basicmoon_profile(
     radial_distances: ArrayView1<'_, f64>,
     reference_elevations: ArrayView1<'_, f64>,
     crater: &BasicMoonCrater,
-    rings: &Option<Vec<BasicMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
@@ -101,7 +113,6 @@ pub fn basicmoon_profile(
                 r,
                 reference_elevations[i],
                 crater,
-                rings,
                 include_crater,
                 include_ejecta,
             );
@@ -140,79 +151,6 @@ pub fn basicmoon_profile_one(
     r: f64,
     href: f64,
     crater: &BasicMoonCrater,
-    rings: &Option<Vec<BasicMoonCrater>>,
-    include_crater: bool,
-    include_ejecta: bool,
-) -> f64 {
-    let (offsets, ring_r) = match rings {
-        Some(rings) => (ring_elevation_offsets(crater, rings), vec![r; rings.len()]),
-        None => (Vec::new(), Vec::new()),
-    };
-    basicmoon_profile_one_local(
-        r,
-        &ring_r,
-        href,
-        crater,
-        rings,
-        &offsets,
-        include_crater,
-        include_ejecta,
-    )
-}
-
-/// The elevation offset of each ring: the elevation of the feature it sits in (the crater for the outermost ring, otherwise
-/// the next ring out) at the ring's radius.
-pub fn ring_elevation_offsets(crater: &BasicMoonCrater, rings: &[BasicMoonCrater]) -> Vec<f64> {
-    rings
-        .iter()
-        .enumerate()
-        .map(|(i, ring)| {
-            if i == 0 {
-                elevation_offset_func(crater, ring)
-            } else {
-                elevation_offset_func(&rings[i - 1], ring)
-            }
-        })
-        .collect()
-}
-
-/// The elevation of a crater's own profile (without rings) at radial distance `r`.
-#[inline]
-pub fn crater_elevation(crater: &BasicMoonCrater, r: f64) -> f64 {
-    crater_profile_function(
-        r,
-        crater.radius,
-        crater.floor_elevation,
-        crater.floor_radius,
-        crater.wall_curvature,
-        crater.floor_blend,
-        crater.rim_width,
-        crater.rim_height,
-        crater.frac_ejrim,
-        crater.ejprofile,
-        crater.peak_height,
-        crater.peak_width,
-        crater.peak_ring_radius,
-    )
-}
-
-/// `basicmoon_profile_one` for models in which the crater and each of its rings are evaluated at their own radial coordinate
-/// and the elevation offsets of the rings are given (see `ring_elevation_offsets`).
-///
-/// # Arguments
-///
-/// * `r` - The radial coordinate at which the main crater is evaluated.
-/// * `ring_r` - The radial coordinate at which each ring is evaluated.
-/// * `ring_offsets` - The elevation offset of each ring.
-/// * The others are as in `basicmoon_profile_one`.
-#[allow(clippy::too_many_arguments)]
-pub fn basicmoon_profile_one_local(
-    r: f64,
-    ring_r: &[f64],
-    href: f64,
-    crater: &BasicMoonCrater,
-    rings: &Option<Vec<BasicMoonCrater>>,
-    ring_offsets: &[f64],
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
@@ -256,7 +194,7 @@ pub fn basicmoon_profile_one_local(
         crater.ejprofile.max(-6.0).min(-0.25)
     };
 
-    let mut hcrat = crater_profile_function(
+    let hcrat = crater_profile_function(
         r,
         radius,
         floor_elevation,
@@ -272,139 +210,43 @@ pub fn basicmoon_profile_one_local(
         peak_ring_radius,
     );
 
-    // Craters without rings use a smooth split of the profile into its crater and ejecta parts (see smooth_crater_ejecta_split).
-    // Craters with rings combine the main crater and its rings with the composition below.
-    if !matches!(rings, Some(v) if !v.is_empty()) {
-        let hej = smooth_crater_ejecta_split(
-            r, hcrat, radius, rim_width, rim_height, frac_ejrim, ejprofile,
-        );
-        let crater_part = if include_crater { hcrat - hej } else { 0.0 };
-        let ejecta_part = if include_ejecta { hej } else { 0.0 };
-        let final_val = href + crater_part + ejecta_part;
-        return if final_val.is_nan() { href } else { final_val };
-    }
-
-    match rings {
-        Some(rings) => {
-            for (i, ring) in rings.iter().enumerate() {
-                let elevation_offset = ring_offsets[i];
-                let mut ring_floor_elevation = crater.floor_elevation - elevation_offset;
-                ring_floor_elevation = ring_floor_elevation.min(-1e-8);
-
-                let ring_radius = ring.radius.max(1e-8);
-                let ring_floor_radius = ring.floor_radius.max(1e-8);
-                let ring_rim_width = ring.rim_width.max(ring_radius * 1e-3);
-                let ring_rim_height = ring.rim_height.max(0.0);
-                // Guard against NaN in inputs by falling back to safe defaults
-                let ring_wall_curvature = if ring.wall_curvature.is_nan() {
-                    0.5
-                } else {
-                    ring.wall_curvature.max(0.0).min(1.0)
-                };
-                let ring_frac_ejrim = if ring.frac_ejrim.is_nan() {
-                    0.5
-                } else {
-                    ring.frac_ejrim.max(0.0).min(1.0)
-                };
-                let ring_ejprofile = if ring.ejprofile.is_nan() {
-                    -3.0
-                } else {
-                    ring.ejprofile.max(-6.0).min(-0.25)
-                };
-
-                let hring = crater_profile_function(
-                    ring_r[i],
-                    ring_radius,
-                    ring_floor_elevation,
-                    ring_floor_radius,
-                    ring_wall_curvature,
-                    floor_blend,
-                    ring_rim_width,
-                    ring_rim_height,
-                    ring_frac_ejrim,
-                    ring_ejprofile,
-                    peak_height,
-                    peak_width,
-                    peak_ring_radius,
-                ) + elevation_offset;
-                // Outside its rim a ring is flat at its offset (the elevation of the feature around it at the ring's radius).
-                // That surface only belongs inside the rim of that feature: beyond it, it would be a plateau standing above the
-                // ejecta wherever the ring sits high on the wall. Inside the rim, the wall of the surrounding feature rises
-                // above it towards the crest, so dropping the ring there leaves the profile continuous.
-                let inside_parent = if i == 0 {
-                    r <= radius
-                } else {
-                    ring_r[i - 1] <= rings[i - 1].radius
-                };
-                if inside_parent {
-                    hcrat = hcrat.max(hring);
-                }
-            }
-        }
-        None => (),
-    }
-    let mut hej = ejecta_profile_function(r, radius, frac_ejrim, rim_height, ejprofile, rim_width);
-
-    match rings {
-        Some(rings) => {
-            for (i, ring) in rings.iter().enumerate() {
-                let ring_radius = ring.radius.max(1e-8);
-                let ring_rim_width = ring.rim_width.max(ring_radius * 1e-3);
-                let ring_rim_height = ring.rim_height.max(0.0);
-                let ring_frac_ejrim = ring.frac_ejrim.max(0.0).min(1.0);
-                let ring_ejprofile = ring.ejprofile.max(-6.0).min(-0.25);
-
-                let mut hejring = ejecta_profile_function(
-                    ring_r[i],
-                    ring_radius,
-                    ring_frac_ejrim,
-                    ring_rim_height,
-                    ring_ejprofile,
-                    ring_rim_width,
-                );
-                let elevation_offset = ring_offsets[i];
-                let hrel = hcrat - elevation_offset;
-                if ring_r[i] <= ring.radius && hrel >= 0.0 {
-                    let hup = (1.0 - ring.frac_ejrim) * ring.rim_height;
-                    let max_clamp = (ring_frac_ejrim * ring_rim_height).max(0.0);
-                    if !hup.is_nan() && !max_clamp.is_nan() {
-                        hejring += (hrel - hup).clamp(0.0, max_clamp);
-                    }
-                }
-                hej += hejring;
-            }
-        }
-        None => (),
-    }
-
-    // Add the upper portion of the rim to the ejecta
-    if r <= crater.radius && hcrat >= 0.0 {
-        let hup = rimfunc(
-            r,
-            crater.radius,
-            (1.0 - crater.frac_ejrim) * crater.rim_height,
-            0.0,
-            0.5 * crater.rim_width,
-        );
-        let max_clamp = (frac_ejrim * rim_height).max(0.0);
-        if !hup.is_nan() && !max_clamp.is_nan() {
-            hej += (hcrat - hup).clamp(0.0, max_clamp);
-        }
-    }
-
-    if include_crater {
-        if r > crater.radius || (hcrat > 0.0 && hej > 0.0) {
-            hcrat = (hcrat - hej).max(0.0);
-        }
+    // The profile is split smoothly into its crater and ejecta parts (see smooth_crater_ejecta_split). The ring scarp is part
+    // of the crater.
+    let hej = smooth_crater_ejecta_split(
+        r, hcrat, radius, rim_width, rim_height, frac_ejrim, ejprofile,
+    );
+    let crater_part = if include_crater {
+        hcrat - hej + scarp_function(r, crater)
     } else {
-        hcrat = 0.0;
-    }
-    if !include_ejecta {
-        hej = 0.0;
-    }
-
-    let final_val = href + hcrat + hej;
+        0.0
+    };
+    let ejecta_part = if include_ejecta { hej } else { 0.0 };
+    let final_val = href + crater_part + ejecta_part;
     if final_val.is_nan() { href } else { final_val }
+}
+
+/// Length of the back slope of a ring scarp (outside its crest), as a multiple of the width of its face. Measured on the Outer
+/// Rook ring of Orientale, in the sectors where it is distinct (Lunar_Morphometry_Revisited): a median of 3 (interquartile
+/// range 2-5).
+pub const SCARP_BACK_SLOPE: f64 = 3.0;
+
+/// The ring scarp of a crater at radial distance `r`: the nested ring fault of a multiring basin, an asymmetric ridge added to
+/// the profile. Its inward-facing face rises over `scarp_width` to its crest at `scarp_radius`, of height `scarp_height` above
+/// the rest of the profile, and its back slope falls off outward over `SCARP_BACK_SLOPE * scarp_width` (the tilted block behind
+/// the fault). Both sides are smootherstep ramps, so the elevation, slope and curvature of the ridge are continuous. It is zero
+/// for a crater without a scarp.
+#[inline]
+pub fn scarp_function(r: f64, crater: &BasicMoonCrater) -> f64 {
+    if !crater.has_scarp() || !(crater.scarp_height > 0.0) || !(crater.scarp_width > 0.0) {
+        return 0.0;
+    }
+    let (rs, ws) = (crater.scarp_radius, crater.scarp_width);
+    let shape = if r <= rs {
+        smootherstep((r - (rs - ws)) / ws)
+    } else {
+        1.0 - smootherstep((r - rs) / (SCARP_BACK_SLOPE * ws))
+    };
+    crater.scarp_height * shape
 }
 
 /// Half-width of the smoothing at each end of the clamp that assigns the upper rim to the ejecta, as a fraction of the ejecta
@@ -442,12 +284,6 @@ fn smooth_crater_ejecta_split(
     let inside = smooth_clamp(hcrat - hup, 0.0, he, SPLIT_CLAMP_SMOOTHING * he);
     let outside = ejecta_rim_function(r, radius, frac_ejrim, rim_height, ejprofile, rim_width);
     blend_step(r, inside, outside, radius, SPLIT_RIM_BLEND * rim_width)
-}
-
-#[inline]
-fn elevation_offset_func(crater: &BasicMoonCrater, ring: &BasicMoonCrater) -> f64 {
-    // Returns the offset in elevation for the ring, which is taken to be the elevation of the crater at the ring radius.
-    crater_elevation(crater, ring.radius)
 }
 
 /// Computes the integrand of the axisymmetric volume integral, r * h(r), at an array of radial distances.
@@ -501,9 +337,9 @@ pub fn volume_integrand(
         )
     };
     radial_distances.mapv(|r| match (include_crater, include_ejecta) {
-        (true, false) => r * (hcrater(r) - hejecta(r)),
+        (true, false) => r * (hcrater(r) - hejecta(r) + scarp_function(r, crater)),
         (false, true) => r * hejecta(r),
-        (true, true) => r * hcrater(r),
+        (true, true) => r * (hcrater(r) + scarp_function(r, crater)),
         (false, false) => 0.0,
     })
 }
@@ -1203,6 +1039,9 @@ mod tests {
             peak_ring_radius: 0.0,
             peak_center_distance: 0.0,
             peak_center_bearing: 0.0,
+            scarp_radius: 0.0,
+            scarp_height: 0.0,
+            scarp_width: 0.0,
         };
         let dr = 0.05;
         for (include_crater, include_ejecta) in [(true, true), (true, false), (false, true)] {
@@ -1212,7 +1051,6 @@ mod tests {
                         i as f64 * dr,
                         0.0,
                         &crater,
-                        &None,
                         include_crater,
                         include_ejecta,
                     )

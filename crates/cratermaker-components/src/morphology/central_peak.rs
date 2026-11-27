@@ -8,8 +8,9 @@
 //! second, independent noise field ([`PEAK_ANGLE_SPREAD`], [`PEAK_ANGLE_NOISE_WAVELENGTH`]), so that the flanks are not
 //! planar. The amplitude of the envelope is iterated so that the highest point of the relaxed
 //! peak has the peak's height. The relaxation is done on a flat copy of the region, so that it changes only the peak and not
-//! the crater around it, and the volume of the peak is removed from the crater floor as a uniform layer, so that crater
-//! formation still conserves volume.
+//! the crater around it, and the volume of the peak is removed from the crater floor as a layer that thins to zero at the edge
+//! of the floor (in proportion to 1 - (r / floor radius)^2, so that it leaves no step there), so that crater formation still
+//! conserves volume.
 //!
 //! The constants are those that reproduce the typical central peak of the fresh lunar craters of 35-140 km measured at the
 //! native SLDEM2015 spacing (59 m): an envelope of standard deviation 0.08 R, columns where the noise is 0.5 standard
@@ -77,7 +78,7 @@ impl CentralPeak {
 ///
 /// # Returns
 ///
-/// The face elevation change: the relaxed peak, less a uniform layer over the floor of the same volume.
+/// The face elevation change: the relaxed peak, less a layer of the same volume over the floor that thins to zero at its edge.
 pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64) -> ArrayResult {
     let nf = region.n_face();
     let mut change = Array1::<f64>::zeros(nf);
@@ -153,17 +154,20 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, seed: u64
         relaxed = relax(amplitude)?;
     }
 
-    // Remove the peak's volume from the floor as a uniform layer
+    // Remove the peak's volume from the floor as a layer that thins to zero at its edge
     let volume: f64 = relaxed.iter().zip(region.face_area.iter()).map(|(&h, &a)| h * a).sum();
-    let floor: Vec<usize> = (0..nf)
-        .filter(|&f| region.face_distance[f] <= peak.floor_radius)
+    let taper: Vec<(usize, f64)> = (0..nf)
+        .filter_map(|f| {
+            let u = region.face_distance[f] / peak.floor_radius;
+            (u < 1.0).then(|| (f, 1.0 - u * u))
+        })
         .collect();
-    let floor_area: f64 = floor.iter().map(|&f| region.face_area[f]).sum();
+    let taper_volume: f64 = taper.iter().map(|&(f, w)| w * region.face_area[f]).sum();
     change.assign(&relaxed);
-    if floor_area > 0.0 {
-        let layer = volume / floor_area;
-        for &f in &floor {
-            change[f] -= layer;
+    if taper_volume > 0.0 {
+        let layer = volume / taper_volume;
+        for &(f, w) in &taper {
+            change[f] -= layer * w;
         }
     }
     Ok(change)

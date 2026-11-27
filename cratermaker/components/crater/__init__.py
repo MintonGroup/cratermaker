@@ -1331,7 +1331,6 @@ class Crater(ComponentBase):
         import csv
 
         craters = {}
-        rings = []
         input_file = Path(input_file)
         if not input_file.exists():
             raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
@@ -1359,22 +1358,12 @@ class Crater(ComponentBase):
                         except ValueError:
                             continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
-                if "morphology_type" in crater_data:
-                    crater_data["isring"] = crater_data["morphology_type"] == "ring"
+                crater_data = _drop_legacy_rings(crater_data)
+                if crater_data is None:
+                    continue
                 # Values read from the file take priority over any keyword arguments of the same name
                 crater = cls.maker(**{**kwargs, **crater_data}, conserve_volume=conserve_volume, check_redundant_inputs=False)
-                if crater.morphology_type == "ring":
-                    rings.append(crater)
-                else:
-                    craters[crater.id] = crater
-
-            if len(rings) > 0:
-                # First remove any auto-generated rings
-                for ring in rings:
-                    craters[ring.parent]._rings = []
-                # Now add the input rings
-                for ring in rings:
-                    craters[ring.parent].add_ring(ring=ring)
+                craters[crater.id] = crater
 
         return list(craters.values())
 
@@ -1422,7 +1411,6 @@ class Crater(ComponentBase):
         dataset: xr.Dataset | dict,
         interval: int | None = None,
         conserve_volume: bool = False,
-        make_rings: bool = False,
         **kwargs,
     ) -> list[Crater]:
         """
@@ -1434,8 +1422,6 @@ class Crater(ComponentBase):
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
         conserve_volume : bool, optional
             Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
-        make_rings : bool, optional
-            Indicate whether to generate new rings for complex and multiring craters that don't have one explicitly defined in the Dataset. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1466,7 +1452,6 @@ class Crater(ComponentBase):
             raise ValueError(f"Dataset has more than one dimension: {dims}. Cannot convert to Crater objects.")
         dimname = list(dims)[0]
         craters = {}
-        rings = []
         for i in tqdm(
             range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
         ):
@@ -1476,29 +1461,18 @@ class Crater(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            if "morphology_type" in crater_data:
-                crater_data["isring"] = crater_data["morphology_type"] == "ring"
+            crater_data = _drop_legacy_rings(crater_data)
+            if crater_data is None:
+                continue
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
             # Values read from the dataset take priority over any keyword arguments of the same name
             crater = cls.maker(
                 **{**kwargs, **crater_data},
                 conserve_volume=conserve_volume,
-                make_rings=make_rings,
                 monte_carlo=False,
                 check_redundant_inputs=False,
             )
-            if crater.isring:
-                rings.append(crater)
-            else:
-                craters[crater.id] = crater
-
-        if len(rings) > 0:
-            # First remove any auto-generated rings
-            for ring in rings:
-                craters[ring.parent]._rings = []
-            # Now add the input rings
-            for ring in rings:
-                craters[ring.parent].add_ring(ring=ring)
+            craters[crater.id] = crater
 
         return list(craters.values())
 
@@ -1700,6 +1674,29 @@ class Crater(ComponentBase):
     def projectile_direction(self) -> float | None:
         """The direction of the projectile in degrees, measured clockwise from north. This is the same as `orientation`."""
         return self._fixed.projectile_direction
+
+
+def _drop_legacy_rings(crater_data: dict) -> dict | None:
+    """
+    Remove the nested rings of files written by versions that modeled the rings of multiring basins as separate ring craters.
+
+    Those files hold each ring as a row of its own (morphology type "ring", with the id of its crater in "parent") and an
+    "isring" flag on every row. Multiring basins now carry their ring as the ring scarp parameters of the crater, so the ring
+    rows are skipped and the two columns are dropped.
+
+    Parameters
+    ----------
+    crater_data : dict
+        The values of one row of the file.
+
+    Returns
+    -------
+    dict or None
+        The values without the ring columns, or None for a ring row.
+    """
+    if crater_data.get("morphology_type") == "ring":
+        return None
+    return {k: v for k, v in crater_data.items() if k not in ("isring", "parent")}
 
 
 def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:

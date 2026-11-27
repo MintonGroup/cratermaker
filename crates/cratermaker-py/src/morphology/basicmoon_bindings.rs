@@ -35,7 +35,6 @@ pub fn basicmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: BasicMoonCrater,
-    rings: Option<Vec<BasicMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -46,7 +45,6 @@ pub fn basicmoon_profile<'py>(
         radial_distances_v,
         reference_elevations_v,
         &crater,
-        &rings,
         include_crater,
         include_ejecta,
     )
@@ -210,7 +208,6 @@ pub fn degradation_function_array<'py>(
 /// # Arguments
 ///
 /// * `craters` - The BasicMoonCraters to form.
-/// * `rings` - The optional ring craters of each crater.
 /// * `regions` - The Python `LocalSurface` each crater is formed on.
 /// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
 /// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
@@ -223,12 +220,11 @@ pub fn degradation_function_array<'py>(
 /// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if the crater was
 ///   not formed because its excavated volume was not negative.
 #[pyfunction]
-#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[pyo3(signature = (craters, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn form_craters<'py>(
     py: Python<'py>,
     craters: Vec<BasicMoonCrater>,
-    rings: Vec<Option<Vec<BasicMoonCrater>>>,
     regions: Vec<Bound<'py, PyAny>>,
     face_indices: Vec<PyReadonlyArray1<'py, i64>>,
     node_indices: Vec<PyReadonlyArray1<'py, i64>>,
@@ -239,15 +235,9 @@ pub fn form_craters<'py>(
     conserve_volume: bool,
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
-    if rings.len() != craters.len() {
-        return Err(PyValueError::new_err(
-            "craters and rings must have the same length",
-        ));
-    }
     let models: Vec<BasicMoonModel> = craters
         .iter()
-        .zip(rings.iter())
-        .map(|(crater, rings)| BasicMoonModel { crater, rings })
+        .map(|crater| BasicMoonModel { crater })
         .collect();
     run_form_craters(
         py,

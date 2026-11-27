@@ -135,21 +135,95 @@ class TestMorphology(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     morphology.form_craters(craters)
 
+    def test_peak_ring_layout(self):
+        # Central peaks open into peak rings from 200 to 300 km, at a nearly constant fraction of the rim radius
+        from cratermaker.components.morphology.basicmoon import (
+            _PEAK_RING_D_REF,
+            _PEAK_RING_EXPONENT,
+            _PEAK_RING_RATIO,
+            peak_ring_layout,
+        )
+
+        self.assertEqual(peak_ring_layout(150e3), (0.0, 0.0))
+        fraction, ring_radius = peak_ring_layout(_PEAK_RING_D_REF)
+        self.assertEqual(fraction, 1.0)
+        self.assertAlmostEqual(ring_radius / (_PEAK_RING_D_REF / 2), _PEAK_RING_RATIO)
+        # The ring radius grows monotonically and continuously with diameter
+        diameters = np.geomspace(150e3, 1500e3, 400)
+        radii = np.array([peak_ring_layout(d)[1] for d in diameters])
+        self.assertTrue(np.all(np.diff(radii) >= 0.0))
+        self.assertLess(np.max(np.diff(radii)), 0.02 * radii[-1])
+        _, ring_radius = peak_ring_layout(1000e3)
+        self.assertAlmostEqual(ring_radius / 500e3, _PEAK_RING_RATIO * (1000e3 / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT)
+
+    def test_ring_scarp(self):
+        # Only multiring basins have a ring scarp; its height grows in from 0 as they grow from 500 to 650 km
+        from cratermaker.components.morphology.basicmoon import _SCARP, scarp_layout
+
+        self.assertEqual(scarp_layout(400e3, "complex"), (0.0, 0.0, 0.0))
+        self.assertEqual(scarp_layout(500e3, "multiring")[1], 0.0)
+        heights = [scarp_layout(d, "multiring")[1] / d for d in np.geomspace(500e3, 700e3, 50)]
+        self.assertTrue(np.all(np.diff(heights) >= 0.0))
+        self.assertAlmostEqual(heights[-1], _SCARP["height_over_D"])
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="basicmoon", surface=surface, rng_seed=7)
+            crater = morphology.Crater.maker(diameter=1000e3, location=(0.0, 0.0))
+            self.assertTrue(crater.has_scarp)
+            self.assertGreater(crater.peak_ring_radius, 0.0)
+            # The scarp is a ridge added to the profile: its crest is at scarp_radius, scarp_height above the profile without it
+            plain = morphology.Crater.maker(crater=crater, scarp_radius=0.0, scarp_height=0.0, scarp_width=0.0)
+            self.assertFalse(plain.has_scarp)
+            r = np.linspace(0.0, 1.5 * crater.radius, 3001)
+            ridge = morphology.crater_profile(crater, r) - morphology.crater_profile(plain, r)
+            self.assertAlmostEqual(r[np.argmax(ridge)] / crater.scarp_radius, 1.0, places=2)
+            self.assertAlmostEqual(ridge.max() / crater.scarp_height, 1.0, places=3)
+            # The steep inner face is narrower than the back slope
+            inner = r[(ridge > 0.5 * crater.scarp_height) & (r < crater.scarp_radius)]
+            outer = r[(ridge > 0.5 * crater.scarp_height) & (r > crater.scarp_radius)]
+            self.assertLess(crater.scarp_radius - inner.min(), outer.max() - crater.scarp_radius)
+            self.assertEqual(ridge[r > crater.scarp_radius + 4 * crater.scarp_width].max(), 0.0)
+
+    def test_legacy_ring_rows_are_dropped(self):
+        # Files written when the rings of multiring basins were separate ring craters still load: their ring rows are skipped
+        from cratermaker.components.crater import _drop_legacy_rings
+
+        self.assertIsNone(_drop_legacy_rings({"id": 2, "morphology_type": "ring", "parent": 1, "isring": True}))
+        self.assertEqual(_drop_legacy_rings({"id": 1, "morphology_type": "multiring", "isring": False}),
+                         {"id": 1, "morphology_type": "multiring"})
+
     def test_morphology_type_classified_by_size(self):
         # Without an explicit morphology_type, craters are classified from their size
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
             for model_name in morphology_models:
                 morphology = Morphology.maker(morphology=model_name, surface=surface, rng_seed=7)
-                # Only multiring basins have nested rings by default (the two inner rings of Orientale); the terraces of complex
-                # craters are variation about the axisymmetric profile
-                expected = {1e3: ("simple", 0), 60e3: ("complex", 0), 600e3: ("multiring", 2)}
-                for diameter, (morphology_type, nrings) in expected.items():
+                # Only multiring basins have a ring scarp (the Outer Rook ring of Orientale); the terraces of complex craters
+                # are variation about the axisymmetric profile
+                expected = {1e3: ("simple", False), 60e3: ("complex", False), 600e3: ("multiring", True)}
+                for diameter, (morphology_type, has_scarp) in expected.items():
                     crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
                     self.assertEqual(crater.morphology_type, morphology_type, f"{model_name} D={diameter}")
-                    self.assertEqual(crater.nrings, nrings, f"{model_name} D={diameter}")
+                    self.assertEqual(crater.has_scarp, has_scarp, f"{model_name} D={diameter}")
                 explicit = morphology.Crater.maker(diameter=15e3, location=(0.0, 0.0), morphology_type="complex")
                 self.assertEqual(explicit.morphology_type, "complex")
+
+    def test_realmoon_ejecta_never_negative(self):
+        # The field is shared between the uplift and the ejecta in proportion to their parts of the profile's height, so the
+        # ejecta part is never negative (and never clipped when the crater forms), and the crater and ejecta parts sum to the total
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=11, hfield_pix=1e3)
+            for diameter in (60e3, 250e3):
+                crater = morphology.Crater.maker(diameter=diameter, location=(0.0, 0.0))
+                r = np.repeat(np.linspace(0.0, 2.0 * crater.radius, 400), 72)
+                b = np.tile(np.arange(72) * 5.0, 400)
+                total = morphology.crater_profile(crater, r, bearings=b, include_crater=True, include_ejecta=True)
+                crater_part = morphology.crater_profile(crater, r, bearings=b, include_crater=True, include_ejecta=False)
+                ejecta_part = morphology.crater_profile(crater, r, bearings=b, include_crater=False, include_ejecta=True)
+                self.assertGreaterEqual(ejecta_part.min(), 0.0)
+                np.testing.assert_allclose(crater_part + ejecta_part, total, atol=1e-6)
 
     def test_realmoon_copy_keeps_field(self):
         # Copying a crater (with the constructor or with maker) keeps the field it has already drawn, without drawing any random
@@ -335,9 +409,11 @@ class TestRealMoon(unittest.TestCase):
         r, area, with_peak, crater = surfaces[True]
         without = surfaces[False][2]
         change = with_peak - without
-        # The relaxed peak reaches its height above the floor, within the tolerance of the amplitude iteration and the slight
-        # lowering of the floor
-        self.assertAlmostEqual(change.max() / crater.peak_height, 1.0, delta=0.05)
+        # The relaxed peak reaches its height above the floor around it, within the tolerance of the amplitude iteration. The
+        # floor is lowered by the layer that holds the peak's volume, thickest at the center, so the height is measured from the
+        # lowest point of the floor near the peak (where there are no columns, the change is that of the layer alone)
+        near = r < 2.5 * crater.peak_width
+        self.assertAlmostEqual((change.max() - change[near].min()) / crater.peak_height, 1.0, delta=0.05)
         # Nothing changes beyond the floor, and the peak's volume is taken from the floor
         np.testing.assert_allclose(change[r > crater.floor_radius * 1.05], 0.0, atol=1e-6)
         self.assertLess(abs(np.sum(change * area)) / np.sum(np.abs(change) * area), 1e-8)
