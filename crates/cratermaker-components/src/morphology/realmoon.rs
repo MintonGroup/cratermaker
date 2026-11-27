@@ -34,40 +34,63 @@ impl RealMoonField<'_> {
         self.field.nrows()
     }
 
-    /// Index and weight of the two bearings around `bearing` (radians), periodic.
+    /// The indices of the four bearings around `bearing` (radians), periodic, and the position between the middle two.
     #[inline]
-    fn theta_weights(&self, bearing: f64) -> (usize, usize, f64) {
-        let n = self.n_theta();
+    fn theta_stencil(&self, bearing: f64) -> ([usize; 4], f64) {
+        let n = self.n_theta() as i64;
         let x = (bearing.to_degrees().rem_euclid(360.0)) * n as f64 / 360.0 - 0.5;
-        let i0 = x.floor();
-        let w = x - i0;
-        let i0 = (i0 as i64).rem_euclid(n as i64) as usize;
-        let i1 = (i0 + 1) % n;
-        (i0, i1, w)
+        let i = x.floor();
+        let t = x - i;
+        let i = i as i64;
+        let idx = [-1, 0, 1, 2].map(|d| (i + d).rem_euclid(n) as usize);
+        (idx, t)
     }
 
-    /// The rim outline R_rim / R at a bearing (radians).
+    /// The rim outline R_rim / R at a bearing (radians), interpolated with a periodic cubic.
     #[inline]
     pub fn rim_at(&self, bearing: f64) -> f64 {
-        let (i0, i1, w) = self.theta_weights(bearing);
-        (1.0 - w) * self.rim[i0] + w * self.rim[i1]
+        let (idx, t) = self.theta_stencil(bearing);
+        let w = cubic_weights(t);
+        (0..4).map(|a| w[a] * self.rim[idx[a]]).sum()
     }
 
-    /// The field (m) at a bearing (radians) and warped radius (bilinear; zero beyond `rho_max`).
+    /// The field (m) at a bearing (radians) and warped radius, interpolated bicubically (Catmull-Rom; periodic in bearing,
+    /// with the edge values held in radius), so that it is smooth between the points of the field; zero beyond `rho_max`.
     #[inline]
     pub fn field_at(&self, bearing: f64, rho: f64) -> f64 {
         if !(rho >= 0.0) || rho > self.rho_max {
             return 0.0;
         }
-        let n_rho = self.field.ncols();
+        let n_rho = self.field.ncols() as i64;
         let y = rho / self.rho_max * (n_rho - 1) as f64;
-        let j0 = (y.floor() as usize).min(n_rho - 2);
-        let v = y - j0 as f64;
-        let (i0, i1, w) = self.theta_weights(bearing);
+        let j = (y.floor() as i64).min(n_rho - 2);
+        let v = y - j as f64;
+        let jdx = [-1, 0, 1, 2].map(|d| (j + d).clamp(0, n_rho - 1) as usize);
+        let (idx, t) = self.theta_stencil(bearing);
+        let wt = cubic_weights(t);
+        let wr = cubic_weights(v);
         let f = &self.field;
-        (1.0 - w) * ((1.0 - v) * f[[i0, j0]] + v * f[[i0, j0 + 1]])
-            + w * ((1.0 - v) * f[[i1, j0]] + v * f[[i1, j0 + 1]])
+        let mut value = 0.0;
+        for a in 0..4 {
+            let row: f64 = (0..4).map(|b| wr[b] * f[[idx[a], jdx[b]]]).sum();
+            value += wt[a] * row;
+        }
+        value
     }
+}
+
+/// The weights of the four points of a Catmull-Rom cubic for a position `t` (0 to 1) between the middle two. They sum to one,
+/// and give the middle points exactly at `t` = 0 and 1.
+#[inline]
+fn cubic_weights(t: f64) -> [f64; 4] {
+    let t2 = t * t;
+    let t3 = t2 * t;
+    [
+        0.5 * (-t3 + 2.0 * t2 - t),
+        0.5 * (3.0 * t3 - 5.0 * t2 + 2.0),
+        0.5 * (-3.0 * t3 + 4.0 * t2 + t),
+        0.5 * (t3 - t2),
+    ]
 }
 
 /// Elevations of a realistic lunar crater relative to `reference_elevations` (see the module documentation).

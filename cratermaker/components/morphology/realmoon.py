@@ -155,7 +155,8 @@ class RealMoonMorphology(BasicMoonMorphology):
     Parameters
     ----------
     hfield_pix : float, optional
-        The resolution (m) the field is drawn to. Default: the size of the face at the center of each crater.
+        The resolution (m) the field is drawn to. Default: the size of the smallest face the field of each crater is applied to
+        (in its ejecta region), or of the face at its center if it has no region.
     **kwargs : Any
         Arguments of `BasicMoonMorphology`.
     """
@@ -222,8 +223,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         model nodes of the crater's type that bracket its diameter (the modes of the nearest wavenumber node, rescaled to the
         variance of the node at k; the draws of the two nodes are combined with weights sqrt(1 - a) and sqrt(a), so that the
         covariance is interpolated linearly in ln D). Only the wavenumbers and radii the surface resolves are drawn: k up to
-        pi rho_max R / pix and steps in rho of at least pix / (2 R), with pix `hfield_pix` or the size of the face at the
-        crater's center.
+        pi rho_max R / pix and steps in rho of at least pix / (2 R), with pix `hfield_pix` or the size of the smallest face the
+        field is applied to (that of the crater's ejecta region, or of the face at its center if it has no region).
         The field is in units of the crater's relief (rim height + floor depth), converted to meters. The radial grid always
         ends at rho_max = 2, the extent of the model.
 
@@ -245,8 +246,14 @@ class RealMoonMorphology(BasicMoonMorphology):
         R = crater.radius
         pix = self._hfield_pix
         if pix is None:
+            # The finest faces the field is applied to (those of the crater's ejecta region, which extends to the edge of the
+            # field), so that a crater centered on coarse faces is still drawn to the resolution of the fine faces it overlaps
             try:
-                pix = float(np.sqrt(self.surface.face_area[crater.face_index]))
+                region = crater.ejecta_region
+                if region is not None and region.n_face > 0:
+                    pix = float(np.sqrt(np.min(region.face_area)))
+                else:
+                    pix = float(np.sqrt(self.surface.face_area[crater.face_index]))
             except Exception:  # noqa: BLE001
                 pix = 0.0
         kmax = _KMAX if pix <= 0 else int(min(_KMAX, max(_KMAX_RIM, np.ceil(np.pi * _RHO_MAX * R / pix))))
