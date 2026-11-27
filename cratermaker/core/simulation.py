@@ -149,8 +149,12 @@ class Simulation(CratermakerBase):
                 saved = yaml.safe_load(f) or {}
             smallest_crater = saved.get("smallest_crater") if smallest_crater is None else smallest_crater
             largest_crater = saved.get("largest_crater") if largest_crater is None else largest_crater
+            # The state of the random number generator when the simulation was saved, unless a new one is given. It is restored
+            # once the components are set up (which draws random numbers), so that the run continues exactly where it stopped.
+            saved_rng_state = saved.get("rng_state") if rng_state is None else None
         else:
             config_file = None
+            saved_rng_state = None
 
         config_override = {}
         for component in _COMPONENT_NAMES:
@@ -275,6 +279,9 @@ class Simulation(CratermakerBase):
             self.reset(skip_component=skip_components)
 
         self.save_actions = save_actions
+
+        if saved_rng_state is not None:
+            self.rng_state = saved_rng_state
 
         self.to_config()
 

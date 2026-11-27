@@ -797,7 +797,14 @@ class CratermakerBase:
 
     @rng_state.setter
     def rng_state(self, value):
-        _, self._rng_state = _rng_init(rng=self.rng, rng_seed=self.rng_seed, rng_state=value)
+        # The state is applied to the existing generator, which the components share
+        if value is not None and self.rng is not None:
+            if not isinstance(value, dict):
+                raise ValueError("rng_state must be a dictionary.")
+            self.rng.bit_generator.state = value
+            self._rng_state = self.rng.bit_generator.state
+        else:
+            _, self._rng_state = _rng_init(rng=self.rng, rng_seed=self.rng_seed, rng_state=value)
 
     @property
     def common_args(self) -> CommonArgs:

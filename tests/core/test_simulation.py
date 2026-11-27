@@ -280,6 +280,32 @@ class TestSimulation(unittest.TestCase):
             resumed = cratermaker.Simulation(simdir=simdir, reset=False, ask_overwrite=False)
             self.assertTrue(resumed.counting.count_superdomain)
 
+    def test_resume_reproduces_run(self):
+        # A run resumed from its saved state continues exactly as an uninterrupted run would: the state of the random number
+        # generator saved with the simulation is restored, not replaced by one freshly seeded (and advanced by the setup)
+        kw = dict(morphology="basicmoon", rng_seed=230982307, gridlevel=4, ask_overwrite=False, save_actions=[], do_counting=True)
+
+        def interval_craters(simdir, interval):
+            with xr.open_dataset(Path(simdir) / "counting" / f"emplaced_craters{interval:06d}.nc") as ds:
+                return np.sort(ds["diameter"].values.ravel())
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as continuous, tempfile.TemporaryDirectory(
+            ignore_cleanup_errors=True
+        ) as resumed:
+            sim = cratermaker.Simulation(simdir=continuous, reset=True, **kw)
+            sim.run(time_start=4310, time_end=4290, time_interval=10)
+            final_state = sim.rng.bit_generator.state
+
+            sim = cratermaker.Simulation(simdir=resumed, reset=True, **kw)
+            sim.run(time_start=4310, time_end=4300, time_interval=10)
+            saved_state = sim.rng.bit_generator.state
+            del sim
+            sim = cratermaker.Simulation(simdir=resumed, reset=False, **kw)
+            self.assertEqual(sim.rng.bit_generator.state, saved_state)
+            sim.run(time_start=4310, time_end=4290, time_interval=10)
+            self.assertEqual(sim.rng.bit_generator.state, final_state)
+            np.testing.assert_array_equal(interval_craters(continuous, 2), interval_craters(resumed, 2))
+
     def test_crater_size_limits(self):
         # The smallest and largest crater sizes given to the constructor are applied, limited to the surface and the target, and
         # kept when the simulation is resumed (unless new ones are given)
