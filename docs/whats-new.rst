@@ -29,6 +29,7 @@ What's New
 - Fixed the ``smallest_crater`` and ``largest_crater`` arguments of ``Simulation``, which were ignored when given to the constructor and lost when a simulation was resumed.
 - Crater outlines (``Crater.to_geoseries``, and the crater rings drawn by ``show3d``) now follow the topography: each vertex is placed on the surface beneath it, instead of the whole outline at the highest elevation inside the crater, which left outlines floating above or sinking below the surface on uneven terrain. The rings drawn by ``show3d`` are sampled finely enough to stay on the surface.
 - Added ``Surface.find_nearest_nodes`` and ``Surface.find_nearest_faces``, which find the nearest nodes or faces to many points at once, much faster than ``find_nearest_node`` and ``find_nearest_face``.
+- When ``show3d`` shows the superdomain of a hireslocal surface (``superdomain=True``), the outline of the local region can be toggled with the "o" key. Its color is set with ``local_region_color`` (default cyan).
 - Fixed observed and emplaced crater rings in ``show3d`` being drawn as a single actor, so that only the emplaced craters were shown.
 - ``show3d`` now draws the surface as a light grey, matte material by default, which shows the topography with more contrast against the dark background.
 - Fixed the ``annotations`` and ``pickable`` arguments of ``show3d``, which were not passed on to PyVista.

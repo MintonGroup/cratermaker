@@ -11,7 +11,7 @@ import pyvista
 import xarray as xr
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from shapely.validation import make_valid
 from tqdm import tqdm
 from vtk import vtkPolyData
@@ -39,6 +39,64 @@ _MIN_FACE_FOR_COUNTING = 100
 
 # The factor by which the crater tagging region is extended beyond the final rim.
 _RIM_BUFFER_FACTOR = 1.5
+
+
+def _ring_vertex_count(radius: FloatLike, surface: Surface | LocalSurface) -> int:
+    """
+    The number of vertices of a ring of the given radius drawn on the surface: about two of the finest faces of the surface apart
+    (at least 121), so that the straight segments between them do not cut through the surface.
+    """
+    finest_face = float(np.min(surface.face_size))
+    return int(np.clip(2 * np.pi * radius / (2 * finest_face), 120, 20000)) + 1
+
+
+def _ring_polydata(rings_lonlat: list[NDArray], surface: Surface | LocalSurface) -> vtkPolyData:
+    """
+    Polylines of rings on the surface that follow its topography.
+
+    Each vertex is placed on the surface beneath it (its nearest node), lifted by a tenth of the size of the face beneath it so
+    that the line is not hidden in the surface it lies on. The elevations of all the rings are looked up at once.
+
+    Parameters
+    ----------
+    rings_lonlat : list of (n, 2) arrays
+        The longitudes and latitudes of the vertices of each ring, in degrees.
+    surface : Surface | LocalSurface
+        The surface the rings are drawn on.
+
+    Returns
+    -------
+    vtkPolyData
+        The rings as polylines.
+    """
+    from vtk import vtkCellArray, vtkPoints, vtkPolyLine
+
+    poly_data = vtkPolyData()
+    if not rings_lonlat:
+        return poly_data
+    lonlat = np.concatenate(rings_lonlat)
+    nodes = surface.find_nearest_nodes(lonlat[:, 0], lonlat[:, 1])
+    faces = surface.find_nearest_faces(lonlat[:, 0], lonlat[:, 1])
+    elevation = np.asarray(surface.node_elevation)[nodes] + 0.1 * np.asarray(surface.face_size)[faces]
+    lon, lat = np.deg2rad(lonlat[:, 0]), np.deg2rad(lonlat[:, 1])
+    r = surface.radius + elevation
+    xyz = np.column_stack([r * np.cos(lat) * np.cos(lon), r * np.cos(lat) * np.sin(lon), r * np.sin(lat)])
+
+    points = vtkPoints()
+    lines = vtkCellArray()
+    point_id = 0  # Keep track of the point ID across all rings
+    for ring in rings_lonlat:
+        for x, y, z in xyz[point_id : point_id + len(ring)]:
+            points.InsertNextPoint(float(x), float(y), float(z))
+        polyline = vtkPolyLine()
+        polyline.GetPointIds().SetNumberOfIds(len(ring))
+        for i in range(len(ring)):
+            polyline.GetPointIds().SetId(i, point_id + i)
+        point_id += len(ring)
+        lines.InsertNextCell(polyline)
+    poly_data.SetPoints(points)
+    poly_data.SetLines(lines)
+    return poly_data
 
 
 class Counting(ComponentBase):
@@ -808,6 +866,7 @@ class Counting(ComponentBase):
         theme: str | None = "cratermaker",
         transparent_background: bool | None = None,
         crater_size_scale_factor: FloatLike = 1.0,
+        local_region_color: str = "cyan",
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -837,6 +896,10 @@ class Counting(ComponentBase):
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown
+            (``superdomain=True``) and enable_interactive is True, and toggled by the "o" key (not visible on initialization).
+            Default is "cyan".
         **kwargs : Any
             |kwargs|
 
@@ -983,6 +1046,23 @@ class Counting(ComponentBase):
                 new_message = f"{key} Toggle {name} craters"
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
                 plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: update_crater_style(plotter, actor_list))
+
+        # When the superdomain of a hireslocal surface is shown, the outline of the local region (where the superdomain begins)
+        local_radius = getattr(surface, "local_radius", None)
+        if enable_interactive and kwargs.get("superdomain", False) and local_radius is not None:
+            from pyproj import Geod
+
+            n = _ring_vertex_count(local_radius, surface)
+            lon0, lat0 = surface.local_location
+            bearings = np.linspace(0.0, 360.0, n)
+            geod = Geod(a=surface.radius, b=surface.radius)
+            ring_lon, ring_lat, _ = geod.fwd(np.full(n, lon0), np.full(n, lat0), bearings, np.full(n, local_radius))
+            outline = pyvista.PolyData(_ring_polydata([np.column_stack([ring_lon, ring_lat])], surface))
+            actor = plotter.add_mesh(outline, name="local_region", color=local_region_color, line_width=2)
+            actor.SetVisibility(False)
+            if new_plotter:
+                plotter = update_pyvista_help_message(plotter, new_message="o Toggle local region outline")
+                plotter.add_key_event("o", lambda plotter=plotter, actor=actor: toggle_pyvista_actor(plotter, actor))
 
         return plotter
 
@@ -1222,15 +1302,11 @@ class Counting(ComponentBase):
             return _f
 
         def draw_rings(craters, surface):
-            # The rings follow the topography: each vertex is placed on the surface beneath it (its nearest node), lifted by a tenth
-            # of the size of the face beneath it so that the line is not hidden in the surface it lies on. They are sampled at
-            # about two of the finest faces of the surface, so that the straight segments between their vertices do not cut
-            # through the surface. The elevations of all the rings are looked up at once.
-            finest_face = float(np.min(surface.face_size))
+            # The rings follow the topography (see _ring_polydata)
             rings_lonlat = []
             for crater in craters:
                 radius = crater.measured_radius if use_measured_properties and crater.measured_radius else crater.radius
-                n = int(np.clip(2 * np.pi * radius / (2 * finest_face), 120, 20000)) + 1
+                n = _ring_vertex_count(radius, surface)
                 g = crater.to_geoseries(
                     n=n,
                     surface=surface,
@@ -1243,37 +1319,7 @@ class Counting(ComponentBase):
                 parts = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
                 for part in parts:
                     rings_lonlat.append(np.asarray(part.exterior.coords)[:, :2])
-            if not rings_lonlat:
-                return vtkPolyData()
-
-            lonlat = np.concatenate(rings_lonlat)
-            nodes = surface.find_nearest_nodes(lonlat[:, 0], lonlat[:, 1])
-            faces = surface.find_nearest_faces(lonlat[:, 0], lonlat[:, 1])
-            elevation = np.asarray(surface.node_elevation)[nodes] + 0.1 * np.asarray(surface.face_size)[faces]
-            lon, lat = np.deg2rad(lonlat[:, 0]), np.deg2rad(lonlat[:, 1])
-            r = surface.radius + elevation
-            xyz = np.column_stack([r * np.cos(lat) * np.cos(lon), r * np.cos(lat) * np.sin(lon), r * np.sin(lat)])
-
-            points = vtkPoints()
-            lines = vtkCellArray()
-            point_id = 0  # Keep track of the point ID across all circles
-            for ring in rings_lonlat:
-                ring_xyz = xyz[point_id : point_id + len(ring)]
-                for x, y, z in ring_xyz:
-                    points.InsertNextPoint(float(x), float(y), float(z))
-                polyline = vtkPolyLine()
-                polyline.GetPointIds().SetNumberOfIds(len(ring))
-                for i in range(len(ring)):
-                    polyline.GetPointIds().SetId(i, point_id + i)
-                point_id += len(ring)
-                lines.InsertNextCell(polyline)
-
-            # Create a poly_data object and add points and lines to it
-            poly_data = vtkPolyData()
-            poly_data.SetPoints(points)
-            poly_data.SetLines(lines)
-
-            return poly_data
+            return _ring_polydata(rings_lonlat, surface)
 
         def draw_points(craters, surface, crater_style):
             from shapely.geometry import Point

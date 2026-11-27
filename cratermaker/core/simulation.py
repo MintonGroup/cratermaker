@@ -1209,6 +1209,9 @@ class Simulation(CratermakerBase):
             Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown and toggled
+            by the "o" key. Default is "cyan".
         **kwargs : Any
             |kwargs|
 
@@ -1261,6 +1264,9 @@ class Simulation(CratermakerBase):
             Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown and toggled
+            by the "o" key. Default is "cyan".
 
         Returns
         -------
