@@ -20,6 +20,12 @@ from cratermaker.utils.general_utils import format_large_units, parameter
 
 _EJPROFILE = -3.0
 _FRAC_EJRIM = 0.3
+# The correlation between the scatter of the rim height and that of the floor depth about their size relations, by fit category:
+# the intrinsic correlation of the fresh craters, with their measurement errors (including the reference plane, which moves the
+# rim and floor together) removed (Lunar_Morphometry_Revisited, rim_floor_correlation.py, data/rim_floor_correlation.json). In
+# simple craters a high rim goes with a shallow floor (16-84% range -0.75 to -0.36); in transitional and complex craters the
+# correlation is poorly constrained (+0.03 to +0.72), and depends on the size of the reference plane systematic.
+_RIM_FLOOR_CORRELATION = {"simple": -0.619, "non-simple": 0.349}
 # The profiles of the largest craters. Above the range of the fresh craters the non-simple size relations are fitted to (x_max,
 # 138 km), the profile parameters (in proportion to the diameter or radius) move from those of the relations at x_max to those
 # of the peak-ring basin Schrodinger (340 km) and the multiring basin Orientale (989 km), interpolated in ln D, and keep those of
@@ -680,10 +686,17 @@ class BasicMoonCrater(MorphologyCrater):
             frac_ejrim = _MULTIRING_EJECTA["frac_ejrim"] if frac_ejrim is None else frac_ejrim
             ejprofile = _MULTIRING_EJECTA["ejprofile"] if ejprofile is None else ejprofile
 
+        # The scatter of the rim height and that of the floor depth are correlated (_RIM_FLOOR_CORRELATION)
+        rim_deviate = floor_deviate = None
+        if not compute_nominal and (rim_height is None or floor_elevation is None):
+            rho = _RIM_FLOOR_CORRELATION[fit_category]
+            rim_deviate, independent = rng.standard_normal(2)
+            floor_deviate = rho * rim_deviate + math.sqrt(1.0 - rho**2) * independent
+
         if rim_height is None:
             rim_height = max(
                 sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **rim_height_params[fit_category]
+                    diameter_m, compute_nominal=compute_nominal, deviate=rim_deviate, **rim_height_params[fit_category]
                 )[0]
                 * fcorrection,
                 min_radius_fraction["rim_height"][fit_category] * 0.5 * crater.diameter,
@@ -718,7 +731,7 @@ class BasicMoonCrater(MorphologyCrater):
         if floor_elevation is None:
             floor_elevation = (
                 -sample_logfit_heteroskedastic(
-                    diameter_m, compute_nominal=compute_nominal, rng=rng, **floor_elevation_params[fit_category]
+                    diameter_m, compute_nominal=compute_nominal, deviate=floor_deviate, **floor_elevation_params[fit_category]
                 )[0]
                 * fcorrection
             )

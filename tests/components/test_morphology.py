@@ -23,6 +23,24 @@ class TestMorphology(unittest.TestCase):
             diameter=100000.0,
         )
 
+    def test_rim_floor_correlation(self):
+        """The scatter of the rim height and floor depth of simple craters is anticorrelated, and nominal craters have none."""
+        from cratermaker.components.morphology.basicmoon import _RIM_FLOOR_CORRELATION
+
+        morphology = Morphology.maker("basicmoon", rng_seed=4)
+        craters = [
+            morphology.Crater.maker(final_diameter=3e3, morphology=morphology, conserve_volume=False) for _ in range(400)
+        ]
+        rim = np.log([c.rim_height for c in craters])
+        floor = np.log([-c.floor_elevation for c in craters])
+        self.assertAlmostEqual(np.corrcoef(rim, floor)[0, 1], _RIM_FLOOR_CORRELATION["simple"], delta=0.1)
+        nominal = [
+            morphology.Crater.maker(final_diameter=3e3, morphology=morphology, monte_carlo=False, conserve_volume=False)
+            for _ in range(2)
+        ]
+        self.assertEqual(nominal[0].rim_height, nominal[1].rim_height)
+        self.assertEqual(nominal[0].floor_elevation, nominal[1].floor_elevation)
+
     def test_model_registration(self):
         models = Morphology.available()
         self.assertIn("basicmoon", models)

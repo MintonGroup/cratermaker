@@ -564,6 +564,7 @@ def sample_logfit_heteroskedastic(
     x_ref: float = 0.0,
     x_min: float | None = None,
     x_max: float | None = None,
+    deviate: float | None = None,
     **kwargs: Any,
 ) -> np.float64:
     """
@@ -599,6 +600,9 @@ def sample_logfit_heteroskedastic(
         evaluated at the nearest end of the range and, for the "loglog" scale (lengths), scaled in proportion to x (geometric
         similarity); for the other scales the value at the end of the range is kept. The scatter is that at the end of the
         range, in proportion. Default is no limit.
+    deviate : float, optional
+        The standard normal deviate of the scatter (e.g. one correlated with that of another quantity). Default: drawn from
+        `rng`.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -635,12 +639,14 @@ def sample_logfit_heteroskedastic(
 
     if compute_nominal:
         return np.atleast_1d(y * scale)
-    rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+    if deviate is None:
+        rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
+        deviate = rng.standard_normal(size=np.size(x))
     if scatter_model == "lognormal":
         sigma_ln = np.sqrt(np.exp(c + alpha * (np.log(xc) - x_ref)))
-        return np.atleast_1d(y * np.exp(rng.normal(0, sigma_ln, size=np.size(x))) * scale)
+        return np.atleast_1d(y * np.exp(sigma_ln * deviate) * scale)
     if fit_scale in ["loglog", "logy"]:
         sigma = np.exp(c / 2) * y ** (alpha / 2)
     else:
         sigma = np.sqrt(np.maximum(c + alpha * y, 0.0))
-    return np.atleast_1d((y + rng.normal(0, sigma, size=np.size(x))) * scale)
+    return np.atleast_1d((y + sigma * deviate) * scale)
