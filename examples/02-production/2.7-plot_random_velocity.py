@@ -4,9 +4,9 @@ Plot a distribution of random velocities given a mean
 
 .. rubric:: By David Minton
 
-This example demonstrates the generation of random velocities using the :py:meth:`get_random_velocity` function from the :ref:`montecarlo_utils <api-utils-montecarlo>` module. The expected distribution of imapct velocities is a modified Maxwell-Boltzmann distribution. The modification is related to the relationship between the mean velocity and the escape velocity. If vmean > vescape, then the distribution will adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distirbution will be a truncated maxwellian.
+This example demonstrates the generation of random velocities using the :py:func:`~cratermaker.utils.montecarlo_utils.get_random_velocity` function from the :ref:`montecarlo_utils <api-utils-montecarlo>` module. The expected distribution of impact velocities is a modified Maxwell-Boltzmann distribution. The modification is related to the relationship between the mean velocity and the escape velocity. If vmean > vescape, then the distribution will be adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distribution will be a truncated Maxwellian.
 
-Here we sample 10000 velocities with a mean of 0.5 and 2x the escape velocity of the Moon, both with and without the escape velocity argument. Then we will compare a histogram of generated velocities with .
+Here we sample 10000 velocities with a mean of 0.75 and 2 times the escape velocity of the Moon, both with and without the escape velocity argument. Then we compare a histogram of the generated velocities with the unmodified Maxwell-Boltzmann distribution that has the same mean.
 
 """
 

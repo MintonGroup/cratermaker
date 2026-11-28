@@ -48,19 +48,10 @@ class MorphologyCraterVariable(CraterVariable):
         object.__setattr__(self, "_ejecta_rmax", None)
         object.__setattr__(self, "_emplaceable", None)
         object.__setattr__(self, "_Crater", None)
-        object.__setattr__(self, "_rings", [])
         object.__setattr__(self, "_frac_ejrim", None)
         frac_ejrim = kwargs.pop("frac_ejrim", None)
-        rings = kwargs.pop("rings", None)
         if frac_ejrim is not None:
             self.frac_ejrim = frac_ejrim
-        if rings is not None:
-            if isinstance(rings, list):
-                self._rings = rings
-            elif isinstance(rings, Crater):
-                self._rings = [rings]
-            else:
-                raise ValueError("ring must be a scalar or list of BasicMoonCrater objects")
         return
 
     @property
@@ -78,23 +69,6 @@ class MorphologyCraterVariable(CraterVariable):
             self._frac_ejrim = value
         return
 
-    @property
-    def rings(self) -> list[MorphologyCrater]:
-        if self.nrings == 0:
-            return None
-        else:
-            return self._rings
-
-    @property
-    def nrings(self) -> int:
-        """
-        Returns the number of rings associated with this Crater.
-        """
-        if self._rings is None:
-            return 0
-        else:
-            return len(self._rings)
-
     def as_dict(self) -> dict:
         """
         Return a dictionary representation of the crater variable properties.
@@ -111,7 +85,6 @@ class MorphologyCraterVariable(CraterVariable):
             "crater_region",
             "emplaceable",
             "frac_ejrim",
-            "rings",
         )
 
         for key in keys:
@@ -199,14 +172,6 @@ def _region_indices_array(region: LocalSurface | None, attr: str, n_total: int) 
 class MorphologyCrater(Crater):
     def __init__(self, crater: Crater | None = None, fixed_cls=CraterFixed, variable_cls=MorphologyCraterVariable, **kwargs):
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        # A copy gets its own copies of the rings, so that changing the rings of one crater does not change the other
-        if (
-            crater is not None
-            and "rings" not in kwargs
-            and self.nrings > 0
-            and self._var._rings is getattr(crater._var, "_rings", None)
-        ):
-            self._var._rings = [type(ring)(crater=ring, morphology=ring.morphology) for ring in self._var._rings]
 
     def __str__(self) -> str:
         horiz_line = "-" * 40 + "\n"
@@ -727,7 +692,7 @@ class Morphology(ComponentBase):
     @staticmethod
     def _scale_ejecta_rim(crater: Crater, conservation_factor: float) -> None:
         """
-        Scale the ejecta fraction of the rim height of a crater and its rings by the ejecta volume conservation factor.
+        Scale the ejecta fraction of the rim height of a crater by the ejecta volume conservation factor.
 
         The fraction is capped at 1.
 
@@ -741,12 +706,6 @@ class Morphology(ComponentBase):
         ejrim = crater.frac_ejrim * crater.rim_height
         ejrim *= conservation_factor
         crater.frac_ejrim = min(ejrim / crater.rim_height, 1.0)
-        if crater.nrings > 0:
-            for ring in crater.rings:
-                if ring.frac_ejrim is not None and ring.frac_ejrim > 0.0:
-                    ejrim = ring.frac_ejrim * ring.rim_height
-                    ejrim *= conservation_factor
-                    ring.frac_ejrim = min(ejrim / ring.rim_height, 1.0)
 
     def _init_queue_manager(self) -> None:
         """
@@ -801,7 +760,7 @@ class Morphology(ComponentBase):
             while not self._queue_manager.is_empty:
                 batch = self._queue_manager.peek_next_batch()
 
-                self.form_craters(batch)
+                self.form_craters(batch, **kwargs)
                 if pbar is not None:
                     pbar.update(len(batch))
 
@@ -817,8 +776,7 @@ class Morphology(ComponentBase):
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
                 if self.save_observed and nacumulated >= tally_cadence:
-                    measure_rim = kwargs.pop("measure_rim", False)
-                    self.counting.tally(measure_rim=measure_rim, quiet=False, **kwargs)
+                    self.counting.tally(quiet=False, **kwargs)
                     nacumulated = 0
 
             return

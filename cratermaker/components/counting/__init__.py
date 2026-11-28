@@ -11,8 +11,7 @@ import pyvista
 import xarray as xr
 from geopandas import GeoSeries
 from matplotlib.axes import Axes
-from numpy.typing import ArrayLike
-from shapely.ops import transform
+from numpy.typing import ArrayLike, NDArray
 from shapely.validation import make_valid
 from tqdm import tqdm
 from vtk import vtkPolyData
@@ -23,6 +22,7 @@ from cratermaker.components.crater import _TALLY_LONG_NAME, Crater
 from cratermaker.components.morphology import Morphology, MorphologyCrater
 from cratermaker.constants import VECTOR_DRIVER_TO_EXTENSION_MAP, FloatLike
 from cratermaker.core.base import ComponentBase, import_components
+from cratermaker.utils.general_utils import parameter
 
 DRIVER_TO_EXTENSION_MAP = {"SCC": "scc", "VTK": "vtp", "VTP": "vtp", "CSV": "csv", **VECTOR_DRIVER_TO_EXTENSION_MAP}
 
@@ -41,6 +41,66 @@ _MIN_FACE_FOR_COUNTING = 100
 _RIM_BUFFER_FACTOR = 1.5
 
 
+def _ring_vertex_count(radius: FloatLike, surface: Surface | LocalSurface) -> int:
+    """
+    The number of vertices of a ring of the given radius drawn on the surface.
+
+    The vertices are about two of the finest faces of the surface apart (at least 121), so that the straight segments between
+    them do not cut through the surface.
+    """
+    finest_face = float(np.min(surface.face_size))
+    return int(np.clip(2 * np.pi * radius / (2 * finest_face), 120, 20000)) + 1
+
+
+def _ring_polydata(rings_lonlat: list[NDArray], surface: Surface | LocalSurface) -> vtkPolyData:
+    """
+    Polylines of rings on the surface that follow its topography.
+
+    Each vertex is placed on the surface beneath it (its nearest node), lifted by a tenth of the size of the face beneath it so
+    that the line is not hidden in the surface it lies on. The elevations of all the rings are looked up at once.
+
+    Parameters
+    ----------
+    rings_lonlat : list of (n, 2) arrays
+        The longitudes and latitudes of the vertices of each ring, in degrees.
+    surface : Surface | LocalSurface
+        The surface the rings are drawn on.
+
+    Returns
+    -------
+    vtkPolyData
+        The rings as polylines.
+    """
+    from vtk import vtkCellArray, vtkPoints, vtkPolyLine
+
+    poly_data = vtkPolyData()
+    if not rings_lonlat:
+        return poly_data
+    lonlat = np.concatenate(rings_lonlat)
+    nodes = surface.find_nearest_nodes(lonlat[:, 0], lonlat[:, 1])
+    faces = surface.find_nearest_faces(lonlat[:, 0], lonlat[:, 1])
+    elevation = np.asarray(surface.node_elevation)[nodes] + 0.1 * np.asarray(surface.face_size)[faces]
+    lon, lat = np.deg2rad(lonlat[:, 0]), np.deg2rad(lonlat[:, 1])
+    r = surface.radius + elevation
+    xyz = np.column_stack([r * np.cos(lat) * np.cos(lon), r * np.cos(lat) * np.sin(lon), r * np.sin(lat)])
+
+    points = vtkPoints()
+    lines = vtkCellArray()
+    point_id = 0  # Keep track of the point ID across all rings
+    for ring in rings_lonlat:
+        for x, y, z in xyz[point_id : point_id + len(ring)]:
+            points.InsertNextPoint(float(x), float(y), float(z))
+        polyline = vtkPolyLine()
+        polyline.GetPointIds().SetNumberOfIds(len(ring))
+        for i in range(len(ring)):
+            polyline.GetPointIds().SetId(i, point_id + i)
+        point_id += len(ring)
+        lines.InsertNextCell(polyline)
+    poly_data.SetPoints(points)
+    poly_data.SetLines(lines)
+    return poly_data
+
+
 class Counting(ComponentBase):
     """
     Base class for all crater counting models. It defines the interface for tallying the observable craters on a surface.
@@ -52,6 +112,7 @@ class Counting(ComponentBase):
         self,
         surface: Surface | LocalSurface,
         reset: bool = True,
+        count_superdomain: bool = False,
         **kwargs: Any,
     ):
         """
@@ -63,6 +124,9 @@ class Counting(ComponentBase):
             The surface or local surface view to be counted.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True.
+        count_superdomain : bool, optional
+            If True, craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting as
+            well as those in the local region. Default is False.
         **kwargs : Any
             |kwargs|
         """
@@ -77,6 +141,8 @@ class Counting(ComponentBase):
         object.__setattr__(self, "_output_file_extension", "nc")
         object.__setattr__(self, "_surface", None)
         object.__setattr__(self, "_morphology", None)
+        object.__setattr__(self, "_count_superdomain", False)
+        self.count_superdomain = count_superdomain
         object.__setattr__(
             self,
             "_driver_to_extension_map",
@@ -99,6 +165,7 @@ class Counting(ComponentBase):
         counting: str | Counting | None = None,
         surface: Surface | LocalSurface | None = None,
         reset: bool = True,
+        count_superdomain: bool = False,
         **kwargs: Any,
     ) -> Counting:
         """
@@ -112,6 +179,9 @@ class Counting(ComponentBase):
             The surface or local surface view to be counted.
         reset : bool, optional
             Flag to indicate whether to reset the count and delete any old output files. Default is True
+        count_superdomain : bool, optional
+            If True, craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting as
+            well as those in the local region. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -134,6 +204,7 @@ class Counting(ComponentBase):
             component=counting,
             surface=surface,
             reset=reset,
+            count_superdomain=count_superdomain,
             **kwargs,
         )
 
@@ -196,12 +267,12 @@ class Counting(ComponentBase):
         add_to_emplaced : bool, optional
             If True, then craters will be added to the list of emplaced craters if it is big enough. If False, then the crater won't be stored in the emplaced list. Default is True.
         **kwargs : Any
-            |kwargs|
+            |kwargs| ``count_superdomain`` overrides the model's :py:attr:`count_superdomain` for this crater.
 
         Returns
         -------
-        MorphologyCrater:
-            The emplacec crater
+        MorphologyCrater or None
+            The emplaced crater, or None if the crater has no region on the surface (it is too small or lies outside it).
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
@@ -227,10 +298,12 @@ class Counting(ComponentBase):
         crater_region = crater.crater_region.extract_subregion(subregion_radius=_RIM_BUFFER_FACTOR * crater.radius)
 
         if crater_region and crater_region.n_face >= _MIN_FACE_FOR_COUNTING and add_to_observed:
+            count_superdomain = kwargs.pop("count_superdomain", self.count_superdomain)
             crater_region.add_tag(
                 name="crater_id",
                 long_name=_TALLY_LONG_NAME,
                 tag=crater.id,
+                tag_superdomain=count_superdomain,
                 **kwargs,
             )
 
@@ -336,7 +409,7 @@ class Counting(ComponentBase):
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
-    def tally(self, region: LocalSurface | None = None, measure_rim: bool = False, quiet: bool = False, **kwargs: Any) -> None:
+    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
@@ -344,8 +417,6 @@ class Counting(ComponentBase):
         ----------
         region : LocalSurface, optional
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
-        measure_rim : bool, optional
-            If True, measure the rim of each crater. Default is False.
         quiet : bool, optional
             If True, suppress progress output. Default is False.
         **kwargs : Any
@@ -356,6 +427,8 @@ class Counting(ComponentBase):
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
 
         """
+        from cratermaker.components.surface import LocalSurface
+
         if region is None:
             region = self.surface
             if hasattr(self.surface, "crater_id"):
@@ -390,11 +463,6 @@ class Counting(ComponentBase):
 
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
-            # TODO: Make the fit_rim function more reliable before turning it on by default. It is currently very slow and not reliable enough.
-            if measure_rim:
-                fit_center = kwargs.pop("fit_center", False)
-                fit_ellipse = kwargs.pop("fit_ellipse", False)
-                crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
             Kd = self.measure_degradation_state(crater, **kwargs)
             Kv = self.visibility_function(crater, **kwargs)
             # Free the regions extracted for the measurement now, rather than holding every observed crater's regions until the loop ends
@@ -457,15 +525,6 @@ class Counting(ComponentBase):
             d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
             d["id"].attrs["long_name"] = _TALLY_LONG_NAME
             data.append(d)
-            if c.nrings > 0:
-                for ring in c.rings:
-                    d = ring.as_dict(skip_complex_data=True)
-                    d = _convert_tuple_vars(input_dict=d, inverse=False)
-                    d = xr.Dataset(data_vars=d).set_coords("id").expand_dims(dim="id")
-                    d["id"].attrs["long_name"] = _TALLY_LONG_NAME
-                    d["parent"] = c.id
-                    d["parent"].attrs["long_name"] = "id of crater that this ring belongs to"
-                    data.append(d)
 
         return xr.concat(data, dim="id", data_vars="all").sortby("id")
 
@@ -637,8 +696,10 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        filename : str or Path, optional
+            The name of the file to save the plot to. If None, a default name is generated in the default plot directory. Default is None.
         interval : int | None, optional
-            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
+            The interval number to load the emplaced crater data from. If None, then all emplaced data currently saved to file is used. Default is None.
         observed_color : str | None, optional
             The color to use for observed craters using their measured properties. If None, observed craters will not be plotted. Default is "white".
         observed_original_color : str | None, optional
@@ -654,26 +715,28 @@ class Counting(ComponentBase):
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
+            If True, a scalebar will be added to the plot. If None, a scalebar is added for local surfaces but not for global surfaces. Default is None.
         colorbar : bool, optional
             If True, a colorbar will be added to the plot when using "map" plot_style or "hillshade" with a variable overlay. Default is True.
         show : bool, optional
-            If True, the plot will be displayed. Default is True.
+            If True, the plot will be displayed. Default is False.
         save : bool, optional
-            If True, the plot will be saved to the default plot directory. Default is True
+            If True, the plot will be saved to the default plot directory. Default is True.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         close_when_done : bool, optional
             If True, the figure will be closed after plotting. Default is True when save is True and show is False, and False otherwise.
         minimum_plot_width : float, optional
             Because the width of the plot is determined by the number of faces, small regions will generate small plots with labels that are hard to read. This parameter sets a lower limit to the width of the image that is generated by the plot. By default it is 800. Set to None to turn it off.
+        surface : Surface | LocalSurface, optional
+            The surface or local surface view to plot. If None, uses the associated surface property. Default is None.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        matplotlib.image.Axes object created by the surface plot method, with crater counts plotted on top if specified. If show is True, the plot will also be displayed.
-            The Axes object
+        matplotlib.axes.Axes
+            The Axes object created by the surface plot method, with crater counts plotted on top if specified.
         """
         import matplotlib.pyplot as plt
 
@@ -795,6 +858,7 @@ class Counting(ComponentBase):
         theme: str | None = "cratermaker",
         transparent_background: bool | None = None,
         crater_size_scale_factor: FloatLike = 1.0,
+        local_region_color: str = "cyan",
         **kwargs: Any,
     ) -> pyvista.Plotter:
         """
@@ -804,16 +868,16 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type : Literal["observed", "emplaced", "both"] | list[Crater], optional
             This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
         interval : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         enable_interactive : bool, optional
             If True, enables key events to toggle the visibility of all saved crater count types (observed and emplaced) with all styles (rings, points, and impacts), which are activated by keypresses ("c" for observed craters, and "t" for emplaced craters), and all are not visible on initialization. If False, only one set of data is plotted, and is visible on initialization.
-        crater_color: str | tuple[str] = ("white", "yellow")
-            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
-        crater_style : Literal["rings", "points"], optional
-            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_color : str or tuple of str, optional
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white", "red").
+        crater_style : Literal["rings", "points", "impacts", "spheres"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
         surface : Surface | LocalSurface, optional
             The surface or local surface view to be displayed. If None, uses the associated surface property
         plotter : pyvista.Plotter, optional
@@ -824,6 +888,10 @@ class Counting(ComponentBase):
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown
+            (``superdomain=True``) and enable_interactive is True, and toggled by the "o" key (not visible on initialization).
+            Default is "cyan".
         **kwargs : Any
             |kwargs|
 
@@ -871,7 +939,7 @@ class Counting(ComponentBase):
             pdata = pyvista.PolyData(mesh)
             if crater_style in ["points", "impacts", "spheres"]:
                 pdata["size_scale"] = size_scale
-            actor_name = f"{crater_type}_{crater_style}"
+            actor_name = f"{name}_{crater_style}"
             actor = plotter.add_mesh(pdata, name=actor_name, point_size=point_size, **add_mesh_kwargs)
             if crater_style in ["points", "impacts", "spheres"]:
                 actor.mapper.scale_array = "size_scale"
@@ -971,6 +1039,23 @@ class Counting(ComponentBase):
                 plotter = update_pyvista_help_message(plotter, new_message=new_message)
                 plotter.add_key_event(key, lambda plotter=plotter, actor_list=actor_list: update_crater_style(plotter, actor_list))
 
+        # When the superdomain of a hireslocal surface is shown, the outline of the local region (where the superdomain begins)
+        local_radius = getattr(surface, "local_radius", None)
+        if enable_interactive and kwargs.get("superdomain", False) and local_radius is not None:
+            from pyproj import Geod
+
+            n = _ring_vertex_count(local_radius, surface)
+            lon0, lat0 = surface.local_location
+            bearings = np.linspace(0.0, 360.0, n)
+            geod = Geod(a=surface.radius, b=surface.radius)
+            ring_lon, ring_lat, _ = geod.fwd(np.full(n, lon0), np.full(n, lat0), bearings, np.full(n, local_radius))
+            outline = pyvista.PolyData(_ring_polydata([np.column_stack([ring_lon, ring_lat])], surface))
+            actor = plotter.add_mesh(outline, name="local_region", color=local_region_color, line_width=2)
+            actor.SetVisibility(False)
+            if new_plotter:
+                plotter = update_pyvista_help_message(plotter, new_message="o Toggle local region outline")
+                plotter.add_key_event("o", lambda plotter=plotter, actor=actor: toggle_pyvista_actor(plotter, actor))
+
         return plotter
 
     def to_geoseries(
@@ -1039,13 +1124,16 @@ class Counting(ComponentBase):
         **kwargs,
     ) -> None:
         """
-        Export the crater data to a vector file and stores it in the default export directory.
+        Export the crater data to a vector file in the default export directory.
+
+        This method is not implemented yet and currently does nothing. It is still called by :py:meth:`export` for vector drivers,
+        so requesting a vector format (e.g. "GPKG") from :py:meth:`export` writes no crater file.
 
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to export, either "observed" or "emplaced
-        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The name of the crater dataset to export, either "observed" or "emplaced".
+        craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
@@ -1172,7 +1260,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to convert, either "observed" or "emplaced. If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
+            The name of the crater dataset to convert, either "observed" or "emplaced". If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
         interval : int | None, optional
             The interval number to load if craters is not provided directly. If None, then the most recent interval will be used. Default is None.
         craters : list[Crater], optional
@@ -1208,54 +1296,25 @@ class Counting(ComponentBase):
 
             return _f
 
-        def polygon_xyz_coords(geom, R):
-            """Yield Nx3 arrays for each exterior ring (keep closing vertex)."""
-            g3d = transform(lonlat_to_xyz(R), geom)
-
-            def _rings(g):
-                if g.geom_type == "Polygon":
-                    yield np.asarray(g.exterior.coords)
-                    for i in g.interiors:
-                        yield np.asarray(i.coords)
-                elif g.geom_type in ("MultiPolygon", "GeometryCollection"):
-                    for sub in g.geoms:
-                        yield from _rings(sub)
-                else:
-                    yield np.asarray(g.coords)
-
-            yield from _rings(g3d)
-
         def draw_rings(craters, surface):
-            R = surface.radius
-            geoms = []
+            # The rings follow the topography (see _ring_polydata)
+            rings_lonlat = []
             for crater in craters:
-                geoms.append(
-                    crater.to_geoseries(
-                        surface=surface, split_antimeridian=False, use_measured_properties=use_measured_properties, **kwargs
-                    )
+                radius = crater.measured_radius if use_measured_properties and crater.measured_radius else crater.radius
+                n = _ring_vertex_count(radius, surface)
+                g = crater.to_geoseries(
+                    n=n,
+                    surface=surface,
+                    split_antimeridian=False,
+                    use_measured_properties=use_measured_properties,
+                    follow_topography=False,
+                    **kwargs,
                 )
-
-            points = vtkPoints()
-            lines = vtkCellArray()
-            point_id = 0  # Keep track of the point ID across all circles
-            for g in geoms:
-                for ring_xyz in polygon_xyz_coords(g.item(), R):
-                    x, y, z = ring_xyz.T  # each is (N,)
-                    for i in range(len(x)):
-                        points.InsertNextPoint(float(x[i]), float(y[i]), float(z[i]))
-                    polyline = vtkPolyLine()
-                    polyline.GetPointIds().SetNumberOfIds(len(x))
-                    for i in range(len(x)):
-                        polyline.GetPointIds().SetId(i, point_id + i)
-                    point_id += len(x)
-                    lines.InsertNextCell(polyline)
-
-            # Create a poly_data object and add points and lines to it
-            poly_data = vtkPolyData()
-            poly_data.SetPoints(points)
-            poly_data.SetLines(lines)
-
-            return poly_data
+                geom = g.item()
+                parts = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
+                for part in parts:
+                    rings_lonlat.append(np.asarray(part.exterior.coords)[:, :2])
+            return _ring_polydata(rings_lonlat, surface)
 
         def draw_points(craters, surface, crater_style):
             from shapely.geometry import Point
@@ -1343,7 +1402,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to convert, either "observed" or "emplaced. If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
+            The name of the crater dataset to convert, either "observed" or "emplaced". If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
         interval : int | None, optional
            |interval_export|
         craters : list[Crater], optional
@@ -1397,7 +1456,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The type of the crater dataset to export, either "observed" or "emplaced
+            The type of the crater dataset to export, either "observed" or "emplaced".
         craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
@@ -1412,11 +1471,6 @@ class Counting(ComponentBase):
         from cratermaker.components.crater import _convert_tuple_vars
 
         craters = self._validate_export_args(crater_type=crater_type, interval=interval, craters=craters)
-
-        ncraters = len(craters)
-        for i in range(ncraters):
-            if craters[i].nrings > 0:
-                craters.extend(craters[i].rings)
 
         if output_file is None:
             filename_base = self.output_filename(interval).replace(self.output_file_extension, "csv")
@@ -1480,7 +1534,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The type of the crater dataset to export, either "observed" or "emplaced
+            The type of the crater dataset to export, either "observed" or "emplaced".
         craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
@@ -1591,6 +1645,17 @@ class Counting(ComponentBase):
             raise TypeError("surface must be an instance of Surface or LocalSurface")
         self._surface = value
 
+    @parameter
+    def count_superdomain(self) -> bool:
+        """Whether craters whose tagging region lies in the superdomain of a |HiResLocalSurface| are tagged for counting."""
+        return self._count_superdomain
+
+    @count_superdomain.setter
+    def count_superdomain(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("count_superdomain must be a boolean value")
+        self._count_superdomain = value
+
     @property
     def n_layer(self) -> int:
         """Number of layers in the counting model."""
@@ -1629,9 +1694,9 @@ class Counting(ComponentBase):
         """
         The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
 
-        Note
-        ----
-        The Morphology component requires a Countinng component, so this property is set by the Morphology component on initialization, rather than by the Counting component itself.
+        Notes
+        -----
+        The Morphology component requires a Counting component, so this property is set by the Morphology component on initialization, rather than by the Counting component itself.
         """
         return self._morphology
 
@@ -1659,7 +1724,7 @@ def R_to_CSFD(
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
-    Parameter
+    Parameters
     ----------
     R : R = f(D)
         A function that computes R given D.
@@ -1700,9 +1765,9 @@ def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | Ar
     """
     Calculate the cumulative number of craters at geometric saturation for a given diameter.
 
-    We use the definition of geomatric saturation from Melosh (1989) [#]_.
+    We use the definition of geometric saturation from Melosh (1989) [#]_.
 
-    Parameter
+    Parameters
     ----------
     diameter : FloatLike or ArrayLike
         The diameter(s) for which to calculate the cumulative number of craters at geometric saturation.
@@ -1724,7 +1789,7 @@ def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> Flo
     """
     Calculate the cumulative number of craters at equilibrium for a given diameter.
 
-    Parameter
+    Parameters
     ----------
     diameter : FloatLike or ArrayLike
         The diameter(s) for which to calculate the cumulative number of craters at equilibrium.

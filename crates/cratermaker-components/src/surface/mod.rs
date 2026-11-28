@@ -372,8 +372,12 @@ fn compute_one_face_gradient(
         return (0.0, 0.0);
     }
 
-    // Loop over neighbors to compute gradient contributions
-    for (_i, &(other, distance, length)) in neighbors.iter().enumerate() {
+    // Weighted least squares for the gradient g: each neighbor gives the directional derivative dz / distance = g . u along the
+    // unit vector u towards it, weighted by the length of the shared edge. Solving the normal equations M g = b, with
+    // M = sum(w u u^T) and b = sum(w (dz / distance) u), is exact for a linear field on any mesh (normalizing b by sum(w) alone
+    // instead would give half the gradient on a regular mesh, since sum(w u u^T) = sum(w) / 2 I there).
+    let (mut m_zz, mut m_zm, mut m_mm) = (0.0, 0.0, 0.0);
+    for &(other, distance, length) in neighbors.iter() {
         let theta = compute_one_bearing(
             lon_f.to_radians(),
             lat_f.to_radians(),
@@ -382,18 +386,22 @@ fn compute_one_face_gradient(
         );
         let dir_zonal = theta.sin();
         let dir_meridional = theta.cos();
-        let dz = variable[other] - variable[f];
-        let flux = dz * length / distance;
+        let derivative = (variable[other] - variable[f]) / distance;
 
-        dh_zonal += flux * dir_zonal;
-        dh_meridional += flux * dir_meridional;
+        m_zz += length * dir_zonal * dir_zonal;
+        m_zm += length * dir_zonal * dir_meridional;
+        m_mm += length * dir_meridional * dir_meridional;
+        dh_zonal += length * derivative * dir_zonal;
+        dh_meridional += length * derivative * dir_meridional;
         weight_sum += length;
     }
 
-    if weight_sum > 0.0 {
-        dh_zonal /= weight_sum;
-        dh_meridional /= weight_sum;
-        return (dh_zonal, dh_meridional);
+    let det = m_zz * m_mm - m_zm * m_zm;
+    if weight_sum > 0.0 && det > 1e-12 * weight_sum * weight_sum {
+        return (
+            (m_mm * dh_zonal - m_zm * dh_meridional) / det,
+            (m_zz * dh_meridional - m_zm * dh_zonal) / det,
+        );
     }
 
     (0.0, 0.0)
@@ -446,9 +454,91 @@ pub fn compute_slope(region: &LocalSurfaceView<'_>) -> ArrayResult {
 ///
 /// The change in elevation of each face.
 pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> ArrayResult {
+    let critical = Array1::<f64>::from_elem(region.n_face, critical_slope);
+    slope_collapse_field(critical.view(), region)
+}
+
+/// The upper envelope of cones dropping from each face at a slope that varies from face to face.
+///
+/// Each face is raised to the highest of its own height and `h(g) - max_slope(f) * d(f, g)` over the faces g it is connected
+/// to through the mesh, where d is the distance between face centers along the path. The cones are propagated from the highest
+/// faces down (as in Dijkstra's algorithm), so the result is exact on the mesh's face graph and takes O(n log n) time. Faces
+/// are never lowered.
+///
+/// # Arguments
+///
+/// * `heights` - The height of each face.
+/// * `max_slope` - The slope (rise over run) at which the cones fall through each face.
+/// * `region` - The mesh.
+///
+/// # Returns
+///
+/// The height of each face.
+pub fn slope_limited_envelope(
+    heights: ArrayView1<'_, f64>,
+    max_slope: ArrayView1<'_, f64>,
+    region: &LocalSurfaceView<'_>,
+) -> Result<Array1<f64>, String> {
+    use std::cmp::Ordering;
+    use std::collections::BinaryHeap;
+
+    if heights.len() != region.n_face || max_slope.len() != region.n_face {
+        return Err("heights and max_slope must have one value per face".into());
+    }
+    // A slope that is not positive would make the cones rise instead of fall, and the propagation would not end
+    if max_slope.iter().any(|&m| !(m > 0.0 && m.is_finite())) {
+        return Err("max_slope must be positive and finite".into());
+    }
+    #[derive(PartialEq)]
+    struct Item(f64, usize);
+    impl Eq for Item {}
+    impl PartialOrd for Item {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+    impl Ord for Item {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.0.total_cmp(&other.0)
+        }
+    }
+    let topology = DiffusionTopology::new(region);
+    let mut h = heights.to_owned();
+    let lowest = h.iter().cloned().fold(f64::INFINITY, f64::min);
+    let mut heap: BinaryHeap<Item> = (0..region.n_face).filter(|&f| h[f] > lowest).map(|f| Item(h[f], f)).collect();
+    while let Some(Item(value, f)) = heap.pop() {
+        if value < h[f] {
+            continue; // a stale entry
+        }
+        for &(e, is_second) in topology.incidence_of(f) {
+            let g = topology.edge_faces[e][usize::from(!is_second)];
+            let candidate = value - max_slope[g] * region.edge_face_distance[e];
+            if candidate > h[g] {
+                h[g] = candidate;
+                heap.push(Item(candidate, g));
+            }
+        }
+    }
+    Ok(h)
+}
+
+/// Collapses slopes steeper than a critical slope that varies from face to face (see [`slope_collapse`]).
+///
+/// # Arguments
+///
+/// * `critical_slope` - Maximum allowable slope of each face (rise over run).
+/// * `region` - Reference to the local surface data structure containing mesh information.
+///
+/// # Returns
+///
+/// The change in elevation of each face.
+pub fn slope_collapse_field(critical_slope: ArrayView1<'_, f64>, region: &LocalSurfaceView<'_>) -> ArrayResult {
     const LOOP_LIMIT: usize = 1000;
     let n_face = region.n_face;
-    let critical_slope_sq = critical_slope * critical_slope;
+    if critical_slope.len() != n_face {
+        return Err("critical_slope must have one value per face".into());
+    }
+    let critical_slope_sq: Vec<f64> = critical_slope.iter().map(|&c| c * c).collect();
     // The diffusivity that is stable with a time step of 1
     let diffmax = compute_dt_max(Array1::<f64>::ones(n_face).view(), region);
 
@@ -461,7 +551,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
         .map(|f| compute_face_slope_squared(f, elevation.view(), region))
         .collect();
     let mut steep: Vec<usize> = (0..n_face)
-        .filter(|&f| slope_sq[f] > critical_slope_sq)
+        .filter(|&f| slope_sq[f] > critical_slope_sq[f])
         .collect();
     if steep.is_empty() {
         return Ok(total_delta);
@@ -477,7 +567,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
             break;
         }
         for &f in &steep {
-            kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq) * 10.0;
+            kappa[f] = diffmax * (1.0 + slope_sq[f] / critical_slope_sq[f]) * 10.0;
         }
         let touched = diffuse_active_edges(
             &steep,
@@ -523,7 +613,7 @@ pub fn slope_collapse(critical_slope: f64, region: &LocalSurfaceView<'_>) -> Arr
         steep.clear();
         for (&f, &s) in candidates.iter().zip(new_slopes.iter()) {
             slope_sq[f] = s;
-            if s > critical_slope_sq {
+            if s > critical_slope_sq[f] {
                 steep.push(f);
             }
         }

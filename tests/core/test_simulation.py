@@ -230,11 +230,14 @@ class TestSimulation(unittest.TestCase):
     def test_volume_conservation(self):
         # Craters and their ejecta, and the degradation they cause, only move material around, so a simulation should not change
         # the total volume of the surface beyond rounding error. Craters that the mesh resolves so poorly that their sampled shape
-        # removes no material are skipped, as their ejecta could not balance them. (Modeled on example 1.2.)
+        # removes no material are skipped, as their ejecta could not balance them. Multiring basins are not held to volume
+        # conservation (their final surface keeps little of their excavation), so craters are limited to sizes below the
+        # multiring transition. (Modeled on example 1.2.)
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             sim = cratermaker.Simulation(
                 target="Moon",
                 morphology="basicmoon",
+                largest_crater=400e3,
                 gridlevel=self.gridlevel,
                 save_observed=False,
                 save_emplaced=False,
@@ -251,6 +254,83 @@ class TestSimulation(unittest.TestCase):
             gross = np.sum(np.abs(change) * area)
             self.assertGreater(gross, 0.0)
             self.assertLess(abs(net) / gross, 1e-12, f"net volume change {net:.3e} m3 out of {gross:.3e} m3 moved")
+
+    def test_count_superdomain(self):
+        # On a hireslocal surface, a crater centered outside the local region is only tagged for counting when count_superdomain
+        # is set, either for the simulation (passed to the Counting model) or for one emplace call, and the setting is kept when
+        # the simulation is resumed
+        def offside_crater(sim, **kwargs):
+            local_radius = sim.surface.local.radius
+            sim.emplace(radius=800e3, relative_location={"distance": local_radius + 200e3, "bearing": 90.0}, **kwargs)
+            return len(sim.counting.observed)
+
+        settings = {"pix": 10e3, "local_radius": 250e3, "ask_overwrite": False, "rng_seed": 234471661}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, **settings)
+            self.assertFalse(sim.counting.count_superdomain)
+            self.assertEqual(offside_crater(sim), 0)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, **settings)
+            self.assertEqual(offside_crater(sim, count_superdomain=True), 1)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(surface="hireslocal", simdir=simdir, reset=True, count_superdomain=True, **settings)
+            self.assertTrue(sim.counting.count_superdomain)
+            self.assertEqual(offside_crater(sim), 1)
+            sim.save()
+            resumed = cratermaker.Simulation(simdir=simdir, reset=False, ask_overwrite=False)
+            self.assertTrue(resumed.counting.count_superdomain)
+
+    def test_resume_reproduces_run(self):
+        # A run resumed from its saved state continues exactly as an uninterrupted run would: the state of the random number
+        # generator saved with the simulation is restored, not replaced by one freshly seeded (and advanced by the setup)
+        kw = dict(morphology="basicmoon", rng_seed=230982307, gridlevel=4, ask_overwrite=False, save_actions=[], do_counting=True)
+
+        def interval_craters(simdir, interval):
+            with xr.open_dataset(Path(simdir) / "counting" / f"emplaced_craters{interval:06d}.nc") as ds:
+                return np.sort(ds["diameter"].values.ravel())
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as continuous, tempfile.TemporaryDirectory(
+            ignore_cleanup_errors=True
+        ) as resumed:
+            sim = cratermaker.Simulation(simdir=continuous, reset=True, **kw)
+            sim.run(time_start=4310, time_end=4290, time_interval=10)
+            final_state = sim.rng.bit_generator.state
+
+            sim = cratermaker.Simulation(simdir=resumed, reset=True, **kw)
+            sim.run(time_start=4310, time_end=4300, time_interval=10)
+            saved_state = sim.rng.bit_generator.state
+            del sim
+            sim = cratermaker.Simulation(simdir=resumed, reset=False, **kw)
+            self.assertEqual(sim.rng.bit_generator.state, saved_state)
+            sim.run(time_start=4310, time_end=4290, time_interval=10)
+            self.assertEqual(sim.rng.bit_generator.state, final_state)
+            np.testing.assert_array_equal(interval_craters(continuous, 2), interval_craters(resumed, 2))
+
+    def test_crater_size_limits(self):
+        # The smallest and largest crater sizes given to the constructor are applied, limited to the surface and the target, and
+        # kept when the simulation is resumed (unless new ones are given)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            sim = cratermaker.Simulation(
+                target="Moon",
+                gridlevel=self.gridlevel,
+                simdir=simdir,
+                ask_overwrite=False,
+                reset=True,
+                smallest_crater=100e3,
+                largest_crater=400e3,
+            )
+            self.assertEqual(sim.smallest_crater, 100e3)
+            self.assertEqual(sim.largest_crater, 400e3)
+            sim.save()
+            resumed = cratermaker.Simulation(simdir=simdir, ask_overwrite=False, reset=False)
+            self.assertEqual(resumed.smallest_crater, 100e3)
+            self.assertEqual(resumed.largest_crater, 400e3)
+            overridden = cratermaker.Simulation(simdir=simdir, ask_overwrite=False, reset=False, largest_crater=300e3)
+            self.assertEqual(overridden.largest_crater, 300e3)
+            capped = cratermaker.Simulation(
+                target="Moon", gridlevel=self.gridlevel, simdir=simdir, ask_overwrite=False, reset=True, largest_crater=1e9
+            )
+            self.assertEqual(capped.largest_crater, capped.target.diameter)
 
     def test_quasimc_reproducible(self):
         # The quasi-Monte Carlo craters must be created with the simulation's random number generator, so that two simulations

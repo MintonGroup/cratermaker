@@ -14,6 +14,7 @@ Available Implementations
 | Class       | Argument name  | Example Usage                               |
 +=============+================+=============================================+
 | |BasicMoon| | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
++-------------+----------------+---------------------------------------------+
 | |RealMoon|  | "realmoon"     | morphology = Morphology.maker("realmoon")   |
 +-------------+----------------+---------------------------------------------+
 
@@ -56,6 +57,15 @@ See `Morphology`_ for inherited methods and attributes.
    :undoc-members:
    :no-index-entry:
 
+Profile layout functions
+========================
+
+.. autosummary::
+   :toctree: generated/
+
+    peak_ring_layout
+    scarp_layout
+
 Usage example
 =============
 
@@ -80,11 +90,6 @@ See `Morphology`_ for inherited methods and attributes.
 
 
 .. autoclass:: cratermaker.components.morphology.realmoon.RealMoonCrater
-   :members:
-   :undoc-members:
-   :no-index-entry:
-
-.. autoclass:: cratermaker.components.morphology.realmoon.PSD1D
    :members:
    :undoc-members:
    :no-index-entry:

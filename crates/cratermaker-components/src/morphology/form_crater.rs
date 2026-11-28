@@ -10,7 +10,8 @@
 //! 4. Compute the ejecta blanket (optionally modulated by rays), scale it to conserve volume, and record its thickness.
 //! 5. Degrade the pre-existing surface by ejecta burial and by the crater's degradation function (two diffusion steps).
 //! 6. Add the crater and ejecta to the surface.
-//! 7. Optionally collapse slopes steeper than the critical slope.
+//! 7. Add the crater's central peak or peak ring, if its model has one (see [`crate::morphology::central_peak`]).
+//! 8. Optionally collapse slopes steeper than the critical slope.
 //!
 //! Each step follows the original Python implementation (`Morphology.form_crater` together with
 //! `BasicMoonMorphology.compute_ejecta` and the `LocalSurface` methods it calls).
@@ -19,7 +20,8 @@ use crate::ArrayResult;
 use crate::morphology::basicmoon::{
     BasicMoonCrater, basicmoon_profile, degradation_function, ray_intensity,
 };
-use crate::morphology::realmoon::{RealMoonCrater, realmoon_profile};
+use crate::morphology::central_peak::{CentralPeak, central_peak, PeakModel};
+use crate::morphology::realmoon::{RealMoonField, realmoon_profile};
 use crate::surface::{
     LocalSurfaceView, apply_diffusion, interpolate_node_elevation_from_faces, reference_surface,
     slope_collapse,
@@ -81,17 +83,32 @@ pub trait CraterProfile: Sync {
     fn burial_degradation(&self, ejecta_thickness: f64) -> f64 {
         EJECTA_SOFTEN_FACTOR * (ejecta_thickness * ejecta_thickness)
     }
+
+    /// The crater's central peak or peak ring, if the model builds one on the surface (rather than in its profile).
+    fn central_peak(&self) -> Option<CentralPeak> {
+        None
+    }
+
+    /// Whether the crater's ejecta is scaled to balance the volume it excavates (when volume conservation is on).
+    fn conserves_volume(&self) -> bool {
+        true
+    }
 }
 
 /// The basic lunar crater model (Minton et al. 2026).
 pub struct BasicMoonModel<'c> {
     pub crater: &'c BasicMoonCrater,
-    pub rings: &'c Option<Vec<BasicMoonCrater>>,
 }
 
 impl CraterProfile for BasicMoonModel<'_> {
     fn diameter(&self) -> f64 {
         self.crater.diameter
+    }
+
+    /// A crater with a ring scarp is a multiring basin, whose final surface keeps little of its excavation (the floor rebounds
+    /// and is compensated), so its ejecta is not balanced against it.
+    fn conserves_volume(&self) -> bool {
+        !self.crater.has_scarp()
     }
 
     fn radius(&self) -> f64 {
@@ -110,22 +127,27 @@ impl CraterProfile for BasicMoonModel<'_> {
             radial_distances,
             reference_elevations,
             self.crater,
-            self.rings,
             include_crater,
             include_ejecta,
         )
     }
 }
 
-/// The lunar crater model with bearing-dependent shape parameters (Du et al. 2025).
-pub struct RealMoonModel<'c, 'a> {
-    pub crater: &'c RealMoonCrater<'a>,
-    pub rings: &'c Option<Vec<RealMoonCrater<'a>>>,
+/// The realistic lunar crater model: the basic profile warped by the rim outline, plus the field of variation of the crater.
+pub struct RealMoonModel<'a> {
+    pub crater: &'a BasicMoonCrater,
+    pub field: RealMoonField<'a>,
 }
 
-impl CraterProfile for RealMoonModel<'_, '_> {
+impl CraterProfile for RealMoonModel<'_> {
     fn diameter(&self) -> f64 {
         self.crater.diameter
+    }
+
+    /// A crater with a ring scarp is a multiring basin, whose final surface keeps little of its excavation (the floor rebounds
+    /// and is compensated), so its ejecta is not balanced against it.
+    fn conserves_volume(&self) -> bool {
+        !self.crater.has_scarp()
     }
 
     fn radius(&self) -> f64 {
@@ -145,10 +167,23 @@ impl CraterProfile for RealMoonModel<'_, '_> {
             bearings,
             reference_elevations,
             self.crater,
-            self.rings,
+            &self.field,
             include_crater,
             include_ejecta,
         )
+    }
+
+    fn central_peak(&self) -> Option<CentralPeak> {
+        let peak = CentralPeak {
+            height: self.crater.peak_height,
+            width: self.crater.peak_width,
+            ring_radius: self.crater.peak_ring_radius,
+            floor_radius: self.crater.floor_radius,
+            center: Some((self.crater.peak_center_distance, self.crater.peak_center_bearing)),
+            elongation: Some((self.crater.peak_elongation, self.crater.peak_elongation_bearing)),
+            seed: self.crater.peak_seed,
+        };
+        peak.is_present().then_some(peak)
     }
 }
 
@@ -236,7 +271,7 @@ impl CraterRegionView<'_> {
 
     /// A view of the region for the surface kernels (diffusion, slope collapse, node interpolation), with the given current
     /// elevations. Fields those kernels do not use are left empty.
-    fn kernel_view<'v>(
+    pub(crate) fn kernel_view<'v>(
         &'v self,
         face_elevation: ArrayView1<'v, f64>,
         node_elevation: ArrayView1<'v, f64>,
@@ -387,8 +422,9 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
 
     // A crater whose shape on this mesh removes no material (a net volume of zero or more, as happens when the rim uplift
     // outweighs a bowl that the mesh barely resolves) cannot be balanced by its ejecta, so it is not formed and the surface is
-    // left unchanged.
-    if !(excavated_volume < 0.0) {
+    // left unchanged. Craters exempt from volume conservation (multiring basins, with a ring scarp) are formed regardless.
+    let conserve = options.conserve_volume && model.conserves_volume();
+    if conserve && !(excavated_volume < 0.0) {
         return Ok(FormCraterOutcome {
             excavated_volume,
             conservation_factor: None,
@@ -415,7 +451,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     thickness.mapv_inplace(|t| t.max(0.0));
 
     let ejecta_volume = face_volume(thickness.slice(s![..nf]), region.face_area);
-    let factor = if options.conserve_volume {
+    let factor = if conserve {
         (-excavated_volume / ejecta_volume).max(0.0)
     } else {
         1.0
@@ -439,7 +475,17 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
     state.face_elevation += &elevation_change.slice(s![..nf]);
     state.node_elevation += &elevation_change.slice(s![nf..]);
 
-    // 7. Slope collapse
+    // 7. Central peak or peak ring. It is not ejecta, so the ejecta thickness is left unchanged.
+    if let Some(peak) = model.central_peak() {
+        let change = central_peak(region, &peak, &PeakModel::default())?;
+        state.face_elevation += &change;
+        state.node_elevation = {
+            let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());
+            interpolate_node_elevation_from_faces(&view)?
+        };
+    }
+
+    // 8. Slope collapse
     if let Some(critical_slope) = options.critical_slope {
         let delta = {
             let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());

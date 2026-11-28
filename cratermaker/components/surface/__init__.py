@@ -78,6 +78,13 @@ def _unique_indices(indices: NDArray, n_total: int) -> NDArray:
     return unique
 
 
+
+def _unit_vectors(lon: ArrayLike, lat: ArrayLike) -> NDArray[np.float64]:
+    """Cartesian unit vectors of points given by longitude and latitude in degrees."""
+    lon = np.deg2rad(np.asarray(lon, dtype=np.float64))
+    lat = np.deg2rad(np.asarray(lat, dtype=np.float64))
+    return np.column_stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+
 class Surface(ComponentBase):
     _registry: dict[str, type[Surface]] = {}
 
@@ -130,6 +137,8 @@ class Surface(ComponentBase):
         object.__setattr__(self, "_edge_indices", None)
         object.__setattr__(self, "_node_tree", None)
         object.__setattr__(self, "_face_tree", None)
+        object.__setattr__(self, "_node_kdtree", None)
+        object.__setattr__(self, "_face_kdtree", None)
         object.__setattr__(self, "_face_area", None)
         object.__setattr__(self, "_face_size", None)
         object.__setattr__(self, "_face_bin_indices", None)
@@ -552,25 +561,20 @@ class Surface(ComponentBase):
         """
         return self._full().apply_diffusion(kdiff)
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> None:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> None:
         """
         Collapse all slopes larger than the critical slope angle.
 
         Parameters
         ----------
-        critical_slope_angle : float
-            The critical slope angle (angle of repose) in degrees.
+        critical_slope_angle : float, optional
+            The critical slope angle (angle of repose) in degrees. Default is 40.0.
         """
         return self._full().slope_collapse(critical_slope_angle)
 
     def compute_slope(self) -> NDArray[np.float64]:
         """
-        Compute the slope of the surface.
-
-        Returns
-        -------
-        NDArray[np.float64]
-            The slope of all faces in degrees.
+        Compute the slope of the surface and store it as a new variable "face_slope" in degrees.
         """
         return self._full().compute_slope()
 
@@ -701,6 +705,52 @@ class Surface(ComponentBase):
 
         return face_ind.item()
 
+    def find_nearest_nodes(self, lon: ArrayLike, lat: ArrayLike) -> NDArray[np.int64]:
+        """
+        Find the indices of the nearest nodes to many points at once.
+
+        The nearest node on the sphere is the one whose unit vector is nearest in Cartesian space, so the search uses a k-d tree
+        on the nodes' unit vectors, built on first use. It is much faster than :py:meth:`find_nearest_node` for many points.
+
+        Parameters
+        ----------
+        lon, lat : array-like
+            The longitudes and latitudes of the points in degrees.
+
+        Returns
+        -------
+        NDArray[np.int64]
+            The index of the nearest node to each point.
+        """
+        if self._node_kdtree is None:
+            from scipy.spatial import cKDTree
+
+            self._node_kdtree = cKDTree(np.column_stack([self.node_x, self.node_y, self.node_z]) / self.radius)
+        return self._node_kdtree.query(_unit_vectors(lon, lat))[1]
+
+    def find_nearest_faces(self, lon: ArrayLike, lat: ArrayLike) -> NDArray[np.int64]:
+        """
+        Find the indices of the faces whose centers are nearest to many points at once.
+
+        As with :py:meth:`find_nearest_face`, this can return a neighbor of the face that contains a point. The search uses a
+        k-d tree on the unit vectors of the face centers, built on first use.
+
+        Parameters
+        ----------
+        lon, lat : array-like
+            The longitudes and latitudes of the points in degrees.
+
+        Returns
+        -------
+        NDArray[np.int64]
+            The index of the nearest face to each point.
+        """
+        if self._face_kdtree is None:
+            from scipy.spatial import cKDTree
+
+            self._face_kdtree = cKDTree(np.column_stack([self.face_x, self.face_y, self.face_z]) / self.radius)
+        return self._face_kdtree.query(_unit_vectors(lon, lat))[1]
+
     def interpolate_node_elevation_from_faces(self) -> None:
         """
         Update node elevations by area-weighted averaging of adjacent face elevations.
@@ -716,24 +766,19 @@ class Surface(ComponentBase):
 
     def get_random_location_on_face(self, face_index: int, **kwargs: Any) -> float | tuple[float, float] | ArrayLike:
         """
-        Generate a random coordinate within a given face of a the mesh.
+        Generate a random coordinate within a given face of the mesh.
 
         Parameters
         ----------
-        grid : uxarray.Grid
-            The grid object containing the mesh information.
         face_index : int | NDArray[np.int64]
-            The index or array of indices of the face within the grid to obtain the random sample.
-        size : int or tuple of ints, optional
-            The number of samples to generate. If size is None (the default), a single tuple is returned. If size is greater than 1,
-            then an array of tuples is returned. The default is 1.
+            The index or array of indices of the face within the grid to obtain the random sample. One location is generated per face index.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        (lon,lat) or ndarray[(lon,lat)] of given size
-            A pair or array of pairs of longitude and latitude values in degrees.
+        NDArray
+            A structured array with fields "lon" and "lat" (in degrees), with one entry per face index.
 
         Notes
         -----
@@ -797,6 +842,8 @@ class Surface(ComponentBase):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        filename : str, optional
+            The path to the output file. If None, the default output file name for the interval is used. Default is None.
         **kwargs : Any
             |kwargs|
         """
@@ -1045,7 +1092,7 @@ class Surface(ComponentBase):
         Parameters
         ----------
         variable_name : str, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable: (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         interval : int | None, optional
@@ -1053,7 +1100,7 @@ class Surface(ComponentBase):
         theme : str, optional
             The PyVista theme to use for the plot. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
-            If True, the background of the plot will be transparent. Default is False.
+            If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         plotter : pv.Plotter, optional
             An existing PyVista Plotter object to use for the plot. If None, a new Plotter object will be created. Default is None.
         enable_interactive : bool, optional
@@ -1136,10 +1183,10 @@ class Surface(ComponentBase):
 
         Parameters
         ----------
-        bearings : FloatLike or ArrayLike
-            Initial bearing from the reference point to the target point or points in degrees.
         distances : FloatLike or ArrayLike
             Great circle distance from the reference point to the target point or points in meters.
+        bearings : FloatLike or ArrayLike
+            Initial bearing from the reference point to the target point or points in degrees.
         reference_location : PairOfFloats
             Longitude and latitude of the reference point in degrees.
 
@@ -1657,7 +1704,7 @@ class Surface(ComponentBase):
 
     @property
     def face_size(self) -> NDArray[np.float64]:
-        """The effective size of each face in meters, which s simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM."""
+        """The effective size of each face in meters, which is simply the square root of the face area, but is useful for certain comparisons and is equivalent to the `pix` variable from CTEM."""
         if self._face_size is None:
             self._compute_face_size()
         return self._face_size
@@ -1877,7 +1924,7 @@ class Surface(ComponentBase):
         """
         The number of nodes that make up each face.
 
-        Dimensions: `(n_node, )`
+        Dimensions: `(n_face, )`
         """
         if self._n_nodes_per_face is None:
             self._n_nodes_per_face = self.uxgrid.n_nodes_per_face.data
@@ -2042,7 +2089,7 @@ class Surface(ComponentBase):
         name : str
             The name of the target body.
         location : tuple[float, float] | None, optional
-            The location of the center of the LAEA projection in degrees. If None, a global CRS is returned. Default is None.
+            The location of the center of the azimuthal equidistant projection in degrees. If None, a global CRS is returned. Default is None.
         """
         if location is None:
             wkt = (
@@ -2301,8 +2348,8 @@ class LocalSurface(CratermakerBase):
             Units of the data variable that will be saved as an attribute if this is new data. If the data already exists on the surface, this will be ignored.
         isfacedata : bool, optional, default True
             Flag to indicate whether the data is face data or node data. This is only needed if `data` is a scalar, otherwise it is ignored
-        overwrite : bool, optional, default False
-            By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
+        overwrite : bool, optional, default True
+            If True, the data is overwritten, replacing any old data with the new data. If False, new data is added to the old data.
         fill_value : float, optional
             The fill value to use for new data variables. Default is 0.0.
         dtype : data-type, optional
@@ -2505,6 +2552,8 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
+        name : str
+            The name of the tag variable to perform the remove operation on.
         tag : str
             The tag to be removed.
         """
@@ -2569,14 +2618,14 @@ class LocalSurface(CratermakerBase):
         )
         return
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> NDArray:
         """
         Collapse all slopes larger than the critical slope angle.
 
         Parameters
         ----------
-        critical_slope_angle : float
-            The critical slope angle (angle of repose) in degrees.
+        critical_slope_angle : float, optional
+            The critical slope angle (angle of repose) in degrees. Default is 40.0.
         """
         try:
             critical_slope = np.tan(np.deg2rad(critical_slope_angle))
@@ -2615,6 +2664,8 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
+        model : str
+            The noise model to use. Options are "turbulence"
         noise_width : float
             The spatial wavelength of the noise.
         noise_height : float
@@ -2810,9 +2861,8 @@ class LocalSurface(CratermakerBase):
         Returns
         -------
         NDArray[np.float64]
-            The face and node elevation points of the reference sphere, or the original elevation points is the reference region is too small
+            The face and node elevation points of the reference sphere, or the original elevation points if the reference region is too small
         """
-
         if reference_radius is None:
             reference_radius = self.region_radius
 
@@ -2960,7 +3010,7 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         variable : str or NDArray[np.float64]
-            The variable to compute the radial gradient of. This can be a string (the name of a variable in the surface data) or an array of values the same size as the number of faces in the grid.
+            The variable to compute the azimuthal gradient of. This can be a string (the name of a variable in the surface data) or an array of values the same size as the number of faces in the grid.
 
         Returns
         -------
@@ -2990,7 +3040,7 @@ class LocalSurface(CratermakerBase):
         """
         Export the surface view data to a specified file format and stores it in the default export directory.
 
-        If the format is "VTK," the data will be exported using the :py:meth:`Surface.to_vtk` method. Otherwise, it will use the :py:meth:`Surface.to_vector_file` to export the data.
+        If the format is "VTK," the data will be exported using the :py:meth:`Surface.to_vtk_file` method. Otherwise, it will use the :py:meth:`Surface.to_vector_file` to export the data.
 
         Parameters
         ----------
@@ -3503,7 +3553,7 @@ class LocalSurface(CratermakerBase):
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
         filename : Path | str, optional
-            The path to the output file. If None, the file will be saved to the default
+            The path to the output file. If None, the default output file name for the interval is used. Default is None.
         **kwargs : Any
             |kwargs|
         """
@@ -3823,7 +3873,7 @@ class LocalSurface(CratermakerBase):
         Parameters
         ----------
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
         interval : int | None, optional
@@ -4005,8 +4055,13 @@ class LocalSurface(CratermakerBase):
             "name": self.target.name,
             "show_edges": False,
             "show_scalar_bar": False,
-            "color": "grey",
-            "pbr": True,
+            # A light grey, matte (purely diffuse) surface, which shows the topography with more contrast against the dark
+            # background than a physically based material under the camera lights
+            "color": "#e0e0e0",
+            "pbr": False,
+            "ambient": 0.05,
+            "diffuse": 1.0,
+            "specular": 0.0,
             "smooth_shading": True,
             **add_mesh_kwargs,
         }
@@ -4163,17 +4218,17 @@ class LocalSurface(CratermakerBase):
 
         Parameters
         ----------
-        bearing : FloatLike | ArrayLike
-            One or more initial bearing values from the reference point to the target point or points in degrees.
-        distance : FloatLike | ArrayLike
+        distances : FloatLike | ArrayLike
             One or more great circle distance from the reference point to the target point or points in meters.
+        bearings : FloatLike | ArrayLike
+            One or more initial bearing values from the reference point to the target point or points in degrees.
         reference_location : PairOfFloats | None, optional
             One pair of longitude and latitude of the reference point in degrees. If None, then the center of the local region will be used. Default is None.
 
         Returns
         -------
-        tuple or list of tuples the same length as bearing and distance.
-            longitude and latitude as a tuple of floats in degrees.
+        NDArray
+            Longitude and latitude of the target point or points in degrees, the same length as bearings and distances.
         """
         if reference_location is None:
             if self.is_local:
@@ -4430,7 +4485,7 @@ class LocalSurface(CratermakerBase):
 
     @property
     def face_lon(self) -> NDArray:
-        """Longitude of the center of the faces in the viewin degrees."""
+        """Longitude of the center of the faces in the view in degrees."""
         return self.surface.face_lon[self.face_indices]
 
     @property
@@ -4652,10 +4707,10 @@ class LocalSurface(CratermakerBase):
     @property
     def crs(self) -> CRS:
         """
-        Return a local Azimuthal Equidistant (LAEA) CRS centered on `self.location` (in meters).
+        Return a local Azimuthal Equidistant (AEQD) CRS centered on `self.location` (in meters).
 
         If `self.location` is not set, fall back to the parent `Surface` geographic CRS.
-        The LAEA CRS uses the target body's spherical radius.
+        The AEQD CRS uses the target body's spherical radius.
         """
         if self._crs is None:
             self._crs = self.surface.get_crs(
@@ -4682,8 +4737,6 @@ class LocalSurface(CratermakerBase):
         -------
         UxDataset
             An initialized UxDataset object containing the grid and data.
-        Dataset
-            The xarray Dataset containing only the local surface data.
         """
         if self.is_local:
             uxds_global = self.surface.read_saved_output(interval=interval, **kwargs)
@@ -4943,7 +4996,7 @@ class DataComposer(AbstractContextManager):
         """
         Adds elevation data to eventually be applied to the surface.
 
-        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+        The data isn't applied until ``finish`` is called or, if applicable, ``self`` exits the ``with`` context.
 
         Parameters
         ----------
@@ -4976,7 +5029,7 @@ class DataComposer(AbstractContextManager):
         """
         Adds data to eventually be applied to the surface.
 
-        The data isn't applied until ``finish`` is called or, if appplicable, ``self`` exits the ``with`` context.
+        The data isn't applied until ``finish`` is called or, if applicable, ``self`` exits the ``with`` context.
 
         Parameters
         ----------
@@ -4994,7 +5047,7 @@ class DataComposer(AbstractContextManager):
         overwrite : bool, optional, default True
             By default, new data is added to the old data. This flag indicates that the data should be overwritten, replacing any old data with the new data.
         resampling_order: int, optional, default 0
-            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 1 (bilinear). Other common options are 0 (nearest neighbor), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
+            Order of the resampling of data from the raster file to the surface face locations using scipy.ndimage.map_coordinates. Default is 0 (nearest neighbor). Other common options are 1 (bilinear), 3 (cubic), etc. up to 5. See `scipy.ndimage.map_coordinates <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html>`_ for more details.
         **kwargs : Any
             |kwargs|
         """

@@ -1,786 +1,690 @@
 from __future__ import annotations
 
-import copy
-import math
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import xarray as xr
-from numpy.random import Generator
 from numpy.typing import ArrayLike, NDArray
 
-from cratermaker.bindings import realmoon_bindings
+from cratermaker.bindings import basicmoon_bindings, realmoon_bindings
 from cratermaker.components.crater import Crater
 from cratermaker.components.morphology import Morphology, MorphologyCraterVariable
 from cratermaker.components.morphology.basicmoon import (
     BasicMoonCrater,
     BasicMoonCraterFixed,
     BasicMoonMorphology,
-)
-from cratermaker.constants import FloatLike
-from cratermaker.core.base import CratermakerBase
-from cratermaker.utils.general_utils import parameter
-
-_PSD1D_COEF_FILE = Path(__file__).resolve().parent / "psd1d_coeffs.nc"
-_PSD2D_COEF_FILE = Path(__file__).resolve().parent / "psd2d_coeffs.nc"
-_PSD1D_MIN_POINTS = 64
-_PSD1D_PARAMETERS = (
-    "radius",
-    "floor_radius",
-    "rim_width",
-    "rim_height",
+    peak_ring_layout,
 )
 
+# The H-field model of fresh lunar craters (Lunar_Morphometry_Revisited, data/hfield/model.nc), distributed with the package
+# in compact form (the modes packed as 16-bit integers, accurate to ~2e-5). Another model file can be given with the
+# hfield_model_file argument.
+_HFIELD_MODEL_FILE = Path(__file__).resolve().parent / "hfield_model.nc"
 
-class PSD1D(CratermakerBase):
-    def __init__(
-        self,
-        normalization_length: FloatLike,
-        profile: NDArray[np.float64] | None = None,
-        control_points: dict[str, np.float64] | None = None,
-        amplitude: NDArray[np.float64] | None = None,
-        phase: NDArray[np.float64] | None = None,
-        mean: FloatLike | None = None,
-        pix: FloatLike | None = None,
-        nprofile: int | None = None,
-        rng: Generator | None = None,
-        rng_seed: int | None = None,
-        rng_state: dict | None = None,
-        **kwargs: Any,
-    ):
-        """
-        Contains data and methods for building and using a 1D power spectral density model for profile functions.
+# The polar grid of the model: 720 bearings and warped radii rho = r / R_rim from 0 to 2 in steps of 0.005
+_N_THETA = 720
+_RHO_MAX = 2.0
+_DRHO = 0.005
+_KMAX = _N_THETA // 2 - 1
+_KMAX_RIM = 8  # the rim outline has azimuthal wavenumbers k <= 8
+_N_SCARP = 72  # bearings of the variation of the ring scarp of multiring basins (see RealMoonMorphology.scarp_outline_data)
+# Morphology types without a node of their own use those of complex craters. Multiring basins do too: the model's only basin
+# (Orientale) is heavily degraded (freshness class D), and its field (about three times rougher in units of its relief than the
+# largest complex crater's on the floor, and 30% rougher on the wall and rim) is mostly the cratering and modification it has
+# accumulated, which leaves its rim indistinct. Basins therefore take the field of the largest complex crater of the model
+# (Langrenus), scaled to their relief, with the profiles of the basin anchors and the ring scarp (basicmoon._BASIN_ANCHORS,
+# basicmoon._SCARP).
+_TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex", "multiring": "complex"}
+# The strength of the lobes of rim outlines varies from crater to crater more than the Gaussian draws of the model give: most
+# fresh complex craters are nearly round, a few are strongly lobate. The drawn outline (k <= _KMAX_RIM) is scaled by a lognormal
+# factor exp(sigma N - sigma^2), whose mean square is one, with sigma the scatter of the rms rim anomaly of fresh complex craters
+# (classes A and B) about its trend with diameter beyond that of the Gaussian draws (Lunar_Morphometry_Revisited,
+# rim_lobe_scatter.py).
+_RIM_LOBE_SIGMA_LN = 0.32
+# The wall of complex craters and basins: stacked rim-like levels (the crest and the terrace scarps below it; realmoon.rs,
+# WallLevels; Lunar_Morphometry_Revisited, notes section 19 and scallop_levels.py). The walls of fresh complex craters are made
+# of many overlapping scarp arcs at different radii; a single rim outline with lobes, or the H-field's broad structure, moves
+# the whole wall smoothly into large lobes, while the real rims are nearly round with small irregular lobes. Each level is a
+# continuous, nearly round closed curve with lobes of its own (ln radius a random function of bearing with rms _WALL_WOBBLE and a
+# spectrum falling as k^-_WALL_WOBBLE_SLOPE up to _WALL_WOBBLE_KMAX), a scarp whose strength varies along it (a random function
+# of rms _WALL_STRENGTH_SD about _WALL_STRENGTH_MEAN up to _WALL_STRENGTH_KMAX, clipped to 0-1) and an elevation offset that
+# varies along it as turbulence (octaves of |band-limited noise| from _WALL_OFFSET_K0, rms _WALL_OFFSET_SD of the mean drop
+# between levels). The levels go from the crest (1) down to the floor edge (for a multiring basin, to the outer edge of its
+# ring scarp), spaced by a lognormal amount (median _WALL_SPACING of the rim radius, ln scatter _WALL_SPACING_SIGMA). They wobble
+# into each other, and where they collide their scarps merge, which makes them read as overlapping arcs. A turbulence field of
+# rms _WALL_TURBULENCE of the mean drop between levels, with largest wavelength _WALL_TURBULENCE_WAVELENGTH, is added over the
+# wall. The per-crater lobe strength scatter (_RIM_LOBE_SIGMA_LN) scales the lobes of all levels. All of these scale with the
+# crater, basins included. The H-field gives these craters only its texture, above wavenumber _WALL_FIELD_KMIN. The parameters
+# were chosen by comparing renders with Langrenus and Copernicus, and the lobes calibrated so
+# that the rim outlines of synthetic craters, traced as the rims of the model are (with the fit extended to k <= 24), have
+# close to the rms of those of the fresh complex craters in each band of k (an amplitude of 0.040 matches it within 4-10%; it
+# was reduced to 0.035 by eye, about 3-15% below; Lunar_Morphometry_Revisited, rim_shape_spectrum.py).
+_WALL_TYPES = ("complex", "multiring")
+_WALL_SPACING = 0.08
+_WALL_SPACING_SIGMA = 0.3
+_WALL_WOBBLE = 0.035
+_WALL_WOBBLE_SLOPE = 1.2
+_WALL_WOBBLE_KMAX = 60
+_WALL_STRENGTH_MEAN = 0.65
+_WALL_STRENGTH_SD = 0.45
+_WALL_STRENGTH_KMAX = 18
+_WALL_OFFSET_SD = 0.6
+_WALL_OFFSET_K0 = 2
+_WALL_TURBULENCE_OCTAVES = 6
+_WALL_TURBULENCE_PERSISTENCE = 0.5
+_WALL_TURBULENCE = 0.15
+_WALL_TURBULENCE_WAVELENGTH = 0.25
+_WALL_FIELD_KMIN = 30
+_NO_WALL = (np.zeros(0), np.zeros((3, 0, 0)), np.zeros(0))
+# The size of a field (wavenumbers x radii) below which its modes are gathered for every wavenumber at once (see _draw_hfield)
+_GATHER_ALL_LIMIT = 5000
 
-        Parameters
-        ----------
-        normalization_length : FloatLike
-            The normalization factor used when defining the profile units (typically this is crater radius)
-        profile : NDArray[np.float64], optional
-            If set, then the PSD model will be generated using the provided linear profile.
-        control_points: dict[str, np.float64], optional
-            If set, then the PSD model will be generated using a control point model. Dict must contain the following keys: "sn", "yn", "y1", "y2", "y3", "y4", "y5", where "sn" is the log slope of the PSD from yn to y5 and y1...y5, yn are the power values of the first 5 points and the nth (resolution limit) point
-        amplitude: NDArray[np.float64], optional
-            If set, then the PSD model will ne generated using the provided amplitude values directly. Reuires phase to also be set.
-        phase : NDArray[np.float64], optional
-            If set, then the PSD model will ne generated using the provided phase values directly. Reuires amplitude to also be set.
-        mean : FloaLike, optional
-            A mean value of the signal. This is only used for contol points models and will be ignored if either a profile, or amplitude and phase is provided.
-        pix : FloatLike, optional
-            Defines the limiting resolution of the signal. Ignored when profile input is used.
-        nprofile : int, optional
-            Defines the number of profile points to define the PSD. Only used for control_points method
-        rng : numpy.random.Generator | None
-            |rng|
-        rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
-            |rng_seed|
-        rng_state : dict, optional
-            |rng_state|
-        **kwargs : Any
-            |kwargs|
-        """
-        # Set a unique rng seed for this object so that the same profile gets generated every time.
-        super().__init__(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        object.__setattr__(self, "_normalization_length", None)
-        object.__setattr__(self, "_mean", None)
-        object.__setattr__(self, "_pix", None)
-        object.__setattr__(self, "_nprofile", None)
-        object.__setattr__(self, "_nfreq", None)
-        object.__setattr__(self, "_control_points", None)
-        object.__setattr__(self, "_amplitude", None)
-        object.__setattr__(self, "_phase", None)
-        object.__setattr__(self, "_wavelength", None)
-        object.__setattr__(self, "_add_noise", None)
-
-        self.normalization_length = normalization_length
-        if profile is not None:
-            min_pix = 2 * math.pi * np.abs(profile.mean().item()) / len(profile)
-            self.pix = max(np.abs(np.diff(profile)).max() / self.normalization_length, min_pix)
-            self.set_from_profile(profile)
-        elif (amplitude is not None and phase is None) or (amplitude is None and phase is not None):
-            raise ValueError("Both amplitude and phase must be set to use this method of constructing a PSD")
-        elif amplitude is not None and phase is not None:
-            self.mean = amplitude[0]
-            self.amplitude = amplitude
-            self.phase = phase
-            if pix is None:
-                self.pix = 2 * math.pi * self.mean / self.nprofile
-            else:
-                self.pix = pix / self.normalization_length
-        else:
-            self.mean = mean / self.normalization_length
-            self.pix = pix / self.normalization_length
-            self.nprofile = nprofile
-            self.control_points = control_points
-
-    def set_from_profile(self, profile):
-        """
-        Sets the 1D power spectral density (PSD) of a given 1D profile.
-
-        This function will set the following properties:
-            wavelength : NDArray[np.float64]
-                An array of corresponding to the frequencies of the PSD, and the second column contains the corresponding PSD values. The array is sorted in descending order of wavelength (i.e., ascending order of frequency).
-            amplitude : NDArray[np.float64]
-                An array of amplitude values corresponding to the frequencies of the input signal. The array is sorted in descending order of wavelength (i.e., ascending order of frequency). The PSD values are normalized by the interval and the number of points in the input signal, so amplitude is in units such that the mean=1.0. The normalization is done by multiplying the squared magnitude of the Fourier coefficients by 2 and dividing by the product of the interval and the number of points in the input signal. The factor of 2 accounts for the fact that we are using a one-sided PSD (i.e., only considering positive frequencies).
-            phases : NDArray[np.float64]
-                An array of phase values corresponding to the frequencies of the input signal. The phase values are computed from the angle of the Fourier coefficients and are normalized by the frequency to represent the phase shift in terms of spatial units (e.g., meters). The phase values are sorted in descending order of wavelength (i.e., ascending order of frequency).
-
-        Parameters
-        ----------
-        profile : ArrayLike
-            The input signal for which to compute the 1D PSD. This should be a 1D array of values representing the signal in the spatial domain in its original units. Normalization is done internally using the value of the normalization_length attribute.
-
-        """
-        y = np.asarray(profile, dtype=np.float64) / self.normalization_length
-        self.nprofile = len(y)
-        self.mean = np.mean(y)
-        amplitude, phase = realmoon_bindings.psd_from_profile(y)
-        self.amplitude = amplitude[0 : self.nfreq]
-        self.phase = phase[0 : self.nfreq]
-        return
-
-    def to_xarray(self) -> xr.Dataset:
-        """
-        Exports the amplitude and phase values to an xarray Dataset.
-        """
-        return xr.Dataset(
-            coords={"wavelength": self.wavelength, "bearing": self.bearing},
-            data_vars={
-                "amplitude": ("wavelength", self.amplitude),
-                "phase": ("wavelength", self.phase),
-                "power": ("wavelength", self.power),
-                "profile": ("bearing", self.profile()),
-            },
-        )
-
-    @property
-    def normalization_length(self) -> np.float64:
-        """
-        The radius of the crater associated with this profile, which is used for unit normalization.
-        """
-        return self._normalization_length
-
-    @normalization_length.setter
-    def normalization_length(self, value: FloatLike):
-        if value > 0.0:
-            self._normalization_length = np.float64(value)
-        else:
-            raise ValueError("normalization_length must be a positive number")
-
-    @property
-    def mean(self) -> np.float64:
-        """
-        The mean value of the profile.
-        """
-        return self._mean
-
-    @mean.setter
-    def mean(self, value):
-        self._mean = np.float64(value)
-
-    @property
-    def pix(self) -> np.float64:
-        """
-        The resolution of the profile in meters.
-        """
-        return self._pix
-
-    @pix.setter
-    def pix(self, value):
-        if value > 0.0:
-            self._pix = np.float64(value)
-        else:
-            raise ValueError("pix must be a positive number")
-
-    def profile(self, bearing: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
-        """
-        Generates a 1D profile from the PSD.
-
-        Parameters
-        ----------
-        bearing : array of floats, optional
-            The bearing angles to at which to compute the profile. If not passed, then the default will be `nprofile`` equal polar angle intervals from 0 to 2π.
-        """
-        if bearing is None:
-            bearing = self.bearing
-        return realmoon_bindings.profile_from_psd(self, bearing)
-
-    @property
-    def bearing(self) -> NDArray[np.float64]:
-        """
-        Bearing angles of the profile generated by the PSD.
-        """
-        return np.linspace(0, 2 * np.pi, self.nprofile)
-
-    @property
-    def nprofile(self) -> int:
-        """
-        The number of points in the linear profile that defines the PSD, which is 2x the number of points in the spectral density (nfreq).
-        """
-        if self._nprofile is None:
-            if self._amplitude is not None:
-                return 2 * (len(self._amplitude) - 1)
-            elif self.pix is not None:
-                return max(int(4 * math.pi * self.mean / self.pix), _PSD1D_MIN_POINTS)
-        return self._nprofile
-
-    @nprofile.setter
-    def nprofile(self, value):
-        if value is not None and (not isinstance(value, int) or value < _PSD1D_MIN_POINTS):
-            raise ValueError(f"nprofile must be a positive integer larger than {_PSD1D_MIN_POINTS}")
-        else:
-            self._nprofile = value
-
-    @property
-    def nfreq(self) -> int:
-        """
-        The number of power spectra points, which is half the number of points in the profile (nprofile).
-        """
-        if self._nfreq is None:
-            return self.nprofile // 2 + 1
-        else:
-            return self._nfreq
-
-    @nfreq.setter
-    def nfreq(self, value):
-        if value is not None and (not isinstance(value, int) or value < _PSD1D_MIN_POINTS // 2):
-            raise ValueError(f"nfreq must be a positive integer larger than {_PSD1D_MIN_POINTS // 2}")
-        else:
-            self._nfreq = value
-
-    @property
-    def wavelength(self) -> NDArray[np.float64]:
-        """
-        Wavelength values of the PSD.
-        """
-        if self._wavelength is None:
-            acvals = 2 * np.pi / np.arange(1.0, self.nfreq)
-            self._wavelength = np.insert(acvals, 0, np.nan)
-        return self._wavelength
-
-    @property
-    def amplitude(self) -> NDArray[np.float64]:
-        if self._amplitude is None:
-            psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
-                control_points=self.control_points,
-                mean=self.mean,
-                nprofile=self.nprofile,
-                add_noise=self.add_noise,
-                rng_seed=self.rng_seed,
-            )
-            return psd_arrs[1]
-        else:
-            return self._amplitude
-
-    @amplitude.setter
-    def amplitude(self, value):
-        """
-        Amplitude values of the PSD.
-        """
-        if value is not None:
-            value = np.asarray(value)
-            if self._nfreq is None:
-                self._nfreq = len(value)
-            else:
-                if len(value) != self.nfreq:
-                    raise ValueError(f"Size of amplitude must be {self.nfreq}")
-        self._amplitude = value
-
-    @property
-    def power(self) -> NDArray[np.float64]:
-        """
-        Power values of the PSD.
-        """
-        return self.amplitude**2 / (2 * np.pi)
-
-    @property
-    def phase(self) -> NDArray[np.float64]:
-        """
-        Phase values of the PSD.
-        """
-        if self._phase is None:
-            psd_arrs = realmoon_bindings.get_1d_psd_from_control_points(
-                control_points=self.control_points,
-                mean=self.mean,
-                nprofile=self.nprofile,
-                add_noise=self.add_noise,
-                rng_seed=self.rng_seed,
-            )
-            return psd_arrs[2]
-        else:
-            return self._phase
-
-    @phase.setter
-    def phase(self, value):
-        if value is not None:
-            value = np.asarray(value)
-            if self._nfreq is None:
-                self._nfreq = len(value)
-            else:
-                if len(value) != self.nfreq:
-                    raise ValueError(f"Size of phase must be {self.nfreq}")
-            self._phase = value
-
-    @property
-    def control_points(self) -> dict[str, np.float64]:
-        """
-        Control points for a procedurally-generated PSD model.
-        """
-        return self._control_points
-
-    @control_points.setter
-    def control_points(self, value):
-        if not isinstance(value, dict):
-            raise TypeError("control_points must be a dict")
-        required_keys = ["sn", "yn", "y1", "y2", "y3", "y4", "y5"]
-        if any(k not in value for k in required_keys):
-            raise ValueError(f"control_points must have all required keys {required_keys}")
-        self._control_points = value
-
-    @parameter
-    def add_noise(self) -> bool:
-        """
-        Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits, both in the control points and in the PSD itself.
-        """
-        if self._add_noise is None:
-            return False
-        return self._add_noise
-
-    @add_noise.setter
-    def add_noise(self, value: bool):
-        if not isinstance(value, bool):
-            raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
-        self._add_noise = value
+# Central peaks (built on the surface by the central peak model of the Rust crate, see central_peak.rs). The height of the
+# peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
+# craters of 36-139 km measured at the native SLDEM2015 spacing: 0.259 (D / 60 km)^0.89 with lognormal scatter 0.44. Above
+# the fitted range it is held at its value at 139 km (it would otherwise exceed the relief by 300 km); below it, it is
+# extrapolated, giving the smaller peaks of transitional craters. The envelope of a central peak is a Gaussian of standard
+# deviation _PEAK_WIDTH of the rim radius. Central peaks open into peak rings as craters grow from 200 to 300 km (see
+# basicmoon.peak_ring_layout), whose envelope is a Gaussian ring of standard deviation _PEAK_RING_WIDTH of the rim radius. The
+# widths are calibrated with the rest of the peak model (central_peak.rs, PeakModel) against the central peaks of fresh craters
+# and the peak rings of Schrodinger and Orientale (Lunar_Morphometry_Revisited, peak_model_calibrate.py). Multiring basins have a
+# peak ring (their innermost ring) with the height of the largest complex craters; the peak ring of Orientale is degraded, so its
+# height is a lower bound.
+_PEAKED = ("transitional", "complex", "multiring")
+_PEAK_HEIGHT_RELIEF = 0.259
+_PEAK_HEIGHT_D_REF = 60e3
+_PEAK_HEIGHT_EXPONENT = 0.89
+_PEAK_HEIGHT_SIGMA_LN = 0.44
+_PEAK_HEIGHT_D_MAX = 139e3
+_PEAK_WIDTH = 0.108
+# The offset of a peak's center from the crater center: a two-dimensional Gaussian of standard deviation _PEAK_OFFSET_SIGMA
+# envelope widths in each direction (that of the peak model's calibration, central_peak.rs, PeakModel::offset_sigma), unrelated
+# to the impact direction. It is drawn when the crater is made, unless given (peak_center_distance and peak_center_bearing).
+_PEAK_OFFSET_SIGMA = 0.65
+# The elongation of a central peak (the ratio of its long to its short axis): its logarithm is _PEAK_ELONGATION_SIGMA times a
+# half-normal deviate (that of the peak model's calibration, central_peak.rs, PeakModel::elongation_sigma), along a uniformly
+# random bearing; peak rings stay circular. Both are drawn when the crater is made, unless given.
+_PEAK_ELONGATION_SIGMA = 0.65
+_PEAK_RING_WIDTH = 0.134
 
 
-def register_psd1d_parameters(*features: str):
+def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None) -> float:
     """
-    Class decorator to auto-inject _psd, _control, and _profile functions.
-    """
-
-    def decorator(cls):
-        for name in features:
-
-            def make_control_prop(feat_name=name):
-                """
-                Defines the [feature]_control property, which defines a 1D profile using control points.
-                """
-                private_attr = f"_{feat_name}_control"
-
-                @property
-                def control_prop(self):
-                    if getattr(self._var, private_attr, None) is None:
-                        val = self.morphology.get_control_points(crater=self, psd1d_coef=self.morphology.psd1d_coef[feat_name])
-                        setattr(self._var, private_attr, val)
-                    return getattr(self._var, private_attr)
-
-                return control_prop
-
-            def make_psd_prop(feat_name=name):
-                """
-                Defines the [feature]_psd property, which contains the object that is used to store and retrieve PSD information.
-                """
-                private_attr = f"_{feat_name}_psd"
-
-                @property
-                def psd_prop(self):
-                    if getattr(self._var, private_attr, None) is None:
-                        val = PSD1D(
-                            normalization_length=self.radius,
-                            mean=getattr(self, feat_name),
-                            pix=self.morphology.psd_pix,
-                            control_points=getattr(self, f"{feat_name}_control"),
-                            add_noise=self.morphology.add_noise,
-                            **{**vars(self.morphology.common_args), **{"rng_seed": self.morphology.rng.integers(0, 2**32 - 1)}},
-                        )
-                        setattr(self._var, private_attr, val)
-                    return getattr(self._var, private_attr)
-
-                return psd_prop
-
-            def make_profile_method(feat_name=name):
-                """
-                Defines the [feature]_profile method, which returns the profile value at a set of bearing angles.
-                """
-
-                def profile_method(self, bearing: ArrayLike) -> NDArray[np.float64]:
-                    bearing = np.radians(bearing)
-                    return realmoon_bindings.profile_from_psd(
-                        psd=getattr(self, f"{feat_name}_psd"),
-                        bearing=bearing,
-                    )
-
-                return profile_method
-
-            # Attach them dynamically to the class definition
-            setattr(cls, f"{name}_control", make_control_prop())
-            setattr(cls, f"{name}_psd", make_psd_prop())
-            setattr(cls, f"{name}_profile", make_profile_method())
-
-        return cls
-
-    return decorator
-
-
-# Keyword arguments that set a crater's PSD data directly
-_PSD_DATA_KEYWORDS = tuple(f"{name}_{kind}" for name in _PSD1D_PARAMETERS for kind in ("control", "psd"))
-
-
-def _copy_psd_data(source: Crater, target: Crater) -> None:
-    """
-    Copy the PSD control points and PSD objects that `source` has already generated to `target`.
-
-    The data for each feature is generated from the crater radius, the morphology type, and the feature's own value, so it is
-    copied only for the features where these are the same in both craters. Data that `source` has not generated yet is left to
-    be generated when it is first accessed, so copying a crater does not draw any random numbers.
+    Draw the height of a central peak.
 
     Parameters
     ----------
-    source : Crater
-        The crater being copied.
-    target : Crater
-        The new crater. Any PSD data it already has is kept.
+    diameter : float
+        The diameter of the crater (m).
+    relief : float
+        The relief of the crater (rim height + floor depth, m).
+    rng : numpy.random.Generator or None
+        The random number generator. If None, the nominal height is returned.
+
+    Returns
+    -------
+    float
+        The height of the peak above the floor (m).
     """
-    if not isinstance(source, RealMoonCrater):
+    d = min(diameter, _PEAK_HEIGHT_D_MAX)
+    height = _PEAK_HEIGHT_RELIEF * (d / _PEAK_HEIGHT_D_REF) ** _PEAK_HEIGHT_EXPONENT * relief
+    if rng is not None:
+        height *= float(np.exp(_PEAK_HEIGHT_SIGMA_LN * rng.standard_normal()))
+    return max(height, 0.0)
+
+
+def _crater_rng(crater: Crater, stream: int, fallback: np.random.Generator) -> np.random.Generator:
+    """
+    The generator of one of the random draws of a crater's shape, seeded by its `hfield_seed` (and the stream: 0 for the rim
+    outline, field and wall levels, 1 for the variation of the ring scarp), or the fallback generator if the crater has no seed.
+    """
+    seed = getattr(crater, "hfield_seed", None)
+    return fallback if seed is None else np.random.default_rng([int(seed), stream])
+
+
+def _copy_hfield(source: Crater | None, target: Crater) -> None:
+    """
+    Give the target the field of the source crater, if it has one and the target is the same crater.
+
+    A copy with a different size or type is a different crater, which draws its own field.
+    """
+    if source is None or source.radius != target.radius or source.morphology_type != target.morphology_type:
         return
-    if source.radius != target.radius or source.morphology_type != target.morphology_type:
-        return
-    for name in _PSD1D_PARAMETERS:
-        if getattr(source, name) != getattr(target, name):
-            continue
-        for kind in ("control", "psd"):
-            attr = f"_{name}_{kind}"
-            value = getattr(source._var, attr, None)
-            if value is not None and getattr(target._var, attr, None) is None:
-                setattr(target._var, attr, copy.deepcopy(value))
+    for name in ("_hfield", "_wall", "_scarp_outline"):
+        data = getattr(getattr(source, "_var", None), name, None)
+        if data is not None:
+            object.__setattr__(target._var, name, data)
 
 
 @Crater.register("realmooncrater")
-@register_psd1d_parameters(*_PSD1D_PARAMETERS)
 class RealMoonCrater(BasicMoonCrater):
+    """
+    A crater of the realistic lunar morphology.
+
+    It is a basic lunar crater plus a rim outline and a field of variation around it (the H-field), and for complex craters and
+    basins the stacked levels of its wall. The rim outline and field are drawn from the morphology's random number generator on first access (see
+    `RealMoonMorphology.hfield_data`) and kept with the crater, including when it is copied without changing its size or type.
+    """
+
     def __init__(
         self, crater: Crater | None = None, fixed_cls=BasicMoonCraterFixed, variable_cls=MorphologyCraterVariable, **kwargs
     ):
-        # PSD data passed explicitly, as <feature>_psd or <feature>_control
-        psd_data = {key: kwargs.pop(key) for key in _PSD_DATA_KEYWORDS if kwargs.get(key) is not None}
         super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        for key, value in psd_data.items():
-            setattr(self._var, f"_{key}", value)
-        if crater is not None:
-            _copy_psd_data(crater, self)
-
-    def __str__(self) -> str:
-        str_repr = super().__str__()
-        return str_repr
+        _copy_hfield(crater, self)
 
     @classmethod
-    def maker(
-        cls,
-        crater: Crater | None = None,
-        morphology: Morphology | None = None,
-        **kwargs: Any,
-    ) -> RealMoonCrater:
+    def maker(cls, crater: Crater | None = None, morphology: Morphology | None = None, **kwargs: Any) -> RealMoonCrater:
         """
-        Initialize a RealMoonCrater object either from an existing Crater object or from parameters.
+        Create a crater (see `BasicMoonCrater.maker`). A copy of a crater that keeps its size and type keeps its field.
 
-        This generates a specialized Crater object with parameters used to generate realistic craters as defined in Du et al. (2024)a. [#]_ and Du et al. (2024)b [#]_ with updates from Minton et al. (2026) [#]_. Each of the morphometric parameters ``radius``, ``floor_radius``, ``wall_curvature``, ``floor_blend``, ``rim_width``, ``rim_height``, ``frac_ejrim``, ``ejprofile``, has an associated _psd and _control property, and a _profile method that can be accessed or initialized (e.g. ``crater.radius_psd``, ``crater.wall_curvature_profile``, etc.). If the properties are initialized using keyword arguments, then the _psd parameter will be set to a default value using default control points.
+        Unlike the analytic peak of basicmoon (complex craters and multiring basins only), a new realmoon crater also gets a
+        central peak when it is transitional. This is intended.
 
         Parameters
         ----------
         crater : Crater, optional
-            The crater object to be converted into a BasicMoonCrater. If None, then a new crater is created using the provided parameters.
+            The crater to copy, if any.
         morphology : Morphology, optional
-            The morphology model to use for generating morphology parameters.
+            The morphology of the crater.
         **kwargs : Any
-            The keyword arguments provided can be used to set the _control passed down to :py:meth:`cratermaker.morphology.MorphologyCrater.maker`.  Refer to its documentation for a detailed description of valid keyword arguments.
+            |kwargs|
 
-        References
-        ----------
-        .. [#] Du, J., Minton, D. A., Blevins, A. M., Fassett, C. I., & Huang, Y. H. (2024). Spectral analysis of the morphology of fresh lunar craters I: Rim crest, floor, and rim flank outlines. Journal of Geophysical Research: Planets, 129(11), e2024JE008357. `doi: 10.1029/2024JE008357 <https://doi.org/10.1029/2024JE008357>`_
-        .. [#] Du, J., Minton, D.A., Blevins, A.M., Fassett, C.I., Huang, Y.-H., 2025. Spectral Analysis of the Morphology of Fresh Lunar Craters II: Two-Dimensional Surface Elevations of the Continuous Ejecta, Wall, and Floor. Journal of Geophysical Research: Planets 130, e2024JE008890. `doi: 10.1029/2024JE008890 <https://doi.org/10.1029/2024JE008890>`_
-        .. [#] Minton, D.A. et al. 2026. Morphometry of Lunar Craters Great and Small. In prep.
+        Returns
+        -------
+        RealMoonCrater
         """
-        from cratermaker.components.morphology import Morphology
+        if isinstance(crater, RealMoonCrater):
+            # A copy of a realmoon crater keeps its peak, its seeds and its field
+            new = super().maker(crater=crater, morphology=morphology, **kwargs)
+            _copy_hfield(crater, new)
+            return new
+        # A new crater: the basic crater first, then, in one more step, its central peak from the central peak model and the
+        # random parameters of its shape and peak that are not given. The ejecta is balanced (volume conservation) only in that
+        # last step, against the final crater.
+        conserve_volume = kwargs.pop("conserve_volume", True)
+        new = super().maker(crater=crater, morphology=morphology, conserve_volume=False, **kwargs)
+        rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+        extra = {}
+        peak_height, peak_width = new.peak_height, new.peak_width
+        if kwargs.get("peak_height") is None:
+            peaked = new.morphology_type in _PEAKED
+            relief = new.rim_height - new.floor_elevation
+            # The radius of the peak ring is that of the basic crater (see basicmoon.peak_ring_layout); the envelope widens from
+            # that of a central peak to that of a peak ring as the peak opens
+            ring_fraction, _ = peak_ring_layout(new.diameter)
+            peak_height = _peak_height(new.diameter, relief, rng) if peaked else 0.0
+            peak_width = ((1.0 - ring_fraction) * _PEAK_WIDTH + ring_fraction * _PEAK_RING_WIDTH) * new.radius if peaked else 0.0
+            extra.update(peak_height=peak_height, peak_width=peak_width, peak_ring_radius=new.peak_ring_radius if peaked else 0.0)
+        # The seed of the rim outline, field, wall levels and ring scarp variation, and for a crater with a peak, the offset of the
+        # peak's center, its elongation and the bearing of its long axis, and the seed of its noise
+        if rng is not None:
+            if kwargs.get("hfield_seed") is None:
+                extra["hfield_seed"] = int(rng.integers(2**63))
+            if peak_height > 0.0:
+                if kwargs.get("peak_center_distance") is None or kwargs.get("peak_center_bearing") is None:
+                    dx, dy = _PEAK_OFFSET_SIGMA * peak_width * rng.standard_normal(2)
+                    if kwargs.get("peak_center_distance") is None:
+                        extra["peak_center_distance"] = float(np.hypot(dx, dy))
+                    if kwargs.get("peak_center_bearing") is None:
+                        extra["peak_center_bearing"] = float(np.degrees(np.arctan2(dx, dy)) % 360.0)
+                if kwargs.get("peak_elongation") is None:
+                    extra["peak_elongation"] = float(np.exp(_PEAK_ELONGATION_SIGMA * abs(rng.standard_normal())))
+                if kwargs.get("peak_elongation_bearing") is None:
+                    extra["peak_elongation_bearing"] = float(rng.uniform(0.0, 180.0))
+                if kwargs.get("peak_seed") is None:
+                    extra["peak_seed"] = int(rng.integers(2**63))
+        if extra or conserve_volume:
+            new = super().maker(crater=new, morphology=morphology, conserve_volume=conserve_volume, **extra)
+        _copy_hfield(crater, new)
+        return new
 
-        source = crater
-        morphology = Morphology.maker(morphology, **kwargs)
-        crater = super().maker(crater=crater, morphology=morphology, **kwargs)
+    @property
+    def hfield(self) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+        """The rim outline R_rim(theta) / R, the field of variation (m, n_theta x n_rho) and its largest warped radius."""
+        data = getattr(self._var, "_hfield", None)
+        if data is None:
+            data = self.morphology.hfield_data(self)
+            object.__setattr__(self._var, "_hfield", data)
+        return data
 
-        # Make sure rings are the correct type
-        for i in range(crater.nrings):
-            ring = crater.rings[i]
-            if not isinstance(ring, cls):
-                ring = cls(crater=ring, morphology=morphology)
-                crater.rings[i] = ring
+    @property
+    def wall(self) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        """
+        The stacked levels of the wall of a complex crater or basin.
 
-        if not isinstance(crater, cls):
-            crater = cls(crater=crater, morphology=morphology, **kwargs)
-        # Keep the PSD data the source crater has already generated, where it still applies
-        if source is not None:
-            _copy_psd_data(source, crater)
-        return crater
+        Drawn with the field (see `RealMoonMorphology.hfield_data`): their nominal radii, their radius, scarp strength and
+        elevation offset (3 x n_levels x n_theta), and the wall turbulence (standard deviation in m, wavelength in rim radii,
+        seed); all empty for other craters.
+        """
+        _ = self.hfield
+        return getattr(self._var, "_wall", _NO_WALL)
+
+    @property
+    def scarp_outline(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        The variation of the ring scarp around a multiring basin.
+
+        Its radius and height at _N_SCARP bearings, as factors of `scarp_radius` and `scarp_height` (empty for a crater without a
+        scarp; see `RealMoonMorphology.scarp_outline_data`).
+        """
+        data = getattr(self._var, "_scarp_outline", None)
+        if data is None:
+            data = self.morphology.scarp_outline_data(self)
+            object.__setattr__(self._var, "_scarp_outline", data)
+        return data
 
 
 @Morphology.register("realmoon")
 class RealMoonMorphology(BasicMoonMorphology):
     """
-    An operations class for computing the morphology of a crater and applying it to a surface mesh. This uses the morphology model of Du et al. 2025a,b.
+    The realistic lunar crater morphology.
 
-    This uses the morphology model of Du et al. 2025a,b.
+    A crater is the basic lunar crater (its profile and its size relations, with the ejecta and the degradation of the terrain
+    under it), warped by an irregular rim outline, plus a random field of variation (terraces, slumps, the texture of the
+    floor and walls, and the texture of the ejecta). The outline and field are drawn from the H-field model of fresh lunar
+    craters: for each morphology type and size, the covariance between warped radii of the azimuthal Fourier components of
+    the variation, decomposed into radial modes (empirical orthogonal functions). Central peaks and peak rings are not part of
+    the field: transitional and complex craters get a central peak, and multiring basins a peak ring, built on the surface as a patchy population of columns
+    (where noise exceeds a threshold, raised to a Gaussian envelope of standard deviation `peak_width`, offset to radius
+    `peak_ring_radius` for a peak ring), with flanks at the critical slope, to the height `peak_height`. The model is described in the
+    morphometry of fresh lunar craters by Minton et al. (2026, in prep.).
 
     Parameters
     ----------
-    crater : Crater, optional
-        The crater object to be converted into a RealMoonCrater. If None, then a new crater is created using the provided parameters.
-    fixed_cls : type[RealMoonCraterFixed], optional
-        The class definition for the fixed parameters of the RealMoonCrater. Default is RealMoonCraterFixed.
-    variable_cls : type[MorphologyCraterVariable], optional
-        The class definition for the variable parameters of the RealMoonCrater. Default is MorphologyCraterVariable.
-    psd1d_coef_file : str or Path, optional
-        The file path for the 1D power spectral density coefficients. If None, then it defaults to the default internal file.
-    psd2d_coef_file : str or Path, optional
-        The file path for the 2D power spectral density coefficients. If None, then it defaults to the default internal file.
-    psd_pix : float, optional
-        Pixel size value used for generating PSDs. If None, then the pix value of the associated morphology.surface object will be used. Default is None.
+    hfield_model_file : str or Path, optional
+        The H-field model file. Default: the model packaged with cratermaker (hfield_model.nc).
+    hfield_pix : float, optional
+        The resolution (m) the field is drawn to. Default: the size of the smallest face the field of each crater is applied to
+        (in its ejecta region), or of the face at its center if it has no region.
     **kwargs : Any
-        |kwargs|
-
+        Arguments of `BasicMoonMorphology`.
     """
 
-    # The compiled function that forms a batch of RealMoonCrater objects
-    _form_craters_binding = staticmethod(realmoon_bindings.form_craters)
+    # The peak is built by the central peak model, which takes its volume from the crater floor (see `central_peak`), not by
+    # the basic profile's Gaussian peak
+    peak_in_profile = False
 
-    def _prepare_crater(self, crater: RealMoonCrater) -> None:
+    def __init__(self, hfield_model_file: str | Path | None = None, hfield_pix: float | None = None, **kwargs: Any):
+        if hfield_model_file is None:
+            hfield_model_file = _HFIELD_MODEL_FILE
+        hfield_model_file = Path(hfield_model_file)
+        if not hfield_model_file.exists():
+            raise FileNotFoundError(
+                f"H-field model file {hfield_model_file} not found"
+            )
+        with xr.open_dataset(hfield_model_file) as ds:
+            object.__setattr__(
+                self,
+                "_hfield_model",
+                {
+                    "type": ds["morphology_type"].values.astype(str),
+                    "diameter": ds["diameter_km"].values.astype(np.float64) * 1e3,
+                    "k_node": ds["k_node"].values.astype(np.int64),
+                    "eigenvalue": ds["eigenvalue"].values.astype(np.float64),
+                    "eigenvector": ds["eigenvector"].values.astype(np.float32),
+                    "variance": ds["variance"].values.astype(np.float64),
+                },
+            )
+        object.__setattr__(self, "_hfield_model_file", hfield_model_file)
+        object.__setattr__(self, "_hfield_pix", hfield_pix)
+        super().__init__(**kwargs)
+
+    @property
+    def _CraterType(self) -> type[RealMoonCrater]:
+        """The class definition of the associated Crater type."""
+        return RealMoonCrater
+
+    @property
+    def hfield_model_file(self) -> Path:
+        """The H-field model file."""
+        return self._hfield_model_file
+
+    def _nodes(self, morphology_type: str, diameter: float) -> list[tuple[int, float]]:
+        """The model nodes of the type that bracket the diameter, with their weights (linear in ln D)."""
+        m = self._hfield_model
+        mtype = _TYPE_ALIASES.get(morphology_type, morphology_type)
+        nodes = np.where(m["type"] == mtype)[0]
+        if len(nodes) == 0:
+            nodes = np.where(m["type"] == "complex")[0]
+        D = m["diameter"][nodes]
+        o = np.argsort(D)
+        nodes, D = nodes[o], D[o]
+        x = np.log(diameter)
+        if len(nodes) == 1 or x <= np.log(D[0]):
+            return [(int(nodes[0]), 1.0)]
+        if x >= np.log(D[-1]):
+            return [(int(nodes[-1]), 1.0)]
+        j = int(np.searchsorted(np.log(D), x)) - 1
+        a = (x - np.log(D[j])) / (np.log(D[j + 1]) - np.log(D[j]))
+        return [(int(nodes[j]), 1.0 - a), (int(nodes[j + 1]), a)]
+
+    def hfield_data(self, crater: RealMoonCrater) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
         """
-        Generate the PSD objects of the crater and its rings.
+        Draw the rim outline and field of variation of a crater.
 
-        Each PSD object draws a seed from the morphology's random number generator on first access. They are accessed in the
-        order the compiled `form_craters` reads them (each PSD parameter of the crater, then of each ring), so random numbers
-        are drawn in the same order as when the profile is computed directly.
+        The Fourier coefficients of [ln R_rim, D(rho)] at each azimuthal wavenumber k are drawn from the radial modes of the
+        model nodes of the crater's type that bracket its diameter (the modes of the nearest wavenumber node, rescaled to the
+        variance of the node at k; the draws of the two nodes are combined with weights sqrt(1 - a) and sqrt(a), so that the
+        covariance is interpolated linearly in ln D). Only the wavenumbers and radii the surface resolves are drawn: k up to
+        pi rho_max R / pix and steps in rho of at least pix / (2 R), with pix `hfield_pix` or the size of the smallest face the
+        field is applied to (that of the crater's ejecta region, or of the face at its center if it has no region).
+        The field is in units of the crater's relief (rim height + floor depth), converted to meters. The radial grid always
+        ends at rho_max = 2, the extent of the model. For complex craters and basins (_WALL_TYPES), the field keeps only its
+        texture (k > _WALL_FIELD_KMIN), the stacked wall levels are drawn too (see `_draw_wall` and `RealMoonCrater.wall`), and
+        the rim outline is their outermost level at each bearing.
 
         Parameters
         ----------
         crater : RealMoonCrater
-            The crater about to be formed.
+            The crater.
+
+        Returns
+        -------
+        rim : NDArray[np.float64]
+            R_rim(theta) / R at the bearings of the field.
+        field : NDArray[np.float64]
+            The field (m), n_theta x n_rho, on bearings (i + 1/2) 360 / n_theta degrees and warped radii from 0 to rho_max.
+        rho_max : float
+            The largest warped radius of the field.
         """
-        for c in [crater, *(crater.rings or [])]:
-            for name in _PSD1D_PARAMETERS:
-                getattr(c, f"{name}_psd")
+        R = crater.radius
+        pix = self._hfield_pix
+        if pix is None:
+            # The finest faces the field is applied to (those of the crater's ejecta region, which extends to the edge of the
+            # field), so that a crater centered on coarse faces is still drawn to the resolution of the fine faces it overlaps
+            try:
+                region = crater.ejecta_region
+                if region is not None and region.n_face > 0:
+                    pix = float(np.sqrt(np.min(region.face_area)))
+                else:
+                    pix = float(np.sqrt(self.surface.face_area[crater.face_index]))
+            except Exception:  # noqa: BLE001
+                pix = 0.0
+        kmax = _KMAX if pix <= 0 else int(min(_KMAX, max(_KMAX_RIM, np.ceil(np.pi * _RHO_MAX * R / pix))))
+        n_theta = int(min(_N_THETA, max(16, 2 * (kmax + 1))))
+        kmax = min(kmax, n_theta // 2 - 1)
+        # The radial grid is thinned by a divisor of its number of intervals, so that it always ends at _RHO_MAX
+        n_intervals = int(round(_RHO_MAX / _DRHO))
+        wanted = 1 if pix <= 0 else max(1, int(np.floor(pix / (2 * R) / _DRHO)))
+        step = max(d for d in range(1, n_intervals + 1) if n_intervals % d == 0 and d <= wanted)
+        rows = np.arange(0, n_intervals + 1, step)
+        rho_max = _RHO_MAX
+        elements = np.concatenate(([0], 1 + rows))
 
-    def __init__(
+        rng = _crater_rng(crater, 0, self.rng)
+        rim, X = self._draw_hfield(rng, crater.morphology_type, crater.diameter, kmax, n_theta, elements)
+        relief = max(crater.rim_height - crater.floor_elevation, 0.0)
+        wall = _NO_WALL
+        if crater.morphology_type in _WALL_TYPES:
+            # Only the texture of the field; the wall levels replace its broad structure and the rim outline
+            F = np.fft.rfft(X[:, 1:], axis=0)
+            F[: _WALL_FIELD_KMIN + 1] = 0.0
+            X = np.column_stack([X[:, :1], np.fft.irfft(F, n=n_theta, axis=0)])
+            drawn = self._draw_wall(rng, crater, n_theta)
+            if drawn is not None:
+                wall = drawn
+                rim = np.ascontiguousarray(wall[1][0].max(axis=0), dtype=np.float64)
+        object.__setattr__(crater._var, "_wall", wall)
+        field = np.ascontiguousarray(X[:, 1:] * relief, dtype=np.float64)
+        return rim, field, float(rho_max)
+
+    @staticmethod
+    def _periodic_noise(rng: np.random.Generator, n: int, rms: float, kmax: float, slope: float = 0.0) -> NDArray[np.float64]:
+        """A random periodic function at n bearings with power ~ k^-slope for 1 <= k <= kmax, with the given rms."""
+        k = np.arange(n // 2 + 1)
+        amp = np.where((k >= 1) & (k <= min(kmax, n // 2 - 1)), np.maximum(k, 1) ** (-slope / 2), 0.0)
+        F = amp * (rng.standard_normal(len(k)) + 1j * rng.standard_normal(len(k)))
+        values = np.fft.irfft(F, n=n)
+        sd = values.std()
+        return values * (rms / sd) if sd > 0 else values
+
+    @staticmethod
+    def _periodic_turbulence(rng: np.random.Generator, n: int, rms: float, k0: float) -> NDArray[np.float64]:
+        """
+        Periodic turbulence at n bearings, with its mean removed and the given rms.
+
+        Octaves o of |band-limited noise| over k in [k0 2^o, k0 2^(o+1)), weighted _WALL_TURBULENCE_PERSISTENCE^o.
+        """
+        k = np.arange(n // 2 + 1)
+        o = np.arange(_WALL_TURBULENCE_OCTAVES)[:, None]
+        bands = (k >= k0 * 2**o) & (k < k0 * 2 ** (o + 1)) & (k <= n // 2 - 1)  # (octave, k)
+        # All the octaves' noise in one draw (octave by octave, real then imaginary parts) and one transform
+        draws = rng.standard_normal((_WALL_TURBULENCE_OCTAVES, 2, len(k)))
+        octaves = np.fft.irfft(bands * (draws[:, 0] + 1j * draws[:, 1]), n=n, axis=1)
+        values = np.zeros(n)
+        for i in range(_WALL_TURBULENCE_OCTAVES):
+            if bands[i].any():
+                values += _WALL_TURBULENCE_PERSISTENCE**i * np.abs(octaves[i] / octaves[i].std())
+        values -= values.mean()
+        sd = values.std()
+        return values * (rms / sd) if sd > 0 else values
+
+    def _draw_wall(
+        self, rng: np.random.Generator, crater: RealMoonCrater, n_theta: int
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]] | None:
+        """
+        Draw the stacked levels of the wall of a complex crater or basin (see _WALL_TYPES).
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            The generator the levels are drawn from.
+        crater : RealMoonCrater
+            The crater.
+        n_theta : int
+            The number of bearings of its field.
+
+        Returns
+        -------
+        tuple or None
+            The nominal radii of the levels, their radius, scarp strength and elevation offset (3 x n_levels x n_theta), and the
+            wall turbulence (see `RealMoonCrater.wall`); None if the wall holds fewer than two levels.
+        """
+        R = crater.radius
+        base = crater.floor_radius / R
+        if crater.has_scarp:
+            base = max(base, (crater.scarp_radius + crater.scarp_width) / R)
+        levels = [1.0]
+        while True:
+            nxt = levels[-1] - _WALL_SPACING * float(np.exp(_WALL_SPACING_SIGMA * rng.standard_normal()))
+            if nxt < base:
+                break
+            levels.append(nxt)
+        if len(levels) < 2:
+            return None
+        nominal = np.array(levels)
+        knots = np.asarray(
+            basicmoon_bindings.basicmoon_profile(
+                radial_distances=nominal * R, bearings=np.zeros(len(nominal)), reference_elevations=np.zeros(len(nominal)),
+                crater=crater, include_crater=True, include_ejecta=False,
+            ),
+            dtype=np.float64,
+        )
+        drop = max((knots[0] - knots[-1]) / (len(levels) - 1), 0.0)
+        lobes = _WALL_WOBBLE * float(np.exp(_RIM_LOBE_SIGMA_LN * rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2))
+        data = np.empty((3, len(levels), n_theta))
+        for j, rho in enumerate(levels):
+            data[0, j] = rho * np.exp(self._periodic_noise(rng, n_theta, lobes, _WALL_WOBBLE_KMAX, _WALL_WOBBLE_SLOPE))
+            data[1, j] = np.clip(_WALL_STRENGTH_MEAN + self._periodic_noise(rng, n_theta, _WALL_STRENGTH_SD, _WALL_STRENGTH_KMAX), 0, 1)
+            data[2, j] = self._periodic_turbulence(rng, n_theta, _WALL_OFFSET_SD * drop, _WALL_OFFSET_K0)
+        params = np.array([_WALL_TURBULENCE * drop, _WALL_TURBULENCE_WAVELENGTH, float(rng.integers(2**31))])
+        return nominal, np.ascontiguousarray(data), params
+
+    def _draw_hfield(
         self,
-        crater: Crater | None = None,
-        fixed_cls=BasicMoonCraterFixed,
-        variable_cls=MorphologyCraterVariable,
-        psd1d_coef_file: str | Path = _PSD1D_COEF_FILE,
-        psd2d_coef_file: str | Path = _PSD2D_COEF_FILE,
-        psd_pix: float | None = None,
-        **kwargs,
-    ):
-        object.__setattr__(self, "_add_noise", None)
-        object.__setattr__(self, "_psd1d_coef", None)
-        object.__setattr__(self, "_psd2d_coef", None)
-        object.__setattr__(self, "_psd_pix", None)
-        self.add_noise = kwargs.pop("add_noise", False)  # Can be disabled for testing
+        rng: np.random.Generator,
+        morphology_type: str,
+        diameter: float,
+        kmax: int,
+        n_theta: int,
+        elements: NDArray[np.int64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Draw a rim outline and field from the model (see `hfield_data`).
 
-        psd1d_coef_file = Path(psd1d_coef_file)
-        if not psd1d_coef_file.exists():
-            raise FileNotFoundError(
-                f"1D power spectral density coefficient file not found at {psd1d_coef_file}. Please provide a valid file path."
-            )
-        psd2d_coef_file = Path(psd2d_coef_file)
-        if not psd2d_coef_file.exists():
-            raise FileNotFoundError(
-                f"2D power spectral density coefficient file not found at {psd2d_coef_file}. Please provide a valid file path."
-            )
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            The generator the field is drawn from.
+        morphology_type : str
+            The morphology type whose model nodes are used.
+        diameter : float
+            The diameter the nodes are interpolated to (m).
+        kmax : int
+            The largest azimuthal wavenumber drawn.
+        n_theta : int
+            The number of bearings.
+        elements : NDArray[np.int64]
+            The elements of the model drawn: 0 is ln R_rim, 1 + i is the field at rho = i _DRHO.
 
-        ds = xr.open_dataset(psd1d_coef_file, engine="h5netcdf")
-        fit_categories = [str(f) for f in ds.fit_category.data]
-        terms = [str(t) for t in ds.term.data]
-        params = [str(p) for p in ds.param.data]
-        self._psd1d_coef = {}
-        for var in ds.data_vars:
-            self._psd1d_coef[var] = {}
-            for fit_category in fit_categories:
-                self._psd1d_coef[var][fit_category] = {}
-                for term in terms:
-                    self._psd1d_coef[var][fit_category][term] = {}
-                    for param in params:
-                        self._psd1d_coef[var][fit_category][term][param] = (
-                            ds[var].sel(fit_category=fit_category, term=term, param=param).data.item()
-                        )
+        Returns
+        -------
+        rim : NDArray[np.float64]
+            R_rim(theta) / R (k <= _KMAX_RIM).
+        X : NDArray[np.float64]
+            The drawn elements at each bearing (n_theta x len(elements)); the field in units of the relief.
+        """
+        m = self._hfield_model
+        F = np.zeros((n_theta // 2 + 1, len(elements)), dtype=np.complex128)
+        ks = np.arange(1, kmax + 1)
+        # The wavenumber node whose modes are used at each k
+        nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
+        for node, weight in self._nodes(morphology_type, diameter):
+            # The modes of the nearest wavenumber node at each k (those with positive eigenvalues), restricted to the drawn
+            # radii, weighted by their share of the variance and scaled to the variance of the node at k
+            lam = np.maximum(m["eigenvalue"][node][nearest], 0.0)  # (k, mode)
+            total = lam.sum(axis=1, keepdims=True)
+            share = np.divide(lam, total, out=np.zeros_like(lam), where=total > 0)
+            scale = np.sqrt(share) * np.sqrt(np.maximum(m["variance"][node][ks], 0.0))[:, None]
+            z = (rng.standard_normal(scale.shape) + 1j * rng.standard_normal(scale.shape)) / np.sqrt(2.0)
+            weights = np.sqrt(weight) * scale * z
+            # The same sum, computed the faster way for the size of the field: for small fields (most craters), with the modes
+            # gathered for every wavenumber at once; for large ones, with the modes of each wavenumber node gathered once and
+            # applied to the wavenumbers that use it
+            if len(ks) * len(elements) < _GATHER_ALL_LIMIT:
+                V = m["eigenvector"][node][nearest[:, None], elements[None, :], :]  # (k, element, mode)
+                F[ks] += np.einsum("km,kem->ke", weights, V)
+            else:
+                nodes_used, group = np.unique(nearest, return_inverse=True)
+                V = m["eigenvector"][node][nodes_used[:, None], elements[None, :], :]  # (wavenumber node, element, mode)
+                for g in range(len(nodes_used)):
+                    sel = group == g
+                    F[ks[sel]] += weights[sel] @ V[g].T
+        X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
+        Fr = np.fft.rfft(X[:, 0])
+        Fr[_KMAX_RIM + 1 :] = 0.0
+        Fr *= np.exp(_RIM_LOBE_SIGMA_LN * rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2)
+        rim = np.exp(np.fft.irfft(Fr, n=n_theta))
+        return np.ascontiguousarray(rim, dtype=np.float64), X
 
-        self._psd2d_coef = xr.open_dataset(psd2d_coef_file, engine="h5netcdf")
-        self.psd_pix = psd_pix
-        super().__init__(crater=crater, fixed_cls=fixed_cls, variable_cls=variable_cls, **kwargs)
-        return
+    def scarp_outline_data(self, crater: RealMoonCrater) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Draw the variation of the ring scarp of a multiring basin around the basin.
+
+        The scarp is the rim of the peak-ring basin inside the multiring basin, so it varies as the rim of a complex crater of
+        its diameter (2 `scarp_radius`): its radius as that crater's rim outline, and its height as that crater's rim height, the field of the model at the
+        rim crest (in units of the relief) over the basin's rim fraction of the relief, (rim height) / (rim height + floor
+        depth). The height is never negative.
+
+        Parameters
+        ----------
+        crater : RealMoonCrater
+            The basin.
+
+        Returns
+        -------
+        radius_factor, height_factor : NDArray[np.float64]
+            The scarp radius and height at _N_SCARP bearings (i + 1/2) 360 / _N_SCARP degrees, as factors of `scarp_radius`
+            and `scarp_height`; both empty for a crater without a scarp.
+        """
+        if not crater.has_scarp:
+            return np.zeros(0), np.zeros(0)
+        i_crest = int(round(1.0 / _DRHO))
+        rng = _crater_rng(crater, 1, self.rng)
+        rim, X = self._draw_hfield(rng, "complex", 2.0 * crater.scarp_radius, _KMAX_RIM, _N_SCARP, np.array([0, 1 + i_crest]))
+        relief = crater.rim_height - crater.floor_elevation
+        rim_fraction = crater.rim_height / relief if relief > 0 else 1.0
+        height = np.clip(1.0 + X[:, 1] / max(rim_fraction, 1e-6), 0.0, None)
+        return np.ascontiguousarray(rim, dtype=np.float64), np.ascontiguousarray(height, dtype=np.float64)
+
+    def _prepare_crater(self, crater: RealMoonCrater) -> None:
+        """Draw the rim outline and field of the crater before the ray seed, so random numbers are drawn in a fixed order."""
+        super()._prepare_crater(crater)
+        _ = crater.hfield
+        _ = crater.scarp_outline
+
+    def _form_craters_binding(self, craters: list[RealMoonCrater], **kwargs: Any):
+        data = [crater.hfield for crater in craters]
+        scarps = [crater.scarp_outline for crater in craters]
+        walls = [crater.wall for crater in craters]
+        return realmoon_bindings.form_craters(
+            craters=craters, rims=[d[0] for d in data], fields=[d[1] for d in data], scarp_radii=[s[0] for s in scarps],
+            scarp_heights=[s[1] for s in scarps], wall_nominals=[w[0] for w in walls], wall_levels=[w[1] for w in walls],
+            wall_params=[w[2] for w in walls], rho_max=_RHO_MAX, **kwargs
+        )
 
     def crater_profile(
         self,
         crater: RealMoonCrater,
         radial_distances: ArrayLike,
-        bearings: ArrayLike,
+        bearings: ArrayLike | None = None,
         reference_elevations: ArrayLike | None = None,
         crater_cls: type[Crater] = RealMoonCrater,
-        profile_func: Callable = realmoon_bindings.realmoon_profile,
+        include_crater: bool = True,
+        include_ejecta: bool = False,
         **kwargs: Any,
     ) -> NDArray[np.float64]:
         """
-        Compute the crater profile elevation at a given radial distance.
+        Compute the elevation of a realistic lunar crater (see `BasicMoonMorphology.crater_profile`).
+
+        The profile does not include the central peak, which is built on the surface when the crater is formed.
 
         Parameters
         ----------
         crater : RealMoonCrater
-            The crater object containing the parameters for the crater profile.
+            The crater.
         radial_distances : ArrayLike
-            Radial distances from the crater center (in meters).
-        bearings : ArrayLike
-            Bearing values (in degrees) corresponding to the radial distances.
+            Radial distances from the crater center (m).
+        bearings : ArrayLike, optional
+            Bearings (degrees, clockwise from north) of the points. Default is 0.
         reference_elevations : ArrayLike, optional
-            Reference elevation values to be modified by the crater profile.
+            Reference elevations modified by the crater. Default is 0.
         crater_cls : type[Crater], optional
-            The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
-        profile_func: Callable, optional
-            The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
+            Ignored: the crater is always cast to a `RealMoonCrater`.
+        include_crater, include_ejecta : bool, optional
+            Which parts of the profile to include. Where the basic profile stands above the reference surface, the field is shared between the crater and the ejecta in proportion to their parts of its height, so the ejecta thickness is never negative where the topography is above the reference surface.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        elevation : NDArray[np.float64]
-            The computed crater elevation profile at each radial point.
-
-        Notes
-        -----
-        This is a wrapper for a compiled Rust function.
+        NDArray[np.float64]
+            The elevation at each point.
         """
-        return super().crater_profile(
+        # Always a realistic lunar crater (callers such as ejecta_profile pass the basic crater class)
+        if not isinstance(crater, RealMoonCrater):
+            crater = RealMoonCrater.maker(crater, morphology=self)
+        r = np.asarray(radial_distances, dtype=np.float64)
+        shape = r.shape
+        r = np.ravel(r)
+        b = np.zeros_like(r) if bearings is None else np.ravel(np.radians(np.asarray(bearings, dtype=np.float64)))
+        ref = np.zeros_like(r) if reference_elevations is None else np.ravel(np.asarray(reference_elevations, dtype=np.float64))
+        rim, field, rho_max = crater.hfield
+        h = realmoon_bindings.realmoon_profile(
+            radial_distances=np.ascontiguousarray(r),
+            bearings=np.ascontiguousarray(np.broadcast_to(b, r.shape)),
+            reference_elevations=np.ascontiguousarray(np.broadcast_to(ref, r.shape)),
             crater=crater,
-            radial_distances=radial_distances,
-            bearings=bearings,
-            reference_elevations=reference_elevations,
-            crater_cls=crater_cls,
-            profile_func=profile_func,
-            **kwargs,
+            rim=rim,
+            field=field,
+            scarp_radius=crater.scarp_outline[0],
+            scarp_height=crater.scarp_outline[1],
+            wall_nominal=crater.wall[0],
+            wall_levels=crater.wall[1],
+            wall_params=crater.wall[2],
+            rho_max=rho_max,
+            include_crater=include_crater,
+            include_ejecta=include_ejecta,
         )
-
-    def ejecta_profile(
-        self,
-        crater: RealMoonCrater,
-        radial_distances: ArrayLike,
-        bearings: ArrayLike,
-        crater_cls: type[Crater] = RealMoonCrater,
-        profile_func: Callable = realmoon_bindings.realmoon_profile,
-        **kwargs: Any,
-    ) -> NDArray[np.float64]:
-        """
-        Compute the ejecta elevation profile at a given radial distance.
-
-        Parameters
-        ----------
-        crater : BasicMoonCrater
-            The crater object containing the parameters for the ejecta profile.
-        radial_distances : ArrayLike
-            Radial distances from the crater center (in meters).
-        bearings : ArrayLike
-            Bearings (in degrees) corresponding to the radial distances.
-        crater_cls : type[Crater], optional
-            The class of the crater type used. If the crater object doesn't match, then it is cast as this type. Default is BasicMoonCrater.
-        profile_func: Callable, optional
-            The backend function used to draw the crater profile. Default is bhe basicmoon_profile from the basicmoon_bindings Rust library.
-
-        Returns
-        -------
-        elevation : NDArray[np.float64]
-            The computed ejecta profile at each radial point.
-
-        Notes
-        -----
-        This is a wrapper for a compiled Rust function.
-        """
-        return super().ejecta_profile(
-            crater=crater,
-            radial_distances=radial_distances,
-            bearings=bearings,
-            crater_cls=crater_cls,
-            profile_func=profile_func,
-            **kwargs,
-        )
-
-    @parameter
-    def add_noise(self) -> bool:
-        """
-        Whether to add noise to the control points and PSD spectra based on the standard deviations of the PSD fits, both in the control points and in the PSD itself.
-        """
-        return self._add_noise
-
-    @add_noise.setter
-    def add_noise(self, value: bool):
-        if not isinstance(value, bool):
-            raise TypeError(f"add_noise must be a boolean value. Got {value} of type {type(value)}.")
-        self._add_noise = value
-
-    def get_control_points(self, crater: Crater, psd1d_coef: dict):
-        """
-        Get the control points for the PSD model based on the crater diameter and the provided coefficient and sigma values.
-
-        Parameters
-        ----------
-        crater : Crater
-            The crater for which to compute the control points.
-        psd1d_coef : dict
-            A nested dict containing the coefficients and sigma values for the control points. The expected structure is psd1d_coef[fit_category][term][param], where fit_category is "simple" or "non-simple", term is ["y1","y2","y3","y4","y5","yn","sn"], and param is ["m","b","sigma"] (e.g., mean and sigma for the control points).
-        add_noise : bool
-            Whether to add noise to the control points based on the sigma values in the coef_sigma DataArray. If True, then the control points will be sampled from a normal distribution with mean given by the coefficients and standard deviation given by the sigma values. If False, then the control points will be set to the mean values given by the coefficients without any noise. The default value is True.
-        """
-        control_points = {}
-        sigma = {}
-        fit_category = "simple" if crater.morphology_type == "simple" else "non-simple"
-
-        coef = psd1d_coef[fit_category]
-        radius_m = 0.5 * min(max(crater.diameter, self.valid_diameter_range[0]), self.valid_diameter_range[1])
-        for term, c in coef.items():
-            control_points[term] = c["m"] / np.log(radius_m) ** 2 + c["b"]
-            if self.add_noise:
-                sigma = (
-                    c["sigma"] / len(coef[term])
-                )  # There are too many correlations in the breakpoints for the control points to be random. Dividing by the number of terms suppresses the noise in the control points a bit so that the PSDs don't become extreme
-                cmid = control_points[term]
-                control_points[term] = self.rng.normal(cmid, sigma)
-
-        return control_points
-
-    @property
-    def psd1d_coef(self) -> dict:
-        """
-        The coefficients for the 1D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
-        """
-        return self._psd1d_coef
-
-    @property
-    def psd2d_coef(self) -> dict:
-        """
-        The coefficients for the 2D PSD models used in the RealMoonMorphology. This is loaded from the specified file during initialization and stored as an attribute.
-        """
-        return self._psd2d_coef
-
-    @property
-    def psd_pix(self) -> float:
-        if self._psd_pix is None:
-            return self.surface.pix
-        else:
-            return self._psd_pix
-
-    @psd_pix.setter
-    def psd_pix(self, value):
-        if not isinstance(value, FloatLike | None):
-            raise TypeError(f"psd_pix must be a a float or None. Got {value} of type {type(value)}.")
-        self._psd_pix = value
-
-    @property
-    def _CraterType(self) -> type[RealMoonCrater]:
-        """
-        The class definition of the associated Crater type.
-        """
-        return RealMoonCrater
+        return np.reshape(np.asarray(h, dtype=np.float64), shape)

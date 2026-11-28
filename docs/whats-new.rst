@@ -3,6 +3,35 @@
 What's New
 ==========
 
+:release:`v2026.11.1-alpha`
+---------------------------
+
+.. _whats-new.2026.11.1-alpha:
+
+- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater with an irregular rim outline and a random field of terraces, slumps and texture drawn from an empirical model of fresh lunar craters (``hfield_model.nc``). Transitional and complex craters get rugged, randomly offset and elongated central peaks with slopes near the angle of repose, which open into peak rings in craters larger than about 200 km. The walls of complex craters and basins are stacks of lobate, terraced levels that merge into each other, under a nearly round rim. The random properties of a realmoon crater are drawn when it is made unless given, so a crater can be reproduced exactly: the offset of its peak's center (``peak_center_distance``, ``peak_center_bearing``), the elongation of its peak (``peak_elongation``, ``peak_elongation_bearing``), the seed of the peak's texture (``peak_seed``), the seed of its rim outline, field and wall (``hfield_seed``), and the seed of its rays (``ray_seed``, also for basicmoon). The earlier model based on profile power spectra is removed. `David Minton`_
+- Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
+
+   - New size relations for the crater profile parameters, with the scatter between craters.
+   - The rim uplift decays exponentially outside the rim, and volume conservation adjusts only the ejecta, never the rim height.
+   - Craters larger than 138 km follow the profiles of the basins Schrödinger and Orientale, and craters larger than about 200 km have peak rings.
+   - Multiring basins have a ring scarp (``scarp_radius``, ``scarp_height`` and ``scarp_width``) in place of nested ring craters. ``add_ring``, ``rings``, ``nrings`` and ``make_rings`` are removed. Crater files from earlier versions still load.
+
+- Fixed volume conservation of the ejecta. The realmoon ejecta was balanced against a crater that included the Gaussian central peak of the basicmoon profile, although the realmoon peak is built separately and takes its own volume from the floor. The solve also left an imbalance of about half a percent because it did not iterate on the ejecta profile exponent, on which the crater part depends weakly; craters now balance to rounding error wherever a balance is possible. `David Minton`_
+- The rim height and floor depth of basicmoon and realmoon craters are drawn with correlated scatter, as measured in fresh lunar craters (correlation -0.62 for simple craters and +0.35 for transitional and complex craters, after removing measurement errors). The scatter of the rim-to-floor depth of transitional and complex craters now matches that of the fresh craters; that of simple craters goes from 16% above it to 14% below it. `David Minton`_
+- Recalibrated the simple-to-complex transition (14.4 km on the Moon), the diameters at which craters become transitional and complex, and the enlargement of complex craters in the "montecarlo" scaling model, from fresh lunar craters. `David Minton`_
+- Fixed the face gradient, which was half its true value, so that slope collapse now limits slopes to the requested critical angle. The critical angle after crater formation is now 40 degrees.
+- The superdomain of ``hireslocal`` surfaces is sized with the nominal basicmoon crater whatever the morphology, so the grid is the same for the same surface parameters whatever the random seed (with realmoon it varied from seed to seed). `David Minton`_
+- Removed the ``measure_rim`` option of ``Counting.tally``, which called a rim fitter that no longer exists.
+- Fixed ``Counting.tally`` with a ``region``, which always raised an error.
+- Fixed resumed simulations, which did not restore the saved state of the random number generator and so did not continue as the original run would have.
+- Added a ``count_superdomain`` option to count craters in the superdomain of a hireslocal surface. This replaces ``tag_superdomain``, which had no effect because ``emplace`` did not pass its arguments on.
+- Locations with a latitude beyond ±90 degrees (often longitude and latitude given in the wrong order) now raise an error instead of being silently reflected over the pole, and a location exactly at a pole is moved 10⁻⁵ degrees off it, which previously gave a local mesh with missing faces.
+- Fixed the ``smallest_crater`` and ``largest_crater`` arguments of ``Simulation``, which were ignored by the constructor and lost on resume.
+- Crater outlines (``Crater.to_geoseries`` and the rings drawn by ``show3d``) now follow the topography.
+- Added ``Surface.find_nearest_nodes`` and ``Surface.find_nearest_faces`` for fast lookups of many points at once.
+- ``show3d`` changes: the outline of the local region of a hireslocal surface can be toggled with the "o" key, the surface is drawn as a light grey matte material, observed and emplaced craters are drawn separately, and the ``annotations`` and ``pickable`` arguments are now passed on to PyVista.
+
+
 :release:`v2026.11.0-alpha`
 ---------------------------
 

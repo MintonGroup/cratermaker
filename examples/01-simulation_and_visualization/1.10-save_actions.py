@@ -8,8 +8,6 @@ When running simulations, sometimes you want to have certain tasks performed on 
 
 """
 
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 

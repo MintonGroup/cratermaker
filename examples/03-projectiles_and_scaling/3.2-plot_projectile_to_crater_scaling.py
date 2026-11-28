@@ -30,7 +30,7 @@ ax.set_xscale("log")
 ax.set_yscale("log")
 ax.set_xlabel("Projectile Diameter [km]")
 ax.set_ylabel("Final Crater Diameter [km]")
-ax.set_title("Projectile to Crater Scaling for Mars, Venus, Mercury, and the Moon")
+ax.set_title("Projectile to Crater Scaling for Various Planetary Bodies")
 
 color_index = 0
 label_color_map = {}

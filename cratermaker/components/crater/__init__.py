@@ -496,7 +496,7 @@ class Crater(ComponentBase):
             setattr(self._var, name, value)
             return
 
-    def as_dict(self, ignore_keys: list[str] = [], **kwargs) -> dict:
+    def as_dict(self, ignore_keys: list[str] | None = None, **kwargs) -> dict:
         """
         Expose delegated attributes for serialization.
         """
@@ -513,8 +513,8 @@ class Crater(ComponentBase):
         Expose delegated attributes for autocomplete/introspection.
         """
         base = set(super().__dir__())
-        base.update(dir(self.fixed))
-        base.update(dir(self.var))
+        base.update(dir(self._fixed))
+        base.update(dir(self._var))
         return sorted(base)
 
     def __str__(self):
@@ -648,7 +648,7 @@ class Crater(ComponentBase):
             The transient diameter of the crater in meters.
         transient_radius : float, optional
             The transient radius of the crater in meters.
-        morphology_type | str, optional
+        morphology_type : str, optional
             The morphology_type of the crater ("simple", "transitional", "complex", "multiring", etc.). Default is to be set automatically.
         semimajor_axis : float, optional
             The semimajor axis of the crater in meters. Same as radius if the crater is circular.
@@ -675,7 +675,7 @@ class Crater(ComponentBase):
         projectile_direction : float, optional
             The direction of the impact in degrees (0-360).
         projectile_location : pair of float, optional
-            The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
+            The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence.
         location : pair of floats, optional
             The (longitude, latitude) location of the crater on the target surface in degrees.
         longitude : float, optional
@@ -684,6 +684,8 @@ class Crater(ComponentBase):
             The latitude of the crater on the target surface in degrees. If used, you must also pass `longitude` and cannot pass `location`.
         time : float, optional
             The time of the crater impact in Myr before present.
+        name : str, optional
+            An optional name for the crater, which does not need to be unique.
         measured_semimajor_axis : float, optional
             The measured semimajor axis of the crater in meters.
         measured_semiminor_axis : float, optional
@@ -908,8 +910,9 @@ class Crater(ComponentBase):
             if not isinstance(crater, Crater):
                 raise TypeError("crater must be a Crater object.")
             old_parameters = {}
+            given = locals()  # one snapshot of the arguments (each call of locals() builds a new one)
             for field, value in crater.as_dict(skip_complex_data=True).items():
-                if field in locals() and locals()[field] is None and value is not None:
+                if field in given and given[field] is None and value is not None:
                     old_parameters[field] = value
             if (
                 n_size_inputs == 0
@@ -1184,10 +1187,14 @@ class Crater(ComponentBase):
         surface: Surface | None = None,
         split_antimeridian: bool = True,
         use_measured_properties: bool = True,
+        follow_topography: bool = True,
         **kwargs: Any,
     ) -> GeoSeries:
         """
         Geodesic ellipse on a sphere: for each bearing theta from the center, we shoot a geodesic with distance r(theta) = (a*b)/sqrt((b*ct)^2 + (a*st)^2), then rotate all bearings by the crater's orientation.
+
+        Each vertex has the elevation of the surface beneath it (that of its nearest node), so the outline follows the topography,
+        unless `follow_topography` is False.
 
         Parameters
         ----------
@@ -1199,12 +1206,16 @@ class Crater(ComponentBase):
             If True, split the polygon into a GeometryCollection if it crosses the antimeridian, by default True.
         use_measured_properties : bool, optional
             If True, use the current measured crater properties (semimajor_axis, semiminor_axis, location, orientation) instead of the initial ones, by default True.
+        follow_topography : bool, optional
+            If True, each vertex has the elevation of the surface beneath it. If False, the vertices have zero elevation (for
+            callers that set the elevations of many outlines at once). Default is True.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        A GeoSeries containing a Shapely Polygon in lon/lat degrees.
+        geopandas.GeoSeries
+            A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
@@ -1220,18 +1231,11 @@ class Crater(ComponentBase):
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location
             phi = self.measured_orientation
-            radius = self.measured_radius
         else:
             a = self.semimajor_axis
             b = self.semiminor_axis
             lon, lat = self.location
             phi = self.orientation
-            radius = self.radius
-
-        # Measure the rim height so that the polygon sits on to of the surface rather than underneath
-        region = surface.extract_region(location=(lon, lat), region_radius=radius, at_least_one_face=True)
-        rim_height = np.max(region.face_elevation)
-        z = np.full_like(theta, rim_height)
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))
@@ -1243,6 +1247,12 @@ class Crater(ComponentBase):
 
         # Forward geodesic for each bearing/distance
         poly_lon, poly_lat, _ = geod.fwd(lon * np.ones_like(bearings), lat * np.ones_like(bearings), bearings, r)
+
+        # The elevation of each vertex is that of the surface beneath it (its nearest node), so the outline follows the topography
+        if follow_topography:
+            z = np.asarray(surface.node_elevation)[surface.find_nearest_nodes(poly_lon, poly_lat)]
+        else:
+            z = np.zeros_like(poly_lon)
 
         # Correct for potential antimeridian crossing
         if split_antimeridian and np.ptp(poly_lon) > 180.0:
@@ -1279,7 +1289,7 @@ class Crater(ComponentBase):
         filename : str | Path
             The path to the file to load from.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1311,7 +1321,7 @@ class Crater(ComponentBase):
         input_file : Path | str
             The path to the CSV file containing crater data.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1323,7 +1333,6 @@ class Crater(ComponentBase):
         import csv
 
         craters = {}
-        rings = []
         input_file = Path(input_file)
         if not input_file.exists():
             raise FileNotFoundError(f"Input file '{input_file}' does not exist.")
@@ -1351,22 +1360,12 @@ class Crater(ComponentBase):
                         except ValueError:
                             continue
                 crater_data = {k: v for k, v in crater_data.items() if v is not None}
-                if "morphology_type" in crater_data:
-                    crater_data["isring"] = crater_data["morphology_type"] == "ring"
+                crater_data = _drop_legacy_rings(crater_data)
+                if crater_data is None:
+                    continue
                 # Values read from the file take priority over any keyword arguments of the same name
                 crater = cls.maker(**{**kwargs, **crater_data}, conserve_volume=conserve_volume, check_redundant_inputs=False)
-                if crater.morphology_type == "ring":
-                    rings.append(crater)
-                else:
-                    craters[crater.id] = crater
-
-            if len(rings) > 0:
-                # First remove any auto-generated rings
-                for ring in rings:
-                    craters[ring.parent]._rings = []
-                # Now add the input rings
-                for ring in rings:
-                    craters[ring.parent].add_ring(ring=ring)
+                craters[crater.id] = crater
 
         return list(craters.values())
 
@@ -1380,7 +1379,7 @@ class Crater(ComponentBase):
         input_file : Path | str
             The path to the SCC file containing crater data.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs: Any
             |kwargs|
 
@@ -1414,7 +1413,6 @@ class Crater(ComponentBase):
         dataset: xr.Dataset | dict,
         interval: int | None = None,
         conserve_volume: bool = False,
-        make_rings: bool = False,
         **kwargs,
     ) -> list[Crater]:
         """
@@ -1424,10 +1422,12 @@ class Crater(ComponentBase):
         ----------
         dataset : xr.Dataset | dict
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+        interval : int, optional
+            The interval to import. It selects from a dictionary of datasets, or along the interval coordinate of a dataset that
+            has one. If None, the last interval is used. If the requested interval is missing, an empty list is returned. Default
+            is None.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
-        make_rings : bool, optional
-            Indicate whether to generate new rings for complex and multiring craters that don't have one explicitly defined in the Dataset. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1458,7 +1458,6 @@ class Crater(ComponentBase):
             raise ValueError(f"Dataset has more than one dimension: {dims}. Cannot convert to Crater objects.")
         dimname = list(dims)[0]
         craters = {}
-        rings = []
         for i in tqdm(
             range(dataset[dimname].size), desc="Converting xarray Dataset to Crater objects", unit="crater", position=0, leave=False
         ):
@@ -1468,29 +1467,18 @@ class Crater(ComponentBase):
             for k, v in crater_data.items():
                 if v is not None and np.any(np.isreal(v)) and np.any(np.isnan(v)):
                     crater_data[k] = None
-            if "morphology_type" in crater_data:
-                crater_data["isring"] = crater_data["morphology_type"] == "ring"
+            crater_data = _drop_legacy_rings(crater_data)
+            if crater_data is None:
+                continue
             crater_data[dimname] = crater_dict["coords"][dimname]["data"]
             # Values read from the dataset take priority over any keyword arguments of the same name
             crater = cls.maker(
                 **{**kwargs, **crater_data},
                 conserve_volume=conserve_volume,
-                make_rings=make_rings,
                 monte_carlo=False,
                 check_redundant_inputs=False,
             )
-            if crater.isring:
-                rings.append(crater)
-            else:
-                craters[crater.id] = crater
-
-        if len(rings) > 0:
-            # First remove any auto-generated rings
-            for ring in rings:
-                craters[ring.parent]._rings = []
-            # Now add the input rings
-            for ring in rings:
-                craters[ring.parent].add_ring(ring=ring)
+            craters[crater.id] = crater
 
         return list(craters.values())
 
@@ -1692,6 +1680,29 @@ class Crater(ComponentBase):
     def projectile_direction(self) -> float | None:
         """The direction of the projectile in degrees, measured clockwise from north. This is the same as `orientation`."""
         return self._fixed.projectile_direction
+
+
+def _drop_legacy_rings(crater_data: dict) -> dict | None:
+    """
+    Remove the nested rings of files written by versions that modeled the rings of multiring basins as separate ring craters.
+
+    Those files hold each ring as a row of its own (morphology type "ring", with the id of its crater in "parent") and an
+    "isring" flag on every row. Multiring basins now carry their ring as the ring scarp parameters of the crater, so the ring
+    rows are skipped and the two columns are dropped.
+
+    Parameters
+    ----------
+    crater_data : dict
+        The values of one row of the file.
+
+    Returns
+    -------
+    dict or None
+        The values without the ring columns, or None for a ring row.
+    """
+    if crater_data.get("morphology_type") == "ring":
+        return None
+    return {k: v for k, v in crater_data.items() if k not in ("isring", "parent")}
 
 
 def _convert_tuple_vars(input_dict: dict, inverse: bool = False) -> dict:

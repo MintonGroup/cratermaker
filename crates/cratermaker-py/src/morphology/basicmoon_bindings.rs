@@ -1,7 +1,9 @@
 use crate::morphology::form_crater_bindings::run_form_craters;
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::form_crater::BasicMoonModel;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::ndarray::{Array1, Array2};
+use rayon::prelude::*;
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -35,7 +37,6 @@ pub fn basicmoon_profile<'py>(
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
     crater: BasicMoonCrater,
-    rings: Option<Vec<BasicMoonCrater>>,
     include_crater: bool,
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
@@ -46,7 +47,6 @@ pub fn basicmoon_profile<'py>(
         radial_distances_v,
         reference_elevations_v,
         &crater,
-        &rings,
         include_crater,
         include_ejecta,
     )
@@ -161,6 +161,47 @@ pub fn volume_integrand<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
+/// Computes the integrand of the profile volume (see `volume_integrand`) for each of several values of the rim thickness
+/// fraction `frac_ejrim` of a crater, in one call (the volume conservation of `BasicMoonCrater.maker` tries a grid of them).
+///
+/// # Arguments
+///
+/// * `radial_distances` - 1D array of radial distances from the crater center (in meters).
+/// * `crater` - The crater; its `frac_ejrim` is replaced by each of `fracs`.
+/// * `fracs` - The values of `frac_ejrim`.
+/// * `include_crater`, `include_ejecta` - The parts of the profile included.
+///
+/// # Returns
+///
+/// * A 2D NumPy array (one row per value of `frac_ejrim`) of the integrand at each radial distance.
+#[pyfunction]
+pub fn volume_integrand_fracs<'py>(
+    py: Python<'py>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
+    crater: BasicMoonCrater,
+    fracs: PyReadonlyArray1<'py, f64>,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let r = radial_distances.as_array();
+    let fracs: Vec<f64> = fracs.as_array().to_vec();
+    // The rows are independent, so they are evaluated in parallel (each exactly as a single call would)
+    let rows: Vec<Array1<f64>> = py.detach(|| {
+        fracs
+            .par_iter()
+            .map(|&frac| {
+                let trial = BasicMoonCrater { frac_ejrim: frac, ..crater };
+                cratermaker_components::morphology::basicmoon::volume_integrand(r, &trial, include_crater, include_ejecta)
+            })
+            .collect()
+    });
+    let mut out = Array2::<f64>::zeros((fracs.len(), r.len()));
+    for (mut row, values) in out.rows_mut().into_iter().zip(rows) {
+        row.assign(&values);
+    }
+    Ok(PyArray2::from_owned_array(py, out))
+}
+
 /// Computes the degradation function for a single crater diameter.
 ///
 /// # Arguments
@@ -210,7 +251,6 @@ pub fn degradation_function_array<'py>(
 /// # Arguments
 ///
 /// * `craters` - The BasicMoonCraters to form.
-/// * `rings` - The optional ring craters of each crater.
 /// * `regions` - The Python `LocalSurface` each crater is formed on.
 /// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
 /// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
@@ -223,12 +263,11 @@ pub fn degradation_function_array<'py>(
 /// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if the crater was
 ///   not formed because its excavated volume was not negative.
 #[pyfunction]
-#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[pyo3(signature = (craters, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn form_craters<'py>(
     py: Python<'py>,
     craters: Vec<BasicMoonCrater>,
-    rings: Vec<Option<Vec<BasicMoonCrater>>>,
     regions: Vec<Bound<'py, PyAny>>,
     face_indices: Vec<PyReadonlyArray1<'py, i64>>,
     node_indices: Vec<PyReadonlyArray1<'py, i64>>,
@@ -239,15 +278,9 @@ pub fn form_craters<'py>(
     conserve_volume: bool,
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
-    if rings.len() != craters.len() {
-        return Err(PyValueError::new_err(
-            "craters and rings must have the same length",
-        ));
-    }
     let models: Vec<BasicMoonModel> = craters
         .iter()
-        .zip(rings.iter())
-        .map(|(crater, rings)| BasicMoonModel { crater, rings })
+        .map(|crater| BasicMoonModel { crater })
         .collect();
     run_form_craters(
         py,

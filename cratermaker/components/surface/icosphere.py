@@ -16,7 +16,7 @@ class IcosphereSurface(Surface):
 
     Parameters
     ----------
-    gridlevel : float, default 8
+    gridlevel : int, default 8
         The subdivision level of the icosphere.
     target : Target, optional
         The target body or name of a known target body for the impact simulation.

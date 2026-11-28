@@ -20,7 +20,7 @@
 Production
 ==========
 
-Cratermaker's production module provides a robust way to compute the production function for craters and projectiles. The production function is defined as the cumulative number of craters greater than a given diameter per unit m² surface area.  There are currently two types of production funcitons that are available in the |Production| class: "neukum" and "powerlaw". The default production model depends on the value of the target. If the target is one of the inner planets (or Vesta or Ceres), the default will be "neukum". For all other bodies, it is "powerlaw".  The "neukum" production function comes in three different versions: "moon", "mars", or "projectile."  The "projectile" version is used unless the target is either the Moon or Mars. The default Cratermaker target body is the Moon, and therefore the default production function is "neukum" with the "moon" model. We can create a production function object and inspect its values using the following code:
+Cratermaker's production module provides a robust way to compute the production function for craters and projectiles. The production function is defined as the cumulative number of craters greater than a given diameter per m² of surface area.  There are currently two types of production functions that are available in the |Production| class: "neukum" and "powerlaw". The default production model depends on the value of the target. If the target is one of the terrestrial planets (Mercury, Venus, Earth, or Mars) or the Moon, the default will be "neukum". For all other bodies, it is "powerlaw".  The "neukum" production function comes in three different versions: "moon", "mars", or "projectile."  The "projectile" version is used unless the target is either the Moon or Mars. The default Cratermaker target body is the Moon, and therefore the default production function is "neukum" with the "moon" model. We can create a production function object and inspect its values using the following code:
 
 .. ipython:: python
    :okwarning:
@@ -29,9 +29,9 @@ Cratermaker's production module provides a robust way to compute the production 
    sim = Simulation(gridlevel=5, ask_overwrite=False, reset=True)
    print(sim.production)
 
-The output shows that by default, the production function is the Neukum model for the Moon, which is described in Neukum, Ivanov, and Hartmann (2001) [#]_. It also reports that the "Generator type" is "crater." A production model can either a crater generator or a projectile generator, which means that the diameter values that are returned from the production function represent either the crater or projectile. The other crater-based model is the Mars version, which is based on the work of Ivanov (2001) [#]_. The projectile model is based on the work of Ivanov, Neukum, and Wagner (2001) [#]_.
+The output shows that by default, the production function is the Neukum model for the Moon, which is described in Neukum, Ivanov, and Hartmann (2001) [#]_. It also reports that the "Generator type" is "crater." A production model can be either a crater generator or a projectile generator, which means that the diameter values that are returned from the production function represent either the crater or projectile. The other crater-based model is the Mars version, which is based on the work of Ivanov (2001) [#]_. The projectile model is based on the work of Ivanov, Neukum, and Wagner (2001) [#]_.
 
-The Neukum Moon model has a valid range of ages over which it is valid, which is also reported in the output. The valid range of ages is between 0 and 4.5 Ga, though caution must be used when interpreting ages older than about 3.9 Ga, as these are poorly calibrated. The total crater number density of the most ancient terrains on the Moon correspond to a model age of 4.31 Ga, though the actual crust could potentially be must older than that. Nevertheless, the Neukum model is a well-established and widely used model for inner solar system crater chronology.
+The Neukum Moon model has a range of ages over which it is valid, which is also reported in the output. The valid range of ages is between 0 and 4.5 Ga, though caution must be used when interpreting ages older than about 3.9 Ga, as these are poorly calibrated. The total crater number density of the most ancient terrains on the Moon correspond to a model age of 4.31 Ga, though the actual crust could potentially be much older than that. Nevertheless, the Neukum model is a well-established and widely used model for inner solar system crater chronology.
 
 The Production class has two primary methods that are used to compute the production function. The first is |production.function|, which computes the expected cumulative number density of craters greater than a given diameter of a surface of a given age. 
 The second is |production.sample|, which samples crater diameters and ages from the production function using Monte Carlo methods.
@@ -48,7 +48,7 @@ Production function
 Example: Using Production.function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For this example, we are going to use |production.function| to find the cumulative number of craters greater than 1 km² to form on a surface in 3 Gy using a power law with a slope of -2. 
+For this example, we are going to use |production.function| to find the cumulative number of craters greater than 1 km in diameter to form on a surface in 3 Gy using a power law with a slope of -2. 
 
 .. ipython:: python
    :okwarning:
@@ -74,7 +74,7 @@ Example: Plot a power law production function with a slope of -3 for craters 1 m
    ax.set_xlabel('D (m)')
    ax.set_ylabel('$\\mathregular{N_{>D}}$')
 
-   sim = Simulation(proedution="powerlaw",slope=-3.0,gridlevel=5, ask_overwrite=False, reset=True)  
+   sim = Simulation(production="powerlaw",slope=-3.0,gridlevel=5, ask_overwrite=False, reset=True)  
 
    diameters = np.arange(1, 1e6)
    pf = sim.production.function(diameter=diameters, age=1000.0)
@@ -102,7 +102,7 @@ For this example, we are going to use |production.age_from_D_N| to plot the age 
    import matplotlib.pyplot as plt
    import numpy as np
 
-   sim = Simulation(proedution="powerlaw",slope=-2.5,gridlevel=5, ask_overwrite=False, reset=True)  
+   sim = Simulation(production="powerlaw",slope=-2.5,gridlevel=5, ask_overwrite=False, reset=True)  
    diameters = np.logspace(0, 3)
    cumulative_number_density = np.full_like(diameters, 1e-6)
    age = sim.production.age_from_D_N(diameter=diameters, cumulative_number_density=cumulative_number_density)
@@ -129,7 +129,7 @@ In the above guides we have shown how to use the |Production| as a standalone ob
 Emplace a population of craters drawn from a production function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The |sim.populate| is used to generate a population of craters drawn from whichever |Production| component module is loaded into the simulation. You can pass either time interval over which to draw from the production function with either "age" or "time_start" and "time_end", or you can provide a pair of numbers in the form of (D,N) that represents the production function in the N(D) convention. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
+The |sim.populate| is used to generate a population of craters drawn from whichever |Production| component module is loaded into the simulation. You can pass either a time interval over which to draw from the production function with either "age" or "time_start" and "time_end", or you can provide a pair of numbers in the form of (D,N) that represents the production function in the N(D) convention. For instance, to emplace a population of craters corresponding to the production function between 200 My to 100 My before present, you would do:
 
 .. code-block:: python
 
@@ -142,7 +142,7 @@ The |sim.populate| method is really meant to be a helper method for the |sim.run
 Limiting the size range of the production population
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When used inside a |Simulation|, the upper and lower bounds on the sizes of craters returned by |production.function| are set by the resolution of the associated |Surface| object. The smallest crater that is directly modeled (outside of any subpixel models) is the size of the local face. The largest size is the diameter of the target. These can be adjusted by the user and are access by the |sim.smallest_crater| and |sim.largest_crater| attributes.
+When used inside a |Simulation|, the upper and lower bounds on the sizes of craters returned by |production.function| are set by the resolution of the associated |Surface| object. The smallest crater that is directly modeled (outside of any subpixel models) is the size of the local face. The largest size is the diameter of the target. These can be adjusted by the user and are accessed by the |sim.smallest_crater| and |sim.largest_crater| attributes.
 
 
 .. ipython:: python
@@ -167,13 +167,13 @@ When used inside a |Simulation|, the upper and lower bounds on the sizes of crat
 Quasi Monte Carlo craters
 -------------------------
 
-For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a |Simulation| object with an argument `quasimc_file`, which points to either a CSV or NetCDF file containing the information needed to emplace the craters. Alternatively, you  When this argumented is passed, the |sim.run| method will run in "Quasi Monte Carlo mode". 
+For some applications, you may want to specify a predefined population of craters that should be emplaced at a certain time and location along with the random population of craters drawn from the production function. To accomplish this, you can initialize a |Simulation| object with an argument `quasimc_file`, which points to either a CSV or NetCDF file containing the information needed to emplace the craters. Alternatively, you can pass a list of |Crater| objects with the `quasimc_craters` argument. When either argument is passed, the |sim.run| method will run in "Quasi Monte Carlo mode". 
 
 Quasi Monte Carlo mode is a powerful tool that is very flexible. Here we will demonstrate the different ways you can specify craters in either a file via the |production.quasimc_file| property, or a list of |Crater| objects provided to the |production.quasimc_craters| property. The |Simulation| class also has its own wrappers for these two properties, |sim.quasimc_file| and |sim.quasimc_craters| for convenience.  
 
-Here we have some demonstrations of the different ways to set Quasi Monte Carlo craters, and how different parameters affect the behavior of the simulation with a simple donstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 76 lunar basins and craters is included in the :ref:`gal-simulation`.
+Here we have some demonstrations of the different ways to set Quasi Monte Carlo craters, and how different parameters affect the behavior of the simulation with a simple demonstration using several prominent lunar craters: South Pole-Aitken, Serenitatis, Nectaris, Crisium, Imbrium, Schrödinger, and Orientale. A version of this simulation type with 76 lunar basins and craters is included in the :ref:`gal-simulation`.
 
-First, we we will create a CSV file called "qmc_inputs.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as :py:attr:`~cratermaker.components.crater.CraterFixed.diameter` or :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter` Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical :py:attr:`~cratermaker.components.crater.CraterFixed.location` tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this, which we will demonstrate using ancient lunar basins.
+First, we will create a CSV file called "qmc_inputs.csv" and populate it with columns indicating which arguments should be passed to the |Crater.maker| function. At a minimum, this requires at least one argument specifying size, such as :py:attr:`~cratermaker.components.crater.CraterFixed.diameter` or :py:attr:`~cratermaker.components.crater.CraterFixed.projectile_diameter`. Usually you would include a location as well, which must be specified with "longitude" and "latitude" as separate columns, rather than the typical :py:attr:`~cratermaker.components.crater.CraterFixed.location` tuple that the method call would use. In addition, you typically would provide some indication of when in the simulation you want the crater to form. There are multiple ways to do this, which we will demonstrate using ancient lunar basins.
 
 .. note::
 
@@ -188,7 +188,7 @@ First, we we will create a CSV file called "qmc_inputs.csv" and populate it with
    - Imbrium is set to 3922±12 My based on U-Pb ages of Apollo 14 and 15 impact breccias from Nemchin et al. (2021) [#]_.
    - The age of Copernicus of 800±15 My is from Bogard et al. (1994) [#]_, and is based on :sup:`39`\ Ar - :sup:`40`\ Ar ages of Apollo 12 soil samples that are thought to have been reset by ejecta from Copernicus.
    - The age of Tycho of 109±4 My is based on cosmic ray exposure dating of the South Massif landslide deposit in Taurus Littrow Valley from Apollo 17 by Drozd et al. (1977) [#]_.
-   - Serenetatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
+   - Serenitatis is given an age of 4250 My based on modeling the origin of the Apollo 17 troctolite 76535 (which we think is The Most Interesting Rock from the Moon) by Bjonnes et al. (2025) [#]_. However, this is still a proposed age and because it would represent a date that is not part of the calibration used to develop the Neukum chronology function, then it may not be consistent with its position in the lunar chronology. Alternatively, Orgel et al.'s N(20)=334±73 could be used instead.
    
 
 
@@ -231,11 +231,11 @@ The equivalent in a CSV file would be:
 Specifying a production crater number density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. Here we will use the N(20) value of the Nectaris basin obtained by Orgel et al. (2020) using the Buffered Non-Sparseness Correction technique, which yielded an N(20)=172±20 per 10⁶ km².
+Rather than a specific time, you can specify a crater's "age" by its position on the production function using N(D) convention. This is done by setting the |crater.production_ND| attribute, which is a tuple of (D, N, N_stdev), where D is the reference diameter in km, N is the cumulative number density of craters per 10⁶ km² greater than D, and N_stdev is the 1σ standard deviation of that number density. Here we will use the N(20) value of the Nectaris basin obtained by Orgel et al. (2018) using the Buffered Non-Sparseness Correction technique, which yielded an N(20)=172±20 per 10⁶ km².
 
 .. note::
 
-   The N(D) convention takes D in units of km, rather than the units of m used when defining craters. To see what unit system is current set, see the |production.N_D_units|. Other conventions can be set changing |production.D_conversion_factor| and |production.N_conversion_factor|.
+   The N(D) convention takes D in units of km, rather than the units of m used when defining craters. To see what unit system is currently set, see the |production.N_D_units|. Other conventions can be set by changing |production.D_conversion_factor| and |production.N_conversion_factor|.
 
 
 .. ipython:: python
@@ -260,7 +260,7 @@ Specifying a sequence constraint
 
 For many craters, it is difficult to constrain their formation time, however we can bracket them stratigraphically relative to other craters. To accomplish this in Cratermaker, we can supply an integer value to the |crater.production_sequence| attribute. Craters that have a sequence number must form after craters with a lower sequence number. A sequence number can be added to any crater, even if it has another piece of production metadata such as |crater.production_time| or |crater.production_ND|, or has none. The only constraint is that at least one crater with the lowest sequence number must have either |crater.production_time| or |crater.production_ND| set, otherwise there is no way to determine the earliest time boundary of the sequences.
 
-In this example, will add the basins Fecunditatis and Vaporum. Fecunditatis was determined by Evans et al. (2018) to have  N(90)=10±4 per 10⁶ km². Vaporum is stratigraphically older than Fecunditatis, but younger than South Pole-Aitken (SPA). SPA is stratigraphically the oldest crater on the Moon, so we give it a value of |crater.production_sequence| of 0. Because it is the oldest, we need an additional constraint. Its absolute formation age is currently not well known. It must be younger than the Moon, so is likely less than 4500 My. There are materials older than about 4250 My that are attributed to basins other than SPA, so it is likely older than that. We will therefore constrain it to an N(20)=999.8 per 10⁶ km², which is the value of the production function at just after 4310 My bp, which we use as the model starting time of our simulation. Fecunditatis is younger than Vaporum, so we give it a sequence number of 10, and Vaporum gets a sequence number of 5, and no other constraints. We can also add sequence constraints to Nectaris and Imbrium.
+In this example, we will add the basins Fecunditatis and Vaporum. Fecunditatis was determined by Evans et al. (2018) to have  N(90)=10±4 per 10⁶ km². Vaporum is stratigraphically older than Fecunditatis, but younger than South Pole-Aitken (SPA). SPA is stratigraphically the oldest crater on the Moon, so we give it a value of |crater.production_sequence| of 0. Because it is the oldest, we need an additional constraint. Its absolute formation age is currently not well known. It must be younger than the Moon, so is likely less than 4500 My. There are materials older than about 4250 My that are attributed to basins other than SPA, so it is likely older than that. We will therefore constrain it to an N(20)=999.8 per 10⁶ km², which is the value of the production function at just after 4310 My bp, which we use as the model starting time of our simulation. Fecunditatis is younger than Vaporum, so we give it a sequence number of 10, and Vaporum gets a sequence number of 5, and no other constraints. We can also add sequence constraints to Nectaris and Imbrium.
 
 Our input file for this set of craters would look like this:
 
@@ -297,7 +297,7 @@ Our input file for this set of craters would look like this:
 
 .. note::
 
-   The numerical value of the |crater.production_sequence| is only important if there are no other production metadata constraints, such as in the Vaporum example. In that case, the N(1) range corresponding to the sequence is an interpolation between bordering sequences. So in the above case, Vaporum's nominal "age" (in N(1) value) would be determined by extrapolating the N(1) values of craters with sequence 10 (Fecunditatis) and sequence 0 (SPA). With a value of 5, Vaporum would have a nominal N(1) value exactly in the middle, though its actual value will still be drawn from a normal distribution.
+   The numerical value of the |crater.production_sequence| is only important if there are no other production metadata constraints, such as in the Vaporum example. In that case, the N(1) range corresponding to the sequence is an interpolation between bordering sequences. So in the above case, Vaporum's nominal "age" (in N(1) value) would be determined by interpolating the N(1) values of craters with sequence 10 (Fecunditatis) and sequence 0 (SPA). With a value of 5, Vaporum would have a nominal N(1) value exactly in the middle, though its actual value will still be drawn from a normal distribution.
 
 
 Adjusting the automatic crater size limit
@@ -382,9 +382,9 @@ Merging the Quasi Monte Carlo craters with random craters
 
 When running in Quasi Monte Carlo mode, the randomly-generated and Quasi Monte Carlo generated craters are combined using the |production.quasimc_merge| (or its convenience wrapper |sim.quasimc_merge|). The arguments to this function are "craters", which holds a list of |Crater| objects that you have previously created, and either "time_start" and "time_end" or "N_D" and "N_D_end". "N_D" and "N_D_end" are the N(D) values expressed as a tuple of (D, N), where D is in km and N is in units of per 10⁶ km² (unless these have been modified by setting |production.D_conversion_factor| and/or |production.N_conversion_factor|).  Internally, the "N_D" and "N_D_end" values are converted to "time_start" and "time_end" values using the |production.age_from_D_N| function.
 
-The |production.quasimc_merge| method will do a number of things to process both the input list of |Crater| objects given by the "craters" argument as well as the stored |production.quasimc_craters| list to produce a consistent merge. First, it checks all of the "craters" list to see if they have a |crater.time| value set, set them using the |production.compute_time| method if they don't have one or drop them if the pre-existing |crater.time| value falls outside the range. Then it successively checks the two lists for overlapping diameters, starting with the smallest craters in both. If a crater from the input (i.e. random) list has a diameter greater than the smallest of the quasimc list, then the quasimc crater takes its place, and then the next largest quasimc crater is checked against the next largest input crater. This continues intil both lists are exhausted.  The purpose of this is to ensure that the total number of craters produced over a time interval with a |production.quasimc_craters| component is roughly consistent with the total number that would be produced without. 
+The |production.quasimc_merge| method will do a number of things to process both the input list of |Crater| objects given by the "craters" argument as well as the stored |production.quasimc_craters| list to produce a consistent merge. First, it checks all of the "craters" list to see if they have a |crater.time| value set, set them using the |production.compute_time| method if they don't have one or drop them if the pre-existing |crater.time| value falls outside the range. Then it successively checks the two lists for overlapping diameters, starting with the smallest craters in both. If a crater from the input (i.e. random) list has a diameter greater than the smallest of the quasimc list, then the quasimc crater takes its place, and then the next largest quasimc crater is checked against the next largest input crater. This continues until both lists are exhausted.  The purpose of this is to ensure that the total number of craters produced over a time interval with a |production.quasimc_craters| component is roughly consistent with the total number that would be produced without. 
 
-To demonstrate this functionality, consider the case where we want to model the total number of craters produced during the Copernican period, but we also want to include Copernicus and Tycho. First let's set up a low resolution |Simulation| object and not specify any Quasi Monte Carlo craters, but give it a random seed for repeatability
+To demonstrate this functionality, consider the case where we want to model the total number of craters produced during the Copernican period, but we also want to include Copernicus and Tycho. First let's set up a low resolution |Simulation| object and not specify any Quasi Monte Carlo craters, but give it a random seed for repeatability.
 
 .. ipython:: python
     :okwarning:
@@ -402,7 +402,7 @@ To demonstrate this functionality, consider the case where we want to model the 
    sim = Simulation(gridlevel=5, rng_seed=11123537)
 
 
-Next we will use |sim.populate| to generate a set of craters for the last 1 billion years. This method will return the list of randomly generated emplaced craters, which we will sort by diameter and plot them
+Next we will use |sim.populate| to generate a set of craters for the last 1 billion years. This method will return the list of randomly generated emplaced craters, which we will sort by diameter and print
 
 .. ipython:: python
    :okwarning:

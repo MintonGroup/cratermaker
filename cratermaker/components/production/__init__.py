@@ -212,10 +212,10 @@ class Production(ComponentBase):
         ----------
         time_start : FloatLike, optional
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        time_end, FloatLike, optional
+        time_end : FloatLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         diameter_number : PairOfFloats, optional
-            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function convert this value
+            A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this value
             to a corresponding age and use the production function for a given age.
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N). If provided, the function will convert this
@@ -462,7 +462,7 @@ class Production(ComponentBase):
             number density of craters per m² surface area greater than the input diameter
         time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        time_end, FloatLike or ArrayLike, optional
+        time_end : FloatLike or ArrayLike, optional
             The ending age in units of My relative to the present, which is used to compute the cumulative SFD. The default is 0 (present day).
         validate_inputs : bool, optional
             If True, the function will validate the inputs. The default is True.
@@ -600,16 +600,16 @@ class Production(ComponentBase):
             The starting time in units of My relative to the present, which is used to compute the cumulative SFD.
         age : FloatLike, optional
             The starting time in units of My relative to the present, which is used to compute the cumulative SFD (a substitute for time_start).
-        time_end, FloatLike, optional
+        time_end : FloatLike, optional
             The ending time in units of My relative to the present, which is used to compute the cumulative SFD.
             The default is 0 (present day).
         diameter_number : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of
-            projectiles, N, larger than diameter, D. If provided, the function convert this value to a corresponding age and use the
+            projectiles, N, larger than diameter, D. If provided, the function will convert this value to a corresponding age and use the
             production function for a given age.
         diameter_number_end : PairOfFloats, optional
             A pair of diameter and cumulative number values, in the form of a (D, N), which gives the total cumulative number of
-            projectiles, N, larger than diameter, D.. If provided, the function will convert this value to a corresponding time_end
+            projectiles, N, larger than diameter, D. If provided, the function will convert this value to a corresponding time_end
             and use the production function for a given age. The default is (1000.0, 0) (present day).
         diameter_range : PairOfFloats
             The minimum and maximum crater diameter to sample from in meters. If not provided, the :py:attr:`~cratermaker.components.production.Production.diameter_range`
@@ -793,7 +793,7 @@ class Production(ComponentBase):
         ----------
         time_start : FloatLike or ArrayLike, default=1.0
             Age in the past in units of My relative to the present, which is used compute the cumulative SFD.
-        time_end, FloatLike or ArrayLike, optional
+        time_end : FloatLike or ArrayLike, optional
             The reference used when computing age in My. If none is passed, it will be set either 0 or an array of zeros, depending on
             the size of time_start.
 

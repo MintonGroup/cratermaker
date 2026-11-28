@@ -4,7 +4,7 @@ Sample a power law and lunar Neukum Production Function
 
 .. rubric:: By Austin Blevins and David Minton
 
-In this example, we use the :py:meth:`Production.sample` method to sample populations of craters from a production function. We will sample 1000 craters from each production function and repeat this 100 times. The population samples are then plotted against the expected value given by :py:meth:`Production.function`
+In this example, we use the :py:meth:`~cratermaker.components.production.Production.sample` method to sample populations of craters from a production function. For each production function, we sample the craters between 2 km and 10,000 km in diameter that would form over the entire surface of the Moon during 4.1 billion years, and repeat this 100 times. The population samples are then plotted against the expected value given by :py:meth:`~cratermaker.components.production.Production.function`.
 """
 
 import matplotlib.pyplot as plt

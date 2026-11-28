@@ -35,10 +35,10 @@ class HiResLocalSurface(Surface):
         A factor defining relative size of the face at the antipode of the local region to the face size inside the local region.
         If not provided, construction of the surface will be deferred until the `set_superdomain` method is called.
         If a negative number is provided, it will be computed based on a provided (or default) scaling and morphology model, and will be set so that smallest craters that can be resolved on faces outside the local region could potentially deposit ejecta at the boundary of the local region.
-        Default is -1 (which triggers automatic computation based on scaling and morphology models).
+        Default is None.
     target : Target, optional
-        The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
-        or extracted from the scaling model if it is provied
+        The target body or name of a known target body for the impact simulation. If none provided, it will be either set to the default,
+        or extracted from the scaling model if it is provided
     reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
@@ -49,7 +49,7 @@ class HiResLocalSurface(Surface):
     Returns
     -------
     HiResLocalSurface
-        An instance of the HiResLocalSurface clas initialized with the given point distribution
+        An instance of the HiResLocalSurface class initialized with the given point distribution
     """
 
     def __init__(
@@ -194,6 +194,8 @@ class HiResLocalSurface(Surface):
             Interval number to append to the data file name. Default is 0.
         time_variables : dict, optional
             Dictionary containing one or more variable name and value pairs. These will be added to the dataset along the time dimension. Default is None.
+        **kwargs : Any
+            |kwargs|
         """
         self._full().save(
             interval=interval,
@@ -347,6 +349,10 @@ class HiResLocalSurface(Surface):
         ----------
         variable_name : str, optional
             The name of the variable to rasterize. Default is "face_elevation".
+        uxda : UxDataArray | None
+            The UxDataArray containing the face-based variable to rasterize. If None, the method will use currently loaded data. Default is None.
+        superdomain : bool, optional
+            If True, rasterize the full surface including the superdomain. If False, rasterize only the local region. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -408,10 +414,8 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        engine : str, optional
-            The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
             An array face values that will be used to color the surface mesh. This is required if `variable_name` is not stored on the mesh.
         superdomain : bool, optional
@@ -439,7 +443,10 @@ class HiResLocalSurface(Surface):
         """
         Set the superdomain scale factor based on the scaling and morphology models.
 
-        This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region.
+        This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region. The
+        reach of the ejecta is that of the nominal basicmoon crater (non-Monte Carlo scaling, no random draws), whatever the
+        morphology of the simulation, so that the grid is the same for the same surface parameters whatever the random seed (a
+        realmoon crater's random field would make the reach, and so the grid, vary from seed to seed).
 
         Parameters
         ----------
@@ -457,6 +464,11 @@ class HiResLocalSurface(Surface):
         from cratermaker import Crater
 
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
+        # The ejecta reach is that of the nominal basicmoon crater, with the simulation's scaling (and so its projectiles), and
+        # a generator of its own, so that the grid does not depend on the simulation's random draws
+        sizing = Morphology.maker(
+            "basicmoon", surface=self, target=self.target, scaling=morphology.scaling, rng_seed=0, do_subpixel_degradation=False
+        )
 
         # Disable MC scaling so that the superdomain scaling is always the same for a given set of surface parameters.
         monte_carlo_orig = morphology.scaling.monte_carlo
@@ -476,10 +488,10 @@ class HiResLocalSurface(Surface):
                 np.log10(self.target.radius * 2),
                 1000,
             ):
-                crater = morphology.Crater.maker(
-                    diameter=diameter, angle=90.0, projectile_velocity=projectile_velocity, conserve_volume=False, make_rings=False
+                crater = sizing.Crater.maker(
+                    diameter=diameter, angle=90.0, projectile_velocity=projectile_velocity, conserve_volume=False
                 )
-                rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
+                rmax = sizing.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
                     superdomain_size = crater.diameter
                     break
@@ -674,10 +686,10 @@ class HiResLocalSurface(Surface):
 
         Parameters
         ----------
-        bearings : FloatLike or ArrayLike
-            Initial bearings from the reference point to the target point or points in degrees.
         distances : FloatLike or ArrayLike
             Great circle distances from the reference point to the target point or points in meters.
+        bearings : FloatLike or ArrayLike
+            Initial bearings from the reference point to the target point or points in degrees.
         reference_location : PairOfFloats, optional
             Longitude and latitude of the reference point in degrees. Default is the value of `local_location`
 
@@ -897,7 +909,7 @@ class LocalHiResLocalSurface(LocalSurface):
             The integer to apply the tag. If None is provided, the tag layers will be reset to zero
         long_name : str | None
             The long name of the tag to be added. If None, no long name will be added.
-        tag_superdomain: bool = False,
+        tag_superdomain : bool, optional
             If True, apply the tag to surface including the superdomain. If False, apply only to the local region. Default is False.
         **kwargs : Any
             |kwargs|
@@ -931,14 +943,14 @@ class LocalHiResLocalSurface(LocalSurface):
             self.local_overlap.apply_diffusion(kdiff)
         return
 
-    def slope_collapse(self, critical_slope_angle: FloatLike = 35.0) -> NDArray:
+    def slope_collapse(self, critical_slope_angle: FloatLike = 40.0) -> NDArray:
         """
         Collapse all slopes larger than the critical slope angle.
 
         Parameters
         ----------
-        critical_slope_angle : float
-            The critical slope angle (angle of repose) in degrees.
+        critical_slope_angle : float, optional
+            The critical slope angle (angle of repose) in degrees. Default is 40.0.
 
         Notes
         -----
@@ -960,6 +972,8 @@ class LocalHiResLocalSurface(LocalSurface):
 
         Parameters
         ----------
+        model : str
+            The noise model to use. Options are "turbulence"
         noise_width : float
             The spatial wavelength of the noise.
         noise_height : float
@@ -990,7 +1004,7 @@ class LocalHiResLocalSurface(LocalSurface):
         Returns
         -------
         LocalHiResLocalSurface
-            A LocalHiResSurface object containing a view of the regional grid.
+            A LocalHiResLocalSurface object containing a view of the regional grid.
         """
         region = super().extract_subregion(subregion_radius=subregion_radius)
         if region is None:

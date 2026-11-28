@@ -77,6 +77,24 @@ class TestCounting(unittest.TestCase):
             morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
             self.assertTrue(counting.Crater is morphology.Crater)
 
+    def test_tally(self):
+        # A fresh crater should survive a tally of the surface and of a local region
+        surface_type = "hireslocal"
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(
+                surface_type, simdir=simdir, target=target, ask_overwrite=False, reset=True, **surface_args[surface_type]
+            )
+            counting = Counting.maker(surface=surface)
+            morphology = Morphology.maker(counting=counting, ejecta_truncation=4.0)
+            morphology.emplace(**crater[surface_type])
+            self.assertEqual(counting.n_observed, 1)
+            counting.tally(quiet=True)
+            self.assertEqual(counting.n_observed, 1)
+            counting.tally(region=surface.local, quiet=True)
+            self.assertEqual(counting.n_observed, 1)
+            with self.assertRaises(TypeError):
+                counting.tally(region="not a region", quiet=True)
+
 
 if __name__ == "__main__":
     unittest.main()

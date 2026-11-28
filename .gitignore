@@ -13,8 +13,7 @@
 !cratermaker/components/
 !cratermaker/components/crater/
 !cratermaker/components/morphology/
-!cratermaker/components/morphology/psd1d_coeffs.nc
-!cratermaker/components/morphology/psd2d_coeffs.nc
+!cratermaker/components/morphology/hfield_model.nc
 !cratermaker/components/production/
 !cratermaker/components/projectile/
 !cratermaker/components/scaling/

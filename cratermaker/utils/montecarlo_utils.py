@@ -560,6 +560,11 @@ def sample_logfit_heteroskedastic(
     rng: Generator | None = None,
     rng_seed: int | None = None,
     rng_state: dict | None = None,
+    scatter_model: Literal["normal", "lognormal"] = "normal",
+    x_ref: float = 0.0,
+    x_min: float | None = None,
+    x_max: float | None = None,
+    deviate: float | None = None,
     **kwargs: Any,
 ) -> np.float64:
     """
@@ -579,10 +584,25 @@ def sample_logfit_heteroskedastic(
         The intercept of the sigma vs x fit.
     alpha : float
         The slope of the sigma vs x fit.
-    n : int
-        The number of data points used to compute the fit.
+    fit_scale : {"linear", "logx", "logy", "loglog"}, optional
+        The axes the relation was fitted on: "logx" and "loglog" use ln x, and "logy" and "loglog" fit ln y. Default is "loglog".
     compute_nominal : bool, optional
         Set to True to return the nominal value without the random variation. Default is False.
+    scatter_model : {"normal", "lognormal"}, optional
+        The distribution of the scatter about the relation. "normal" (default): y is drawn from a normal distribution about the
+        relation with standard deviation exp(c / 2) y^(alpha / 2) ("loglog"/"logy") or sqrt(c + alpha y) (otherwise).
+        "lognormal" (for positive quantities fitted on log axes): ln y is drawn from a normal distribution about ln of the
+        relation (its median) with variance exp(c + alpha (ln x - x_ref)).
+    x_ref : float, optional
+        The reference value of ln x of the "lognormal" scatter model. Default is 0.
+    x_min, x_max : float, optional
+        The range of x of the data the relation was fitted to. Outside it the polynomial is not extrapolated: the relation is
+        evaluated at the nearest end of the range and, for the "loglog" scale (lengths), scaled in proportion to x (geometric
+        similarity); for the other scales the value at the end of the range is kept. The scatter is that at the end of the
+        range, in proportion. Default is no limit.
+    deviate : float, optional
+        The standard normal deviate of the scatter (e.g. one correlated with that of another quantity). Default: drawn from
+        `rng`.
     rng : numpy.random.Generator | None
         |rng|
     rng_seed : Any type allowed by the rng_seed argument of numpy.random.Generator, optional
@@ -603,24 +623,30 @@ def sample_logfit_heteroskedastic(
             ans += c * x**i
         return ans
 
+    x = np.asarray(x, dtype=np.float64)
+    xc = np.clip(x, x_min if x_min is not None else -np.inf, x_max if x_max is not None else np.inf)
     if fit_scale in ["loglog", "logx"]:
-        xval = np.log(x)
+        xval = np.log(xc)
     else:
-        xval = x
+        xval = xc
     if fit_scale in ["loglog", "logy"]:
         log_y = polyfunc(xval, *coefficients)
         y = np.exp(log_y)
     else:
         y = polyfunc(xval, *coefficients)
+    # Beyond the range of the data, lengths scale with x (geometric similarity)
+    scale = x / xc if fit_scale == "loglog" else 1.0
 
     if compute_nominal:
-        return np.atleast_1d(y)
-    else:
+        return np.atleast_1d(y * scale)
+    if deviate is None:
         rng, _ = _rng_init(rng=rng, rng_seed=rng_seed, rng_state=rng_state, **kwargs)
-        if fit_scale in ["loglog", "logy"]:
-            sigma = np.exp(c / 2) * y ** (alpha / 2)
-        else:
-            sigma = np.sqrt(max(c + alpha * y, 0.0))
-        var = rng.normal(0, sigma, size=np.size(x))
-
-    return y + var
+        deviate = rng.standard_normal(size=np.size(x))
+    if scatter_model == "lognormal":
+        sigma_ln = np.sqrt(np.exp(c + alpha * (np.log(xc) - x_ref)))
+        return np.atleast_1d(y * np.exp(sigma_ln * deviate) * scale)
+    if fit_scale in ["loglog", "logy"]:
+        sigma = np.exp(c / 2) * y ** (alpha / 2)
+    else:
+        sigma = np.sqrt(np.maximum(c + alpha * y, 0.0))
+    return np.atleast_1d((y + sigma * deviate) * scale)

@@ -7,17 +7,15 @@ Compute the degradation state of a crater
 In this example, we will emplace a small simple crater on a HiResLocal surface, and then apply topographic diffusion to the surface in order to simulate diffusive degradation of the crater. We will then compare the applied diffusive degradation amount with the estimated degradation state of the crater using the DepthCount model, which uses depth-to-diameter as a proxy for degradation state. If the proxy is good, the values of degradation state computed by Cratermaker vs applied degradation should plot along a 1:1 line.
 """
 
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 
 from cratermaker import Simulation
 
-simdir = "simdata-5_2"
+simdir = "simdata-5_1"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 sim = Simulation(
@@ -59,7 +57,8 @@ K_r2_measured = np.array(K_measured_vals) / crater.radius**2
 K_r2_applied = np.array(K_applied_vals) / crater.radius**2
 fig, ax = plt.subplots(layout="constrained")
 ax.scatter(K_r2_applied, K_r2_measured, label="Cratermaker simulation")
-ax.plot(K_r2_applied, K_r2_measured, color="k", linestyle="--", label="1:1")
+lim = max(K_r2_applied.max(), K_r2_measured.max())
+ax.plot([0, lim], [0, lim], color="k", linestyle="--", label="1:1")
 ax.set_xlabel("Applied diffusive degradation ($K/r^2)$")
 ax.set_ylabel("Estimated degradation state ($K/r^2$)")
 ax.legend()

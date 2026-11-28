@@ -1,325 +1,128 @@
-use crate::morphology::form_crater_bindings::run_form_craters;
+use crate::morphology::form_crater_bindings::{PyCraterRegion, run_form_craters};
+use cratermaker_components::morphology::central_peak::{CentralPeak, PeakModel};
+use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::form_crater::RealMoonModel;
-use cratermaker_components::morphology::realmoon::{ProfileEvaluator, RealMoonCrater};
-use numpy::{PyArray1, PyReadonlyArray1};
+use cratermaker_components::morphology::realmoon::{RealMoonField, WallLevels};
+use numpy::ndarray::ArrayView1;
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use std::collections::HashMap;
-use paste::paste;
 
-// Mirrors the PSD1D struct in cratermaker-components and provides read-only access to its fields from Python.
-pub struct PyPSD1D<'py> {
-    pub nprofile: usize,
-    pub nfreq: usize,
-    pub normalization_length: f64,
-    pub mean: f64,
-    pub pix: f64,
-    pub wavelength: PyReadonlyArray1<'py, f64>,
-    pub amplitude: PyReadonlyArray1<'py, f64>,
-    pub phase: PyReadonlyArray1<'py, f64>,
-}
-
-impl<'py> PyPSD1D<'py> {
-    // Extracts the Python attributes and matches them up with the corresponding Rust struct components.
-    pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let nprofile: usize = obj.getattr("nprofile")?.extract()?;
-        let nfreq: usize = obj.getattr("nfreq")?.extract()?;
-        let normalization_length: f64 = obj.getattr("normalization_length")?.extract()?;
-        let mean: f64 = obj.getattr("mean")?.extract()?;
-        let pix: f64 = obj.getattr("pix")?.extract()?;
-        Ok(Self {
-            nprofile,
-            nfreq,
-            normalization_length,
-            mean,
-            pix,
-            wavelength: obj.getattr("wavelength")?.extract()?,
-            amplitude: obj.getattr("amplitude")?.extract()?,
-            phase: obj.getattr("phase")?.extract()?,
-        })
-    }
-
-    // Converts all of the PyArray objects inside the struct to memory views of the arrays
-    pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::PSD1DView<'_> {
-        cratermaker_components::morphology::realmoon::PSD1DView {
-            nprofile: self.nprofile,
-            nfreq: self.nfreq,
-            normalization_length: self.normalization_length,
-            mean: self.mean,
-            pix: self.pix,
-            wavelength: self.wavelength.as_array(),
-            amplitude: self.amplitude.as_array(),
-            phase: self.phase.as_array(),
-        }
-    }
-}
-
-// This will build a boilerplate struct that contains the PSD objects for all of the Python crater object properties with the pattern [name]_psd.
-macro_rules! define_crater_structs {
-    (
-        floats: [ $($float_field:ident),* ],
-        psds: [ $($psd_field:ident),* ]
-    ) => {
-        paste! {
-            pub struct PyReadonlyRealMoonCrater<'py> {
-                $( pub $float_field: f64, )*
-                $( pub [<$psd_field _psd>]: PyPSD1D<'py>, )*
-            } 
-
-            impl<'py> PyReadonlyRealMoonCrater<'py> {
-                pub fn from_py(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-                    Ok(Self {
-                        $( $float_field: obj.getattr(stringify!($float_field))?.extract()?, )*
-                        $(
-                            [<$psd_field _psd>]: PyPSD1D::from_py(
-                                &obj.getattr(stringify!([<$psd_field _psd>]))?
-                            )?,
-                        )*
-                    })
-                }
-
-                pub fn as_views(&self) -> cratermaker_components::morphology::realmoon::RealMoonCrater<'_> {
-                    cratermaker_components::morphology::realmoon::RealMoonCrater {
-                        $( $float_field: self.$float_field, )*
-                        $(
-                            [<$psd_field _psd>]: self.[<$psd_field _psd>].as_views(),
-                        )*
-                    }
-                }
-            }
-        }
-    };
-}
-
-define_crater_structs! {
-    floats: [
-        diameter, radius, floor_elevation, floor_radius, wall_curvature,
-        floor_blend, rim_width, rim_height, frac_ejrim, ejprofile,
-        peak_height, peak_width, peak_ring_radius, peak_center_distance,
-        peak_center_bearing
-    ],
-    psds: [ radius, floor_radius, rim_width, rim_height]
-}
-
-
-
-/// Computes a crater profile elevation array from input radial distances and reference elevations using the realistic moon model of Du et al. (2024a,b).
-///
-/// This function applies `profile_function` to each radial distance in the input array.
-/// The coefficients c0, c1, c2, and c3 are calulated based on the crater dimensions and are based
-/// on the polynomial crater profile model described in Fassett and Thomson (2014).
+/// Computes the profile of a realistic lunar crater: the basic profile warped by the rim outline, plus the field of variation.
 ///
 /// # Arguments
 ///
-/// * `py` - Python GIL token.
-/// * `radial_distances` - 1D array of radial distances from crater center (in meters).
-/// * `bearings` - 1D array of bearing angles (radians, clockwise north).
-/// * `reference_elevations` - 1D array of reference elevations corresponding to each radius.
-/// * `crater` - A BasicMoonCrater struct containing the crater's properties.
-/// * `include_crater` - Boolean indicating whether to include the crater profile.
-/// * `include_ejecta` - Boolean indicating whether to include the ejecta profile.
-///
-/// # Returns
-///
-/// * A NumPy array of modified elevations based on the crater model.
-///
-/// # Errors
-///
-/// Returns a `PyValueError` if the input arrays have mismatched lengths.
-///
+/// * `radial_distances` - Distances from the crater center (m).
+/// * `bearings` - Bearings from the crater center (radians, clockwise from north).
+/// * `reference_elevations` - The surface the profile is drawn relative to (m).
+/// * `crater` - The basic crater.
+/// * `rim` - R_rim(theta) / R at the bearings of the field.
+/// * `field` - The field of variation (m), n_theta x n_rho, on bearings (i + 1/2) 360 / n_theta degrees and warped radii from 0
+///   to `rho_max`.
+/// * `rho_max` - The largest warped radius of the field.
+/// * `include_crater`, `include_ejecta` - Which parts of the profile to include.
+/// * `scarp_radius`, `scarp_height` - The variation of a multiring basin's ring scarp around the basin, as factors of its radius
+///   and height (see `RealMoonMorphology.scarp_outline_data`); None or empty for a uniform scarp.
+/// * `wall_nominal`, `wall_levels`, `wall_params` - The stacked levels of the wall of a complex crater (see `WallLevels`): the
+///   nominal radii of the levels, their radius, scarp strength and elevation offset (3 x n_levels x n_theta), and the wall
+///   turbulence (its standard deviation in m, its wavelength in rim radii and its seed); None or empty for none.
 #[pyfunction]
+#[pyo3(signature = (radial_distances, bearings, reference_elevations, crater, rim, field, rho_max, include_crater, include_ejecta, scarp_radius=None, scarp_height=None, wall_nominal=None, wall_levels=None, wall_params=None))]
+#[allow(clippy::too_many_arguments)]
 pub fn realmoon_profile<'py>(
     py: Python<'py>,
     radial_distances: PyReadonlyArray1<'py, f64>,
     bearings: PyReadonlyArray1<'py, f64>,
     reference_elevations: PyReadonlyArray1<'py, f64>,
-    crater: Bound<'py, PyAny>,
-    rings: Option<Vec<Bound<'py, PyAny>>>,
+    crater: BasicMoonCrater,
+    rim: PyReadonlyArray1<'py, f64>,
+    field: PyReadonlyArray2<'py, f64>,
+    rho_max: f64,
     include_crater: bool,
     include_ejecta: bool,
+    scarp_radius: Option<PyReadonlyArray1<'py, f64>>,
+    scarp_height: Option<PyReadonlyArray1<'py, f64>>,
+    wall_nominal: Option<PyReadonlyArray1<'py, f64>>,
+    wall_levels: Option<PyReadonlyArray3<'py, f64>>,
+    wall_params: Option<PyReadonlyArray1<'py, f64>>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let crater_py = PyReadonlyRealMoonCrater::from_py(&crater)?;
-
-    // Convert the optional rings vector into the views that we can pass to the profile function.
-    // This has to be done in two steps in order to get the PyReaonly version first as an immutable, then to extract its views.
-    let rings_py: Option<Vec<PyReadonlyRealMoonCrater>> = match rings {
-        Some(rings) => {
-            let mut temp_vec = Vec::new();
-            for ring in rings.iter() {
-                temp_vec.push(PyReadonlyRealMoonCrater::from_py(&ring)?);
-            }
-            Some(temp_vec)
-        }
-        None => None,
+    let empty: [f64; 0] = [];
+    let data = RealMoonField {
+        rim: rim.as_array(),
+        field: field.as_array(),
+        rho_max,
+        scarp_radius: scarp_radius.as_ref().map_or(ArrayView1::from(&empty[..]), |a| a.as_array()),
+        scarp_height: scarp_height.as_ref().map_or(ArrayView1::from(&empty[..]), |a| a.as_array()),
+        wall: wall_view(wall_nominal.as_ref(), wall_levels.as_ref(), wall_params.as_ref())?,
     };
-
-    let rings_v: Option<Vec<RealMoonCrater>> = match &rings_py {
-        Some(py_vec) => Some(py_vec.iter().map(|py_ring| py_ring.as_views()).collect()),
-        None => None,
-    };
-
-    let crater_v = crater_py.as_views();
-    let radial_distances_v = radial_distances.as_array();
-    let bearings_v = bearings.as_array();
-    let reference_elevations_v = reference_elevations.as_array();
     let result = cratermaker_components::morphology::realmoon::realmoon_profile(
-        radial_distances_v,
-        bearings_v,
-        reference_elevations_v,
-        &crater_v,
-        &rings_v,
+        radial_distances.as_array(),
+        bearings.as_array(),
+        reference_elevations.as_array(),
+        &crater,
+        &data,
         include_crater,
         include_ejecta,
     )
-    .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    .map_err(PyValueError::new_err)?;
     Ok(PyArray1::from_owned_array(py, result))
 }
 
-#[pyfunction]
-pub fn get_1d_psd_from_control_points<'py>(
-    py: Python<'py>,
-    control_points: HashMap<String, f64>,
-    mean: f64,
-    nprofile: usize,
-    add_noise: bool,
-    rng_seed: u64,
-) -> PyResult<(
-    Bound<'py, PyArray1<f64>>,
-    Bound<'py, PyArray1<f64>>,
-    Bound<'py, PyArray1<f64>>,
-)> {
-    let (wavelength, amplitude, phase) =
-        cratermaker_components::morphology::realmoon::get_1d_psd_from_control_points(
-            &control_points,
-            mean,
-            nprofile,
-            add_noise,
-            rng_seed,
-        )
-        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
-    let wavelength = PyArray1::from_owned_array(py, wavelength);
-    let amplitude = PyArray1::from_owned_array(py, amplitude);
-    let phase = PyArray1::from_owned_array(py, phase);
-
-    Ok((wavelength, amplitude, phase))
-}
-
-///
-/// Generates a surface profile based on a 1D amplitude spectral density (PSD) and optional phase information, simulating a crater surface with specified roughness characteristics.
-///
-/// # Arguments
-/// * `psd` - The PSD struct containing wavelength, amplitude, phase, and mean values.
-/// * `bearing` - A 1D array of polar angles (in radians) at which to compute the profile, typically ranging from 0 to 2π.
-///
-/// # Returns
-///
-/// * A 1D array of values corresponding to the input bearing angles, representing the linear profile generated from the PSD.
-///
-#[pyfunction]
-pub fn profile_from_psd<'py>(
-    py: Python<'py>,
-    psd: Bound<'py, PyAny>,
-    bearing: PyReadonlyArray1<'py, f64>,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let psd_py = PyPSD1D::from_py(&psd)?;
-    let psd_v = psd_py.as_views();
-    let bearing_v = bearing.as_array();
-
-    // Use the same periodic evaluator as realmoon_profile so the Python-facing profile matches what is drawn on the surface
-    let evaluator = ProfileEvaluator::new(&psd_v);
-    let result: Vec<f64> = bearing_v.iter().map(|&b| evaluator.eval(b)).collect();
-    Ok(PyArray1::from_vec(py, result))
-}
-
-#[pyfunction]
-pub fn psd_from_profile<'py>(
-    py: Python<'py>,
-    profile: PyReadonlyArray1<'py, f64>,
-) -> PyResult<(Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>)> {
-    let profile_v = profile.as_array();
-
-    let (amplitude, phase) =
-        cratermaker_components::morphology::realmoon::psd_from_profile(&profile_v);
-
-    Ok((
-        PyArray1::from_vec(py, amplitude),
-        PyArray1::from_vec(py, phase),
-    ))
-}
-
-/// Forms a batch of RealMoon craters with non-overlapping regions, updating the global surface arrays in place.
-///
-/// Each crater goes through the whole formation sequence (crater shape, excavated volume, ejecta with volume conservation,
-/// burial and degradation diffusion, and optional slope collapse); see `cratermaker_components::morphology::form_crater`. The
-/// craters are formed in parallel with the GIL released, which gives the same result as forming them one after another because
-/// their regions do not overlap.
+/// Forms a batch of realistic lunar craters whose regions do not overlap, in parallel (see `basicmoon_bindings.form_craters`).
 ///
 /// # Arguments
 ///
-/// * `craters` - The RealMoonCraters to form.
-/// * `rings` - The optional ring craters of each crater.
-/// * `regions` - The Python `LocalSurface` each crater is formed on.
-/// * `face_indices`, `node_indices` - Global indices of each region's faces and nodes.
-/// * `ray_seeds` - The ray pattern seed of each crater, or None for ejecta without rays.
-/// * `face_elevation`, `node_elevation`, `ejecta_thickness` - The global surface arrays, updated in place.
-/// * `conserve_volume` - Scale each crater's ejecta so that its volume matches the excavated volume.
-/// * `critical_slope` - Critical slope (rise over run) for slope collapse, or None to skip slope collapse.
-///
-/// # Returns
-///
-/// * A list of `(excavated_volume, conservation_factor)` for each crater, where `conservation_factor` is None if the crater was
-///   not formed because its excavated volume was not negative.
+/// * `craters` - The basic craters.
+/// * `rims`, `fields`, `rho_max` - The rim outline and field of each crater (see `realmoon_profile`).
+/// * `wall_nominals`, `wall_levels`, `wall_params` - The wall levels of each crater (see `realmoon_profile`; empty for none).
+/// * The other arguments are those of `basicmoon_bindings.form_craters`.
 #[pyfunction]
-#[pyo3(signature = (craters, rings, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[pyo3(signature = (craters, rims, fields, scarp_radii, scarp_heights, wall_nominals, wall_levels, wall_params, rho_max, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn form_craters<'py>(
     py: Python<'py>,
-    craters: Vec<Bound<'py, PyAny>>,
-    rings: Vec<Option<Vec<Bound<'py, PyAny>>>>,
+    craters: Vec<BasicMoonCrater>,
+    rims: Vec<PyReadonlyArray1<'py, f64>>,
+    fields: Vec<PyReadonlyArray2<'py, f64>>,
+    scarp_radii: Vec<PyReadonlyArray1<'py, f64>>,
+    scarp_heights: Vec<PyReadonlyArray1<'py, f64>>,
+    wall_nominals: Vec<PyReadonlyArray1<'py, f64>>,
+    wall_levels: Vec<PyReadonlyArray3<'py, f64>>,
+    wall_params: Vec<PyReadonlyArray1<'py, f64>>,
+    rho_max: f64,
     regions: Vec<Bound<'py, PyAny>>,
     face_indices: Vec<PyReadonlyArray1<'py, i64>>,
     node_indices: Vec<PyReadonlyArray1<'py, i64>>,
     ray_seeds: Vec<Option<u64>>,
-    face_elevation: Bound<'py, PyArray1<f64>>,
-    node_elevation: Bound<'py, PyArray1<f64>>,
-    ejecta_thickness: Bound<'py, PyArray1<f64>>,
+    face_elevation: Bound<'py, numpy::PyArray1<f64>>,
+    node_elevation: Bound<'py, numpy::PyArray1<f64>>,
+    ejecta_thickness: Bound<'py, numpy::PyArray1<f64>>,
     conserve_volume: bool,
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
-    if rings.len() != craters.len() {
+    let n = craters.len();
+    if rims.len() != n || fields.len() != n || scarp_radii.len() != n || scarp_heights.len() != n || wall_nominals.len() != n
+        || wall_levels.len() != n || wall_params.len() != n
+    {
         return Err(PyValueError::new_err(
-            "craters and rings must have the same length",
+            "craters, rims, fields, scarp outlines and wall levels must have the same length",
         ));
     }
-    // The Python data must outlive the views of it, so each level is collected before the next is built from it
-    let craters_py: Vec<PyReadonlyRealMoonCrater> = craters
-        .iter()
-        .map(PyReadonlyRealMoonCrater::from_py)
-        .collect::<PyResult<_>>()?;
-    let rings_py: Vec<Option<Vec<PyReadonlyRealMoonCrater>>> = rings
-        .iter()
-        .map(|r| match r {
-            Some(r) => r
-                .iter()
-                .map(PyReadonlyRealMoonCrater::from_py)
-                .collect::<PyResult<Vec<_>>>()
-                .map(Some),
-            None => Ok(None),
+    let models: Vec<RealMoonModel> = (0..n)
+        .map(|i| {
+            Ok(RealMoonModel {
+                crater: &craters[i],
+                field: RealMoonField {
+                    rim: rims[i].as_array(),
+                    field: fields[i].as_array(),
+                    rho_max,
+                    scarp_radius: scarp_radii[i].as_array(),
+                    scarp_height: scarp_heights[i].as_array(),
+                    wall: wall_view(Some(&wall_nominals[i]), Some(&wall_levels[i]), Some(&wall_params[i]))?,
+                },
+            })
         })
         .collect::<PyResult<_>>()?;
-    let craters_v: Vec<RealMoonCrater> = craters_py.iter().map(|c| c.as_views()).collect();
-    let rings_v: Vec<Option<Vec<RealMoonCrater>>> = rings_py
-        .iter()
-        .map(|r| {
-            r.as_ref()
-                .map(|r| r.iter().map(|ring| ring.as_views()).collect())
-        })
-        .collect();
-    let models: Vec<RealMoonModel> = craters_v
-        .iter()
-        .zip(rings_v.iter())
-        .map(|(crater, rings)| RealMoonModel { crater, rings })
-        .collect();
     run_form_craters(
         py,
         &models,
@@ -333,4 +136,111 @@ pub fn form_craters<'py>(
         conserve_volume,
         critical_slope,
     )
+}
+
+/// Builds the central peak or peak ring of a realistic lunar crater on a region (see `central_peak.rs`): the peak, less
+/// the layer of the same volume removed from the floor.
+///
+/// # Arguments
+///
+/// * `region` - The Python `LocalSurface` the peak is built on, centered on the crater.
+/// * `height` - The height of the highest point of the peak (m).
+/// * `width` - The standard deviation of the peak's Gaussian envelope (m).
+/// * `ring_radius` - The radius of the envelope's ring (m); 0 for a central peak.
+/// * `floor_radius` - The radius of the floor the peak's volume is removed from (m); 0 to leave the floor unchanged.
+/// * `seed` - The seed of the peak's noise fields.
+/// * `center_distance`, `center_bearing` - The offset of the peak's center from the crater center (m, and degrees clockwise
+///   from north); if either is None, the offset is drawn from the seed.
+/// * `elongation`, `elongation_bearing` - The elongation of the peak (long to short axis ratio) and the bearing of its long axis
+///   (degrees clockwise from north); if either is None, they are drawn from the seed.
+/// * The remaining arguments override the parameters of the peak model (`central_peak.rs`, `PeakModel`), for its calibration;
+///   by default they are Cratermaker's.
+///
+/// # Returns
+///
+/// * The change of the elevation of each face of the region (m).
+#[pyfunction]
+#[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, center_distance=None, center_bearing=None, elongation=None, elongation_bearing=None, threshold=None, noise_wavelength=None, octaves=None,
+    persistence=None, ramp_exponent=None, critical_angle=None, angle_spread=None, angle_noise_wavelength=None, support=None, offset_sigma=None,
+    elongation_sigma=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn central_peak<'py>(
+    py: Python<'py>,
+    region: Bound<'py, PyAny>,
+    height: f64,
+    width: f64,
+    ring_radius: f64,
+    floor_radius: f64,
+    seed: u64,
+    center_distance: Option<f64>,
+    center_bearing: Option<f64>,
+    elongation: Option<f64>,
+    elongation_bearing: Option<f64>,
+    threshold: Option<f64>,
+    noise_wavelength: Option<f64>,
+    octaves: Option<usize>,
+    persistence: Option<f64>,
+    ramp_exponent: Option<f64>,
+    critical_angle: Option<f64>,
+    angle_spread: Option<f64>,
+    angle_noise_wavelength: Option<f64>,
+    support: Option<f64>,
+    offset_sigma: Option<f64>,
+    elongation_sigma: Option<f64>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let d = PeakModel::default();
+    let model = PeakModel {
+        threshold: threshold.unwrap_or(d.threshold),
+        noise_wavelength: noise_wavelength.unwrap_or(d.noise_wavelength),
+        octaves: octaves.unwrap_or(d.octaves),
+        persistence: persistence.unwrap_or(d.persistence),
+        ramp_exponent: ramp_exponent.unwrap_or(d.ramp_exponent),
+        critical_angle: critical_angle.unwrap_or(d.critical_angle),
+        angle_spread: angle_spread.unwrap_or(d.angle_spread),
+        angle_noise_wavelength: angle_noise_wavelength.unwrap_or(d.angle_noise_wavelength),
+        support: support.unwrap_or(d.support),
+        offset_sigma: offset_sigma.unwrap_or(d.offset_sigma),
+        elongation_sigma: elongation_sigma.unwrap_or(d.elongation_sigma),
+    };
+    let region = PyCraterRegion::from_py(&region)?;
+    let peak = CentralPeak {
+        height,
+        width,
+        ring_radius,
+        floor_radius,
+        center: center_distance.zip(center_bearing),
+        elongation: elongation.zip(elongation_bearing),
+        seed,
+    };
+    let view = region.as_view();
+    let change = py
+        .detach(|| cratermaker_components::morphology::central_peak::central_peak(&view, &peak, &model))
+        .map_err(PyValueError::new_err)?;
+    Ok(PyArray1::from_owned_array(py, change))
+}
+
+/// The wall levels from their arrays, or None if they are absent or empty.
+fn wall_view<'a>(
+    nominal: Option<&'a PyReadonlyArray1<'_, f64>>,
+    levels: Option<&'a PyReadonlyArray3<'_, f64>>,
+    params: Option<&'a PyReadonlyArray1<'_, f64>>,
+) -> PyResult<Option<WallLevels<'a>>> {
+    let (Some(nominal), Some(levels), Some(params)) = (nominal, levels, params) else {
+        return Ok(None);
+    };
+    let nominal = nominal.as_array();
+    if nominal.is_empty() {
+        return Ok(None);
+    }
+    let params = params.as_array();
+    if params.len() != 3 {
+        return Err(PyValueError::new_err("wall_params must hold the turbulence amplitude, wavelength and seed"));
+    }
+    Ok(Some(WallLevels {
+        nominal,
+        levels: levels.as_array(),
+        turbulence: params[0],
+        wavelength: params[1],
+        seed: params[2] as u32,
+    }))
 }

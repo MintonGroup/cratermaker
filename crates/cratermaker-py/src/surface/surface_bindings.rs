@@ -346,6 +346,21 @@ pub fn slope_collapse<'py>(
     Ok(PyArray1::from_owned_array(py, result))
 }
 
+/// Collapses slopes steeper than a critical slope (rise over run) given for each face of the region, and returns the change in
+/// face elevation.
+#[pyfunction]
+pub fn slope_collapse_field<'py>(
+    py: Python<'py>,
+    critical_slope: PyReadonlyArray1<'py, f64>,
+    region: Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let region_py = PyReadonlyLocalSurface::from_py(&region)?;
+    let region_v = region_py.as_views();
+    let result = cratermaker_components::surface::slope_collapse_field(critical_slope.as_array(), &region_v)
+        .map_err(|msg| PyErr::new::<PyValueError, _>(msg))?;
+    Ok(PyArray1::from_owned_array(py, result))
+}
+
 /// Computes node elevations as area-weighted averages of adjacent face elevations.
 ///
 /// # Arguments

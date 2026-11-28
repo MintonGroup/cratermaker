@@ -34,7 +34,7 @@ Creating a Projectile
     sim = Simulation(target="Io", gridlevel=4, ask_overwrite=False, reset=True)
     print(sim.projectile)
 
-If no projectile parameters are specified, Cratermaker will use a default asteroid population suitable for the specified target.
+If no projectile parameters are specified, Cratermaker will use a default projectile population suitable for the specified target. For Io, an outer solar system body, this is the comet population.
 
 **Example 2: Creating a custom projectile**
 

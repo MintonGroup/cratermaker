@@ -81,7 +81,7 @@ Installing Cratermaker from Source
 
 If you plan to contribute to Cratermaker, or want to try out the latest features that have not yet been released, you can install Cratermaker from source. You can find the latest source code from our `GitHub repository <https://github.com/MintonGroup/cratermaker>`__.  
 
-Some components of Cratermaker are built using Rust, and so you will need to have Rust installed on your system to build Cratermaker from source. Installation instructions for your operating system can be found in `the Rust documentation <https://rust-lang.org/learn/get-started/>`__.
+Some components of Cratermaker are built using Rust, and so you will need to have Rust installed on your system to build Cratermaker from source. Installation instructions for your operating system can be found in `the Rust documentation <https://www.rust-lang.org/tools/install>`__.
 
 The first time you install Cratermaker from source, you will need to generate the version file. Due to limitations of the Maturin build system, this must be done manually. You do this by running the following command in the root directory of the Cratermaker source code:
 
@@ -98,7 +98,7 @@ For development, it's best to build and install the package in "editable" mode. 
 Building documentation pages
 ----------------------------
 
-The documentation pages are built using Sphinx. If you wish to build local versions of the documentation for testing, you will need to install additional dependencies that are not installed by default. We maintain a two requirements files for this purpose, one for pip, and the other for conda, which is used by the Read the Docs build system. You can install the documentation dependencies using the following command:
+The documentation pages are built using Sphinx. If you wish to build local versions of the documentation for testing, you will need to install additional dependencies that are not installed by default. We maintain two requirements files for this purpose, one for pip, and the other for conda, which is used by the Read the Docs build system. You can install the documentation dependencies using the following command:
 
 .. code-block:: console
 
@@ -124,7 +124,7 @@ The documentation pages will be built in the ``docs/_build/html`` directory, whi
 Automatically rebuild Rust components
 -------------------------------------
 
-The build backend for the Rust components is Maturin. Maturin provides an import hook that can allow the Rust libraries to be automatically recompiled if they are changed, which is useful when Cratermaker installed in editable configuration. To use this, first install the package:
+The build backend for the Rust components is Maturin. Maturin provides an import hook that can allow the Rust libraries to be automatically recompiled if they are changed, which is useful when Cratermaker is installed in editable configuration. To use this, first install the package:
 
 .. code-block:: console
 
@@ -136,7 +136,7 @@ In the same virtual environment that you installed Cratermaker in, activate the 
 
     python -m maturin_import_hook site install
 
-For more information, see the the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
+For more information, see the `Import Hook <https://www.maturin.rs/import_hook.html>`__ section of the Maturin documentation.
 
 Common problems 
 ===============
@@ -154,7 +154,7 @@ Be sure your rust install is up-to-date
     rustup update --nightly
 
 
-If you see errors related to linalg functions, you may have an old and incompatable linalg crate installed. The most expedient way I've found to deal with this is to remove the Cargo.lock file. You can do this in a clean way with the cargo-unlock crate:
+If you see errors related to linalg functions, you may have an old and incompatible linalg crate installed. The most expedient way I've found to deal with this is to remove the Cargo.lock file. You can do this in a clean way with the cargo-unlock crate:
 
 .. code-block:: console
 
@@ -168,7 +168,7 @@ If you ever see an error like this::
 
     illegal hardware instruction (core dumped)
 
-Or a message about polars and incompatible hardware, you may have to install the runtime-compatability version of polars.
+Or a message about polars and incompatible hardware, you may have to install the runtime-compatibility version of polars.
 
 .. code-block:: console
 

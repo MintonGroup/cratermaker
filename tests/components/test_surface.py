@@ -600,5 +600,45 @@ class TestSurface(unittest.TestCase):
                             raise FileNotFoundError(f"{surface_name} test {i}: Expected output file not created: {output_file}")
 
 
+
+
+class TestLocationValidation(unittest.TestCase):
+    def test_latitude_guard_and_poles(self):
+        from cratermaker.utils.general_utils import normalize_coords, validate_and_normalize_location
+
+        # A latitude beyond +/-90 degrees (e.g. swapped longitude and latitude) is an error
+        with self.assertRaises(ValueError):
+            validate_and_normalize_location((-74.66, 132.85))
+        # A location exactly at a pole is moved just off it
+        self.assertEqual(validate_and_normalize_location((0.0, 90.0)), (0.0, 89.99999))
+        self.assertEqual(validate_and_normalize_location((10.0, -90.0)), (10.0, -89.99999))
+        self.assertEqual(validate_and_normalize_location((370.0, 45.0)), (10.0, 45.0))
+        # Computed points past a pole are reflected, with the longitude kept within [-180, 180)
+        lon, lat = normalize_coords((-74.66, 132.85))
+        self.assertTrue(-180.0 <= lon < 180.0)
+        self.assertAlmostEqual(lat, 47.15)
+
+
+
+class TestHiResLocalGrid(unittest.TestCase):
+    def test_grid_independent_of_seed_and_morphology(self):
+        """The superdomain is sized with the nominal basicmoon crater, so the grid is the same for any seed or morphology."""
+        import tempfile
+
+        import cratermaker
+
+        grids = []
+        for morphology, seed in (("realmoon", 5), ("realmoon", 6), ("basicmoon", 7)):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                sim = cratermaker.Simulation(
+                    simdir=simdir, surface="hireslocal", morphology=morphology, local_location=(0, 0), local_radius=30e3,
+                    pix=1000.0, ask_overwrite=False, reset=True, rng_seed=seed, save_observed=False, save_emplaced=False,
+                )
+                grids.append((sim.surface.superdomain_scale_factor, sim.surface.n_face, np.asarray(sim.surface.face_area).copy()))
+        for g in grids[1:]:
+            self.assertEqual(g[0], grids[0][0])
+            self.assertEqual(g[1], grids[0][1])
+            np.testing.assert_array_equal(g[2], grids[0][2])
+
 if __name__ == "__main__":
     unittest.main()

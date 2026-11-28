@@ -4,7 +4,7 @@ Topographic Diffusion
 
 .. rubric:: By Dennise Valadez and David Minton
 
-This example demonstrates how to use the :py:meth:`apply_diffusion` method in the :ref:`Surface <ug-surface>` class to model topographic diffusion. In this example, we will simulate the change in elevation over time of a hill with a Gaussian profile. This example has an analytical solution, which we will compare against the numerical solution provided by the diffusion method.
+This example demonstrates how to use the :py:meth:`~cratermaker.components.surface.LocalSurface.apply_diffusion` method of the local region of a :ref:`Surface <ug-surface>` to model topographic diffusion. In this example, we will simulate the change in elevation over time of a hill with a Gaussian profile. This example has an analytical solution, which we will compare against the numerical solution provided by the diffusion method.
 
 For this example we will use the "hireslocal" surface type, which will give us a high-resolution local region of the surface that will be approximately a flat surface.
 
@@ -22,7 +22,7 @@ fig, ax = plt.subplots(layout="constrained")
 simdir = "simdata-4_3"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
@@ -78,7 +78,8 @@ for i in range(nsteps + 1):
     rmse = np.sqrt(np.mean((h_numerical - h_analytical) ** 2))
     nrmse = rmse / np.ptp(h_analytical)
     print(f"{label_num:<7}: Normalized root mean square error = {nrmse:.4%}")
-    surface.local.apply_diffusion(kappa)
+    # apply_diffusion takes the product of diffusivity and time for the step
+    surface.local.apply_diffusion(kappa * dt)
 
 ax.set_xlabel("Distance (m)")
 ax.set_ylabel("Elevation (m)")

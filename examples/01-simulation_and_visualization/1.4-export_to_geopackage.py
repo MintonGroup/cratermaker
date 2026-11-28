@@ -6,9 +6,9 @@ Export Cratermaker data to GeoPackage and visualize with GeoPandas
 
 Cratermaker can export Simulation data to a variety of GIS vector formats, including GeoPackage, ESRI Shapefile, and more. We do this using the GeoPandas library, which provides a set of useful tools for working with geospatial data in Python. Using the "driver" argument of the `export` method, you can export to just about any format supported by GeoPandas (see `here <https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoDataFrame.to_file.html>`__). This is the same tool used to export data as a mesh in VTK format using the "VTK" driver, which does not use GeoPandas.
 
- One of the most versitile and efficient formats is GeoPackage (GPKG), which is a single file that can store multiple layers of vector data. This can be read by most GIS software, including QGIS and ArcGIS.  In this example, we will run a simple Cratermaker simulation, export the data to a GeoPackage file, and visualize it using GeoPandas. One of the disandvantages of the current implementation is that when exporting the global surface, faces that cross the antimeridian are not exported due an issue with the UxArray library used to handle the conversion. This will be fixed in a future release.
+One of the most versatile and efficient formats is GeoPackage (GPKG), which is a single file that can store multiple layers of vector data. This can be read by most GIS software, including QGIS and ArcGIS.  In this example, we will run a simple Cratermaker simulation, export the data to a GeoPackage file, and visualize it using GeoPandas. One of the disadvantages of the current implementation is that when exporting the global surface, faces that cross the antimeridian are not exported due to an issue with the UxArray library used to handle the conversion. This will be fixed in a future release.
 
-We will also show how to extract a local region of interest and plot it. The default CRS of local regions is a Azimuthal Equidistant projection centered on the local location, which is well-suited for small areas. Because this does not have the antimeridian issue, we can export and visualize the entire local region without any problems.
+We will also show how to extract a local region of interest and plot it. The default CRS of local regions is an Azimuthal Equidistant projection centered on the local location, which is well-suited for small areas. Because this does not have the antimeridian issue, we can export and visualize the entire local region without any problems.
 
 
 """
@@ -23,11 +23,11 @@ import cratermaker
 simdir = "simdata-1_4"
 
 # Note, that for these examples we pass ask_overwrite=False and reset=True to the Simulation constructor. This will suppress
-# prompts that ask the user if they want to overwrite existing files, which would would prevent these examples from running on their
+# prompts that ask the user if they want to overwrite existing files, which would prevent these examples from running on their
 # own when building the documentation pages. Alternatively, calling cm.cleanup(simdir) will remove all pre-existing output files.
 
 
-# Run a lunar simulation for 4 Gy and export the global surface to GeoPackage
+# Run a lunar simulation for 3 Gy and export the global surface to GeoPackage
 sim = cratermaker.Simulation(gridlevel=6, simdir=simdir, ask_overwrite=False, reset=True, rng_seed=3124562342)
 sim.run(age=3000)
 sim.export(driver="GPKG", ask_overwrite=False)
@@ -36,7 +36,7 @@ gdf = gpd.read_file(sim.surface.export_dir / "surface000001.gpkg")
 gdf.plot("face_elevation", cmap="Greys_r")
 
 
-# Extract a 1000km radius region at the equator/prime merdian and export to GeoPackage
+# Extract a 1000 km radius region at the equator/prime meridian and export to GeoPackage
 local = sim.surface.extract_region(location=(0, 0), region_radius=1000e3)
 # Pass the interval number explicitly so that the file number matches the last frame of the simulation
 local.export(interval=sim.interval, driver="GPKG", ask_overwrite=False)

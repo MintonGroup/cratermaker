@@ -82,7 +82,10 @@ class CTEMScaling(MonteCarloScaling):
         """
         # Constants from CTEM
         CXEXPS = 1 / 0.885 - 1.0  # Complex crater scaling exponent for silicate rock (Croft 1985)
-        SIMCOMKS = 16533.8  # Simple-to-complex transition scaling coefficient for silicate rock
+        # Simple-to-complex transition scaling coefficient for silicate rock: the transition on the Moon is 14.4 km, where the
+        # curated fresh lunar craters stop being mostly simple (consistent with the 15 km depth/diameter transition of Pike (1980)
+        # and Croft (1985))
+        SIMCOMKS = 23671.5
         SIMCOMPS = -1.0303  # Simple-to-complex transition scaling exponent for silicate rock
         CXEXPI = 0.155  # Complex crater scaling exponent for ice
         SIMCOMKI = 3081.39  # Simple-to-complex transition scaling coefficient for ice

@@ -23,7 +23,7 @@ Components of Cratermaker
         :link: simulation
         :link-type: doc
 
-        This is main class that can be used to run a comprehensive cratered landscape evolution model. 
+        This is the main class that can be used to run a comprehensive cratered landscape evolution model. 
 
 
     .. grid-item-card::  Example gallery
@@ -189,7 +189,7 @@ Components of Cratermaker
         :link: crater
         :link-type: doc
 
-        Contains the model for relating projectile size and crater size. 
+        Represents a single crater: its size, location, and morphology type, along with the projectile and transient crater that made it. 
 
 
 .. toctree::

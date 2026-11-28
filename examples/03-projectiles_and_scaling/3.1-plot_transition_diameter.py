@@ -4,7 +4,7 @@ The simple-to-complex transition diameter
 
 .. rubric:: By David Minton
 
-This example demonstrates how to use the :ref:`Scaling <ug-scaling>` class to calculate the simple-to-complex transition diameter as a function of surface gravity bodies using the Monte Carlo scaling model. Because the scaling model is non-deterministic, we sample each body 100 times to get a distribution of transition diameters. We plot the mean and standard deviation of the transition diameter is plotted for each body, showing results that resemble Fig. 7 of Schenk et al. (2021) [#]_.
+This example demonstrates how to use the :ref:`Scaling <ug-scaling>` class to calculate the simple-to-complex transition diameter as a function of surface gravity for various bodies using the Monte Carlo scaling model. Because the scaling model is non-deterministic, we sample each body 100 times to get a distribution of transition diameters. We plot the mean and standard deviation of the transition diameter for each body, showing results that resemble Fig. 7 of Schenk et al. (2021) [#]_.
 
 References
 ----------

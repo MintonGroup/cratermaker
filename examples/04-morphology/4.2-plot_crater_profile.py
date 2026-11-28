@@ -4,7 +4,7 @@ Create a crater and ejecta profile with the "basicmoon" morphology model
 
 .. rubric:: By David Minton
 
-This example showcases how to create a crater and ejecta profile using the "basicmoon" morphology model from the CraterMaker package. The crater is created with a radius of 1 km, and the profiles are plotted in a 2D space normalized to the crater radius.
+This example showcases how to create a crater and ejecta profile using the "basicmoon" morphology model from the Cratermaker package. The crater is created with a radius of 1 km, and the profiles are plotted in a 2D space normalized to the crater radius.
 
 """
 

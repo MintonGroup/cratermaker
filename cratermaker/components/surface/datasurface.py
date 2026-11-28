@@ -37,8 +37,8 @@ class DataSurface(HiResLocalSurface):
         If a negative number is provided, it will be computed based on a provided (or default) scaling and morphology model, and will be set so that smallest craters that can be resolved on faces outside the local region could potentially deposit ejecta at the boundary of the local region.
         Default is -1 (which triggers automatic computation based on scaling and morphology models).
     target : Target, optional
-        The target body or name of a known target body for the impact simulation. If none provide, it will be either set to the default,
-        or extracted from the scaling model if it is provied
+        The target body or name of a known target body for the impact simulation. If none provided, it will be either set to the default,
+        or extracted from the scaling model if it is provided
     reset : bool, optional
         Flag to indicate whether to reset the surface. Default is True.
     regrid : bool, optional
@@ -47,12 +47,12 @@ class DataSurface(HiResLocalSurface):
         |simdir|
     pix : FloatLike | None, optional
         The approximate face size inside the local region in meters. This will be used to determine the target resolution of the DEM data to be used. The actual resolution may be different based on the available DEM data. Note that if you provide a list of DEM files using the `dem_file_list` parameter, this value will be ignored. If None, is set, and no file(s) are provided, a default resolution that creates approximately 1e6 faces in the local region will be used.
-    local_radius : FloatLike
     dem_file_list : list of str | Path, optional
-        A list of one or more DEM files or urls links to files to be used for the local region. If not provided, a set of files will be determined based on the location and radius of the region. It will chose a set of files that fully covers the local region with approximately approximately 1e6 faces.
+        A list of one or more DEM files or urls links to files to be used for the local region. If not provided, a set of files will be determined based on the location and radius of the region. It will chose a set of files that fully covers the local region with approximately 1e6 faces.
     superdomain_dem_file :  str | Path, optional
-        A global DEM files or urs link to a file to be used for the superdomain region. If not provided, a default global DEM file will be used based on the target body.
+        A global DEM file or url link to a file to be used for the superdomain region. If not provided, a default global DEM file will be used based on the target body.
     **kwargs : Any
+        |kwargs|
 
     Returns
     -------
@@ -605,7 +605,7 @@ class DataSurface(HiResLocalSurface):
     @parameter
     def superdomain_dem_file(self) -> str | Path | None:
         """
-        The list of files to use for the DEM data in the superdomain.
+        The DEM file to use for the data in the superdomain.
 
         """
         return self._superdomain_dem_file

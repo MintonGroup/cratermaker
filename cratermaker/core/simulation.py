@@ -57,13 +57,19 @@ class Simulation(CratermakerBase):
     ask_overwrite : bool, optional
         If True, the user will be prompted before overwriting any existing files. Default is True.
     reset : bool, optional
-        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. Default is False if `ask_overwrite=False` and a config file is detected, otherwise default is True.
+        Flag to indicate whether to reset the simulation or resume from an old simulation. If False, the simulation will attempt to load the previous state from the config file. If None (the default) and a config file exists while `ask_overwrite` is True, the user is prompted to choose, and the default answer resumes the old run. Otherwise None resumes (equivalent to False).
     save_observed : bool, optional
         If True, the counting component will keep track of observable craters during the simulation. If False, the observability of craters on the surface is not evaluated and observed craters are not tracked. Default is True.
     save_emplaced : bool, optional
         If True, any craters large enough to be emplaced onto the surface in each interval are stored.
     save_actions: list[dict[str, dict]], optional
         A dictionary of actions to perform when the save method is called. The keys are the names of the actions and the values are dictionaries of keyword arguments to pass to the corresponding component's save method. For example, if you want to automatically generate a hillshade plot every time the simulation is saved, you can pass `save_actions=[{"plot": {"plot_style": "hillshade", "cmap": "pink", "scalebar": True, "label": "Mars region simulation", "show": True, "save": True}}]`. This will call the surface's save method with the specified keyword arguments every time the simulation is saved. Default is to save a hillshade plot of the surface every time the simulation is saved. Set to None to disable or "default" to use the default save actions.
+    smallest_crater : float, optional
+        The smallest crater diameter (m) of the production population. It is limited to the size of the smallest face of the
+        surface. Default: the smallest face size.
+    largest_crater : float, optional
+        The largest crater diameter (m) of the production population. It is limited to the diameter of the target body. Default:
+        the target's diameter.
     **kwargs : Any
         |kwargs|, including those for component function constructors. Refer to the documentation of each component module for details.
     """
@@ -105,9 +111,13 @@ class Simulation(CratermakerBase):
         object.__setattr__(self, "_do_quasimc", None)
         object.__setattr__(self, "_max_crater_diameter_range", None)
 
+        # The production size limits can only be applied once the production component and the surface exist (see below)
+        smallest_crater = kwargs.pop("smallest_crater", None)
+        largest_crater = kwargs.pop("largest_crater", None)
+
         super().__init__(simdir=simdir, rng=rng, rng_seed=rng_seed, rng_state=rng_state, ask_overwrite=ask_overwrite, **kwargs)
 
-        # Added for backwards compatability
+        # Added for backwards compatibility
         if "do_counting" in kwargs:
             save_observed = kwargs.pop("do_counting")
             save_emplaced = save_observed
@@ -134,8 +144,17 @@ class Simulation(CratermakerBase):
         if not self.is_new and self.config_file.exists():
             config_file = self.config_file
             object.__setattr__(self, "_config_readonly", True)
+            # The saved production size limits, unless new ones are given (applied with them below)
+            with Path.open(config_file) as f:
+                saved = yaml.safe_load(f) or {}
+            smallest_crater = saved.get("smallest_crater") if smallest_crater is None else smallest_crater
+            largest_crater = saved.get("largest_crater") if largest_crater is None else largest_crater
+            # The state of the random number generator when the simulation was saved, unless a new one is given. It is restored
+            # once the components are set up (which draws random numbers), so that the run continues exactly where it stopped.
+            saved_rng_state = saved.get("rng_state") if rng_state is None else None
         else:
             config_file = None
+            saved_rng_state = None
 
         config_override = {}
         for component in _COMPONENT_NAMES:
@@ -243,6 +262,10 @@ class Simulation(CratermakerBase):
         self._max_crater_diameter_range = (min(self.surface.face_size), self.target.diameter)
         self.smallest_crater = max(self.smallest_crater, self._max_crater_diameter_range[0])
         self.largest_crater = min(self.largest_crater, self._max_crater_diameter_range[1])
+        if smallest_crater is not None:
+            self.smallest_crater = smallest_crater
+        if largest_crater is not None:
+            self.largest_crater = largest_crater
         if self.production._Crater is None:
             self.production._Crater = self.Crater
             if self.production.quasimc_craters is not None:
@@ -256,6 +279,9 @@ class Simulation(CratermakerBase):
             self.reset(skip_component=skip_components)
 
         self.save_actions = save_actions
+
+        if saved_rng_state is not None:
+            self.rng_state = saved_rng_state
 
         self.to_config()
 
@@ -490,9 +516,9 @@ class Simulation(CratermakerBase):
             Ending time in My relative to the present for the simulation, used to compute the ending point of the production function.
             Default is 0 (present day) if not provided but `time_start` is provided.
         N_D : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which requires `age` or `time_start` to be set.
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is interpreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which requires `age` or `time_start` to be set.
         N_D_end : PairOfFloats, optional
-            A pair of numbers, (D, N) representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which will set the ending time to 0 (present day) if N_D is provided.
+            A pair of numbers, (D, N) representing the ending cumulative number density N above a given diameter D using the N(D) convention. By default, D must be in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is interpreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age. By default None, which will set the ending time to 0 (present day) if N_D is provided.
         time_interval : FloatLike, optional
             Interval in My for outputting intermediate results. If not provided, calculated as `age` / `ninterval` or (`time_start - time_end`) / `ninterval` if `ninterval` is provided, otherwise set to the total simulation duration (e.g. `ninterval=1`).
         ninterval : int, optional
@@ -667,15 +693,13 @@ class Simulation(CratermakerBase):
         time_end : FloatLike, optional
             The ending time in My relative to the present for the simulation, used to compute the ending point of the production function. Default is 0 (present day).
         N_D : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+            A pair of numbers, (D, N), representing the starting cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is interpreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         N_D_end : PairOfFloats, optional
-            A pair of numbers, (D, N), representing the ending  cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is intepreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
+            A pair of numbers, (D, N), representing the ending cumulative number density N above a given diameter D using the N(D) convention. By default, D is in units of km and N is in number of craters per 10⁶ km². The N value conversion factor can be set using :py:attr:`~cratermaker.components.production.Production.N_conversion_factor`. For example (20, 1000) is interpreted as N(20) = 1000, which is number of craters larger than 20 km per 10⁶ km². If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number : PairOfFloats, optional
             A pair of numbers, (diameter, number), representing the diameter and total number of craters larger than that diameter, where diameter is in units of m and n is in number of craters. If provided, the function will convert this value to a corresponding age and use the production function for a given age.
         diameter_number_end : PairOfFloats, optional
             A pair of numbers, (diameter, number), representing the diameter and total number of craters in the production function at the end, where diameter is in units of m and n is in number of craters.  If provided, the function will convert this value to a corresponding age and use the production function for a given age.
-        craters : list[Crater] or Crater, optional
-            A list of Crater objects to include along with the randomly generated craters. The crater list must include either time or time_min, time_max values.
         emplace : bool, optional
             If True, emplace the craters after generation. If False, the list of craters is generated and returned, but the craters are not emplaced onto the Surface.
 
@@ -893,6 +917,10 @@ class Simulation(CratermakerBase):
         ----------
         interval : int
             The interval number to load. -1 will load the most recent interval.
+        save_current_interval : bool, optional
+            If True, save the current state of the simulation before loading the old interval. Default is True.
+        **kwargs : Any
+            |kwargs| They are passed to :py:meth:`save` and to the surface loader.
         """
         if save_current_interval:
             self.save(**kwargs)
@@ -1163,7 +1191,7 @@ class Simulation(CratermakerBase):
         engine : str, optional
             The engine to use for plotting. Currently, only "pyvista" is supported. Default is "pyvista".
         interval : int, optional
-            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+            The interval number to plot. Default is None, which saves the current state and plots the current interval of the simulation.
         label : str, optional
             The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation. When "default" is used, additional options for |sim.labelmaker| can be passed as kwargs.
         plotter : pv.Plotter, optional
@@ -1171,25 +1199,26 @@ class Simulation(CratermakerBase):
         enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
-        interval : int | None, optional
-            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
+            An array of face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the uxds dataset. Default is None.
         theme : str, optional
-            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is None.
+            The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
             If True, the background of the plot will be transparent. Default is None, which will use the default background setting for the chosen plot theme.
         superdomain : bool, optional
             If True, show the full surface including the superdomain (|HiResLocalSurface| variants only). If False, show only the local region. Default is False.
-        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type : Literal["observed", "emplaced", "both"] | list[Crater], optional
             This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
-        crater_color: str | tuple[str] = ("white", "yellow")
-            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
-        crater_style : Literal["rings", "points"], optional
-            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_color : str or tuple of str, optional
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white", "red").
+        crater_style : Literal["rings", "points", "impacts", "spheres"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown and toggled
+            by the "o" key. Only used when counting is included (the outline is drawn by the Counting plotter). Default is "cyan".
         **kwargs : Any
             |kwargs|
 
@@ -1213,7 +1242,7 @@ class Simulation(CratermakerBase):
         Parameters
         ----------
         interval : int, optional
-            The interval number to plot. Default is None, which will plot the most current interval saved in the simulation.
+            The interval number to plot. Default is None, which saves the current state and plots the current interval of the simulation.
         label : str, optional
             The label to use for the plot. Default is "default", which will use a label based on the current time and elapsed time of the simulation. When "default" is used, additional options for |sim.labelmaker| can be passed as kwargs.
         plotter : pv.Plotter, optional
@@ -1221,11 +1250,9 @@ class Simulation(CratermakerBase):
         enable_interactive : bool, optional
             If True, the key events for the plotter will be updated to include custom events for navigating between intervals. Default is True.
         variable_name : str | None, optional
-            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot a greyscale image of the surface.
+            The name of the variable to plot. If the name of the variable is not already stored on the surface mesh, then the `variable` argument must also be passed. Default is None, which will plot the surface with a uniform light grey matte material.
         variable : (n_face) array, optional
-            An array face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the the uxds dataset. Default is None.
-        interval : int | None, optional
-            The interval number of the surface to plot. If None, the currently loaded surface data will be used. Default is None.
+            An array of face values that will be used to color the surface mesh. This is required if `variable_name` is not a face variable that is already saved in the uxds dataset. Default is None.
         theme : str, optional
             The PyVista plot theme to use. If None, the default PyVista theme will be used. Default is "cratermaker".
         transparent_background : bool, optional
@@ -1234,14 +1261,17 @@ class Simulation(CratermakerBase):
             If True, show the full surface including the superdomain (|HiResLocalSurface| variants only). If False, show only the local region. Default is False.
         include_counting : bool, optional
             If True, use the Counting version of pyvista_plotter that includes a representation of the craters. If False, use the Surface version of pyvista_plotter. Default is True if the counting attribute is initialized, and False if not.
-        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type : Literal["observed", "emplaced", "both"] | list[Crater], optional
             This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
-        crater_color: str | tuple[str] = ("white", "yellow")
-            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
-        crater_style : Literal["rings", "points"], optional
-            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_color : str or tuple of str, optional
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white", "red").
+        crater_style : Literal["rings", "points", "impacts", "spheres"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
         crater_size_scale_factor : FloatLike, optional
             A factor to scale the size of the craters in "point", "impacts", or "spheres" styles. Default is 1.0.
+        local_region_color : str, optional
+            The color of the outline of the local region of a |HiResLocalSurface|, drawn when the superdomain is shown and toggled
+            by the "o" key. Only used when counting is included (the outline is drawn by the Counting plotter). Default is "cyan".
 
         Returns
         -------
@@ -1434,8 +1464,10 @@ class Simulation(CratermakerBase):
 
         Parameters
         ----------
-        *args: Variable length argument list to pass to self.surface.update_elevation.
-        |kwargs|
+        *args : Any
+            Positional arguments passed to :py:meth:`Surface.update_elevation`.
+        **kwargs : Any
+            |kwargs|
         """
         return self.surface.update_elevation(*args, **kwargs)
 
