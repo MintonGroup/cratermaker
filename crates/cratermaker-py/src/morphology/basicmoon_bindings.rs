@@ -1,7 +1,8 @@
 use crate::morphology::form_crater_bindings::run_form_craters;
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::form_crater::BasicMoonModel;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::ndarray::Array2;
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -157,6 +158,39 @@ pub fn volume_integrand<'py>(
         include_ejecta,
     );
     Ok(PyArray1::from_owned_array(py, result))
+}
+
+/// Computes the integrand of the profile volume (see `volume_integrand`) for each of several values of the rim thickness
+/// fraction `frac_ejrim` of a crater, in one call (the volume conservation of `BasicMoonCrater.maker` tries a grid of them).
+///
+/// # Arguments
+///
+/// * `radial_distances` - 1D array of radial distances from the crater center (in meters).
+/// * `crater` - The crater; its `frac_ejrim` is replaced by each of `fracs`.
+/// * `fracs` - The values of `frac_ejrim`.
+/// * `include_crater`, `include_ejecta` - The parts of the profile included.
+///
+/// # Returns
+///
+/// * A 2D NumPy array (one row per value of `frac_ejrim`) of the integrand at each radial distance.
+#[pyfunction]
+pub fn volume_integrand_fracs<'py>(
+    py: Python<'py>,
+    radial_distances: PyReadonlyArray1<'py, f64>,
+    crater: BasicMoonCrater,
+    fracs: PyReadonlyArray1<'py, f64>,
+    include_crater: bool,
+    include_ejecta: bool,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let r = radial_distances.as_array();
+    let fracs = fracs.as_array();
+    let mut out = Array2::<f64>::zeros((fracs.len(), r.len()));
+    for (row, &frac) in out.rows_mut().into_iter().zip(fracs.iter()) {
+        let trial = BasicMoonCrater { frac_ejrim: frac, ..crater };
+        let values = cratermaker_components::morphology::basicmoon::volume_integrand(r, &trial, include_crater, include_ejecta);
+        row.into_iter().zip(values.iter()).for_each(|(o, v)| *o = *v);
+    }
+    Ok(PyArray2::from_owned_array(py, out))
 }
 
 /// Computes the degradation function for a single crater diameter.

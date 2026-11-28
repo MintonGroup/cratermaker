@@ -29,7 +29,7 @@ mod cratermaker {
         use crate::morphology::basicmoon_bindings::{
             basicmoon_profile, crater_profile_function, degradation_function,
             degradation_function_array, ejecta_profile_function, form_craters, ray_intensity, rmax,
-            volume_integrand,
+            volume_integrand, volume_integrand_fracs,
         };
     }
 

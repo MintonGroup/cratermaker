@@ -28,7 +28,7 @@
 //! only the fine texture, and the rim outline is the outermost level.
 
 use crate::ArrayResult;
-use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile, scarp_function};
+use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_parts, basicmoon_profile, combine_profile, scarp_function};
 use crate::morphology::smootherstep;
 use noise::{NoiseFn, SuperSimplex};
 use numpy::ndarray::prelude::*;
@@ -257,21 +257,17 @@ pub fn realmoon_profile(
     if varying_scarp {
         basic.scarp_height = 0.0;
     }
-    let mut h = basicmoon_profile(
-        warped.view(),
-        reference_elevations,
-        &basic,
-        include_crater,
-        include_ejecta,
-    )?;
+    // The parts of the basic profile at the warped radii, evaluated once and combined as needed
+    let parts = basicmoon_parts(warped.view(), &basic);
+    let zeros = Array1::<f64>::zeros(warped.len());
+    let mut h = combine_profile(warped.view(), reference_elevations, &basic, &parts, include_crater, include_ejecta)?;
     // The basic profile's height and its ejecta part, which set the ejecta's share of the field
     let (total, ejecta) = if include_crater && include_ejecta {
         (Array1::<f64>::zeros(0), Array1::<f64>::zeros(0)) // the whole field is included, so its split does not matter
     } else {
-        let zeros = Array1::<f64>::zeros(warped.len());
         (
-            basicmoon_profile(warped.view(), zeros.view(), &basic, true, true)?,
-            basicmoon_profile(warped.view(), zeros.view(), &basic, false, true)?,
+            combine_profile(warped.view(), zeros.view(), &basic, &parts, true, true)?,
+            combine_profile(warped.view(), zeros.view(), &basic, &parts, false, true)?,
         )
     };
     let add: Vec<f64> = (0..rho.len())
@@ -308,7 +304,8 @@ pub fn realmoon_profile(
     }
     if include_crater && let Some(wall) = &data.wall {
         let scarp = if varying_scarp { Some(data.scarp_radius) } else { None };
-        let delta = wall_delta(radial_distances, bearings, &basic, wall, &warped, scarp, data.n_theta())?;
+        let base = combine_profile(warped.view(), zeros.view(), &basic, &parts, true, false)?;
+        let delta = wall_delta(radial_distances, bearings, &basic, wall, &base, scarp, data.n_theta())?;
         h.iter_mut().zip(delta.iter()).for_each(|(v, d)| *v += d);
     }
     Ok(h)
@@ -322,7 +319,7 @@ fn wall_delta(
     bearings: ArrayView1<'_, f64>,
     basic: &BasicMoonCrater,
     wall: &WallLevels<'_>,
-    warped: &Array1<f64>,
+    base: &Array1<f64>,
     scarp_radius: Option<ArrayView1<'_, f64>>,
     n_theta: usize,
 ) -> ArrayResult {
@@ -333,8 +330,7 @@ fn wall_delta(
     }
     let n = radial_distances.len();
     let zeros = Array1::<f64>::zeros(n);
-    // The basic crater part at the warped radius, and at the nominal radii of the levels
-    let base = basicmoon_profile(warped.view(), zeros.view(), basic, true, false)?;
+    // The basic crater part at the nominal radii of the levels (at the warped radius it is `base`)
     let knots_r = Array1::from_iter(wall.nominal.iter().map(|&x| x * radius));
     let knots = basicmoon_profile(knots_r.view(), Array1::<f64>::zeros(n_levels).view(), basic, true, false)?;
     // At each point: the zone, the terrace parameters and the radius at which the basic profile is needed

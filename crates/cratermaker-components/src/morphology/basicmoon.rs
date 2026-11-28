@@ -85,7 +85,35 @@ pub fn basicmoon_profile(
     include_crater: bool,
     include_ejecta: bool,
 ) -> ArrayResult {
+    let parts = basicmoon_parts(radial_distances, crater);
+    combine_profile(radial_distances, reference_elevations, crater, &parts, include_crater, include_ejecta)
+}
+
+/// The crater part (with the ring scarp) and the ejecta part of the basic profile at each radial distance (see
+/// `basicmoon_profile_one`), evaluated once so that they can be combined with references in several ways (`combine_profile`).
+pub fn basicmoon_parts(radial_distances: ArrayView1<'_, f64>, crater: &BasicMoonCrater) -> (Array1<f64>, Array1<f64>) {
+    // Each point is independent, so evaluate them in parallel. The minimum chunk length keeps small regions (the vast majority
+    // of craters) from paying more in thread coordination than they gain.
+    let parts: Vec<(f64, f64)> = (0..radial_distances.len())
+        .into_par_iter()
+        .with_min_len(PROFILE_PAR_MIN_LEN)
+        .map(|i| basicmoon_parts_one(radial_distances[i], crater))
+        .collect();
+    (Array1::from_iter(parts.iter().map(|p| p.0)), Array1::from_iter(parts.iter().map(|p| p.1)))
+}
+
+/// The basic profile from its parts (`basicmoon_parts`): the reference plus the included parts (the reference where that is
+/// not a number), and inside the rim no lower than the mean reference there plus the floor elevation.
+pub fn combine_profile(
+    radial_distances: ArrayView1<'_, f64>,
+    reference_elevations: ArrayView1<'_, f64>,
+    crater: &BasicMoonCrater,
+    parts: &(Array1<f64>, Array1<f64>),
+    include_crater: bool,
+    include_ejecta: bool,
+) -> ArrayResult {
     assert_eq!(radial_distances.len(), reference_elevations.len());
+    assert_eq!(radial_distances.len(), parts.0.len());
 
     // Compute the weighted elevation profile relative to the reference plane
     let ninc = radial_distances
@@ -109,29 +137,14 @@ pub fn basicmoon_profile(
             / ninc as f64
     };
     let min_elevation = meanref + crater.floor_elevation;
-
-    // Each point is independent, so evaluate them in parallel. The minimum chunk length keeps small regions (the vast majority
-    // of craters) from paying more in thread coordination than they gain.
-    let profile: Vec<f64> = (0..radial_distances.len())
-        .into_par_iter()
-        .with_min_len(PROFILE_PAR_MIN_LEN)
-        .map(|i| {
-            let r = radial_distances[i];
-            let h = basicmoon_profile_one(
-                r,
-                reference_elevations[i],
-                crater,
-                include_crater,
-                include_ejecta,
-            );
-            if r <= crater.radius {
-                h.max(min_elevation)
-            } else {
-                h
-            }
-        })
-        .collect();
-    Ok(Array1::from_vec(profile))
+    Ok(Array1::from_iter((0..radial_distances.len()).map(|i| {
+        let href = reference_elevations[i];
+        let crater_part = if include_crater { parts.0[i] } else { 0.0 };
+        let ejecta_part = if include_ejecta { parts.1[i] } else { 0.0 };
+        let value = href + crater_part + ejecta_part;
+        let h = if value.is_nan() { href } else { value };
+        if radial_distances[i] <= crater.radius { h.max(min_elevation) } else { h }
+    })))
 }
 
 /// Minimum number of points per parallel work item in `basicmoon_profile`.
@@ -162,6 +175,15 @@ pub fn basicmoon_profile_one(
     include_crater: bool,
     include_ejecta: bool,
 ) -> f64 {
+    let (crater_part, ejecta_part) = basicmoon_parts_one(r, crater);
+    let crater_part = if include_crater { crater_part } else { 0.0 };
+    let ejecta_part = if include_ejecta { ejecta_part } else { 0.0 };
+    let final_val = href + crater_part + ejecta_part;
+    if final_val.is_nan() { href } else { final_val }
+}
+
+/// The crater part (with the ring scarp) and the ejecta part of the basic profile at a single point, relative to the reference.
+pub fn basicmoon_parts_one(r: f64, crater: &BasicMoonCrater) -> (f64, f64) {
     // Prevent invalid values of parameters
     let radius = crater.radius.max(1e-8);
     let floor_elevation = crater.floor_elevation.min(-1e-8);
@@ -223,14 +245,7 @@ pub fn basicmoon_profile_one(
     let hej = smooth_crater_ejecta_split(
         r, hcrat, radius, rim_width, rim_height, frac_ejrim, ejprofile,
     );
-    let crater_part = if include_crater {
-        hcrat - hej + scarp_function(r, crater)
-    } else {
-        0.0
-    };
-    let ejecta_part = if include_ejecta { hej } else { 0.0 };
-    let final_val = href + crater_part + ejecta_part;
-    if final_val.is_nan() { href } else { final_val }
+    (hcrat - hej + scarp_function(r, crater), hej)
 }
 
 /// Length of the back slope of a ring scarp (outside its crest), as a multiple of the width of its face. Measured on the Outer

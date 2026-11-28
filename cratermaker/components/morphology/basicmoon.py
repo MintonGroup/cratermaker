@@ -847,22 +847,25 @@ class BasicMoonCrater(MorphologyCrater):
                 if edges is not None:
                     quadrature = _gauss_legendre_points(edges)
 
-            def crater_volume() -> float:
-                """The volume of the crater part (negative where it excavates)."""
+            def crater_volumes(fracs: NDArray[np.float64]) -> list[float]:
+                """The volume of the crater part (negative where it excavates) for each rim thickness, in one call."""
                 if quadrature is None:
-                    return morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+                    volumes = []
+                    for f in fracs:
+                        params.frac_ejrim = f
+                        volumes.append(morphology.estimate_volume(params, include_crater=True, include_ejecta=False))
+                    return volumes
                 r, w = quadrature
-                return float(2 * np.pi * np.sum(w * basicmoon_bindings.volume_integrand(r, params, True, False)))
+                integrands = basicmoon_bindings.volume_integrand_fracs(r, params, np.asarray(fracs, dtype=np.float64), True, False)
+                return [float(2 * np.pi * np.sum(w * row)) for row in integrands]
 
-            def candidate(frac_ejrim):
+            def candidate(frac_ejrim, excavated):
                 """
                 The exponent that balances the volume for a rim thickness, the remaining imbalance, and whether it excavates.
 
                 The exponent is limited to [_EJPROFILE_LIMIT, hi]; the imbalance is the deposit plus the net volume of the
-                crater part, relative to the crater part.
+                crater part (`excavated`), relative to the crater part.
                 """
-                params.frac_ejrim = frac_ejrim
-                excavated = crater_volume()
                 if excavated >= 0.0:
                     return np.nan, np.inf, False
                 ejprofile = -2.0 - frac_ejrim * rim_area / -excavated if frac_ejrim > 0 else lo
@@ -878,7 +881,7 @@ class BasicMoonCrater(MorphologyCrater):
                 # Raising frac_ejrim moves volume from the structural uplift (part of the crater) to the ejecta, so a crater
                 # whose rim holds more volume than its cavity removes can still be balanced.
                 grid = np.unique(np.concatenate([[frac0], np.linspace(0.0, 1.0, 21)]))
-                results = [(f, *candidate(f)) for f in grid]
+                results = [(f, *candidate(f, v)) for f, v in zip(grid, crater_volumes(grid))]
                 exact = [r for r in results if r[3] and r[2] < 1e-9 and lo <= r[1] <= hi]
                 if exact:
                     best = min(exact, key=lambda r: abs(r[0] - frac0))
