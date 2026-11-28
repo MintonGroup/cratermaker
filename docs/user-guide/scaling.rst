@@ -25,7 +25,7 @@
 Scaling
 =======
 
-Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and |Target| properties (material type, target gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, or **complex**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of CTEM. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) that incorporate data from Vesta and Ceres from the Dawn mission.   
+Cratermaker's :py:class:`~cratermaker.components.scaling.Scaling` component provides tools to convert :py:class:`~cratermaker.components.projectile.Projectile` parameters (e.g., projectile diameter, velocity, angle, density), and |Target| properties (material type, target gravity, density) into a final crater diameter. It also categorizes craters by their morphology: **simple**, **transitional**, **complex**, or **multiring**. There are two scaling models available: "montecarlo" and "ctem". The "ctem" model closely resembles the model used in the CTEM code, a Fortran-based ancestor of Cratermaker. The "montecarlo" model is a newer non-deterministic model that includes the intrinsic variability in projectile to crater size scaling relationships. We have also included updated simple-to-complex transition diameter values from Schenk et al. (2021) [#]_ that incorporate data from Vesta and Ceres from the Dawn mission.   
 
 Setting up a Scaling object
 ---------------------------
@@ -64,7 +64,7 @@ You can also override the default materials that are associated with target bodi
 You can also adjust individual scaling parameters manually:
 
 .. ipython:: python
-    :okwarning:
+   :okwarning:
 
    print(Scaling.maker(target="Moon", Ybar=1e7))
 
@@ -104,7 +104,7 @@ Once you have a scaling object, you can use it to compute between projectile, tr
     print(f"Final crater -> projectile: {pd*1e-3:.3f} km")
 
 
-Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particualrly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :py:meth:`~cratermaker.components.scaling.Scaling.final_to_transient` is optional? In the above example we used the morphology type that was returned from the :py:meth:`~cratermaker.components.scaling.Scaling.transient_to_final` method. If we had not passed it, the :py:meth:`~cratermaker.components.scaling.Scaling.final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
+Because the scaling model is probabilistic, the results will vary slightly each time you run it. This is particularly true when the crater size is near the simple-to-complex transition. Remember how passing the morphology type to :py:meth:`~cratermaker.components.scaling.Scaling.final_to_transient` is optional? In the above example we used the morphology type that was returned from the :py:meth:`~cratermaker.components.scaling.Scaling.transient_to_final` method. If we had not passed it, the :py:meth:`~cratermaker.components.scaling.Scaling.final_to_transient` method would have computed it again, and it might not be the same as the one used to create the final crater. Here is an example showing this effect:
 
 .. ipython:: python
     :okwarning:
@@ -125,6 +125,11 @@ More Scaling examples
 ---------------------
 
 See more examples at  :ref:`gal-projectiles_and_scaling`
+
+References
+----------
+
+.. [#] Schenk, P., Castillo-Rogez, J., Otto, K.A., Marchi, S., O'Brien, D., Bland, M., Hughson, K., Schmidt, B., Scully, J., Buczkowski, D., Krohn, K., Hoogenboom, T., Kramer, G., Bray, V., Neesemann, A., Hiesinger, H., Platz, T., De Sanctis, M.C., Schroeder, S., Le Corre, L., McFadden, L., Sykes, M., Raymond, C., Russell, C.T., 2021. Compositional control on impact crater formation on mid-sized planetary bodies: Dawn at Ceres and Vesta, Cassini at Saturn. Icarus 359, 114343. `doi:10.1016/j.icarus.2021.114343 <https://doi.org/10.1016/j.icarus.2021.114343>`_
 
 .. ipython:: python
     :okwarning:

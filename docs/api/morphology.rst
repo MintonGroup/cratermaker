@@ -14,6 +14,7 @@ Available Implementations
 | Class       | Argument name  | Example Usage                               |
 +=============+================+=============================================+
 | |BasicMoon| | "basicmoon"    | morphology = Morphology.maker("basicmoon")  |
++-------------+----------------+---------------------------------------------+
 | |RealMoon|  | "realmoon"     | morphology = Morphology.maker("realmoon")   |
 +-------------+----------------+---------------------------------------------+
 
@@ -55,6 +56,15 @@ See `Morphology`_ for inherited methods and attributes.
    :members:
    :undoc-members:
    :no-index-entry:
+
+Profile layout functions
+========================
+
+.. autosummary::
+   :toctree: generated/
+
+    peak_ring_layout
+    scarp_layout
 
 Usage example
 =============

@@ -583,8 +583,8 @@ def sample_logfit_heteroskedastic(
         The intercept of the sigma vs x fit.
     alpha : float
         The slope of the sigma vs x fit.
-    n : int
-        The number of data points used to compute the fit.
+    fit_scale : {"linear", "logx", "logy", "loglog"}, optional
+        The axes the relation was fitted on: "logx" and "loglog" use ln x, and "logy" and "loglog" fit ln y. Default is "loglog".
     compute_nominal : bool, optional
         Set to True to return the nominal value without the random variation. Default is False.
     scatter_model : {"normal", "lognormal"}, optional

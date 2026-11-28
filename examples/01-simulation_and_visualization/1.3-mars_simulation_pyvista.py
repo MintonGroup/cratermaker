@@ -1,13 +1,13 @@
 """
-Run a simulation of a local region on Mars.
-===========================================
+Run a simulation of a local region on Mars
+==========================================
 
 .. rubric:: By David Minton and Dennise Valadez
 
 This example demonstrates how to use the HiResLocal Surface to run a crater population over a small region of a planet, in this case Mars.
 
 For this example, the simulation uses the default Mars configuration and runs for 1 billion years on a local region with a radius of 20 km and resolution of 200 m/pix.  We then visualize the surface using PyVista and a Mars-like colormap.
-We also pass an option that will automatically generate hillshade plots each time the surface is saved. You can also pass in "elevation" to generate elevation plots instead of hillshade plots.
+We also pass an option that will automatically generate hillshade plots each time the surface is saved. You can also set ``plot_style`` to "map" to generate colormapped elevation plots instead of hillshade plots.
 
 
 """

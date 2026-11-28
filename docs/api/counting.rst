@@ -23,6 +23,18 @@ Available Implementations
     :undoc-members:
     :no-index-entry:
 
+.. currentmodule:: cratermaker.components.counting
+
+Size-frequency distribution functions
+=====================================
+
+.. autosummary::
+   :toctree: generated/
+
+    csfd_geometric_saturation
+    csfd_equilibrium
+    R_to_CSFD
+
 
 .. currentmodule:: cratermaker.components.counting.depthcount
 

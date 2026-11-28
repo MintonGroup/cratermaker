@@ -1,25 +1,28 @@
 """
-Crater morphology across sizes
-==============================
+Realistic crater morphology across sizes
+========================================
 
 .. rubric:: By David Minton
 
 This example shows fresh craters made with the "realmoon" morphology model across the range of lunar crater sizes: a simple crater, a crater at the simple-to-complex transition, a complex crater, and a multiring basin.
 
 Each crater is emplaced at the center of its own simulation using the "hireslocal" surface, which has a high resolution local region surrounded by a coarser superdomain covering the rest of the Moon. The local region is scaled to the size of each crater, with a radius equal to the crater diameter, so each crater and its continuous ejecta blanket fill the view at the same relative resolution. The images are generated with the simulation's own ``plot`` method, which draws a hillshade of the local region.
+
+The "realmoon" model starts from the "basicmoon" crater (compare with the previous example) and warps it by an irregular rim outline, then adds a random field of terraces, slumps, and floor, wall, and ejecta texture. The outline and the field are drawn from an empirical model of fresh lunar craters (the H-field model), which depends on morphology type and size. Central peaks are built on the surface from a patchy population of columns whose flanks collapse to the critical slope (the angle of repose). Above about 200 km in diameter, central peaks open into peak rings, and multiring basins also get an outer ring scarp, set by the crater's ``scarp_radius``, ``scarp_height``, and ``scarp_width``. The resolution the field is drawn to can be set with the ``hfield_pix`` option, and a different H-field model can be loaded with the ``hfield_model_file`` option.
 """
 
 import matplotlib.pyplot as plt
 
-from cratermaker import Simulation
+from cratermaker import Scaling, Simulation
 
 # Number of pixels across the radius of the local region. This sets the resolution of each crater relative to its size.
 pixels_per_radius = 200
 
-# Each crater gets its own simulation directory. The transitional crater diameter is set below from the scaling model.
+# Each crater gets its own simulation directory. The transitional crater diameter is the nominal simple-to-complex transition
+# diameter of the lunar scaling model.
 examples = {
     "Simple": 4e3,
-    "Transitional": 17e3,
+    "Transitional": Scaling.maker(target="Moon").transition_nominal,
     "Complex": 100e3,
     "Multiring basin": 700e3,
 }

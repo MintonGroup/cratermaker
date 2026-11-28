@@ -19,6 +19,10 @@ Monte Carlo
     montecarlo_utils.get_random_velocity
     montecarlo_utils.get_random_size
     montecarlo_utils.bounded_norm
+    montecarlo_utils.get_random_location_on_face
+    montecarlo_utils.get_random_impact_direction
+    montecarlo_utils.sample_pikefit
+    montecarlo_utils.sample_logfit_heteroskedastic
 
 .. _api-utils-general:
 
@@ -33,6 +37,8 @@ General utilities
     general_utils.validate_and_normalize_location
     general_utils.format_large_units
     general_utils.cleanup
+    general_utils.parameter
+    general_utils.convert_deg2m_res
 
 
 .. _api-utils-visualization:

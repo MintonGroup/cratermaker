@@ -39,9 +39,9 @@ x = np.linspace(-extent, extent, grid_size)
 y = np.linspace(-extent, extent, grid_size)
 xx, yy = np.meshgrid(x, y)
 
-# Convert Cartesian to polar coordinates
+# Convert Cartesian to polar coordinates. Bearings are measured clockwise from north (+y) toward east (+x), from 0 to 360 degrees.
 r = np.sqrt(xx**2 + yy**2)
-theta = np.degrees(np.arctan2(yy, xx)) + 180.0
+theta = np.degrees(np.arctan2(xx, yy)) % 360.0
 
 # Compute ray intensity
 r_flat = r.ravel()

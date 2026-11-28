@@ -131,7 +131,7 @@ See `api-HiResLocalSurface`_ for inherited methods and attributes.
 Usage example
 =============
 
-This creates a DataSurface with a local region containing Kepler crater. The resolution of the local surface will be approxiamtely half of what it would be if ``pix`` was not set.
+This creates a DataSurface with a local region containing Kepler crater. The resolution of the local surface will be approximately half of what it would be if ``pix`` was not set.
 
 .. code-block:: python
 

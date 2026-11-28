@@ -4,7 +4,7 @@ Load a DEM of Phobos
 
 .. rubric:: By Leo Minton
 
-This example shows how to load arbitrary DEM data using the data composer.
+This example shows how to load arbitrary DEM data onto a surface. The :py:meth:`~cratermaker.components.surface.Surface.update_elevation` method accepts a URL or a path to any raster file that can be read by rasterio (such as a GeoTIFF), and interpolates its elevation values onto the surface mesh.
 
 """
 

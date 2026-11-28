@@ -37,5 +37,6 @@ for i in range(ncraters):
     diameter = 50.0 + i * 2.5
     sim.emplace(diameter=diameter, relative_location={"distance": distance, "bearing": bearing})
 
-# Use the "c" key to show the circle representing the crater
+# Press the "t" key in the interactive window to toggle circles showing the emplaced craters (there are no observed craters
+# to show with the "c" key, because save_observed=False)
 sim.show3d(variable_name="face_elevation", cmap="cividis")

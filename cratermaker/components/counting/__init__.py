@@ -269,8 +269,8 @@ class Counting(ComponentBase):
 
         Returns
         -------
-        MorphologyCrater:
-            The emplaced crater
+        MorphologyCrater or None
+            The emplaced crater, or None if the crater has no region on the surface (it is too small or lies outside it).
         """
         if not isinstance(crater, Crater):
             raise TypeError("crater must be an instance of Crater")
@@ -407,7 +407,7 @@ class Counting(ComponentBase):
         region = counting_bindings.score_rim(region, crater, quantile, gradmult, curvmult, heightmult)
         return region
 
-    def tally(self, region: LocalSurface | None = None, measure_rim: bool = False, quiet: bool = False, **kwargs: Any) -> None:
+    def tally(self, region: LocalSurface | None = None, quiet: bool = False, **kwargs: Any) -> None:
         """
         Tally the craters on the surface using the method of Minton et al. (2019) [#]_.
 
@@ -415,8 +415,6 @@ class Counting(ComponentBase):
         ----------
         region : LocalSurface, optional
             A LocalSurface region to count. If not supplied, then the associated surface property is used.
-        measure_rim : bool, optional
-            If True, measure the rim of each crater. Default is False.
         quiet : bool, optional
             If True, suppress progress output. Default is False.
         **kwargs : Any
@@ -427,6 +425,8 @@ class Counting(ComponentBase):
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi: 10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
 
         """
+        from cratermaker.components.surface import LocalSurface
+
         if region is None:
             region = self.surface
             if hasattr(self.surface, "crater_id"):
@@ -461,11 +461,6 @@ class Counting(ComponentBase):
 
             # Update the crater size measurement before computing the degradation and visibility functions
             crater = self.observed[id]
-            # TODO: Make the fit_rim function more reliable before turning it on by default. It is currently very slow and not reliable enough.
-            if measure_rim:
-                fit_center = kwargs.pop("fit_center", False)
-                fit_ellipse = kwargs.pop("fit_ellipse", False)
-                crater = self.fit_rim(crater=crater, fit_center=fit_center, fit_ellipse=fit_ellipse, **kwargs)
             Kd = self.measure_degradation_state(crater, **kwargs)
             Kv = self.visibility_function(crater, **kwargs)
             # Free the regions extracted for the measurement now, rather than holding every observed crater's regions until the loop ends
@@ -699,8 +694,10 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
+        filename : str or Path, optional
+            The name of the file to save the plot to. If None, a default name is generated in the default plot directory. Default is None.
         interval : int | None, optional
-            The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
+            The interval number to load the emplaced crater data from. If None, then all emplaced data currently saved to file is used. Default is None.
         observed_color : str | None, optional
             The color to use for observed craters using their measured properties. If None, observed craters will not be plotted. Default is "white".
         observed_original_color : str | None, optional
@@ -716,26 +713,28 @@ class Counting(ComponentBase):
         label : str | None, optional
             A label for the plot. If None, no label will be added.
         scalebar : bool, optional
-            If True, a scalebar will be added to the plot. Default is True.
+            If True, a scalebar will be added to the plot. If None, a scalebar is added for local surfaces but not for global surfaces. Default is None.
         colorbar : bool, optional
             If True, a colorbar will be added to the plot when using "map" plot_style or "hillshade" with a variable overlay. Default is True.
         show : bool, optional
-            If True, the plot will be displayed. Default is True.
+            If True, the plot will be displayed. Default is False.
         save : bool, optional
-            If True, the plot will be saved to the default plot directory. Default is True
+            If True, the plot will be saved to the default plot directory. Default is True.
         ax : matplotlib.axes.Axes, optional
             An existing Axes object to plot on. If None, a new figure and axes will be created.
         close_when_done : bool, optional
             If True, the figure will be closed after plotting. Default is True when save is True and show is False, and False otherwise.
         minimum_plot_width : float, optional
             Because the width of the plot is determined by the number of faces, small regions will generate small plots with labels that are hard to read. This parameter sets a lower limit to the width of the image that is generated by the plot. By default it is 800. Set to None to turn it off.
+        surface : Surface | LocalSurface, optional
+            The surface or local surface view to plot. If None, uses the associated surface property. Default is None.
         **kwargs : Any
             |kwargs|
 
         Returns
         -------
-        matplotlib.image.Axes object created by the surface plot method, with crater counts plotted on top if specified. If show is True, the plot will also be displayed.
-            The Axes object
+        matplotlib.axes.Axes
+            The Axes object created by the surface plot method, with crater counts plotted on top if specified.
         """
         import matplotlib.pyplot as plt
 
@@ -867,16 +866,16 @@ class Counting(ComponentBase):
 
         Parameters
         ----------
-        crater_type: Literal["observed","emplaced","both"] | list[Crater].
+        crater_type : Literal["observed", "emplaced", "both"] | list[Crater], optional
             This is only used if enable_interactive is False, in which case it controls which crater data will be plotted. Default is "both".
         interval : int, optional
             The interval number to load the emplaced crater data from. if None, then all emplaced data currently saved to file is used. Default is None.
         enable_interactive : bool, optional
             If True, enables key events to toggle the visibility of all saved crater count types (observed and emplaced) with all styles (rings, points, and impacts), which are activated by keypresses ("c" for observed craters, and "t" for emplaced craters), and all are not visible on initialization. If False, only one set of data is plotted, and is visible on initialization.
-        crater_color: str | tuple[str] = ("white", "yellow")
-            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white,"red").
-        crater_style : Literal["rings", "points"], optional
-            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater or "points" which creates a point at the center.
+        crater_color : str or tuple of str, optional
+            The color to use for the plots. When used with enable_interactive or when craters is set to "both", this is a tuple where the first element is the color of observed craters and the second is the color of emplaced craters. Default is ("white", "red").
+        crater_style : Literal["rings", "points", "impacts", "spheres"], optional
+            Only used when enable_interactive is False. Sets the style of the mesh. Options are "rings", which creates polyline circles over the rim of each crater, "points" which creates a small sphere at the center of each crater, and "impacts" which places a point above the floor of the center of the crater and "spheres" which creates spheres with radius equal to the projectile radius at the location of each crater. Default is "rings".
         surface : Surface | LocalSurface, optional
             The surface or local surface view to be displayed. If None, uses the associated surface property
         plotter : pyvista.Plotter, optional
@@ -1123,13 +1122,16 @@ class Counting(ComponentBase):
         **kwargs,
     ) -> None:
         """
-        Export the crater data to a vector file and stores it in the default export directory.
+        Export the crater data to a vector file in the default export directory.
+
+        This method is not implemented yet and currently does nothing. It is still called by :py:meth:`export` for vector drivers,
+        so requesting a vector format (e.g. "GPKG") from :py:meth:`export` writes no crater file.
 
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to export, either "observed" or "emplaced
-        crater_ds : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
+            The name of the crater dataset to export, either "observed" or "emplaced".
+        craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the name parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
             |interval_export|
@@ -1256,7 +1258,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to convert, either "observed" or "emplaced. If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
+            The name of the crater dataset to convert, either "observed" or "emplaced". If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
         interval : int | None, optional
             The interval number to load if craters is not provided directly. If None, then the most recent interval will be used. Default is None.
         craters : list[Crater], optional
@@ -1398,7 +1400,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The name of the crater dataset to convert, either "observed" or "emplaced. If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
+            The name of the crater dataset to convert, either "observed" or "emplaced". If None is provided, then a list of Crater objects must be provided directly to the `craters` parameter. Default is None.
         interval : int | None, optional
            |interval_export|
         craters : list[Crater], optional
@@ -1452,7 +1454,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The type of the crater dataset to export, either "observed" or "emplaced
+            The type of the crater dataset to export, either "observed" or "emplaced".
         craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
@@ -1530,7 +1532,7 @@ class Counting(ComponentBase):
         Parameters
         ----------
         crater_type : Literal["observed", "emplaced"], optional
-            The type of the crater dataset to export, either "observed" or "emplaced
+            The type of the crater dataset to export, either "observed" or "emplaced".
         craters : xr.Dataset | list[Crater] | dict[int, Crater] | None, optional
             The crater data to export. Can be provided as an xarray Dataset, a list of Crater objects, or a dictionary mapping interval numbers to Crater objects. If None, the crater data will be the attribute of the class corresponding to the crater_type parameter (self.observed or self.emplaced). Default is None.
         interval : int | None, optional
@@ -1690,9 +1692,9 @@ class Counting(ComponentBase):
         """
         The morphology component associated with this counting component, which determines the Crater class and the crater properties that are tracked in the simulation.
 
-        Note
-        ----
-        The Morphology component requires a Countinng component, so this property is set by the Morphology component on initialization, rather than by the Counting component itself.
+        Notes
+        -----
+        The Morphology component requires a Counting component, so this property is set by the Morphology component on initialization, rather than by the Counting component itself.
         """
         return self._morphology
 
@@ -1720,7 +1722,7 @@ def R_to_CSFD(
     """
     Convert R values to cumulative N values for a given D using the R-plot function.
 
-    Parameter
+    Parameters
     ----------
     R : R = f(D)
         A function that computes R given D.
@@ -1761,9 +1763,9 @@ def csfd_geometric_saturation(diameter: FloatLike | ArrayLike) -> FloatLike | Ar
     """
     Calculate the cumulative number of craters at geometric saturation for a given diameter.
 
-    We use the definition of geomatric saturation from Melosh (1989) [#]_.
+    We use the definition of geometric saturation from Melosh (1989) [#]_.
 
-    Parameter
+    Parameters
     ----------
     diameter : FloatLike or ArrayLike
         The diameter(s) for which to calculate the cumulative number of craters at geometric saturation.
@@ -1785,7 +1787,7 @@ def csfd_equilibrium(diameter: FloatLike | ArrayLike, f_geometric=0.0218) -> Flo
     """
     Calculate the cumulative number of craters at equilibrium for a given diameter.
 
-    Parameter
+    Parameters
     ----------
     diameter : FloatLike or ArrayLike
         The diameter(s) for which to calculate the cumulative number of craters at equilibrium.

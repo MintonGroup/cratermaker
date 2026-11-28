@@ -1,10 +1,10 @@
 """
-Plot a distribution of random locations
-=======================================
+Plot a distribution of random projectile locations
+==================================================
 
 .. rubric:: By David Minton and Dennise Valadez
 
-This example demonstrates the generation of random impact locations.
+This example demonstrates the generation of random impact locations using the :ref:`Projectile <ug-projectile>` component.
 
 """
 
@@ -14,13 +14,13 @@ import numpy as np
 from cratermaker import Projectile
 
 # Create a projectile
-proj = Projectile.maker(projectile_mean_velocity=5000, projectile_density=3000)
+proj = Projectile.maker(projectile_density=3000)
 
 # Using projectile for sampling data
 size = 10000
 locations = [proj.new_projectile().location for _ in range(size)]
 
-# Obtain longitudes and latitudes from projectile - but this is not accurate and doesnt work
+# Obtain longitudes and latitudes from the projectile locations, which are (lon, lat) pairs in degrees
 lons = np.array([loc[0] for loc in locations])
 lats = np.array([loc[1] for loc in locations])
 

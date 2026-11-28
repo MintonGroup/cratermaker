@@ -60,9 +60,9 @@ Because we chose Europa as a target, the default projectile population is "comet
 Specifying Crater Properties 
 --------------------------------
 
-Besides the crater or projectile size values, which are required, there are a number of optional arguments you can pass to |Crater.maker|, including
+Besides a crater or projectile size value, one of which is required, there are a number of optional arguments you can pass to |Crater.maker|, including
 
-- `projectile_density`: The density of the projectile in kg/m\ :sup:`3`. If not provided, it will be defined through the Projectile component provided. (e.g., "asteroids" or "comets").
+- `projectile_density`: The density of the projectile in kg/m\ :sup:`3`. If not provided, it will be defined through the Projectile component provided (e.g., "asteroids" or "comets").
 - `projectile_mean_velocity`: The mean velocity in m/s from which to sample a projectile velocity. This will override the value from the Projectile model.
 - `projectile_velocity`: The total impact velocity of the projectile in m/s. If not provided, it is drawn from a distribution based on the target body and projectile populations.
 - `projectile_vertical_velocity`: The vertical component of the velocity in m/s. The total impact velocity will be determined by the projectile angle (either provided or drawn from a distribution).

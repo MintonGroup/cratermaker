@@ -16,13 +16,13 @@
 Visualizing Cratermaker Data
 ============================
 
-Cratermaker's |Simulation| class has a number built-in methods for visualizing output data. These include |sim.show3d|, which will visualize both the surface mesh and crater counts with `PyVista <https://docs.pyvista.org/>`__, |sim.plot| for making 2D plots with `Matplotlib <https://matplotlib.org/>`__ and `GeoPandas <https://geopandas.org/en/stable/>`__. In addition, the internal UxDataset representation of |Surface| data can be visualized with the array of tools available using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. You can also export data in a number of different formats using the |sim.export| method. 
+Cratermaker's |Simulation| class has a number of built-in methods for visualizing output data. These include |sim.show3d|, which will visualize both the surface mesh and crater counts with `PyVista <https://docs.pyvista.org/>`__, |sim.plot| for making 2D plots with `Matplotlib <https://matplotlib.org/>`__ and `GeoPandas <https://geopandas.org/en/stable/>`__. In addition, the internal UxDataset representation of |Surface| data can be visualized with the array of tools available using the `UxArray <https://uxarray.readthedocs.io/en/latest/index.html>`_ package. You can also export data in a number of different formats using the |sim.export| method. 
 
 
 Visualizing with PyVista
 ------------------------
 
-The |sim.show3d| method is a fast way to get a fully three dimensional visualization of a surface. In the example below, we emplace a 500km crater onto a lunar surface at 60° N latitude, 60° E 
+The |sim.show3d| method is a fast way to get a fully three dimensional visualization of a surface. In the example below, we emplace a 500km crater onto a lunar surface at 30° N latitude, 25° E longitude.
 
 
 .. code-block:: python
@@ -56,7 +56,7 @@ The |sim.show3d| method is a fast way to get a fully three dimensional visualiza
     >>> plotter.show()
 
 
-There are number of different options for data to display by passing the "variable_name" argument to paint the surface mesh with colors using the particular data variable you want. To see what is currently available on your surface, you can inspect the |surface.face_variables| property for their names. For our simulation, we could plot the ejecta thickness, like:
+There are a number of different options for data to display by passing the "variable_name" argument to paint the surface mesh with colors using the particular data variable you want. To see what is currently available on your surface, you can inspect the |surface.face_variables| property for their names. For our simulation, we could plot the ejecta thickness, like:
 
 
 .. code-block:: python
@@ -77,7 +77,7 @@ There are number of different options for data to display by passing the "variab
 
 
 
-When using as a standalone tool (not embedded in a website like here), you can bring up a menu of options using the "h" key. For instantance, you can cycle through all of the surface datasets using the "j" key.  Sometimes you may want to have more control over the visualization. In this case, you can use the |sim.pyvista_plotter| method to get direct access to the PyVista plotter object, which you can then customize with all of the tools available in the PyVista documentation. For instance, you could add a fancy space background and some custom lighting to make your visualizations look extra spacy.
+When using as a standalone tool (not embedded in a website like here), you can bring up a menu of options using the "h" key. For instance, you can cycle through all of the surface datasets using the "j" key.  Sometimes you may want to have more control over the visualization. In this case, you can use the |sim.pyvista_plotter| method to get direct access to the PyVista plotter object, which you can then customize with all of the tools available in the PyVista documentation. For instance, you could add a fancy space background and some custom lighting to make your visualizations look extra spacy.
 
 .. code-block:: python
 
@@ -105,9 +105,9 @@ This high resolution simulation could take many hours to run, and it would be in
     sim.export(interval=None, driver="VTK")
 
 
-Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth:`~cratermaker.components.surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
+Notice that we don't have to supply any information about the grid, as these are stored in the old simulation's configuration data file "cratermaker.yaml".  Upon running this, the code will output VTK files for each interval and place them in the "export" folder. Alternatively, we can also just use the built-in method :py:meth:`~cratermaker.components.surface.Surface.to_vtk_mesh` that can convert the surface of any saved interval into a VTK mesh that can be imported directly into PyVista. 
 
-Here I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate the what is happening throughout the simulation.  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`.
+Here I've included a script for generating a movie of the surface evolution of the Moon, with lots of fancy graphical elements to help communicate what is happening throughout the simulation.  The CSV file used in this example is :download:`qmc_input.csv </_static/qmc_input.csv>`.
 
 .. code-block:: python
 
@@ -241,7 +241,7 @@ Two dimensional plots of the surface can be made with the |sim.plot| method, whi
 Exporting data
 ==============
 
-If you have old simulation data that you want to visualize it, you can make use of the |sim.export| method. This method allows for exporting component data into multiple different formats, including "VTK', "GeoTIFF", "GPKG", "Esri Shapefile", and more, depending on the component. 
+If you have old simulation data that you want to visualize, you can make use of the |sim.export| method. This method allows for exporting component data into multiple different formats, including "VTK", "GeoTIFF", "GPKG", "Esri Shapefile", and more, depending on the component. 
 
 For instance, to export the surface mesh to a VTK file that can be opened up with other visualization tools, like `ParaView <https://www.paraview.org/>`__.
 
@@ -249,11 +249,9 @@ For instance, to export the surface mesh to a VTK file that can be opened up wit
 
     sim.export(driver="VTK")
 
-For a more sophisticated set of post-processsing analysis tools, you can also export the surface mesh and data in other formats using |sim.export| using the "driver" option to control how to export the data. For instance, with the "vtk" driver, you can visualize Cratermaker data using `ParaView <https://www.paraview.org/>`__. In this example, we will emplace a 500 km crater on the Moon at a location of 60° N, 45°E, and then visualize the surface mesh using Pyvista.
+For a more sophisticated set of post-processing analysis tools, you can also export the surface mesh and data in other formats using |sim.export| using the "driver" option to control how to export the data. For instance, with the "vtk" driver, you can visualize Cratermaker data using `ParaView <https://www.paraview.org/>`__.
 
 The simulation will generate several files in a folder called ``surface``, including ``grid.nc`` and ``surf000000.nc``. When exported to vtk format, a file called ``surf000000.vtp`` will also be placed in the ``export`` folder. In this example, the simulation only contains one interval, so only one file is created (see :ref:`ug-Simulation` for how to run multi-interval simulations). 
-
-We can then open up the mesh in PyVista for visualization.
 
 
 
@@ -276,7 +274,7 @@ ParaView can be used to visualize the surface mesh, and also to create animation
 Exporting multi-interval data
 -----------------------------
 
-By default, |sim.export| will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the "intervals" parameter, where passing "None" will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them.
+By default, |sim.export| will only export the most recent interval in a multi-interval run. However, you can specify which intervals to export using the ``interval`` parameter. The default is ``interval=-1`` (the most recent interval), and passing ``None`` will export all previously saved intervals. This is useful for re-processing long-running simulations without having to re-run them.
 
 
 More Examples

@@ -25,7 +25,7 @@
 Counting
 ========
 
-The :py:class:`~cratermaker.components.counting.Counting`  class will be used to tally craters on the surface. It is currently under development, so not all of the core features are fully implemented. The rim-fitting algorithm that was previously used to measure crater diameters and locations (``fit_rim``) has been removed while it is being rewritten as part of the development of the improved morphology models.
+The :py:class:`~cratermaker.components.counting.Counting`  class will be used to tally craters on the surface. It is currently under development, so not all of the core features are fully implemented. Rim measurement (fitting the rims of craters on the surface to measure their diameters and locations) is not currently available while it is being rewritten as part of the development of the improved morphology models. The :py:meth:`~cratermaker.components.counting.Counting.fit_crater` and :py:meth:`~cratermaker.components.counting.Counting.score_rim` methods remain available as tools.
 
 Tracking emplaced and observed craters
 --------------------------------------

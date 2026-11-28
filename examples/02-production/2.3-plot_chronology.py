@@ -4,7 +4,7 @@ Plot the NPF Chronology function for the Moon and Mars
 
 .. rubric:: By Austin Blevins and David Minton
 
-Here we plot the chronology component of the Neukum production function for the Moon and Mars. The chronology function is the number of craters per unit area per unit time, which is a function of crater diameter and age. The plot shows the number of craters per square kilometer per million years as a function of time for a 1 km crater.
+Here we plot the chronology component of the Neukum production function for the Moon and Mars. The chronology function gives the cumulative number of craters larger than 1 km in diameter per unit area, N(1), that accumulate on a surface of a given age. The plot shows N(1) per square kilometer as a function of surface age.
 """
 
 import matplotlib.pyplot as plt

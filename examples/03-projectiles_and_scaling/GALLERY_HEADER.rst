@@ -3,4 +3,4 @@
 Projectiles and Scaling
 =======================
 
-This section provides examples of the use of the :ref:`api-projectile` and :ref:`api-scaling` components of Cratermaker to model projectil populations and projectile-crater size scaling relationships.
+This section provides examples of the use of the :ref:`api-projectile` and :ref:`api-scaling` components of Cratermaker to model projectile populations and projectile-crater size scaling relationships.

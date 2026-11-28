@@ -104,6 +104,8 @@ sphinx_gallery_conf = {
     "gallery_dirs": "auto_examples",
     "filename_pattern": r"\.py",  # Allows all Python files to be found, not just ones that begin with `plot_`
     "image_scrapers": (DynamicScraper(), "matplotlib"),
+    # Within each folder, order the examples by their number (1.2 before 1.10; see _exts/gallery_sort.py)
+    "within_subsection_order": "gallery_sort.example_number",
     # Run examples serially on Read the Docs: the build container has limited RAM and
     # several high-resolution examples together exceed it (worker gets SIGKILLed).
     "parallel": os.environ.get("READTHEDOCS") != "True",
@@ -194,7 +196,7 @@ rst_prolog = """
 .. |Surface| replace:: :py:class:`~cratermaker.components.surface.Surface`
 .. |LocalSurface| replace:: :py:class:`~cratermaker.components.surface.LocalSurface`
 .. |HiResLocalSurface| replace:: :py:class:`~cratermaker.components.surface.hireslocal.HiResLocalSurface`
-.. |surface.face_variables| replace:: :py:meth:`~cratermaker.components.surface.face_variables`
+.. |surface.face_variables| replace:: :py:attr:`~cratermaker.components.surface.Surface.face_variables`
 .. |Target| replace:: :py:class:`~cratermaker.components.target.Target`
 .. |Crater| replace:: :py:class:`~cratermaker.components.crater.Crater`
 .. |Crater.maker| replace:: :py:meth:`Crater.maker() <cratermaker.components.crater.Crater.maker>`

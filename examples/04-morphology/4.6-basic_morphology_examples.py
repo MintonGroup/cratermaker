@@ -11,15 +11,16 @@ Each crater is emplaced at the center of its own simulation using the "hiresloca
 
 import matplotlib.pyplot as plt
 
-from cratermaker import Simulation
+from cratermaker import Scaling, Simulation
 
 # Number of pixels across the radius of the local region. This sets the resolution of each crater relative to its size.
 pixels_per_radius = 200
 
-# Each crater gets its own simulation directory. The transitional crater diameter is set below from the scaling model.
+# Each crater gets its own simulation directory. The transitional crater diameter is the nominal simple-to-complex transition
+# diameter of the lunar scaling model.
 examples = {
     "Simple": 4e3,
-    "Transitional": 17e3,
+    "Transitional": Scaling.maker(target="Moon").transition_nominal,
     "Complex": 100e3,
     "Multiring basin": 700e3,
 }

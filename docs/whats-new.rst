@@ -18,6 +18,8 @@ What's New
 
 - Recalibrated the simple-to-complex transition (14.4 km on the Moon), the diameters at which craters become transitional and complex, and the enlargement of complex craters in the "montecarlo" scaling model, from fresh lunar craters. `David Minton`_
 - Fixed the face gradient, which was half its true value, so that slope collapse now limits slopes to the requested critical angle. The critical angle after crater formation is now 40 degrees.
+- Removed the ``measure_rim`` option of ``Counting.tally``, which called a rim fitter that no longer exists.
+- Fixed ``Counting.tally`` with a ``region``, which always raised an error.
 - Fixed resumed simulations, which did not restore the saved state of the random number generator and so did not continue as the original run would have.
 - Added a ``count_superdomain`` option to count craters in the superdomain of a hireslocal surface. This replaces ``tag_superdomain``, which had no effect because ``emplace`` did not pass its arguments on.
 - Fixed the ``smallest_crater`` and ``largest_crater`` arguments of ``Simulation``, which were ignored by the constructor and lost on resume.

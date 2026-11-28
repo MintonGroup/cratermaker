@@ -4,7 +4,7 @@ Paint a surface mesh with data from the PDS
 
 .. rubric:: By David Minton
 
-Cratermaker is not only able to initialize topography data using real-world data, it can also associate the faces of a mesh with other raster data. Cratermaker uses the powerful rasterio python package to load raster files with georeference metadata attached and associate them with a Surface object. In this example, we will make a Surface centered on the fresh crater Bandfield. Then we will "paint" the local surface with bolometric temperature anomaly data from the LRO Diviner instrument, which will reveal that Bandfield is a spectacular "cold spot" crater.
+Cratermaker is not only able to initialize topography data using real-world data, it can also associate the faces of a mesh with other raster data. Cratermaker uses the powerful rasterio Python package to load raster files with georeference metadata attached and associate them with a Surface object. In this example, we will make a Surface centered on the fresh crater Bandfield. Then we will "paint" the local surface with bolometric temperature anomaly data from the LRO Diviner instrument, which will reveal that Bandfield is a spectacular "cold spot" crater.
 
 """
 

@@ -776,8 +776,7 @@ class Morphology(ComponentBase):
                 self._queue_manager.pop_batch(batch)
                 nacumulated += len(batch)
                 if self.save_observed and nacumulated >= tally_cadence:
-                    measure_rim = kwargs.pop("measure_rim", False)
-                    self.counting.tally(measure_rim=measure_rim, quiet=False, **kwargs)
+                    self.counting.tally(quiet=False, **kwargs)
                     nacumulated = 0
 
             return

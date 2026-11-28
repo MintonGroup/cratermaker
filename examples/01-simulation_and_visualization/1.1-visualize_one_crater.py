@@ -4,7 +4,7 @@ Manually emplace a single crater on the Moon and visualize it with PyVista
 
 .. rubric:: By David Minton
 
-This example shows how to emplace a single large crater on the Moon using Cratermaker's `Simulation.emplace()` method. The crater is defined with a specific diameter and location. The final surface is exported and visualized using PyVista.
+This example shows how to emplace a single large crater on the Moon using Cratermaker's `Simulation.emplace()` method. The crater is defined with a specific diameter and location. The resulting surface is visualized using PyVista.
 
 """
 

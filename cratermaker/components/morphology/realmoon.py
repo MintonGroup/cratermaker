@@ -124,6 +124,9 @@ class RealMoonCrater(BasicMoonCrater):
         """
         Create a crater (see `BasicMoonCrater.maker`). A copy of a crater that keeps its size and type keeps its field.
 
+        Unlike the analytic peak of basicmoon (complex craters and multiring basins only), a new realmoon crater also gets a
+        central peak when it is transitional. This is intended.
+
         Parameters
         ----------
         crater : Crater, optional
@@ -187,13 +190,15 @@ class RealMoonMorphology(BasicMoonMorphology):
     floor and walls, and the texture of the ejecta). The outline and field are drawn from the H-field model of fresh lunar
     craters: for each morphology type and size, the covariance between warped radii of the azimuthal Fourier components of
     the variation, decomposed into radial modes (empirical orthogonal functions). Central peaks and peak rings are not part of
-    the field: transitional and complex craters get a central peak built on the surface as a patchy population of columns
+    the field: transitional and complex craters get a central peak, and multiring basins a peak ring, built on the surface as a patchy population of columns
     (where noise exceeds a threshold, raised to a Gaussian envelope of standard deviation `peak_width`, offset to radius
     `peak_ring_radius` for a peak ring), with flanks at the critical slope, to the height `peak_height`. The model is described in the
     morphometry of fresh lunar craters by Minton et al. (2026, in prep.).
 
     Parameters
     ----------
+    hfield_model_file : str or Path, optional
+        The H-field model file. Default: the model packaged with cratermaker (hfield_model.nc).
     hfield_pix : float, optional
         The resolution (m) the field is drawn to. Default: the size of the smallest face the field of each crater is applied to
         (in its ejecta region), or of the face at its center if it has no region.

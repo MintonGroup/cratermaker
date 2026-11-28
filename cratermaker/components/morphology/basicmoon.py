@@ -242,6 +242,8 @@ def _gauss_legendre_points(edges: NDArray[np.float64]) -> tuple[NDArray[np.float
 
 @dataclass(frozen=True, slots=True)
 class BasicMoonCraterFixed(CraterFixed):
+    """The fixed (immutable) parameters of a basicmoon crater: its morphometric parameters, set when the crater is made."""
+
     rim_height: float | None = None
     """Original rim height of the crater in meters relative to the reference surface."""
     floor_elevation: float | None = None
@@ -290,6 +292,8 @@ class BasicMoonCraterFixed(CraterFixed):
 
 @Crater.register("basicmooncrater")
 class BasicMoonCrater(MorphologyCrater):
+    """The basic lunar crater, with an axisymmetric profile and its morphometric parameters (rim height, floor, peak, etc.)."""
+
     def __init__(
         self,
         crater: Crater | None = None,
@@ -957,7 +961,7 @@ class BasicMoonMorphology(Morphology):
     def __str__(self) -> str:
         str_repr = super().__str__()
         if self.ejecta_truncation is not None:
-            str_repr += f"Ejecta Trunction: {self.ejecta_truncation:.2f} * crater.radius\n"
+            str_repr += f"Ejecta Truncation: {self.ejecta_truncation:.2f} * crater.radius\n"
         else:
             str_repr += "Ejecta Truncation: Off\n"
         str_repr += f"Ejecta Rays: {self.dorays}\n"
@@ -1367,8 +1371,7 @@ class BasicMoonMorphology(Morphology):
         if np.any(self._Kdiff / self.surface.face_area > 1):
             self.apply_subpixel_degradation()
             if self.save_observed:
-                measure_rim = kwargs.pop("measure_rim", False)
-                self.counting.tally(measure_rim=measure_rim, **kwargs)
+                self.counting.tally(**kwargs)
 
         return
 

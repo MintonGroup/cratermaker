@@ -4,9 +4,9 @@ Plot a distribution of random velocities given a mean
 
 .. rubric:: By David Minton and Dennise Valadez
 
-This example demonstrates the generation of random velocities using the :py:meth:`get_random_velocity` function from the :ref:`montecarlo_utils <api-utils-montecarlo>` module. The expected distribution of imapct velocities is a modified Maxwell-Boltzmann distribution. The modification is related to the relationship between the mean velocity and the escape velocity. If vmean > vescape, then the distribution will adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distirbution will be a truncated maxwellian.
+This example demonstrates the generation of random impact velocities using the :ref:`Projectile <ug-projectile>` component. We use the "generic" projectile model with a fixed mean velocity, and draw new projectiles with :py:meth:`~cratermaker.components.projectile.Projectile.new_projectile`, which samples each impact velocity from a modified Maxwell-Boltzmann distribution that accounts for the escape velocity of the target. If vmean > vescape, then the distribution will be adjusted so that the escape velocity is the minimum velocity by computing an encounter velocity then summing the encounter and escape velocities in quadrature. If vmean < vescape, then the distribution will be a truncated Maxwellian.
 
-Here we sample 10000 velocities with a mean of 0.5 and 2x the escape velocity of the Moon, both with and without the escape velocity argument. Then we will compare a histogram of generated velocities with .
+Here we sample 10000 projectile velocities on the Moon with a mean of 0.75 and 2 times the lunar escape velocity. Then we compare a histogram of the generated velocities with the unmodified Maxwell-Boltzmann distribution that has the same mean.
 
 """
 
@@ -25,11 +25,11 @@ factors = np.array([0.75, 2.0])
 vmean_values = factors * vescape
 titles = [f"vmean = {float(factor):0.2f} $\\times$ vescape" for factor in factors]
 
-fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex="col", sharey="row", layout="constrained")
+fig, axs = plt.subplots(2, 1, figsize=(8, 8), layout="constrained")
 
-for col, vmean in enumerate(vmean_values):
-    # Initialize projectiles with and without escape velocity
-    proj = Projectile.maker("generic", projectile_mean_velocity=vmean, projectile_density=3000)
+for row, vmean in enumerate(vmean_values):
+    # Initialize a generic projectile population with a fixed mean velocity. New projectiles always account for the target's escape velocity.
+    proj = Projectile.maker("generic", projectile_mean_velocity=vmean, projectile_density=3000, target=target)
 
     velocities = np.array([proj.new_projectile().velocity for _ in range(size)])
 
@@ -38,7 +38,7 @@ for col, vmean in enumerate(vmean_values):
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
     theoretical_dist = maxwell.pdf(bin_centers * vescape, scale=vmean / np.sqrt(8 / np.pi)) * vescape
 
-    ax = axs[col]
+    ax = axs[row]
     ax.bar(
         bin_centers,
         histogram,
@@ -64,10 +64,9 @@ for col, vmean in enumerate(vmean_values):
         ha="left",
         fontsize=12,
     )
-    if col == 0:
-        ax.set_ylabel("Probability Density")
-        ax.set_xlabel("$V / V_{{escape}}$")
-        ax.legend()
-        ax.set_title(titles[col])
+    ax.set_ylabel("Probability Density")
+    ax.set_xlabel("$V / V_{{escape}}$")
+    ax.legend()
+    ax.set_title(titles[row])
 
 plt.show()

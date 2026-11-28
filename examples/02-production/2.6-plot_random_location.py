@@ -29,7 +29,7 @@ expected_count_lon = size // bins
 
 # Latitude plot
 observed_counts_lat, bins_lat_deg = np.histogram(lats, bins=bins, range=(-90, 90))
-# Convert bins to degrees
+# Convert bins to radians
 bins_lon = np.deg2rad(bins_lon_deg)
 bins_lat = np.deg2rad(bins_lat_deg)
 

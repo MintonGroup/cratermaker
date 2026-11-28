@@ -123,8 +123,6 @@ class CratermakerBase:
 
         Parameters
         ----------
-        obj : Any
-            The object whose attributes will be stored.  It must have a _user_defined attribute.
         remove_common_args : bool, optional
             If True, remove the set of common arguments that are shared among all components of the project from the configuration. Default is False.
         **kwargs : Any

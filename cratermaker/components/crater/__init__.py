@@ -648,7 +648,7 @@ class Crater(ComponentBase):
             The transient diameter of the crater in meters.
         transient_radius : float, optional
             The transient radius of the crater in meters.
-        morphology_type | str, optional
+        morphology_type : str, optional
             The morphology_type of the crater ("simple", "transitional", "complex", "multiring", etc.). Default is to be set automatically.
         semimajor_axis : float, optional
             The semimajor axis of the crater in meters. Same as radius if the crater is circular.
@@ -675,7 +675,7 @@ class Crater(ComponentBase):
         projectile_direction : float, optional
             The direction of the impact in degrees (0-360).
         projectile_location : pair of float, optional
-            The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence
+            The (longitude, latitude) location of the projectile impact. This is equivalent to `location`, which takes precedence.
         location : pair of floats, optional
             The (longitude, latitude) location of the crater on the target surface in degrees.
         longitude : float, optional
@@ -684,6 +684,8 @@ class Crater(ComponentBase):
             The latitude of the crater on the target surface in degrees. If used, you must also pass `longitude` and cannot pass `location`.
         time : float, optional
             The time of the crater impact in Myr before present.
+        name : str, optional
+            An optional name for the crater, which does not need to be unique.
         measured_semimajor_axis : float, optional
             The measured semimajor axis of the crater in meters.
         measured_semiminor_axis : float, optional
@@ -1211,7 +1213,8 @@ class Crater(ComponentBase):
 
         Returns
         -------
-        A GeoSeries containing a Shapely Polygon in lon/lat degrees.
+        geopandas.GeoSeries
+            A GeoSeries containing a Shapely Polygon in lon/lat degrees.
         """
         from pyproj import Geod
         from shapely.geometry import GeometryCollection, LineString, Polygon
@@ -1287,7 +1290,7 @@ class Crater(ComponentBase):
         filename : str | Path
             The path to the file to load from.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1319,7 +1322,7 @@ class Crater(ComponentBase):
         input_file : Path | str
             The path to the CSV file containing crater data.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 
@@ -1377,7 +1380,7 @@ class Crater(ComponentBase):
         input_file : Path | str
             The path to the SCC file containing crater data.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs: Any
             |kwargs|
 
@@ -1420,8 +1423,12 @@ class Crater(ComponentBase):
         ----------
         dataset : xr.Dataset | dict
             The xarray Dataset containing crater data or a dictionary of xarray Datasets keyed by interval number.
+        interval : int, optional
+            The interval to import. It selects from a dictionary of datasets, or along the interval coordinate of a dataset that
+            has one. If None, the last interval is used. If the requested interval is missing, an empty list is returned. Default
+            is None.
         conserve_volume : bool, optional
-            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickeness values. Default is False.
+            Indicate whether to perform a volume conservation operation that will adjust the rim elevation and ejecta thickness values. Default is False.
         **kwargs : Any
             |kwargs|
 

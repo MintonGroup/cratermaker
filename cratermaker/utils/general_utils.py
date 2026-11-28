@@ -58,7 +58,7 @@ def _set_properties(
     This function sets the properties of a simulation object based on the provided arguments.
     Properties can be read from a YAML file, a pre-defined catalogue, or directly passed as keyword arguments.
 
-    Parameter
+    Parameters
     ----------
     obj : object
         The simulation object whose properties are to be set.
@@ -180,7 +180,7 @@ def _create_catalogue(header, values):
     This function generates a catalogue, which could be a collection of properties, configurations,
     or any other set of items, based on the provided arguments.
 
-    Parameter
+    Parameters
     ----------
     args : various
         The arguments that determine the contents of the catalogue. The type and number of arguments

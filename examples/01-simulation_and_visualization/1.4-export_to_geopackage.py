@@ -36,7 +36,7 @@ gdf = gpd.read_file(sim.surface.export_dir / "surface000001.gpkg")
 gdf.plot("face_elevation", cmap="Greys_r")
 
 
-# Extract a 1000km radius region at the equator/prime meridian and export to GeoPackage
+# Extract a 1000 km radius region at the equator/prime meridian and export to GeoPackage
 local = sim.surface.extract_region(location=(0, 0), region_radius=1000e3)
 # Pass the interval number explicitly so that the file number matches the last frame of the simulation
 local.export(interval=sim.interval, driver="GPKG", ask_overwrite=False)
