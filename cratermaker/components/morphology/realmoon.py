@@ -77,6 +77,8 @@ _WALL_TURBULENCE = 0.15
 _WALL_TURBULENCE_WAVELENGTH = 0.25
 _WALL_FIELD_KMIN = 30
 _NO_WALL = (np.zeros(0), np.zeros((3, 0, 0)), np.zeros(0))
+# The size of a field (wavenumbers x radii) below which its modes are gathered for every wavenumber at once (see _draw_hfield)
+_GATHER_ALL_LIMIT = 5000
 
 # Central peaks (built on the surface by the central peak model of the Rust crate, see central_peak.rs). The height of the
 # peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
@@ -192,46 +194,48 @@ class RealMoonCrater(BasicMoonCrater):
         -------
         RealMoonCrater
         """
-        new = super().maker(crater=crater, morphology=morphology, **kwargs)
-        # A new crater (not a copy of a realmoon crater) gets a central peak from the central peak model, unless one is given
-        if kwargs.get("peak_height") is None and not isinstance(crater, RealMoonCrater):
+        if isinstance(crater, RealMoonCrater):
+            # A copy of a realmoon crater keeps its peak, its seeds and its field
+            new = super().maker(crater=crater, morphology=morphology, **kwargs)
+            _copy_hfield(crater, new)
+            return new
+        # A new crater: the basic crater first, then, in one more step, its central peak from the central peak model and the
+        # random parameters of its shape and peak that are not given. The ejecta is balanced (volume conservation) only in that
+        # last step, against the final crater.
+        conserve_volume = kwargs.pop("conserve_volume", True)
+        new = super().maker(crater=crater, morphology=morphology, conserve_volume=False, **kwargs)
+        rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+        extra = {}
+        peak_height, peak_width = new.peak_height, new.peak_width
+        if kwargs.get("peak_height") is None:
             peaked = new.morphology_type in _PEAKED
             relief = new.rim_height - new.floor_elevation
-            rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
             # The radius of the peak ring is that of the basic crater (see basicmoon.peak_ring_layout); the envelope widens from
             # that of a central peak to that of a peak ring as the peak opens
             ring_fraction, _ = peak_ring_layout(new.diameter)
-            width = ((1.0 - ring_fraction) * _PEAK_WIDTH + ring_fraction * _PEAK_RING_WIDTH) * new.radius
-            new = super().maker(
-                crater=new,
-                morphology=morphology,
-                peak_height=_peak_height(new.diameter, relief, rng) if peaked else 0.0,
-                peak_width=width if peaked else 0.0,
-                peak_ring_radius=new.peak_ring_radius if peaked else 0.0,
-            )
-        # A new crater draws the random parameters of its shape and of its peak that are not given (a copy of a realmoon crater
-        # keeps its own): the seed of its rim outline, field, wall levels and ring scarp variation, and for a crater with a peak,
-        # the offset of the peak's center, its elongation and the bearing of its long axis, and the seed of its noise
-        rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
-        if not isinstance(crater, RealMoonCrater) and rng is not None:
-            drawn = {}
+            peak_height = _peak_height(new.diameter, relief, rng) if peaked else 0.0
+            peak_width = ((1.0 - ring_fraction) * _PEAK_WIDTH + ring_fraction * _PEAK_RING_WIDTH) * new.radius if peaked else 0.0
+            extra.update(peak_height=peak_height, peak_width=peak_width, peak_ring_radius=new.peak_ring_radius if peaked else 0.0)
+        # The seed of the rim outline, field, wall levels and ring scarp variation, and for a crater with a peak, the offset of the
+        # peak's center, its elongation and the bearing of its long axis, and the seed of its noise
+        if rng is not None:
             if kwargs.get("hfield_seed") is None:
-                drawn["hfield_seed"] = int(rng.integers(2**63))
-            if new.peak_height > 0.0:
+                extra["hfield_seed"] = int(rng.integers(2**63))
+            if peak_height > 0.0:
                 if kwargs.get("peak_center_distance") is None or kwargs.get("peak_center_bearing") is None:
-                    dx, dy = _PEAK_OFFSET_SIGMA * new.peak_width * rng.standard_normal(2)
+                    dx, dy = _PEAK_OFFSET_SIGMA * peak_width * rng.standard_normal(2)
                     if kwargs.get("peak_center_distance") is None:
-                        drawn["peak_center_distance"] = float(np.hypot(dx, dy))
+                        extra["peak_center_distance"] = float(np.hypot(dx, dy))
                     if kwargs.get("peak_center_bearing") is None:
-                        drawn["peak_center_bearing"] = float(np.degrees(np.arctan2(dx, dy)) % 360.0)
+                        extra["peak_center_bearing"] = float(np.degrees(np.arctan2(dx, dy)) % 360.0)
                 if kwargs.get("peak_elongation") is None:
-                    drawn["peak_elongation"] = float(np.exp(_PEAK_ELONGATION_SIGMA * abs(rng.standard_normal())))
+                    extra["peak_elongation"] = float(np.exp(_PEAK_ELONGATION_SIGMA * abs(rng.standard_normal())))
                 if kwargs.get("peak_elongation_bearing") is None:
-                    drawn["peak_elongation_bearing"] = float(rng.uniform(0.0, 180.0))
+                    extra["peak_elongation_bearing"] = float(rng.uniform(0.0, 180.0))
                 if kwargs.get("peak_seed") is None:
-                    drawn["peak_seed"] = int(rng.integers(2**63))
-            if drawn:
-                new = super().maker(crater=new, morphology=morphology, **drawn)
+                    extra["peak_seed"] = int(rng.integers(2**63))
+        if extra or conserve_volume:
+            new = super().maker(crater=new, morphology=morphology, conserve_volume=conserve_volume, **extra)
         _copy_hfield(crater, new)
         return new
 
@@ -542,23 +546,26 @@ class RealMoonMorphology(BasicMoonMorphology):
         # The wavenumber node whose modes are used at each k
         nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
         for node, weight in self._nodes(morphology_type, diameter):
-            lam_all, vec_all, var_k = m["eigenvalue"][node], m["eigenvector"][node], m["variance"][node]
-            for j in np.unique(nearest):
-                kj = ks[nearest == j]
-                lam = lam_all[j]
-                keep = np.where(lam > 0)[0]
-                if len(keep) == 0:
-                    continue
-                kj = kj[var_k[kj] > 0]
-                if len(kj) == 0:
-                    continue
-                # Modes of the node, restricted to the drawn radii, scaled to the variance of the node at each k
-                V = vec_all[j][elements][:, keep].astype(np.float64)
-                scale = np.sqrt(lam[keep] / lam[keep].sum())[None, :] * np.sqrt(var_k[kj])[:, None]
-                z = (
-                    rng.standard_normal((len(kj), len(keep))) + 1j * rng.standard_normal((len(kj), len(keep)))
-                ) / np.sqrt(2.0)
-                F[kj] += np.sqrt(weight) * ((scale * z) @ V.T)
+            # The modes of the nearest wavenumber node at each k (those with positive eigenvalues), restricted to the drawn
+            # radii, weighted by their share of the variance and scaled to the variance of the node at k
+            lam = np.maximum(m["eigenvalue"][node][nearest], 0.0)  # (k, mode)
+            total = lam.sum(axis=1, keepdims=True)
+            share = np.divide(lam, total, out=np.zeros_like(lam), where=total > 0)
+            scale = np.sqrt(share) * np.sqrt(np.maximum(m["variance"][node][ks], 0.0))[:, None]
+            z = (rng.standard_normal(scale.shape) + 1j * rng.standard_normal(scale.shape)) / np.sqrt(2.0)
+            weights = np.sqrt(weight) * scale * z
+            # The same sum, computed the faster way for the size of the field: for small fields (most craters), with the modes
+            # gathered for every wavenumber at once; for large ones, with the modes of each wavenumber node gathered once and
+            # applied to the wavenumbers that use it
+            if len(ks) * len(elements) < _GATHER_ALL_LIMIT:
+                V = m["eigenvector"][node][nearest[:, None], elements[None, :], :]  # (k, element, mode)
+                F[ks] += np.einsum("km,kem->ke", weights, V)
+            else:
+                nodes_used, group = np.unique(nearest, return_inverse=True)
+                V = m["eigenvector"][node][nodes_used[:, None], elements[None, :], :]  # (wavenumber node, element, mode)
+                for g in range(len(nodes_used)):
+                    sel = group == g
+                    F[ks[sel]] += weights[sel] @ V[g].T
         X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
         Fr = np.fft.rfft(X[:, 0])
         Fr[_KMAX_RIM + 1 :] = 0.0

@@ -838,6 +838,21 @@ class BasicMoonCrater(MorphologyCrater):
 
             rim_area = 2 * np.pi * params.rim_height * params.radius**2
             frac0 = params.frac_ejrim
+            # The quadrature points of the volume of the crater part do not depend on the rim thickness, so they are set up once
+            # (with the default volume estimate; a morphology that overrides it is called for each rim thickness)
+            quadrature = None
+            if type(morphology).estimate_volume is BasicMoonMorphology.estimate_volume:
+                rmax = (20 if morphology.ejecta_truncation is None else morphology.ejecta_truncation) * params.radius
+                edges = BasicMoonMorphology._volume_quadrature_edges(params, True, False, rmax)
+                if edges is not None:
+                    quadrature = _gauss_legendre_points(edges)
+
+            def crater_volume() -> float:
+                """The volume of the crater part (negative where it excavates)."""
+                if quadrature is None:
+                    return morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+                r, w = quadrature
+                return float(2 * np.pi * np.sum(w * basicmoon_bindings.volume_integrand(r, params, True, False)))
 
             def candidate(frac_ejrim):
                 """
@@ -847,7 +862,7 @@ class BasicMoonCrater(MorphologyCrater):
                 crater part, relative to the crater part.
                 """
                 params.frac_ejrim = frac_ejrim
-                excavated = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+                excavated = crater_volume()
                 if excavated >= 0.0:
                     return np.nan, np.inf, False
                 ejprofile = -2.0 - frac_ejrim * rim_area / -excavated if frac_ejrim > 0 else lo
