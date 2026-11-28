@@ -241,16 +241,6 @@ class TestMorphology(unittest.TestCase):
                 self.assertLessEqual(ejecta_part.max(), total.max())
                 np.testing.assert_allclose(crater_part + ejecta_part, total, atol=1e-6)
 
-    def test_realmoon_basin_rim_wobble(self):
-        # Beyond the largest complex crater of the model, the rim wobble (in m) is held at that crater's
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
-            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
-            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=3, hfield_pix=5e3)
-            d0 = morphology._rim_wobble_diameter
-            for diameter in (2 * d0, 6 * d0):
-                self.assertAlmostEqual(morphology._rim_wobble_scale(diameter) * diameter, d0)
-            self.assertEqual(morphology._rim_wobble_scale(50e3), 1.0)
-
     def test_realmoon_wall_levels(self):
         # Complex craters get stacked wall levels whose outermost one is the rim outline; simple craters get none
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:

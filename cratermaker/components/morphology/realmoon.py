@@ -29,23 +29,6 @@ _DRHO = 0.005
 _KMAX = _N_THETA // 2 - 1
 _KMAX_RIM = 8  # the rim outline has azimuthal wavenumbers k <= 8
 _N_SCARP = 72  # bearings of the variation of the ring scarp of multiring basins (see RealMoonMorphology.scarp_outline_data)
-# The rim outline of craters larger than the largest complex crater of the model (Langrenus, its node at 137 km) does not keep
-# growing in proportion to the radius: the shape of a rim outline is set by the collapse of the rim and wall through local
-# faulting and fracturing, whose scale is that of the rock rather than of the crater. Its rms wobble (in m) is held at that of
-# the model at its largest complex node (about 2.4 km). Schrodinger's rim, traced within 10% of its catalog radius, has lobes of
-# at most 3.5-5.6 km rms (an upper bound: the trace still strays onto the terrain and craters around it;
-# Lunar_Morphometry_Revisited, rim_spectrum.py).
-# The ring scarps of multiring basins are drawn as rims, with the same wobble.
-# _FIELD_SCALE_NOTE: beyond the largest complex crater of the model, the field (its terraces, slumps and texture) keeps that
-# crater's physical scale around the rim instead of being stretched with the crater: at wavenumber k, a crater of diameter D
-# takes the statistics of the model at k' = k d0 / D (d0 the diameter of the largest complex crater; at least those of k' = 1),
-# with the variance at each k multiplied by d0 / D, so that the variance per unit length of the rim is that of the model; and
-# radially, inside the rim, it is compressed about the rim, rho_model = 1 + (rho - 1) D / d0, so that the features of the wall
-# keep their size and shape (at Schrodinger's size the field reaches in to 0.72 R; the floor inside has no field). Outside the
-# rim it is not compressed (rho_model = rho): the outer flank of the rim and the ejecta blanket scale with the crater, and the
-# rim's texture grades into them (compressed, the field ended abruptly just outside the rim, leaving the blanket smooth).
-# Stretched in bearing too, the field of Langrenus made the rims of basins lobate at 30-50 km scales, while the rim of
-# Schrodinger is nearly circular with fine scalloping.
 # Morphology types without a node of their own use those of complex craters. Multiring basins do too: the model's only basin
 # (Orientale) is heavily degraded (freshness class D), and its field (about three times rougher in units of its relief than the
 # largest complex crater's on the floor, and 30% rougher on the wall and rim) is mostly the cratering and modification it has
@@ -70,10 +53,8 @@ _RIM_LOBE_SIGMA_LN = 0.32
 # ring scarp), spaced by a lognormal amount (median _WALL_SPACING of the rim radius, ln scatter _WALL_SPACING_SIGMA). They wobble
 # into each other, and where they collide their scarps merge, which makes them read as overlapping arcs. A turbulence field of
 # rms _WALL_TURBULENCE of the mean drop between levels, with largest wavelength _WALL_TURBULENCE_WAVELENGTH, is added over the
-# wall. The per-crater lobe strength scatter (_RIM_LOBE_SIGMA_LN) scales the lobes of all levels. Beyond the largest complex
-# crater of the model, the spacing, the lobes and the wavelengths keep that crater's physical scale (see _FIELD_SCALE_NOTE). The
-# H-field gives these craters only its texture, above wavenumber _WALL_FIELD_KMIN (at the physical scale of the largest complex
-# crater beyond it). The parameters were chosen by comparing renders with Langrenus and Copernicus, and the lobes calibrated so
+# wall. The per-crater lobe strength scatter (_RIM_LOBE_SIGMA_LN) scales the lobes of all levels. All of these scale with the
+# crater, basins included. The H-field gives these craters only its texture, above wavenumber _WALL_FIELD_KMIN. The parameters were chosen by comparing renders with Langrenus and Copernicus, and the lobes calibrated so
 # that the rim outlines of synthetic craters, traced as the rims of the model are (with the fit extended to k <= 24), have
 # close to the rms of those of the fresh complex craters in each band of k (an amplitude of 0.040 matches it within 4-10%; it
 # was reduced to 0.035 by eye, about 3-15% below; Lunar_Morphometry_Revisited, rim_shape_spectrum.py).
@@ -114,15 +95,6 @@ _PEAK_HEIGHT_SIGMA_LN = 0.44
 _PEAK_HEIGHT_D_MAX = 139e3
 _PEAK_WIDTH = 0.108
 _PEAK_RING_WIDTH = 0.134
-
-
-def _interp_rows(values: NDArray[np.float64], x: NDArray[np.float64], x_new: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Each row of `values` (given at the increasing points `x`) interpolated linearly at `x_new`, zero outside `x`."""
-    j = np.clip(np.searchsorted(x, x_new) - 1, 0, len(x) - 2)
-    t = (x_new - x[j]) / (x[j + 1] - x[j])
-    out = (1.0 - t)[None, :] * values[:, j] + t[None, :] * values[:, j + 1]
-    out[:, (x_new < x[0]) | (x_new > x[-1])] = 0.0
-    return out
 
 
 def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None) -> float:
@@ -296,10 +268,6 @@ class RealMoonMorphology(BasicMoonMorphology):
                 },
             )
         object.__setattr__(self, "_hfield_model_file", hfield_model_file)
-        model = self._hfield_model
-        largest = int(np.argmax(np.where(model["type"] == "complex", model["diameter"], -np.inf)))
-        object.__setattr__(self, "_rim_wobble_diameter", float(model["diameter"][largest]))
-        object.__setattr__(self, "_rim_wobble_ln_rms", self._rim_ln_rms(largest))
         object.__setattr__(self, "_hfield_pix", hfield_pix)
         super().__init__(**kwargs)
 
@@ -384,24 +352,15 @@ class RealMoonMorphology(BasicMoonMorphology):
         rho_max = _RHO_MAX
         elements = np.concatenate(([0], 1 + rows))
 
-        f = min(1.0, self._rim_wobble_diameter / crater.diameter)
-        if f < 1.0:
-            # Inside the rim, the field keeps the physical scale of the largest complex crater of the model radially too (see
-            # _FIELD_SCALE_NOTE): it is drawn at all radii of the model and compressed about the rim
-            rim, X = self._draw_hfield(crater.morphology_type, crater.diameter, kmax, n_theta, np.arange(1 + n_intervals + 1))
-            x = rows * _DRHO - 1.0
-            rho_model = 1.0 + np.where(x <= 0.0, x / f, x)
-            X = np.column_stack([X[:, :1], _interp_rows(X[:, 1:], np.arange(n_intervals + 1) * _DRHO, rho_model)])
-        else:
-            rim, X = self._draw_hfield(crater.morphology_type, crater.diameter, kmax, n_theta, elements)
+        rim, X = self._draw_hfield(crater.morphology_type, crater.diameter, kmax, n_theta, elements)
         relief = max(crater.rim_height - crater.floor_elevation, 0.0)
         wall = _NO_WALL
         if crater.morphology_type in _WALL_TYPES:
             # Only the texture of the field; the wall levels replace its broad structure and the rim outline
             F = np.fft.rfft(X[:, 1:], axis=0)
-            F[: int(np.ceil(_WALL_FIELD_KMIN / f)) + 1] = 0.0
+            F[: _WALL_FIELD_KMIN + 1] = 0.0
             X = np.column_stack([X[:, :1], np.fft.irfft(F, n=n_theta, axis=0)])
-            drawn = self._draw_wall(crater, n_theta, f)
+            drawn = self._draw_wall(crater, n_theta)
             if drawn is not None:
                 wall = drawn
                 rim = np.ascontiguousarray(wall[1][0].max(axis=0), dtype=np.float64)
@@ -435,7 +394,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         return values * (rms / sd) if sd > 0 else values
 
     def _draw_wall(
-        self, crater: RealMoonCrater, n_theta: int, f: float
+        self, crater: RealMoonCrater, n_theta: int
     ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]] | None:
         """
         Draw the stacked levels of the wall of a complex crater or basin (see _WALL_TYPES).
@@ -446,8 +405,6 @@ class RealMoonMorphology(BasicMoonMorphology):
             The crater.
         n_theta : int
             The number of bearings of its field.
-        f : float
-            The ratio of the diameter of the largest complex crater of the model to the crater's (at most 1).
 
         Returns
         -------
@@ -461,7 +418,7 @@ class RealMoonMorphology(BasicMoonMorphology):
             base = max(base, (crater.scarp_radius + crater.scarp_width) / R)
         levels = [1.0]
         while True:
-            nxt = levels[-1] - _WALL_SPACING * f * float(np.exp(_WALL_SPACING_SIGMA * self.rng.standard_normal()))
+            nxt = levels[-1] - _WALL_SPACING * float(np.exp(_WALL_SPACING_SIGMA * self.rng.standard_normal()))
             if nxt < base:
                 break
             levels.append(nxt)
@@ -476,33 +433,14 @@ class RealMoonMorphology(BasicMoonMorphology):
             dtype=np.float64,
         )
         drop = max((knots[0] - knots[-1]) / (len(levels) - 1), 0.0)
-        lobes = _WALL_WOBBLE * f * float(np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2))
+        lobes = _WALL_WOBBLE * float(np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2))
         data = np.empty((3, len(levels), n_theta))
         for j, rho in enumerate(levels):
-            data[0, j] = rho * np.exp(self._periodic_noise(n_theta, lobes, _WALL_WOBBLE_KMAX / f, _WALL_WOBBLE_SLOPE))
-            data[1, j] = np.clip(_WALL_STRENGTH_MEAN + self._periodic_noise(n_theta, _WALL_STRENGTH_SD, _WALL_STRENGTH_KMAX / f), 0, 1)
-            data[2, j] = self._periodic_turbulence(n_theta, _WALL_OFFSET_SD * drop, _WALL_OFFSET_K0 / f)
-        params = np.array([_WALL_TURBULENCE * drop, _WALL_TURBULENCE_WAVELENGTH * f, float(self.rng.integers(2**31))])
+            data[0, j] = rho * np.exp(self._periodic_noise(n_theta, lobes, _WALL_WOBBLE_KMAX, _WALL_WOBBLE_SLOPE))
+            data[1, j] = np.clip(_WALL_STRENGTH_MEAN + self._periodic_noise(n_theta, _WALL_STRENGTH_SD, _WALL_STRENGTH_KMAX), 0, 1)
+            data[2, j] = self._periodic_turbulence(n_theta, _WALL_OFFSET_SD * drop, _WALL_OFFSET_K0)
+        params = np.array([_WALL_TURBULENCE * drop, _WALL_TURBULENCE_WAVELENGTH, float(self.rng.integers(2**31))])
         return nominal, np.ascontiguousarray(data), params
-
-    def _rim_ln_rms(self, node: int) -> float:
-        """The rms of the rim anomaly ln(R_rim / R) of the model node (wavenumbers 1 to _KMAX_RIM)."""
-        m = self._hfield_model
-        ks = np.arange(1, _KMAX_RIM + 1)
-        nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
-        total = 0.0
-        for k, j in zip(ks, nearest):
-            lam = m["eigenvalue"][node][j]
-            keep = lam > 0
-            if keep.any() and m["variance"][node][k] > 0:
-                share = lam[keep] / lam[keep].sum()
-                total += 2.0 * m["variance"][node][k] * float(np.sum(share * m["eigenvector"][node][j][0, keep].astype(float) ** 2))
-        return float(np.sqrt(total))
-
-    def _rim_wobble_scale(self, diameter: float) -> float:
-        """The factor applied to the drawn rim anomaly ln(R_rim / R) of a crater of the given diameter: 1 up to the largest
-        complex crater of the model, beyond which the rms wobble (in m) is held at that crater's."""
-        return min(1.0, self._rim_wobble_diameter / diameter)
 
     def _draw_hfield(
         self, morphology_type: str, diameter: float, kmax: int, n_theta: int, elements: NDArray[np.int64]
@@ -526,91 +464,46 @@ class RealMoonMorphology(BasicMoonMorphology):
         Returns
         -------
         rim : NDArray[np.float64]
-            R_rim(theta) / R (k <= _KMAX_RIM, with the wobble held in m beyond the largest complex crater of the model).
+            R_rim(theta) / R (k <= _KMAX_RIM).
         X : NDArray[np.float64]
             The drawn elements at each bearing (n_theta x len(elements)); the field in units of the relief.
         """
+        m = self._hfield_model
         F = np.zeros((n_theta // 2 + 1, len(elements)), dtype=np.complex128)
         ks = np.arange(1, kmax + 1)
-        # Beyond the largest complex crater of the model, the field keeps that crater's physical scale around the rim (see
-        # _FIELD_SCALE_NOTE); the rim outline (element 0) is drawn at its own wavenumbers
-        f = min(1.0, self._rim_wobble_diameter / diameter)
-        if f < 1.0:
-            self._accumulate_modes(F, morphology_type, diameter, ks, ks.astype(np.float64), 1.0, elements[:1], [0])
-            self._accumulate_modes(F, morphology_type, diameter, ks, f * ks, f, elements[1:], list(range(1, len(elements))))
-        else:
-            self._accumulate_modes(F, morphology_type, diameter, ks, ks.astype(np.float64), 1.0, elements, list(range(len(elements))))
-        X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
-        Fr = np.fft.rfft(X[:, 0])
-        Fr[_KMAX_RIM + 1 :] = 0.0
-        Fr *= self._rim_wobble_scale(diameter) * np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2)
-        rim = np.exp(np.fft.irfft(Fr, n=n_theta))
-        return np.ascontiguousarray(rim, dtype=np.float64), X
-
-    def _accumulate_modes(
-        self,
-        F: NDArray[np.complex128],
-        morphology_type: str,
-        diameter: float,
-        ks: NDArray[np.int64],
-        k_model: NDArray[np.float64],
-        variance_factor: float,
-        elements: NDArray[np.int64],
-        columns: list[int],
-    ) -> None:
-        """
-        Add random draws of the model's modes to the Fourier coefficients of a field (see `_draw_hfield`).
-
-        Parameters
-        ----------
-        F : NDArray[np.complex128]
-            The Fourier coefficients (k x columns), added to in place.
-        morphology_type : str
-            The morphology type whose model nodes are used.
-        diameter : float
-            The diameter the nodes are interpolated to (m).
-        ks : NDArray[np.int64]
-            The wavenumbers drawn.
-        k_model : NDArray[np.float64]
-            The wavenumber of the model whose modes and variance (interpolated in k, and at least that of k = 1) are used at each
-            of `ks`.
-        variance_factor : float
-            The factor applied to the variance.
-        elements : NDArray[np.int64]
-            The elements of the model drawn.
-        columns : list[int]
-            The columns of F they are added to.
-        """
-        m = self._hfield_model
-        k_model = np.maximum(k_model, 1.0)
-        nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(k_model)[:, None]), axis=1)
+        # The wavenumber node whose modes are used at each k
+        nearest = np.argmin(np.abs(np.log(m["k_node"])[None, :] - np.log(ks)[:, None]), axis=1)
         for node, weight in self._nodes(morphology_type, diameter):
             lam_all, vec_all, var_k = m["eigenvalue"][node], m["eigenvector"][node], m["variance"][node]
-            variance = variance_factor * np.interp(k_model, np.arange(len(var_k)), var_k)
             for j in np.unique(nearest):
+                kj = ks[nearest == j]
                 lam = lam_all[j]
                 keep = np.where(lam > 0)[0]
                 if len(keep) == 0:
                     continue
-                sel = (nearest == j) & (variance > 0)
-                if not sel.any():
+                kj = kj[var_k[kj] > 0]
+                if len(kj) == 0:
                     continue
-                kj = ks[sel]
-                # Modes of the node, restricted to the drawn radii, scaled to the variance at each k
+                # Modes of the node, restricted to the drawn radii, scaled to the variance of the node at each k
                 V = vec_all[j][elements][:, keep].astype(np.float64)
-                scale = np.sqrt(lam[keep] / lam[keep].sum())[None, :] * np.sqrt(variance[sel])[:, None]
+                scale = np.sqrt(lam[keep] / lam[keep].sum())[None, :] * np.sqrt(var_k[kj])[:, None]
                 z = (
                     self.rng.standard_normal((len(kj), len(keep))) + 1j * self.rng.standard_normal((len(kj), len(keep)))
                 ) / np.sqrt(2.0)
-                F[np.ix_(kj, columns)] += np.sqrt(weight) * ((scale * z) @ V.T)
+                F[kj] += np.sqrt(weight) * ((scale * z) @ V.T)
+        X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
+        Fr = np.fft.rfft(X[:, 0])
+        Fr[_KMAX_RIM + 1 :] = 0.0
+        Fr *= np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2)
+        rim = np.exp(np.fft.irfft(Fr, n=n_theta))
+        return np.ascontiguousarray(rim, dtype=np.float64), X
 
     def scarp_outline_data(self, crater: RealMoonCrater) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Draw the variation of the ring scarp of a multiring basin around the basin.
 
         The scarp is the rim of the peak-ring basin inside the multiring basin, so it varies as the rim of a complex crater of
-        its diameter (2 `scarp_radius`): its radius as that crater's rim outline (with the wobble held in m beyond the largest
-        complex crater of the model, as for rims), and its height as that crater's rim height, the field of the model at the
+        its diameter (2 `scarp_radius`): its radius as that crater's rim outline, and its height as that crater's rim height, the field of the model at the
         rim crest (in units of the relief) over the basin's rim fraction of the relief, (rim height) / (rim height + floor
         depth). The height is never negative.
 
