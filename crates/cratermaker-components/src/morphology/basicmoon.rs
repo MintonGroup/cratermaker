@@ -274,13 +274,7 @@ fn smooth_crater_ejecta_split(
     ejprofile: f64,
 ) -> f64 {
     let he = frac_ejrim * rim_height;
-    let hup = rimfunc(
-        r,
-        radius,
-        (1.0 - frac_ejrim) * rim_height,
-        0.0,
-        0.5 * rim_width,
-    );
+    let hup = rimfunc(r, radius, (1.0 - frac_ejrim) * rim_height, 0.5 * rim_width);
     let inside = smooth_clamp(hcrat - hup, 0.0, he, SPLIT_CLAMP_SMOOTHING * he);
     let outside = ejecta_rim_function(r, radius, frac_ejrim, rim_height, ejprofile, rim_width);
     blend_step(r, inside, outside, radius, SPLIT_RIM_BLEND * rim_width)
@@ -539,9 +533,8 @@ fn upliftfunc(r: f64, radius: f64, hu: f64, rw: f64) -> f64 {
 }
 
 #[inline]
-fn rimfunc(r: f64, radius: f64, hr: f64, he: f64, rw: f64) -> f64 {
-    let hmax = if r > radius { hr - he } else { hr };
-    hmax * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
+fn rimfunc(r: f64, radius: f64, hr: f64, rw: f64) -> f64 {
+    hr * (-(r - radius).powi(2) / (2.0 * rw.powi(2))).exp()
 }
 
 /// Computes the ejecta profile scaling at a given radial distance.
@@ -585,7 +578,7 @@ pub fn ejecta_profile_function(
 fn ejecta_rim_function(r: f64, radius: f64, fe: f64, hr: f64, ejprofile: f64, rw: f64) -> f64 {
     let phi = smootherstep((r - (radius - rw)) / (2.0 * rw));
     let ejrim = fe * hr;
-    let hg = rimfunc(r, radius, ejrim, 0.0, rw);
+    let hg = rimfunc(r, radius, ejrim, rw);
     if phi <= 0.0 {
         return hg;
     }

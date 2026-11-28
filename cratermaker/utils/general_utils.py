@@ -265,8 +265,9 @@ _POLE_MARGIN = 1e-5
 
 def _normalize_input_location(location) -> tuple[float, float]:
     """
-    Normalize a user-given (longitude, latitude) pair: the latitude must be within +/-90 degrees, and one at a pole is moved
-    _POLE_MARGIN away from it.
+    Normalize a user-given (longitude, latitude) pair.
+
+    The latitude must be within +/-90 degrees, and one at a pole is moved _POLE_MARGIN away from it.
 
     Parameters
     ----------

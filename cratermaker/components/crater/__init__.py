@@ -496,7 +496,7 @@ class Crater(ComponentBase):
             setattr(self._var, name, value)
             return
 
-    def as_dict(self, ignore_keys: list[str] = [], **kwargs) -> dict:
+    def as_dict(self, ignore_keys: list[str] | None = None, **kwargs) -> dict:
         """
         Expose delegated attributes for serialization.
         """
@@ -1230,13 +1230,11 @@ class Crater(ComponentBase):
             b = self.measured_semiminor_axis
             lon, lat = self.measured_location
             phi = self.measured_orientation
-            radius = self.measured_radius
         else:
             a = self.semimajor_axis
             b = self.semiminor_axis
             lon, lat = self.location
             phi = self.orientation
-            radius = self.radius
 
         # Polar radius of an axis-aligned ellipse in a Euclidean tangent plane
         ct = np.cos(np.deg2rad(theta))

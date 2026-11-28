@@ -33,7 +33,8 @@ _N_SCARP = 72  # bearings of the variation of the ring scarp of multiring basins
 # (Orientale) is heavily degraded (freshness class D), and its field (about three times rougher in units of its relief than the
 # largest complex crater's on the floor, and 30% rougher on the wall and rim) is mostly the cratering and modification it has
 # accumulated, which leaves its rim indistinct. Basins therefore take the field of the largest complex crater of the model
-# (Langrenus), scaled to their relief, and keep the ringed profile of Orientale (see basicmoon._MULTIRING).
+# (Langrenus), scaled to their relief, with the profiles of the basin anchors and the ring scarp (basicmoon._BASIN_ANCHORS,
+# basicmoon._SCARP).
 _TYPE_ALIASES = {"basin": "complex", "peakring": "complex", "ring": "complex", "multiring": "complex"}
 # The strength of the lobes of rim outlines varies from crater to crater more than the Gaussian draws of the model give: most
 # fresh complex craters are nearly round, a few are strongly lobate. The drawn outline (k <= _KMAX_RIM) is scaled by a lognormal
@@ -54,7 +55,8 @@ _RIM_LOBE_SIGMA_LN = 0.32
 # into each other, and where they collide their scarps merge, which makes them read as overlapping arcs. A turbulence field of
 # rms _WALL_TURBULENCE of the mean drop between levels, with largest wavelength _WALL_TURBULENCE_WAVELENGTH, is added over the
 # wall. The per-crater lobe strength scatter (_RIM_LOBE_SIGMA_LN) scales the lobes of all levels. All of these scale with the
-# crater, basins included. The H-field gives these craters only its texture, above wavenumber _WALL_FIELD_KMIN. The parameters were chosen by comparing renders with Langrenus and Copernicus, and the lobes calibrated so
+# crater, basins included. The H-field gives these craters only its texture, above wavenumber _WALL_FIELD_KMIN. The parameters
+# were chosen by comparing renders with Langrenus and Copernicus, and the lobes calibrated so
 # that the rim outlines of synthetic craters, traced as the rims of the model are (with the fit extended to k <= 24), have
 # close to the rms of those of the fresh complex craters in each band of k (an amplitude of 0.040 matches it within 4-10%; it
 # was reduced to 0.035 by eye, about 3-15% below; Lunar_Morphometry_Revisited, rim_shape_spectrum.py).
@@ -77,7 +79,7 @@ _WALL_FIELD_KMIN = 30
 _NO_WALL = (np.zeros(0), np.zeros((3, 0, 0)), np.zeros(0))
 
 # Central peaks (built on the surface by the central peak model of the Rust crate, see central_peak.rs). The height of the
-# relaxed peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
+# peak above the floor, as a fraction of the crater's relief (rim height + floor depth), follows the peaks of the fresh
 # craters of 36-139 km measured at the native SLDEM2015 spacing: 0.259 (D / 60 km)^0.89 with lognormal scatter 0.44. Above
 # the fitted range it is held at its value at 139 km (it would otherwise exceed the relief by 300 km); below it, it is
 # extrapolated, giving the smaller peaks of transitional craters. The envelope of a central peak is a Gaussian of standard
@@ -94,6 +96,10 @@ _PEAK_HEIGHT_EXPONENT = 0.89
 _PEAK_HEIGHT_SIGMA_LN = 0.44
 _PEAK_HEIGHT_D_MAX = 139e3
 _PEAK_WIDTH = 0.108
+# The offset of a peak's center from the crater center: a two-dimensional Gaussian of standard deviation _PEAK_OFFSET_SIGMA
+# envelope widths in each direction (that of the peak model's calibration, central_peak.rs, PeakModel::offset_sigma), unrelated
+# to the impact direction. It is drawn when the crater is made, unless given (peak_center_distance and peak_center_bearing).
+_PEAK_OFFSET_SIGMA = 0.65
 _PEAK_RING_WIDTH = 0.134
 
 
@@ -113,7 +119,7 @@ def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None
     Returns
     -------
     float
-        The height of the relaxed peak above the floor (m).
+        The height of the peak above the floor (m).
     """
     d = min(diameter, _PEAK_HEIGHT_D_MAX)
     height = _PEAK_HEIGHT_RELIEF * (d / _PEAK_HEIGHT_D_REF) ** _PEAK_HEIGHT_EXPONENT * relief
@@ -141,7 +147,8 @@ class RealMoonCrater(BasicMoonCrater):
     """
     A crater of the realistic lunar morphology.
 
-    It is a basic lunar crater plus a rim outline and a field of variation around it (the H-field). The rim outline and field are drawn from the morphology's random number generator on first access (see
+    It is a basic lunar crater plus a rim outline and a field of variation around it (the H-field), and for complex craters and
+    basins the stacked levels of its wall. The rim outline and field are drawn from the morphology's random number generator on first access (see
     `RealMoonMorphology.hfield_data`) and kept with the crater, including when it is copied without changing its size or type.
     """
 
@@ -189,6 +196,15 @@ class RealMoonCrater(BasicMoonCrater):
                 peak_width=width if peaked else 0.0,
                 peak_ring_radius=new.peak_ring_radius if peaked else 0.0,
             )
+        # A new crater with a peak gets a random offset of its center, unless one is given
+        distance, bearing = kwargs.get("peak_center_distance"), kwargs.get("peak_center_bearing")
+        if not isinstance(crater, RealMoonCrater) and new.peak_height > 0.0 and (distance is None or bearing is None):
+            rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+            if rng is not None:
+                dx, dy = _PEAK_OFFSET_SIGMA * new.peak_width * rng.standard_normal(2)
+                distance = float(np.hypot(dx, dy)) if distance is None else distance
+                bearing = float(np.degrees(np.arctan2(dx, dy)) % 360.0) if bearing is None else bearing
+                new = super().maker(crater=new, morphology=morphology, peak_center_distance=distance, peak_center_bearing=bearing)
         _copy_hfield(crater, new)
         return new
 
@@ -203,16 +219,24 @@ class RealMoonCrater(BasicMoonCrater):
 
     @property
     def wall(self) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-        """The stacked levels of the wall of a complex crater or basin, drawn with the field (see
-        `RealMoonMorphology.hfield_data`): their nominal radii, their radius, scarp strength and elevation offset (3 x n_levels x
-        n_theta), and the wall turbulence (standard deviation in m, wavelength in rim radii, seed); all empty for other craters."""
+        """
+        The stacked levels of the wall of a complex crater or basin.
+
+        Drawn with the field (see `RealMoonMorphology.hfield_data`): their nominal radii, their radius, scarp strength and
+        elevation offset (3 x n_levels x n_theta), and the wall turbulence (standard deviation in m, wavelength in rim radii,
+        seed); all empty for other craters.
+        """
         _ = self.hfield
         return getattr(self._var, "_wall", _NO_WALL)
 
     @property
     def scarp_outline(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """The variation of the ring scarp around a multiring basin: its radius and height at _N_SCARP bearings, as factors of
-        `scarp_radius` and `scarp_height` (empty for a crater without a scarp; see `RealMoonMorphology.scarp_outline_data`)."""
+        """
+        The variation of the ring scarp around a multiring basin.
+
+        Its radius and height at _N_SCARP bearings, as factors of `scarp_radius` and `scarp_height` (empty for a crater without a
+        scarp; see `RealMoonMorphology.scarp_outline_data`).
+        """
         data = getattr(self._var, "_scarp_outline", None)
         if data is None:
             data = self.morphology.scarp_outline_data(self)
@@ -311,7 +335,9 @@ class RealMoonMorphology(BasicMoonMorphology):
         pi rho_max R / pix and steps in rho of at least pix / (2 R), with pix `hfield_pix` or the size of the smallest face the
         field is applied to (that of the crater's ejecta region, or of the face at its center if it has no region).
         The field is in units of the crater's relief (rim height + floor depth), converted to meters. The radial grid always
-        ends at rho_max = 2, the extent of the model.
+        ends at rho_max = 2, the extent of the model. For complex craters and basins (_WALL_TYPES), the field keeps only its
+        texture (k > _WALL_FIELD_KMIN), the stacked wall levels are drawn too (see `_draw_wall` and `RealMoonCrater.wall`), and
+        the rim outline is their outermost level at each bearing.
 
         Parameters
         ----------
@@ -327,7 +353,6 @@ class RealMoonMorphology(BasicMoonMorphology):
         rho_max : float
             The largest warped radius of the field.
         """
-        m = self._hfield_model
         R = crater.radius
         pix = self._hfield_pix
         if pix is None:
@@ -378,8 +403,11 @@ class RealMoonMorphology(BasicMoonMorphology):
         return values * (rms / sd) if sd > 0 else values
 
     def _periodic_turbulence(self, n: int, rms: float, k0: float) -> NDArray[np.float64]:
-        """Periodic turbulence at n bearings: octaves o of |band-limited noise| over k in [k0 2^o, k0 2^(o+1)), weighted
-        _WALL_TURBULENCE_PERSISTENCE^o, with its mean removed and the given rms."""
+        """
+        Periodic turbulence at n bearings, with its mean removed and the given rms.
+
+        Octaves o of |band-limited noise| over k in [k0 2^o, k0 2^(o+1)), weighted _WALL_TURBULENCE_PERSISTENCE^o.
+        """
         k = np.arange(n // 2 + 1)
         values = np.zeros(n)
         for o in range(_WALL_TURBULENCE_OCTAVES):

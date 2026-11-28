@@ -27,7 +27,8 @@ _FRAC_EJRIM = 0.3
 # ring scarp, see _SCARP) to narrow wedges of their H-field extracts out to 1.5 rim radii, avoiding younger craters and ray
 # trenches, each wedge with its own background level (Lunar_Morphometry_Revisited, hfield_wedge_fit.py). The relief (rim height
 # plus floor depth) of a wedge is well determined, but not how it divides between rim and floor: the relief is the median of the
-# wedges and the rim height is 0.31 of it, the median of the wedges of Orientale (that of Schrodinger is poorly constrained). Both basins are degraded (freshness class D) and their floors hold later mare and volcanic deposits, so their
+# wedges and the rim height is 0.31 of it, the median of the wedges of Orientale (that of Schrodinger is poorly constrained).
+# Both basins are degraded (freshness class D) and their floors hold later mare and volcanic deposits, so their
 # floor depths and peak-ring heights are lower bounds.
 _BASIN_ANCHORS = {
     340.2e3: {  # Schrodinger: relief 0.0134 D
@@ -111,8 +112,10 @@ def _log_step(diameter: float, bounds: tuple[float, float]) -> float:
 
 def peak_ring_layout(diameter: float, rng: Generator | None = None) -> tuple[float, float]:
     """
-    The layout of the central peak or peak ring of a non-simple crater (see _PEAK_RING_RATIO). Beyond the diameter of Orientale,
-    the ring ratio is held at its value for Orientale and its scatter in m is held at its size for Orientale.
+    The layout of the central peak or peak ring of a non-simple crater (see _PEAK_RING_RATIO).
+
+    Beyond the diameter of Orientale, the ring ratio is held at its value for Orientale and its scatter in m is held at its size
+    for Orientale.
 
     Parameters
     ----------
@@ -138,8 +141,9 @@ def peak_ring_layout(diameter: float, rng: Generator | None = None) -> tuple[flo
 
 def scarp_layout(diameter: float, morphology_type: str, rng: Generator | None = None) -> tuple[float, float, float]:
     """
-    The ring scarp of a crater (see _SCARP): only multiring basins have one. Beyond the diameter of Orientale, the scatter of its
-    radius in m is held at its size for Orientale.
+    The ring scarp of a crater (see _SCARP): only multiring basins have one.
+
+    Beyond the diameter of Orientale, the scatter of its radius in m is held at its size for Orientale.
 
     Parameters
     ----------
@@ -386,10 +390,13 @@ class BasicMoonCrater(MorphologyCrater):
             Original central peak width (standard deviation) of the crater in meters. If None, it will be computed for complex craters and multiring basins (widening to that of the peak ring of Schrodinger as the peak opens into a ring) and set to 0 for all other types.
         peak_ring_radius : float, optional
             Original radius of the peak ring of the crater in meters. If None, it follows `peak_ring_layout`: 0 (a central peak) below 200 km, opening into a peak ring between 200 and 300 km, at about 0.4 of the rim radius.
-        peak_center_distance: float, optional
-            Distance of central peak/peak ring from crater center in meters.
-        peak_center_bearing: float, optional
-            Bearing angle of central peak/peak ring in degrees.
+        peak_center_distance : float, optional
+            Distance of the center of the central peak or peak ring from the crater center (m). The basicmoon profile is
+            axisymmetric and ignores it (default 0); realmoon builds its peaks around this offset center, and if it is None draws
+            a random offset (see realmoon._PEAK_OFFSET_SIGMA).
+        peak_center_bearing : float, optional
+            Bearing of the center of the central peak or peak ring from the crater center (degrees, clockwise from north). The
+            basicmoon profile ignores it (default 0); realmoon draws a random bearing if it is None.
         scarp_radius : float, optional
             Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters; 0 for no scarp. If None, it follows `scarp_layout`: multiring basins have the Outer Rook ring of Orientale, at 0.67 of the rim radius, and other craters none.
         scarp_height : float, optional
@@ -1567,7 +1574,6 @@ class BasicMoonMorphology(Morphology):
         .. [#] Minton, D.A., Fassett, C.I., Hirabayashi, M., Howl, B.A., Richardson, J.E., (2019). The equilibrium size-frequency distribution of small craters reveals the effects of distal ejecta on lunar landscape morphology. Icarus 326, 63-87. `doi:10.1016/j.icarus.2019.02.021 <https://doi.org/10.1016/j.icarus.2019.02.021>`_
         .. [#] Riedel, C., Minton, D.A., Michael, G., Orgel, C., Bogert, C.H. van der, Hiesinger, H., 2020. Degradation of Small Simple and Large Complex Lunar Craters: Not a Simple Scale Dependence. Journal of Geophysical Research: Planets 125, e2019JE006273. `doi:10.1029/2019JE006273 <https://doi.org/10.1029/2019JE006273>`_
         """
-
         if np.ndim(diameter) == 0:
             return basicmoon_bindings.degradation_function(float(diameter), float(fe))
         diameter = np.asarray(diameter, dtype=np.float64)

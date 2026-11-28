@@ -408,6 +408,52 @@ class TestRealMoon(unittest.TestCase):
         self.assertGreater(f.shape[0], c.shape[0])
         self.assertGreater(f.shape[1], c.shape[1])
 
+    def test_peak_center(self):
+        """A realmoon peak's center is offset at random unless given; a given offset is kept and the peak is built around it."""
+        import cratermaker
+
+        D = 60e3
+        changes = {}
+        for offset in (True, False):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                sim = cratermaker.Simulation(
+                    simdir=simdir,
+                    surface="hireslocal",
+                    morphology="realmoon",
+                    local_location=(0, 0),
+                    local_radius=1.5 * D,
+                    pix=D / 200,
+                    ask_overwrite=False,
+                    reset=True,
+                    rng_seed=3,
+                    save_observed=False,
+                    save_emplaced=False,
+                )
+                random = sim.Crater.maker(diameter=D, location=(0, 0), morphology_type="complex")
+                self.assertGreater(random.peak_center_distance, 0.0)
+                distance = 0.3 * random.radius
+                crater = sim.Crater.maker(
+                    diameter=D, location=(0, 0), morphology_type="complex", peak_center_distance=distance, peak_center_bearing=90.0
+                )
+                self.assertEqual(crater.peak_center_distance, distance)
+                self.assertEqual(crater.peak_center_bearing, 90.0)
+                copy = sim.Crater.maker(crater=crater)
+                self.assertEqual((copy.peak_center_distance, copy.peak_center_bearing), (distance, 90.0))
+                if not offset:
+                    crater = sim.Crater.maker(crater=crater, peak_height=0.0)
+                region = sim.surface.extract_region((0, 0), 0.75 * D)
+                sim.emplace(crater)
+                b = np.radians(np.asarray(region.face_bearing))
+                r = np.asarray(region.face_distance)
+                changes[offset] = (r * np.sin(b), r * np.cos(b), np.asarray(region.face_area), np.array(region.face_elevation))
+        x, y, area, with_peak = changes[True]
+        peak = np.clip(with_peak - changes[False][3], 0.0, None) * area
+        cx, cy = np.sum(peak * x) / np.sum(peak), np.sum(peak * y) / np.sum(peak)
+        # The peak is built around the given center, 0.3 R to the east
+        self.assertGreater(cx, 0.5 * distance)
+        self.assertLess(cx, 1.5 * distance)
+        self.assertLess(abs(cy), 0.5 * distance)
+
     def test_central_peak(self):
         """A complex crater gets a central peak of its height that changes nothing beyond the floor and conserves volume."""
         import cratermaker

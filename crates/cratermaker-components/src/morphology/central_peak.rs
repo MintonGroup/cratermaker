@@ -15,7 +15,8 @@
 //! slope there), so that crater
 //! formation still conserves volume.
 //!
-//! The peak is offset from the crater center and elongated along a random direction, both drawn from its seed: the envelope is
+//! The peak is offset from the crater center (by the crater's peak center distance and bearing, or, if none is given, by an
+//! offset drawn from its seed) and elongated along a random direction drawn from its seed: the envelope is
 //! evaluated in coordinates centered on the offset point and stretched along the elongation direction (by a factor whose
 //! logarithm is `elongation_sigma` times a half-normal deviate, preserving area). The noise of the columns and of their
 //! critical angle is not stretched, so that the peak is elongated as a whole while its texture stays rugged in every
@@ -65,7 +66,7 @@ pub struct PeakModel {
     /// Standard deviation of each component of the offset of the envelope's center from the crater center, in envelope widths.
     pub offset_sigma: f64,
     /// Standard deviation of the half-normal distribution of the logarithm of the elongation (the ratio of the long to the
-    /// short axis) of the envelope and noise; 0 for round peaks.
+    /// short axis) of the envelope (the noise is not stretched); 0 for round peaks.
     pub elongation_sigma: f64,
 }
 
@@ -94,7 +95,7 @@ impl Default for PeakModel {
 /// The parameters of a central peak or peak ring.
 #[derive(Clone, Copy, Debug)]
 pub struct CentralPeak {
-    /// Height of the highest point of the relaxed peak above the floor (m).
+    /// Height of the highest point of the peak above the floor (m).
     pub height: f64,
     /// Standard deviation of the Gaussian envelope (m).
     pub width: f64,
@@ -102,6 +103,10 @@ pub struct CentralPeak {
     pub ring_radius: f64,
     /// Radius of the crater floor (m), from which the peak's volume is removed.
     pub floor_radius: f64,
+    /// The offset of the envelope's center from the crater center: its distance (m) and bearing (degrees, clockwise from
+    /// north). None to draw it from the seed (a two-dimensional Gaussian of standard deviation `PeakModel::offset_sigma`
+    /// envelope widths in each direction).
+    pub center: Option<(f64, f64)>,
 }
 
 impl CentralPeak {
@@ -122,7 +127,7 @@ impl CentralPeak {
 ///
 /// # Returns
 ///
-/// The face elevation change: the relaxed peak, less a layer of the same volume over the floor that thins to zero at its edge.
+/// The face elevation change: the peak, less a layer of the same volume over the floor that thins to zero at its edge.
 pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &PeakModel, seed: u64) -> ArrayResult {
     let nf = region.n_face();
     let mut change = Array1::<f64>::zeros(nf);
@@ -140,7 +145,13 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
     // The offset of the peak and its elongation (see the module documentation), and the coordinates of each face in the peak's
     // frame: centered on the offset point, rotated to the elongation direction, and stretched along it
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
-    let (dx, dy) = (model.offset_sigma * peak.width * normal(&mut rng), model.offset_sigma * peak.width * normal(&mut rng));
+    let (dx, dy) = match peak.center {
+        Some((distance, bearing)) => {
+            let (sb, cb) = bearing.to_radians().sin_cos();
+            (distance * sb, distance * cb)
+        }
+        None => (model.offset_sigma * peak.width * normal(&mut rng), model.offset_sigma * peak.width * normal(&mut rng)),
+    };
     // Peak rings stay circular: the elongation fades out as the peak opens into a ring (its offset moves the ring's center)
     let round = smootherstep(peak.ring_radius / (2.0 * peak.width));
     let stretch = ((1.0 - round) * model.elongation_sigma * normal(&mut rng).abs()).exp().sqrt();
@@ -196,13 +207,13 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
     // The columns, scaled so that the highest is the peak's height, with flanks at the critical slope
     let columns = shape * (peak.height / top);
     let zero_nodes = Array1::<f64>::zeros(region.n_node());
-    let relaxed = {
+    let peak_relief = {
         let view = region.kernel_view(columns.view(), zero_nodes.view());
         slope_limited_envelope(columns.view(), critical_slope.view(), &view)?
     };
 
     // Remove the peak's volume from the floor as a layer that thins to zero at its edge
-    let volume: f64 = relaxed.iter().zip(region.face_area.iter()).map(|(&h, &a)| h * a).sum();
+    let volume: f64 = peak_relief.iter().zip(region.face_area.iter()).map(|(&h, &a)| h * a).sum();
     let taper: Vec<(usize, f64)> = (0..nf)
         .filter_map(|f| {
             let u = region.face_distance[f] / peak.floor_radius;
@@ -210,7 +221,7 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
         })
         .collect();
     let taper_volume: f64 = taper.iter().map(|&(f, w)| w * region.face_area[f]).sum();
-    change.assign(&relaxed);
+    change.assign(&peak_relief);
     if taper_volume > 0.0 {
         let layer = volume / taper_volume;
         for &(f, w) in &taper {

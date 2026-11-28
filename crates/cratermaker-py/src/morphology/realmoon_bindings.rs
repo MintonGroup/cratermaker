@@ -138,17 +138,19 @@ pub fn form_craters<'py>(
     )
 }
 
-/// Builds the central peak or peak ring of a realistic lunar crater on a region (see `central_peak.rs`): the relaxed peak, less
+/// Builds the central peak or peak ring of a realistic lunar crater on a region (see `central_peak.rs`): the peak, less
 /// the layer of the same volume removed from the floor.
 ///
 /// # Arguments
 ///
 /// * `region` - The Python `LocalSurface` the peak is built on, centered on the crater.
-/// * `height` - The height of the highest point of the relaxed peak (m).
+/// * `height` - The height of the highest point of the peak (m).
 /// * `width` - The standard deviation of the peak's Gaussian envelope (m).
 /// * `ring_radius` - The radius of the envelope's ring (m); 0 for a central peak.
 /// * `floor_radius` - The radius of the floor the peak's volume is removed from (m); 0 to leave the floor unchanged.
 /// * `seed` - The seed of the peak's noise fields.
+/// * `center_distance`, `center_bearing` - The offset of the peak's center from the crater center (m, and degrees clockwise
+///   from north); if either is None, the offset is drawn from the seed.
 /// * The remaining arguments override the parameters of the peak model (`central_peak.rs`, `PeakModel`), for its calibration;
 ///   by default they are Cratermaker's.
 ///
@@ -156,7 +158,7 @@ pub fn form_craters<'py>(
 ///
 /// * The change of the elevation of each face of the region (m).
 #[pyfunction]
-#[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, threshold=None, noise_wavelength=None, octaves=None,
+#[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, center_distance=None, center_bearing=None, threshold=None, noise_wavelength=None, octaves=None,
     persistence=None, ramp_exponent=None, critical_angle=None, angle_spread=None, angle_noise_wavelength=None, support=None, offset_sigma=None,
     elongation_sigma=None))]
 #[allow(clippy::too_many_arguments)]
@@ -168,6 +170,8 @@ pub fn central_peak<'py>(
     ring_radius: f64,
     floor_radius: f64,
     seed: u64,
+    center_distance: Option<f64>,
+    center_bearing: Option<f64>,
     threshold: Option<f64>,
     noise_wavelength: Option<f64>,
     octaves: Option<usize>,
@@ -200,6 +204,7 @@ pub fn central_peak<'py>(
         width,
         ring_radius,
         floor_radius,
+        center: center_distance.zip(center_bearing),
     };
     let view = region.as_view();
     let change = py

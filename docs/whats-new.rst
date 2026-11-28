@@ -8,7 +8,7 @@ What's New
 
 .. _whats-new.2026.11.1-alpha:
 
-- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater with an irregular rim outline and a random field of terraces, slumps and texture drawn from an empirical model of fresh lunar craters (``hfield_model.nc``). Transitional and complex craters get rugged, randomly offset and elongated central peaks with slopes near the angle of repose, which open into peak rings in craters larger than about 200 km. The walls of complex craters and basins are stacks of lobate, terraced levels that merge into each other, under a nearly round rim. The earlier model based on profile power spectra is removed. `David Minton`_
+- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater with an irregular rim outline and a random field of terraces, slumps and texture drawn from an empirical model of fresh lunar craters (``hfield_model.nc``). Transitional and complex craters get rugged, randomly offset and elongated central peaks with slopes near the angle of repose, which open into peak rings in craters larger than about 200 km. The walls of complex craters and basins are stacks of lobate, terraced levels that merge into each other, under a nearly round rim. The center of a realmoon peak or peak ring is offset at random from the crater center, or by ``peak_center_distance`` and ``peak_center_bearing`` when they are given. The earlier model based on profile power spectra is removed. `David Minton`_
 - Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
 
    - New size relations for the crater profile parameters, with the scatter between craters.

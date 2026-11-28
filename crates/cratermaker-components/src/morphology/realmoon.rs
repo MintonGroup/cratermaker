@@ -123,16 +123,38 @@ pub struct RealMoonField<'a> {
     pub wall: Option<WallLevels<'a>>,
 }
 
-/// A periodic function given at `n` bearings (i + 1/2) 360 / n degrees, interpolated at a bearing (radians) with a periodic
-/// Catmull-Rom cubic.
+/// The periodic Catmull-Rom stencil at a bearing (radians) for a function given at `n` bearings (i + 1/2) 360 / n degrees: the
+/// indices of the four bearings around it and their weights.
 #[inline]
-fn periodic_at(values: ArrayView1<'_, f64>, bearing: f64) -> f64 {
-    let n = values.len() as i64;
+fn bearing_stencil(n: usize, bearing: f64) -> ([usize; 4], [f64; 4]) {
+    let n = n as i64;
     let x = (bearing.to_degrees().rem_euclid(360.0)) * n as f64 / 360.0 - 0.5;
     let i = x.floor();
     let w = cubic_weights(x - i);
     let i = i as i64;
-    (0..4).map(|a| w[a] * values[(i + a as i64 - 1).rem_euclid(n) as usize]).sum()
+    ([-1, 0, 1, 2].map(|d| (i + d).rem_euclid(n) as usize), w)
+}
+
+/// A periodic function given at its bearings (see `bearing_stencil`), interpolated with a stencil.
+#[inline]
+fn apply_stencil(values: ArrayView1<'_, f64>, stencil: &([usize; 4], [f64; 4])) -> f64 {
+    (0..4).map(|a| stencil.1[a] * values[stencil.0[a]]).sum()
+}
+
+/// A periodic function given at `n` bearings (i + 1/2) 360 / n degrees, interpolated at a bearing (radians) with a periodic
+/// Catmull-Rom cubic.
+#[inline]
+fn periodic_at(values: ArrayView1<'_, f64>, bearing: f64) -> f64 {
+    apply_stencil(values, &bearing_stencil(values.len(), bearing))
+}
+
+/// The warped radius inside the ring scarp of a multiring basin: the peak-ring basin inside the scarp (its floor, inner wall and
+/// the scarp itself) follows the outline of the scarp, so inside the scarp's crest the warped radius is divided by the scarp's
+/// radius factor too, a factor that fades out (a smootherstep in the warped radius) between the crest and the main rim.
+#[inline]
+fn scarp_warp(rho: f64, bearing: f64, scarp_rho: f64, scarp_radius: ArrayView1<'_, f64>) -> f64 {
+    let weight = 1.0 - smootherstep((rho - scarp_rho) / (1.0 - scarp_rho));
+    rho / periodic_at(scarp_radius, bearing).powf(weight)
 }
 
 impl RealMoonField<'_> {
@@ -140,24 +162,10 @@ impl RealMoonField<'_> {
         self.field.nrows()
     }
 
-    /// The indices of the four bearings around `bearing` (radians), periodic, and the position between the middle two.
-    #[inline]
-    fn theta_stencil(&self, bearing: f64) -> ([usize; 4], f64) {
-        let n = self.n_theta() as i64;
-        let x = (bearing.to_degrees().rem_euclid(360.0)) * n as f64 / 360.0 - 0.5;
-        let i = x.floor();
-        let t = x - i;
-        let i = i as i64;
-        let idx = [-1, 0, 1, 2].map(|d| (i + d).rem_euclid(n) as usize);
-        (idx, t)
-    }
-
     /// The rim outline R_rim / R at a bearing (radians), interpolated with a periodic cubic.
     #[inline]
     pub fn rim_at(&self, bearing: f64) -> f64 {
-        let (idx, t) = self.theta_stencil(bearing);
-        let w = cubic_weights(t);
-        (0..4).map(|a| w[a] * self.rim[idx[a]]).sum()
+        periodic_at(self.rim, bearing)
     }
 
     /// The field (m) at a bearing (radians) and warped radius, interpolated bicubically (Catmull-Rom; periodic in bearing,
@@ -172,8 +180,7 @@ impl RealMoonField<'_> {
         let j = (y.floor() as i64).min(n_rho - 2);
         let v = y - j as f64;
         let jdx = [-1, 0, 1, 2].map(|d| (j + d).clamp(0, n_rho - 1) as usize);
-        let (idx, t) = self.theta_stencil(bearing);
-        let wt = cubic_weights(t);
+        let (idx, wt) = bearing_stencil(self.n_theta(), bearing);
         let wr = cubic_weights(v);
         let f = &self.field;
         let mut value = 0.0;
@@ -230,10 +237,8 @@ pub fn realmoon_profile(
         return Err("the rim outline must have one value per bearing of the field, and the field at least 2 x 2 values".into());
     }
     let radius = crater.radius;
-    // The warped radius of each point, and the distance at which the basic profile is evaluated
-    // For a multiring basin, the peak-ring basin inside the ring scarp (its floor, inner wall and the scarp itself) follows the
-    // outline of the scarp: inside the scarp's crest, the warped radius is divided by the scarp's radius factor too, and the
-    // factor fades out (a smootherstep in the warped radius) between the crest and the main rim.
+    // The warped radius of each point, and the distance at which the basic profile is evaluated (for a multiring basin, with
+    // the warp of its ring scarp, see `scarp_warp`)
     let varying_scarp = crater.has_scarp() && !data.scarp_radius.is_empty() && data.scarp_radius.len() == data.scarp_height.len();
     let scarp_rho = crater.scarp_radius / radius;
     let rho: Vec<f64> = radial_distances
@@ -241,11 +246,7 @@ pub fn realmoon_profile(
         .zip(bearings.iter())
         .map(|(&r, &b)| {
             let rho0 = r / (radius * data.rim_at(b));
-            if !varying_scarp {
-                return rho0;
-            }
-            let weight = 1.0 - smootherstep((rho0 - scarp_rho) / (1.0 - scarp_rho));
-            rho0 / periodic_at(data.scarp_radius, b).powf(weight)
+            if varying_scarp { scarp_warp(rho0, b, scarp_rho, data.scarp_radius) } else { rho0 }
         })
         .collect();
     let warped = Array1::from_iter(rho.iter().map(|&x| x * radius));
@@ -306,7 +307,8 @@ pub fn realmoon_profile(
         });
     }
     if include_crater && let Some(wall) = &data.wall {
-        let delta = wall_delta(radial_distances, bearings, crater, &basic, wall, &warped, varying_scarp, data)?;
+        let scarp = if varying_scarp { Some(data.scarp_radius) } else { None };
+        let delta = wall_delta(radial_distances, bearings, &basic, wall, &warped, scarp, data.n_theta())?;
         h.iter_mut().zip(delta.iter()).for_each(|(v, d)| *v += d);
     }
     Ok(h)
@@ -315,20 +317,18 @@ pub fn realmoon_profile(
 /// The change of the crater part of the profile made by the wall levels (see `WallLevels`): at each point, the terraced wall
 /// (or, inside the lowest level, the basic profile following that level's outline, and outside the crest, the crest's fading
 /// elevation offset) less the basic profile at the warped radius, plus the wall turbulence.
-#[allow(clippy::too_many_arguments)]
 fn wall_delta(
     radial_distances: ArrayView1<'_, f64>,
     bearings: ArrayView1<'_, f64>,
-    crater: &BasicMoonCrater,
     basic: &BasicMoonCrater,
     wall: &WallLevels<'_>,
     warped: &Array1<f64>,
-    varying_scarp: bool,
-    data: &RealMoonField<'_>,
+    scarp_radius: Option<ArrayView1<'_, f64>>,
+    n_theta: usize,
 ) -> ArrayResult {
     let n_levels = wall.nominal.len();
-    let radius = crater.radius;
-    if n_levels < 2 || wall.levels.shape() != [3, n_levels, data.n_theta()] {
+    let radius = basic.radius;
+    if n_levels < 2 || wall.levels.shape() != [3, n_levels, n_theta] {
         return Err("the wall levels must be 3 x n_levels x n_theta, with at least two levels".into());
     }
     let n = radial_distances.len();
@@ -338,13 +338,13 @@ fn wall_delta(
     let knots_r = Array1::from_iter(wall.nominal.iter().map(|&x| x * radius));
     let knots = basicmoon_profile(knots_r.view(), Array1::<f64>::zeros(n_levels).view(), basic, true, false)?;
     // At each point: the zone, the terrace parameters and the radius at which the basic profile is needed
-    let scarp_rho = crater.scarp_radius / radius;
+    let scarp_rho = basic.scarp_radius / radius;
     let gens: Vec<SuperSimplex> = (0..WALL_TURBULENCE_OCTAVES).map(|o| SuperSimplex::new(wall.seed.wrapping_add(o))).collect();
     let (t_mean, t_sd) = turbulence_moments();
     struct Point {
         query: f64,
         value: f64,
-        kind: u8, // 0: no change, 1: terrace (value = lo, query: smooth), 2: inside (query), 3: outside (value = offset)
+        kind: u8, // 0: no change, 1: terrace (lo, hi, ...; query: the smooth profile), 2: inside (query), 3: outside (value: offset)
         hi: f64,
         lo: f64,
         k_hi: f64,
@@ -359,12 +359,13 @@ fn wall_delta(
         .map(|i| {
             let b = bearings[i];
             let x = radial_distances[i] / radius;
+            let stencil = bearing_stencil(n_theta, b);
             let mut lv: Vec<(f64, f64, f64)> = (0..n_levels)
                 .map(|j| {
                     (
-                        periodic_at(wall.levels.slice(s![0, j, ..]), b),
-                        periodic_at(wall.levels.slice(s![1, j, ..]), b).clamp(0.0, 1.0),
-                        periodic_at(wall.levels.slice(s![2, j, ..]), b),
+                        apply_stencil(wall.levels.slice(s![0, j, ..]), &stencil),
+                        apply_stencil(wall.levels.slice(s![1, j, ..]), &stencil).clamp(0.0, 1.0),
+                        apply_stencil(wall.levels.slice(s![2, j, ..]), &stencil),
                     )
                 })
                 .collect();
@@ -391,9 +392,8 @@ fn wall_delta(
             if x < lowest {
                 // The basic profile follows the lowest level's outline (and, in a multiring basin, the scarp's)
                 let mut rho_in = x * wall.nominal[n_levels - 1] / lowest;
-                if varying_scarp {
-                    let weight = 1.0 - smootherstep((rho_in - scarp_rho) / (1.0 - scarp_rho));
-                    rho_in /= periodic_at(data.scarp_radius, b).powf(weight);
+                if let Some(scarp) = scarp_radius {
+                    rho_in = scarp_warp(rho_in, b, scarp_rho, scarp);
                 }
                 p.kind = 2;
                 p.query = rho_in * radius;
@@ -431,25 +431,17 @@ fn wall_delta(
 mod tests {
     use super::*;
 
-    fn data(n_theta: usize, n_rho: usize, value: f64) -> (Array1<f64>, Array2<f64>) {
-        (
-            Array1::from_elem(n_theta, 1.0),
-            Array2::from_elem((n_theta, n_rho), value),
-        )
-    }
-
-    #[test]
-    fn round_levels_without_scarps_or_offsets_give_the_basic_profile() {
-        // With round levels at their nominal radii, no scarps, no offsets and no turbulence, the terraced wall is the basic profile
-        let crater = BasicMoonCrater {
-            diameter: 100e3,
-            radius: 50e3,
-            floor_elevation: -3000.0,
-            floor_radius: 30e3,
+    /// A crater without peak or scarp, with the given radius, floor elevation, floor radius, rim width and rim height.
+    fn test_crater(radius: f64, floor_elevation: f64, floor_radius: f64, rim_width: f64, rim_height: f64) -> BasicMoonCrater {
+        BasicMoonCrater {
+            diameter: 2.0 * radius,
+            radius,
+            floor_elevation,
+            floor_radius,
             wall_curvature: 0.2,
             floor_blend: 0.5,
-            rim_width: 8e3,
-            rim_height: 1000.0,
+            rim_width,
+            rim_height,
             frac_ejrim: 0.3,
             ejprofile: -3.0,
             peak_height: 0.0,
@@ -460,7 +452,20 @@ mod tests {
             scarp_radius: 0.0,
             scarp_height: 0.0,
             scarp_width: 0.0,
-        };
+        }
+    }
+
+    fn data(n_theta: usize, n_rho: usize, value: f64) -> (Array1<f64>, Array2<f64>) {
+        (
+            Array1::from_elem(n_theta, 1.0),
+            Array2::from_elem((n_theta, n_rho), value),
+        )
+    }
+
+    #[test]
+    fn round_levels_without_scarps_or_offsets_give_the_basic_profile() {
+        // With round levels at their nominal radii, no scarps, no offsets and no turbulence, the terraced wall is the basic profile
+        let crater = test_crater(50e3, -3000.0, 30e3, 8e3, 1000.0);
         let n_theta = 16;
         let (rim, field) = data(n_theta, 11, 0.0);
         let nominal = Array1::from(vec![1.0, 0.9, 0.78, 0.65]);
@@ -509,26 +514,7 @@ mod tests {
 
     #[test]
     fn zero_field_and_round_rim_give_the_basic_profile() {
-        let crater = BasicMoonCrater {
-            diameter: 10e3,
-            radius: 5e3,
-            floor_elevation: -1500.0,
-            floor_radius: 1000.0,
-            wall_curvature: 0.2,
-            floor_blend: 0.5,
-            rim_width: 1200.0,
-            rim_height: 400.0,
-            frac_ejrim: 0.3,
-            ejprofile: -3.0,
-            peak_height: 0.0,
-            peak_width: 0.0,
-            peak_ring_radius: 0.0,
-            peak_center_distance: 0.0,
-            peak_center_bearing: 0.0,
-            scarp_radius: 0.0,
-            scarp_height: 0.0,
-            scarp_width: 0.0,
-        };
+        let crater = test_crater(5e3, -1500.0, 1000.0, 1200.0, 400.0);
         let (rim, field) = data(16, 11, 0.0);
         let d = RealMoonField {
             rim: rim.view(),

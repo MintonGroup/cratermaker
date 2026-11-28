@@ -43,8 +43,10 @@ _RIM_BUFFER_FACTOR = 1.5
 
 def _ring_vertex_count(radius: FloatLike, surface: Surface | LocalSurface) -> int:
     """
-    The number of vertices of a ring of the given radius drawn on the surface: about two of the finest faces of the surface apart
-    (at least 121), so that the straight segments between them do not cut through the surface.
+    The number of vertices of a ring of the given radius drawn on the surface.
+
+    The vertices are about two of the finest faces of the surface apart (at least 121), so that the straight segments between
+    them do not cut through the surface.
     """
     finest_face = float(np.min(surface.face_size))
     return int(np.clip(2 * np.pi * radius / (2 * finest_face), 120, 20000)) + 1

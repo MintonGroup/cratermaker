@@ -179,6 +179,7 @@ impl CraterProfile for RealMoonModel<'_> {
             width: self.crater.peak_width,
             ring_radius: self.crater.peak_ring_radius,
             floor_radius: self.crater.floor_radius,
+            center: Some((self.crater.peak_center_distance, self.crater.peak_center_bearing)),
         };
         peak.is_present().then_some(peak)
     }
