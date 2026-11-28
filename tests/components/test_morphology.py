@@ -367,6 +367,27 @@ class TestMorphology(unittest.TestCase):
 class TestRealMoon(unittest.TestCase):
     """The realistic lunar morphology: the basic crater warped by a rim outline, plus a field of variation (the H-field)."""
 
+    def test_ejecta_balances_crater_without_profile_peak(self):
+        """
+        The ejecta of a crater balances its crater part. A realmoon peak takes its volume from the floor, so the balance is with
+        the profile without the basic Gaussian peak; a basicmoon peak is part of the profile.
+        """
+        from types import SimpleNamespace
+
+        from cratermaker.components.morphology.basicmoon import _PROFILE_PARAMETERS
+
+        for name in ("basicmoon", "realmoon"):
+            morphology = Morphology.maker(name, rng_seed=11)
+            for diameter in (12e3, 40e3, 90e3, 200e3):
+                crater = morphology.Crater.maker(final_diameter=diameter, morphology=morphology, monte_carlo=False)
+                params = SimpleNamespace(**{k: getattr(crater, k) for k in _PROFILE_PARAMETERS})
+                if name == "realmoon":
+                    params.peak_height = 0.0
+                excavated = morphology.estimate_volume(params, include_crater=True, include_ejecta=False)
+                deposit = crater.frac_ejrim * 2 * np.pi * crater.rim_height * crater.radius**2 / (-crater.ejprofile - 2)
+                with self.subTest(morphology=name, diameter=diameter):
+                    self.assertLess(abs(deposit + excavated) / -excavated, 1e-6)
+
     def test_volume_conserved_and_field_kept_on_copy(self):
         import cratermaker
 

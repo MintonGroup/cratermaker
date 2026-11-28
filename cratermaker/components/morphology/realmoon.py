@@ -301,6 +301,10 @@ class RealMoonMorphology(BasicMoonMorphology):
         Arguments of `BasicMoonMorphology`.
     """
 
+    # The peak is built by the central peak model, which takes its volume from the crater floor (see `central_peak`), not by
+    # the basic profile's Gaussian peak
+    peak_in_profile = False
+
     def __init__(self, hfield_model_file: str | Path | None = None, hfield_pix: float | None = None, **kwargs: Any):
         if hfield_model_file is None:
             hfield_model_file = _HFIELD_MODEL_FILE
@@ -443,14 +447,15 @@ class RealMoonMorphology(BasicMoonMorphology):
         Octaves o of |band-limited noise| over k in [k0 2^o, k0 2^(o+1)), weighted _WALL_TURBULENCE_PERSISTENCE^o.
         """
         k = np.arange(n // 2 + 1)
+        o = np.arange(_WALL_TURBULENCE_OCTAVES)[:, None]
+        bands = (k >= k0 * 2**o) & (k < k0 * 2 ** (o + 1)) & (k <= n // 2 - 1)  # (octave, k)
+        # All the octaves' noise in one draw (octave by octave, real then imaginary parts) and one transform
+        draws = rng.standard_normal((_WALL_TURBULENCE_OCTAVES, 2, len(k)))
+        octaves = np.fft.irfft(bands * (draws[:, 0] + 1j * draws[:, 1]), n=n, axis=1)
         values = np.zeros(n)
-        for o in range(_WALL_TURBULENCE_OCTAVES):
-            band = (k >= k0 * 2**o) & (k < k0 * 2 ** (o + 1)) & (k <= n // 2 - 1)
-            noise = rng.standard_normal(len(k)) + 1j * rng.standard_normal(len(k))
-            if not band.any():
-                continue
-            octave = np.fft.irfft(band * noise, n=n)
-            values += _WALL_TURBULENCE_PERSISTENCE**o * np.abs(octave / octave.std())
+        for i in range(_WALL_TURBULENCE_OCTAVES):
+            if bands[i].any():
+                values += _WALL_TURBULENCE_PERSISTENCE**i * np.abs(octaves[i] / octaves[i].std())
         values -= values.mean()
         sd = values.std()
         return values * (rms / sd) if sd > 0 else values

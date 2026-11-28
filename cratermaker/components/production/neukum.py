@@ -501,7 +501,24 @@ class NeukumProduction(Production):
                     logCSFD = sum(co * np.log10(Dkm) ** i for i, co in enumerate(self.sfd_coef))
                     return 10**logCSFD
 
-            return _CSFD_scalar(Dkm) if np.isscalar(Dkm) else np.vectorize(_CSFD_scalar)(Dkm)
+            if np.isscalar(Dkm):
+                return _CSFD_scalar(Dkm)
+            # Arrays are evaluated piecewise with masks (the extrapolation constants once, the polynomial on the whole array)
+            D = np.asarray(Dkm, dtype=np.float64)
+            out = np.empty_like(D)
+            lo, hi = D < Dkm_lo, D > Dkm_hi
+            mid = ~(lo | hi)
+            if lo.any():
+                A, p = _extrapolate_sfd(side="lo")
+                out[lo] = A * (D[lo] / Dkm_lo) ** p
+            if hi.any():
+                A, p = _extrapolate_sfd(side="hi")
+                p -= 5.0  # Steepen the upper branch of the SFD to prevent anomolously large craters from forming
+                out[hi] = A * (D[hi] / Dkm_hi) ** p
+            if mid.any():
+                log_d = np.log10(D[mid])
+                out[mid] = 10 ** sum(co * log_d**i for i, co in enumerate(self.sfd_coef))
+            return out
 
         if np.any(diameter < 0.0):
             raise ValueError("diameter must be greater than or equal to 0.0")

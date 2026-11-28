@@ -1,7 +1,8 @@
 use crate::morphology::form_crater_bindings::run_form_craters;
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::form_crater::BasicMoonModel;
-use numpy::ndarray::Array2;
+use numpy::ndarray::{Array1, Array2};
+use rayon::prelude::*;
 use numpy::{PyArray1, PyArray2, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -183,12 +184,20 @@ pub fn volume_integrand_fracs<'py>(
     include_ejecta: bool,
 ) -> PyResult<Bound<'py, PyArray2<f64>>> {
     let r = radial_distances.as_array();
-    let fracs = fracs.as_array();
+    let fracs: Vec<f64> = fracs.as_array().to_vec();
+    // The rows are independent, so they are evaluated in parallel (each exactly as a single call would)
+    let rows: Vec<Array1<f64>> = py.detach(|| {
+        fracs
+            .par_iter()
+            .map(|&frac| {
+                let trial = BasicMoonCrater { frac_ejrim: frac, ..crater };
+                cratermaker_components::morphology::basicmoon::volume_integrand(r, &trial, include_crater, include_ejecta)
+            })
+            .collect()
+    });
     let mut out = Array2::<f64>::zeros((fracs.len(), r.len()));
-    for (row, &frac) in out.rows_mut().into_iter().zip(fracs.iter()) {
-        let trial = BasicMoonCrater { frac_ejrim: frac, ..crater };
-        let values = cratermaker_components::morphology::basicmoon::volume_integrand(r, &trial, include_crater, include_ejecta);
-        row.into_iter().zip(values.iter()).for_each(|(o, v)| *o = *v);
+    for (mut row, values) in out.rows_mut().into_iter().zip(rows) {
+        row.assign(&values);
     }
     Ok(PyArray2::from_owned_array(py, out))
 }

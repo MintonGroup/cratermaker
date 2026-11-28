@@ -193,6 +193,10 @@ def _basin_ratio(diameter: float, key: str, top_diameter: float, top_value: floa
 _EJPROFILE_RANGE = (-4.0, -2.5)
 # The steepest exponent allowed when no balance is possible within _EJPROFILE_RANGE
 _EJPROFILE_LIMIT = -6.0
+# The exponent of the ejecta profile in the volume conservation solve (see BasicMoonCrater.maker) is iterated until it changes
+# by less than this, or for at most this many iterations
+_VOLUME_SOLVE_TOLERANCE = 1e-6
+_VOLUME_SOLVE_ITERATIONS = 10
 
 # The crater properties that define the axisymmetric profile, as read by the compiled profile and volume functions
 _PROFILE_PARAMETERS = (
@@ -829,11 +833,14 @@ class BasicMoonCrater(MorphologyCrater):
         # first the exponent of the thickness profile, within the range supported by the volume budget of fresh craters
         # (_EJPROFILE_RANGE); if the exponent needed is outside that range, it is held at the nearest end and the rim thickness
         # (frac_ejrim) is solved for instead. The rim height and the rest of the crater are never changed. The structural uplift
-        # of the rim, (1 - frac_ejrim) * rim_height, is part of the crater, so its volume depends on frac_ejrim: the solution is
-        # iterated.
+        # of the rim, (1 - frac_ejrim) * rim_height, is part of the crater, so its volume depends on frac_ejrim, and (weakly,
+        # through the split of the rim between the crater and the ejecta) on the exponent: the solution is iterated until the
+        # exponent no longer changes.
         # Craters with a ring scarp (multiring basins) are not held to volume conservation (see _MULTIRING_EJECTA).
         if conserve_volume and not crater.has_scarp:
             params = SimpleNamespace(**{name: getattr(crater, name) for name in _PROFILE_PARAMETERS})
+            if not type(morphology).peak_in_profile:
+                params.peak_height = 0.0
             lo, hi = _EJPROFILE_RANGE
 
             rim_area = 2 * np.pi * params.rim_height * params.radius**2
@@ -880,15 +887,48 @@ class BasicMoonCrater(MorphologyCrater):
                 # imbalance among those whose crater part removes net volume (the exponent may then go to _EJPROFILE_LIMIT).
                 # Raising frac_ejrim moves volume from the structural uplift (part of the crater) to the ejecta, so a crater
                 # whose rim holds more volume than its cavity removes can still be balanced.
+                # The crater part depends (weakly) on the exponent, so the choice is made with the current exponent, the
+                # exponent is then converged at the chosen rim thickness, and the choice is made again with it, until it picks
+                # a rim thickness already converged. Of those converged, the preferred one is kept (near the limit of the
+                # exponent, the choice can alternate between neighboring rim thicknesses).
                 grid = np.unique(np.concatenate([[frac0], np.linspace(0.0, 1.0, 21)]))
-                results = [(f, *candidate(f, v)) for f, v in zip(grid, crater_volumes(grid))]
-                exact = [r for r in results if r[3] and r[2] < 1e-9 and lo <= r[1] <= hi]
-                if exact:
-                    best = min(exact, key=lambda r: abs(r[0] - frac0))
-                else:
-                    valid = [r for r in results if r[3]]
-                    best = min(valid, key=lambda r: (r[2], abs(r[0] - frac0))) if valid else (frac0, params.ejprofile, 0, False)
-                params.frac_ejrim, params.ejprofile = best[0], best[1]
+
+                def balanced(imbalance):
+                    """The imbalance, with one below 1e-9 (a balance to rounding error) as 0."""
+                    return 0.0 if imbalance < 1e-9 else imbalance
+
+                def preference(f, ejprofile, imbalance):
+                    """Sort key of a (rim thickness, exponent, imbalance): an exact balance in range first, then the smallest imbalance."""
+                    return (not (imbalance == 0.0 and lo <= ejprofile <= hi), imbalance, abs(f - frac0))
+
+                def choose():
+                    """The (rim thickness, exponent, imbalance, excavates) of the preferred balance on the grid."""
+                    results = [(f, *candidate(f, v)) for f, v in zip(grid, crater_volumes(grid))]
+                    valid = [(f, e, balanced(d)) for f, e, d, ok in results if ok]
+                    return (*min(valid, key=lambda r: preference(*r)), True) if valid else (frac0, params.ejprofile, 0.0, False)
+
+                def converge(f, ejprofile):
+                    """The exponent that balances the volume at rim thickness f, iterated from `ejprofile`, and the imbalance."""
+                    imbalance = np.inf
+                    for _ in range(_VOLUME_SOLVE_ITERATIONS):
+                        params.ejprofile = ejprofile
+                        updated, imbalance, excavates = candidate(f, crater_volumes([f])[0])
+                        if not excavates:
+                            return ejprofile, np.inf
+                        step, ejprofile = abs(updated - ejprofile), updated
+                        if step <= _VOLUME_SOLVE_TOLERANCE:
+                            break
+                    return ejprofile, balanced(imbalance)
+
+                frac, ejprofile, _, ok = choose()
+                converged = {}
+                while ok and frac not in converged:
+                    converged[frac] = converge(frac, ejprofile)
+                    params.ejprofile = converged[frac][0]
+                    frac, ejprofile, _, ok = choose()
+                if converged:
+                    frac = min(converged, key=lambda f: preference(f, *converged[f]))
+                    params.frac_ejrim, params.ejprofile = frac, converged[frac][0]
             kwargs["ejprofile"] = params.ejprofile
             kwargs["frac_ejrim"] = params.frac_ejrim
             crater = cls(crater=crater, morphology=morphology, **kwargs)
@@ -1011,6 +1051,11 @@ class BasicMoonMorphology(Morphology):
     """
     An operations class for computing the morphology of a crater and applying it to a surface mesh.
     """
+
+    # Whether the central peak is part of the crater's profile (the Gaussian peak of the basic profile), and so of the volume
+    # the ejecta is balanced against. A morphology that builds its peak separately, with a volume of its own taken from the
+    # crater floor, sets this to False.
+    peak_in_profile = True
 
     def __init__(
         self,
