@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from cratermaker import Scaling, Simulation
 
 # Number of pixels across the radius of the local region. This sets the resolution of each crater relative to its size.
-pixels_per_radius = 200
+pixels_per_radius = 400
 
 # Each crater gets its own simulation directory. The transitional crater diameter is the nominal simple-to-complex transition
 # diameter of the lunar scaling model.

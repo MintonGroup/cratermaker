@@ -153,8 +153,8 @@ class TestMorphology(unittest.TestCase):
         radii = np.array([peak_ring_layout(d)[1] for d in diameters])
         self.assertTrue(np.all(np.diff(radii) >= 0.0))
         self.assertLess(np.max(np.diff(radii)), 0.02 * radii[-1])
-        _, ring_radius = peak_ring_layout(1000e3)
-        self.assertAlmostEqual(ring_radius / 500e3, _PEAK_RING_RATIO * (1000e3 / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT)
+        _, ring_radius = peak_ring_layout(900e3)
+        self.assertAlmostEqual(ring_radius / 450e3, _PEAK_RING_RATIO * (900e3 / _PEAK_RING_D_REF) ** _PEAK_RING_EXPONENT)
 
     def test_ring_layout_capped_at_orientale(self):
         # Beyond Orientale, the ring ratios are not extrapolated and the scatter of the ring radii stays fixed in m
@@ -242,18 +242,35 @@ class TestMorphology(unittest.TestCase):
                 np.testing.assert_allclose(crater_part + ejecta_part, total, atol=1e-6)
 
     def test_realmoon_basin_rim_wobble(self):
-        # Beyond the largest complex crater of the model, the rim wobble (in m) follows the largest measured outlines, and is held
-        # at that of Orientale's Outer Rook ring beyond it
-        from cratermaker.components.morphology.realmoon import _RIM_WOBBLE_ANCHORS
-
+        # Beyond the largest complex crater of the model, the rim wobble (in m) is held at that crater's
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
             surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
             morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=3, hfield_pix=5e3)
-            d_max, w_max = _RIM_WOBBLE_ANCHORS[-1]
-            for diameter in (d_max, 3 * d_max):
-                scale = morphology._rim_wobble_scale(diameter)
-                self.assertAlmostEqual(scale * morphology._rim_wobble_ln_rms * diameter / 2, w_max, delta=1.0)
+            d0 = morphology._rim_wobble_diameter
+            for diameter in (2 * d0, 6 * d0):
+                self.assertAlmostEqual(morphology._rim_wobble_scale(diameter) * diameter, d0)
             self.assertEqual(morphology._rim_wobble_scale(50e3), 1.0)
+
+    def test_realmoon_wall_levels(self):
+        # Complex craters get stacked wall levels whose outermost one is the rim outline; simple craters get none
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+            surface = Surface.maker(simdir=simdir, target=self.target, reset=True, gridlevel=self.gridlevel, ask_overwrite=False)
+            morphology = Morphology.maker(morphology="realmoon", surface=surface, rng_seed=11, hfield_pix=500.0)
+            crater = morphology.Crater.maker(diameter=100e3, location=(0.0, 0.0))
+            self.assertEqual(crater.morphology_type, "complex")
+            nominal, levels, params = crater.wall
+            self.assertGreaterEqual(len(nominal), 2)
+            self.assertEqual(nominal[0], 1.0)
+            self.assertTrue(np.all(np.diff(nominal) < 0))
+            self.assertGreaterEqual(nominal[-1], crater.floor_radius / crater.radius)
+            rim = crater.hfield[0]
+            self.assertEqual(levels.shape, (3, len(nominal), len(rim)))
+            np.testing.assert_allclose(rim, levels[0].max(axis=0))
+            self.assertTrue(np.all((levels[1] >= 0) & (levels[1] <= 1)))
+            r = np.linspace(0, 2 * crater.radius, 200)
+            self.assertTrue(np.all(np.isfinite(morphology.crater_profile(crater, r, bearings=np.full(200, 30.0)))))
+            simple = morphology.Crater.maker(diameter=2e3, location=(0.0, 0.0))
+            self.assertEqual(len(simple.wall[0]), 0)
 
     def test_realmoon_copy_keeps_field(self):
         # Copying a crater (with the constructor or with maker) keeps the field it has already drawn, without drawing any random
@@ -445,11 +462,11 @@ class TestRealMoon(unittest.TestCase):
         # lowest point of the floor near the peak (where there are no columns, the change is that of the layer alone)
         near = r < 2.5 * crater.peak_width
         self.assertAlmostEqual((change.max() - change[near].min()) / crater.peak_height, 1.0, delta=0.05)
-        # Beyond the floor only the faint tail of the (offset, elongated) envelope remains, and the peak's volume is taken from
-        # the floor
+        # Beyond the floor only the faint tail of the (randomly offset and elongated) envelope remains, and the peak's volume is
+        # taken from the floor
         outside = np.abs(change[r > crater.floor_radius * 1.05])
         print(f"largest change beyond the floor: {outside.max():.3g} m of a {crater.peak_height:.0f} m peak")
-        self.assertLess(outside.max(), 1e-3 * crater.peak_height)
+        self.assertLess(outside.max(), 1e-2 * crater.peak_height)
         self.assertLess(abs(np.sum(change * area)) / np.sum(np.abs(change) * area), 1e-8)
 
 

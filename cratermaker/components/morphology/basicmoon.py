@@ -22,30 +22,29 @@ _EJPROFILE = -3.0
 _FRAC_EJRIM = 0.3
 # The profiles of the largest craters. Above the range of the fresh craters the non-simple size relations are fitted to (x_max,
 # 138 km), the profile parameters (in proportion to the diameter or radius) move from those of the relations at x_max to those
-# of the peak-ring basin Schrodinger (368 km) and the multiring basin Orientale (1020 km), interpolated in ln D, and keep those of
+# of the peak-ring basin Schrodinger (340 km) and the multiring basin Orientale (989 km), interpolated in ln D, and keep those of
 # Orientale beyond it. The values are the medians of fits of the basic profile (with a Gaussian peak ring, and for Orientale its
 # ring scarp, see _SCARP) to narrow wedges of their H-field extracts out to 1.5 rim radii, avoiding younger craters and ray
 # trenches, each wedge with its own background level (Lunar_Morphometry_Revisited, hfield_wedge_fit.py). The relief (rim height
 # plus floor depth) of a wedge is well determined, but not how it divides between rim and floor: the relief is the median of the
-# wedges and the rim height is 0.34 of it, the median of the wedges of Orientale (that of Schrodinger, 0.34, is poorly
-# constrained). Both basins are degraded (freshness class D) and their floors hold later mare and volcanic deposits, so their
+# wedges and the rim height is 0.31 of it, the median of the wedges of Orientale (that of Schrodinger is poorly constrained). Both basins are degraded (freshness class D) and their floors hold later mare and volcanic deposits, so their
 # floor depths and peak-ring heights are lower bounds.
 _BASIN_ANCHORS = {
-    368.18e3: {  # Schrodinger: relief 0.0122 D
-        "rim_height_over_D": 0.00415,
-        "floor_depth_over_D": 0.00805,
-        "floor_radius_over_R": 0.610,
-        "rim_width_over_R": 0.091,
-        "wall_curvature": 1.0,
-        "floor_blend": 0.264,
+    340.2e3: {  # Schrodinger: relief 0.0134 D
+        "rim_height_over_D": 0.00412,
+        "floor_depth_over_D": 0.00927,
+        "floor_radius_over_R": 0.735,
+        "rim_width_over_R": 0.144,
+        "wall_curvature": 0.609,
+        "floor_blend": 0.721,
     },
-    1020.1e3: {  # Orientale: relief 0.00573 D
-        "rim_height_over_D": 0.00195,
-        "floor_depth_over_D": 0.00378,
-        "floor_radius_over_R": 0.556,
+    988.6e3: {  # Orientale: relief 0.00588 D
+        "rim_height_over_D": 0.00181,
+        "floor_depth_over_D": 0.00407,
+        "floor_radius_over_R": 0.666,
         "rim_width_over_R": 0.109,
         "wall_curvature": 0.0,
-        "floor_blend": 0.855,
+        "floor_blend": 0.939,
     },
 }
 
@@ -57,38 +56,39 @@ _MULTIRING_EJECTA = {"frac_ejrim": 0.4047612450358902, "ejprofile": -2.821155126
 
 # The ring scarp of multiring basins: the nested ring fault (Orientale's Outer Rook ring), an asymmetric ridge with an
 # inward-facing face (see basicmoon.rs, scarp_function). Its radius, height and face width are the medians of the wedge fits of
-# Orientale (see _BASIN_ANCHORS); as Orientale is degraded, the height is a lower bound. Its radius (0.674 of the rim radius) has
+# Orientale (see _BASIN_ANCHORS); as Orientale is degraded, the height is a lower bound. Its radius (0.682 of the rim radius) has
 # the lognormal scatter of the middle rings of the multiring basins of Neumann et al. (2015) (0.68-0.75 of the main ring in their
 # frame, where Orientale's Outer Rook ring is at 0.682). Multiring basins appear on the Moon from 500 to 650 km (Hertzsprung,
 # 571 km, is the smallest; Neumann et al. 2015, Johnson et al. 2018): the height of the scarp rises from 0 to its full value over
 # that range (a smooth step in ln D).
 _SCARP = {
-    "radius_over_R": 0.674,
+    "radius_over_R": 0.682,
     "radius_sigma_ln": 0.04,
-    "height_over_D": 0.00245,
+    "height_over_D": 0.00210,
     "width_over_R": 0.074,
     "onset": (500e3, 650e3),
 }
 
 # Peak rings. Central peaks open into peak rings as craters grow from 200 to 300 km (a smooth step in ln D). The ring radius, as
-# a fraction of the rim radius, is 0.442 (D / 368 km)^0.107 with lognormal scatter 0.086: the slope and scatter are those of the
+# a fraction of the rim radius, is 0.460 (D / 340 km)^0.107 with lognormal scatter 0.086: the slope and scatter are those of the
 # inner rings of the peak-ring and multiring basins of Neumann et al. (2015), whose ratio is nearly constant (the innermost ring of
-# a multiring basin is its peak ring), and the normalization is that of the peak rings of Schrodinger (0.441 at 368 km) and
-# Orientale (its Inner Rook ring, 0.493 at 1020 km) in the wedge fits of _BASIN_ANCHORS, whose ratio (1.118) matches the slope.
+# a multiring basin is its peak ring), and the normalization is the geometric mean of those implied by the peak rings of
+# Schrodinger (0.476 at 340 km) and Orientale (its Inner Rook ring, 0.498 at 989 km) in the wedge fits of _BASIN_ANCHORS (their
+# ratio, 1.046, is below the 1.121 of the slope; the slope of the population is kept).
 _PEAK_RING_ONSET = (200e3, 300e3)
-_PEAK_RING_RATIO = 0.442
-_PEAK_RING_D_REF = 368.18e3
+_PEAK_RING_RATIO = 0.460
+_PEAK_RING_D_REF = 340.2e3
 _PEAK_RING_EXPONENT = 0.107
 _PEAK_RING_SIGMA_LN = 0.086
 # The width (standard deviation) of the Gaussian peak ring of the basic profile, as a fraction of the rim radius: that of the
 # peak ring of Schrodinger (Lunar_Morphometry_Revisited, peakring_measure.py)
-_PEAK_RING_WIDTH = 0.092
+_PEAK_RING_WIDTH = 0.084
 
 
 # The largest crater whose rings are measured (Orientale). Beyond it, the ring ratios are held at their values for Orientale
 # rather than extrapolated, and the scatter of the ring radii is held at its size for Orientale in m rather than in proportion
 # to the radius, so that megabasins (South Pole-Aitken) do not get ring positions that vary by tens of km.
-_RING_DATA_MAX_DIAMETER = 1020.1e3
+_RING_DATA_MAX_DIAMETER = 988.6e3
 
 
 def _ring_scatter(diameter: float, sigma_ln: float, rng: Generator | None) -> float:
@@ -455,66 +455,65 @@ class BasicMoonCrater(MorphologyCrater):
 
         floor_elevation_params = {
             "simple": {
-                "coefficients": [-4.039152399083589, 1.559680547853005, -0.034268582615113036],
-                "c": -4.042528766791945,
-                "alpha": -0.24133146607207862,
+                "coefficients": [-3.979752385199293, 1.54381759221194, -0.03334186751664677],
+                "c": -3.9931109902489275,
+                "alpha": -0.26071155480588115,
                 "fit_scale": "loglog",
                 "scatter_model": "lognormal",
-                "x_ref": 8.314440212581927,
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
+                "x_ref": 8.389456184881865,
             },
             "non-simple": {
-                "coefficients": [6.95672909822485, -0.09386637724894485, 0.015500259151656277],
-                "c": -3.8791329035095163,
-                "alpha": -0.5205017645072286,
+                "coefficients": [6.228704419081566, 0.043398512731655174, 0.009068374449593998],
+                "c": -3.896394812514182,
+                "alpha": -0.5546987550121527,
                 "fit_scale": "loglog",
                 "scatter_model": "lognormal",
-                "x_ref": 10.305659331228172,
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
+                "x_ref": 10.30162133305592,
             },
         }
         rim_height_params = {
             "simple": {
-                "coefficients": [-4.889081926606256, 1.4567012350693642, -0.02814425662948884],
-                "c": -3.1967365551955274,
-                "alpha": 0.11017424903895509,
+                "coefficients": [-4.796922969834622, 1.451816414155027, -0.028410426419867563],
+                "c": -3.050412634099904,
+                "alpha": 0.04133920854978147,
                 "fit_scale": "loglog",
                 "scatter_model": "lognormal",
-                "x_ref": 8.314440212581927,
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
+                "x_ref": 8.389456184881865,
             },
             "non-simple": {
-                "coefficients": [-19.163380351778166, 4.511271351047153, -0.19288941569241727],
-                "c": -3.2616514761340927,
-                "alpha": 1.996545805573635,
+                "coefficients": [-16.448212792700943, 3.9948614194744763, -0.16833861904099015],
+                "c": -0.5932181155690884,
+                "alpha": 1.6246168522237205,
                 "fit_scale": "loglog",
                 "scatter_model": "normal",
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
             },
         }
         rim_width_params = {
             "simple": {
-                "coefficients": [-2.9948286953415764, 1.4158608586589883, -0.03542451351721944],
-                "c": -3.8809215435381943,
-                "alpha": 2.0888300811976244,
+                "coefficients": [-3.1580381994811417, 1.4800170697740265, -0.03936837662995788],
+                "c": -3.1229375645622865,
+                "alpha": 1.9553060602140493,
                 "fit_scale": "loglog",
                 "scatter_model": "normal",
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
             },
             "non-simple": {
-                "coefficients": [34.47686422502093, -5.861111473586803, 0.31495611118736866],
-                "c": -2.454768658530737,
-                "alpha": -0.39632246596747767,
+                "coefficients": [19.09819682376756, -3.0444968967088917, 0.18658559498130467],
+                "c": -4.019524610605341,
+                "alpha": 2.1406629022085246,
                 "fit_scale": "loglog",
-                "scatter_model": "lognormal",
-                "x_ref": 10.305659331228172,
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "scatter_model": "normal",
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
             },
         }
         # Smallest value / radius measured in the fresh crater data set, used as the floor of the sampled values. The
@@ -526,63 +525,64 @@ class BasicMoonCrater(MorphologyCrater):
         }
         floor_radius_params = {
             "simple": {
-                "coefficients": [-2.116419389426042, 0.8020442843001678, 0.022761132692392883],
-                "c": -2.906577309462868,
-                "alpha": -0.5306417017854466,
+                "coefficients": [-1.977448632884101, 0.7739798351891516, 0.023992241532671363],
+                "c": -2.917365314699089,
+                "alpha": -0.46252594459213675,
                 "fit_scale": "loglog",
                 "scatter_model": "lognormal",
-                "x_ref": 8.314440212581927,
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
+                "x_ref": 8.389456184881865,
             },
             "non-simple": {
-                "coefficients": [-15.605505545928114, 3.534534167571122, -0.11190439982161003],
-                "c": 1.6725075969933354,
-                "alpha": 1.35719627581891,
+                "coefficients": [-15.93569252908765, 3.5759345794649127, -0.11275862232298753],
+                "c": -4.112698583745451,
+                "alpha": -1.1089376740320276,
                 "fit_scale": "loglog",
-                "scatter_model": "normal",
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "scatter_model": "lognormal",
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
+                "x_ref": 10.30162133305592,
             },
         }
         wall_curvature_params = {
             "simple": {
-                "coefficients": [0.041388599977528986, 0.08312835522258216, -0.008287488408703336],
-                "c": -5.0469674651065874,
+                "coefficients": [0.04276154426076039, 0.08274120819561653, -0.008220292162235484],
+                "c": -4.9704008369860535,
                 "alpha": 0.0,
                 "fit_scale": "logx",
                 "scatter_model": "normal",
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
             },
             "non-simple": {
-                "coefficients": [8.753793996266458, -1.731369142024903, 0.08615954236840613],
-                "c": -5.767575068546278,
+                "coefficients": [8.487150118544074, -1.6751371267568027, 0.08324044638098378],
+                "c": -5.749831239704206,
                 "alpha": 0.0,
                 "fit_scale": "logx",
                 "scatter_model": "normal",
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
             },
         }
         floor_blend_params = {
             "simple": {
-                "coefficients": [1.2556620117169528, -0.17360549388756277, 0.011355917502714308],
-                "c": -3.319935671096921,
+                "coefficients": [1.0970431931049336, -0.12376285402087304, 0.007579980711761793],
+                "c": -3.3198599210894835,
                 "alpha": 0.0,
                 "fit_scale": "logx",
                 "scatter_model": "normal",
-                "x_min": 114.19072175303937,
-                "x_max": 15827.411018073266,
+                "x_min": 114.29288745466218,
+                "x_max": 15869.094334407944,
             },
             "non-simple": {
-                "coefficients": [-7.965997647752269, 1.7323627368515848, -0.08524512987449426],
-                "c": -3.9157397835769197,
+                "coefficients": [-8.446081548018446, 1.791107986657214, -0.08645564637214528],
+                "c": -3.7768924080345405,
                 "alpha": 0.0,
                 "fit_scale": "logx",
                 "scatter_model": "normal",
-                "x_min": 11913.654624364592,
-                "x_max": 137622.23649050223,
+                "x_min": 12060.776126394443,
+                "x_max": 136569.08247240804,
             },
         }
         peak_height_params = {

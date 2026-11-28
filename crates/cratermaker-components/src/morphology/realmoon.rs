@@ -22,12 +22,90 @@
 //! (Given to the ejecta alone, the variation of the rim, which is mostly uplift, would make the ejecta negative just outside the
 //! rim, and clipped to zero there it would leave flat patches with a sharp edge at the rim.) Below the reference surface (the
 //! crater's bowl) the field belongs to the crater.
+//!
+//! The walls of complex craters and basins are stacked levels (see `WallLevels`): the crest and the terrace scarps below it, each a
+//! continuous, nearly round curve with lobes of its own, whose scarps merge where they collide. For these craters the field holds
+//! only the fine texture, and the rim outline is the outermost level.
 
 use crate::ArrayResult;
 use crate::morphology::basicmoon::{BasicMoonCrater, basicmoon_profile, scarp_function};
 use crate::morphology::smootherstep;
+use noise::{NoiseFn, SuperSimplex};
 use numpy::ndarray::prelude::*;
 use rayon::prelude::*;
+use std::sync::OnceLock;
+
+/// The terrace between two levels of the wall (see `WallLevels`): going inward from a level, a scarp drops over the outer
+/// `TERRACE_SCARP_FRACTION` of the annulus, then a bench slopes gently to the next level, keeping `TERRACE_BENCH_SHARE` of the
+/// annulus's drop.
+pub const TERRACE_SCARP_FRACTION: f64 = 0.35;
+pub const TERRACE_BENCH_SHARE: f64 = 0.3;
+/// The elevation offset of the crest fades out over this distance (in rim radii) outside it.
+pub const WALL_FADE: f64 = 0.2;
+/// The wall turbulence is tapered over this distance (in rim radii) at the crest and at the lowest level.
+pub const WALL_TURBULENCE_TAPER: f64 = 0.05;
+/// Octaves of the wall turbulence, and the amplitude ratio between successive octaves.
+pub const WALL_TURBULENCE_OCTAVES: u32 = 6;
+pub const WALL_TURBULENCE_PERSISTENCE: f64 = 0.5;
+
+/// The stacked levels of the wall of a complex crater: the rim crest and the terrace scarps below it, each a continuous,
+/// nearly round closed curve with lobes of its own, with a scarp whose strength and an elevation offset vary along it. The
+/// levels wobble into each other: at each bearing they are taken in order of radius, and where two collide their scarps merge.
+/// Between consecutive levels the crater part of the profile is a terrace (see `TERRACE_SCARP_FRACTION`) whose heights are those
+/// of the basic profile at the levels' nominal radii plus their offsets, blended (by the scarp strength) with the basic profile
+/// between them; inside the lowest level the basic profile follows that level's outline. Over the wall (from the lowest level to
+/// the crest) a turbulence field is added: octaves of the absolute value of simplex noise, normalized to zero mean and unit
+/// standard deviation, times `turbulence`.
+pub struct WallLevels<'a> {
+    /// The nominal radii of the levels (rim radii), from the crest (1) inward.
+    pub nominal: ArrayView1<'a, f64>,
+    /// For each level (n_levels x n_bearings, at the bearings of the field): its radius (rim radii), the strength of its scarp
+    /// (0 to 1) and its elevation offset (m), stacked along the first axis (3 x n_levels x n_bearings).
+    pub levels: ArrayView3<'a, f64>,
+    /// The standard deviation of the wall turbulence (m).
+    pub turbulence: f64,
+    /// The wavelength of the largest octave of the wall turbulence (rim radii).
+    pub wavelength: f64,
+    /// The seed of the wall turbulence.
+    pub seed: u32,
+}
+
+/// The mean and standard deviation of the sum of octaves of |simplex noise| (see `WallLevels`), sampled once.
+fn turbulence_moments() -> (f64, f64) {
+    static MOMENTS: OnceLock<(f64, f64)> = OnceLock::new();
+    *MOMENTS.get_or_init(|| {
+        let gens: Vec<SuperSimplex> = (0..WALL_TURBULENCE_OCTAVES).map(SuperSimplex::new).collect();
+        let n = 256;
+        let values: Vec<f64> = (0..n * n).map(|i| raw_turbulence(&gens, (i % n) as f64 * 0.137, (i / n) as f64 * 0.137)).collect();
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let sd = (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64).sqrt();
+        (mean, sd)
+    })
+}
+
+#[inline]
+fn raw_turbulence(gens: &[SuperSimplex], x: f64, y: f64) -> f64 {
+    let mut value = 0.0;
+    let mut amplitude = 1.0;
+    let mut scale = 1.0;
+    for g in gens {
+        value += amplitude * g.get([x * scale, y * scale]).abs();
+        amplitude *= WALL_TURBULENCE_PERSISTENCE;
+        scale *= 2.0;
+    }
+    value
+}
+
+#[inline]
+fn terrace(t: f64) -> f64 {
+    let edge = 1.0 - TERRACE_SCARP_FRACTION;
+    if t < edge {
+        TERRACE_BENCH_SHARE * t / edge
+    } else {
+        let s = ((t - edge) / TERRACE_SCARP_FRACTION).clamp(0.0, 1.0);
+        TERRACE_BENCH_SHARE + (1.0 - TERRACE_BENCH_SHARE) * s * s * (3.0 - 2.0 * s)
+    }
+}
 
 /// The rim outline and field of variation of a crater.
 pub struct RealMoonField<'a> {
@@ -41,6 +119,8 @@ pub struct RealMoonField<'a> {
     /// `scarp_height`, at bearings (i + 1/2) 360 / n degrees; empty for a crater without a scarp (or a uniform scarp).
     pub scarp_radius: ArrayView1<'a, f64>,
     pub scarp_height: ArrayView1<'a, f64>,
+    /// The stacked levels of the wall of a complex crater (see `WallLevels`), or None.
+    pub wall: Option<WallLevels<'a>>,
 }
 
 /// A periodic function given at `n` bearings (i + 1/2) 360 / n degrees, interpolated at a bearing (radians) with a periodic
@@ -225,7 +305,126 @@ pub fn realmoon_profile(
             *v += scarp_function(warped[i], &local);
         });
     }
+    if include_crater && let Some(wall) = &data.wall {
+        let delta = wall_delta(radial_distances, bearings, crater, &basic, wall, &warped, varying_scarp, data)?;
+        h.iter_mut().zip(delta.iter()).for_each(|(v, d)| *v += d);
+    }
     Ok(h)
+}
+
+/// The change of the crater part of the profile made by the wall levels (see `WallLevels`): at each point, the terraced wall
+/// (or, inside the lowest level, the basic profile following that level's outline, and outside the crest, the crest's fading
+/// elevation offset) less the basic profile at the warped radius, plus the wall turbulence.
+#[allow(clippy::too_many_arguments)]
+fn wall_delta(
+    radial_distances: ArrayView1<'_, f64>,
+    bearings: ArrayView1<'_, f64>,
+    crater: &BasicMoonCrater,
+    basic: &BasicMoonCrater,
+    wall: &WallLevels<'_>,
+    warped: &Array1<f64>,
+    varying_scarp: bool,
+    data: &RealMoonField<'_>,
+) -> ArrayResult {
+    let n_levels = wall.nominal.len();
+    let radius = crater.radius;
+    if n_levels < 2 || wall.levels.shape() != [3, n_levels, data.n_theta()] {
+        return Err("the wall levels must be 3 x n_levels x n_theta, with at least two levels".into());
+    }
+    let n = radial_distances.len();
+    let zeros = Array1::<f64>::zeros(n);
+    // The basic crater part at the warped radius, and at the nominal radii of the levels
+    let base = basicmoon_profile(warped.view(), zeros.view(), basic, true, false)?;
+    let knots_r = Array1::from_iter(wall.nominal.iter().map(|&x| x * radius));
+    let knots = basicmoon_profile(knots_r.view(), Array1::<f64>::zeros(n_levels).view(), basic, true, false)?;
+    // At each point: the zone, the terrace parameters and the radius at which the basic profile is needed
+    let scarp_rho = crater.scarp_radius / radius;
+    let gens: Vec<SuperSimplex> = (0..WALL_TURBULENCE_OCTAVES).map(|o| SuperSimplex::new(wall.seed.wrapping_add(o))).collect();
+    let (t_mean, t_sd) = turbulence_moments();
+    struct Point {
+        query: f64,
+        value: f64,
+        kind: u8, // 0: no change, 1: terrace (value = lo, query: smooth), 2: inside (query), 3: outside (value = offset)
+        hi: f64,
+        lo: f64,
+        k_hi: f64,
+        k_lo: f64,
+        f_terrace: f64,
+        strength: f64,
+        turb: f64,
+    }
+    let points: Vec<Point> = (0..n)
+        .into_par_iter()
+        .with_min_len(2048)
+        .map(|i| {
+            let b = bearings[i];
+            let x = radial_distances[i] / radius;
+            let mut lv: Vec<(f64, f64, f64)> = (0..n_levels)
+                .map(|j| {
+                    (
+                        periodic_at(wall.levels.slice(s![0, j, ..]), b),
+                        periodic_at(wall.levels.slice(s![1, j, ..]), b).clamp(0.0, 1.0),
+                        periodic_at(wall.levels.slice(s![2, j, ..]), b),
+                    )
+                })
+                .collect();
+            lv.sort_by(|a, c| c.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            let crest = lv[0].0;
+            let lowest = lv[n_levels - 1].0;
+            let mut p = Point { query: 0.0, value: 0.0, kind: 0, hi: 0.0, lo: 0.0, k_hi: 0.0, k_lo: 0.0, f_terrace: 0.0, strength: 0.0, turb: 0.0 };
+            if x >= crest {
+                if x < crest + WALL_FADE {
+                    let u = 1.0 - (x - crest) / WALL_FADE;
+                    p.kind = 3;
+                    p.value = lv[0].2 * u * u * (3.0 - 2.0 * u);
+                }
+                return p;
+            }
+            if wall.turbulence > 0.0 {
+                let w = ((crest - x).min(x - lowest) / WALL_TURBULENCE_TAPER + 0.5).clamp(0.0, 1.0);
+                if w > 0.0 {
+                    let (sb, cb) = b.sin_cos();
+                    let raw = raw_turbulence(&gens, x * sb / wall.wavelength, x * cb / wall.wavelength);
+                    p.turb = wall.turbulence * w * (raw - t_mean) / t_sd;
+                }
+            }
+            if x < lowest {
+                // The basic profile follows the lowest level's outline (and, in a multiring basin, the scarp's)
+                let mut rho_in = x * wall.nominal[n_levels - 1] / lowest;
+                if varying_scarp {
+                    let weight = 1.0 - smootherstep((rho_in - scarp_rho) / (1.0 - scarp_rho));
+                    rho_in /= periodic_at(data.scarp_radius, b).powf(weight);
+                }
+                p.kind = 2;
+                p.query = rho_in * radius;
+                return p;
+            }
+            let j = (0..n_levels - 1).find(|&j| x < lv[j].0 && x >= lv[j + 1].0).unwrap_or(n_levels - 2);
+            let t = (x - lv[j + 1].0) / (lv[j].0 - lv[j + 1].0).max(1e-12);
+            p.kind = 1;
+            p.k_hi = knots[j];
+            p.k_lo = knots[j + 1];
+            p.hi = knots[j] + lv[j].2;
+            p.lo = knots[j + 1] + if j + 1 == n_levels - 1 { 0.0 } else { lv[j + 1].2 };
+            p.f_terrace = terrace(t);
+            p.strength = lv[j].1;
+            p.query = (wall.nominal[j + 1] + t * (wall.nominal[j] - wall.nominal[j + 1])) * radius;
+            p
+        })
+        .collect();
+    let queries = Array1::from_iter(points.iter().map(|p| p.query));
+    let at_query = basicmoon_profile(queries.view(), zeros.view(), basic, true, false)?;
+    Ok(Array1::from_iter(points.iter().enumerate().map(|(i, p)| match p.kind {
+        1 => {
+            let span = p.k_hi - p.k_lo;
+            let smooth = if span.abs() > 0.0 { (at_query[i] - p.k_lo) / span } else { p.f_terrace };
+            let f = p.strength * p.f_terrace + (1.0 - p.strength) * smooth;
+            p.lo + (p.hi - p.lo) * f - base[i] + p.turb
+        }
+        2 => at_query[i] - base[i] + p.turb,
+        3 => p.value,
+        _ => 0.0,
+    })))
 }
 
 #[cfg(test)]
@@ -240,6 +439,55 @@ mod tests {
     }
 
     #[test]
+    fn round_levels_without_scarps_or_offsets_give_the_basic_profile() {
+        // With round levels at their nominal radii, no scarps, no offsets and no turbulence, the terraced wall is the basic profile
+        let crater = BasicMoonCrater {
+            diameter: 100e3,
+            radius: 50e3,
+            floor_elevation: -3000.0,
+            floor_radius: 30e3,
+            wall_curvature: 0.2,
+            floor_blend: 0.5,
+            rim_width: 8e3,
+            rim_height: 1000.0,
+            frac_ejrim: 0.3,
+            ejprofile: -3.0,
+            peak_height: 0.0,
+            peak_width: 0.0,
+            peak_ring_radius: 0.0,
+            peak_center_distance: 0.0,
+            peak_center_bearing: 0.0,
+            scarp_radius: 0.0,
+            scarp_height: 0.0,
+            scarp_width: 0.0,
+        };
+        let n_theta = 16;
+        let (rim, field) = data(n_theta, 11, 0.0);
+        let nominal = Array1::from(vec![1.0, 0.9, 0.78, 0.65]);
+        let mut levels = Array3::<f64>::zeros((3, 4, n_theta));
+        for j in 0..4 {
+            levels.slice_mut(s![0, j, ..]).fill(nominal[j]);
+        }
+        let empty: [f64; 0] = [];
+        let with_wall = RealMoonField {
+            rim: rim.view(),
+            field: field.view(),
+            rho_max: 2.0,
+            scarp_radius: ArrayView1::from(&empty[..]),
+            scarp_height: ArrayView1::from(&empty[..]),
+            wall: Some(WallLevels { nominal: nominal.view(), levels: levels.view(), turbulence: 0.0, wavelength: 0.25, seed: 1 }),
+        };
+        let r = Array1::linspace(0.0, 80e3, 161);
+        let b = Array1::linspace(0.0, 6.0, 161);
+        let z = Array1::zeros(161);
+        let a = realmoon_profile(r.view(), b.view(), z.view(), &crater, &with_wall, true, true).unwrap();
+        let e = basicmoon_profile(r.view(), z.view(), &crater, true, true).unwrap();
+        for (x, y) in a.iter().zip(e.iter()) {
+            assert!((x - y).abs() < 1e-6, "{x} != {y}");
+        }
+    }
+
+    #[test]
     fn field_interpolation_is_periodic_and_zero_outside() {
         let (rim, mut field) = data(8, 5, 0.0);
         for i in 0..8 {
@@ -251,6 +499,7 @@ mod tests {
             rho_max: 2.0,
             scarp_radius: ArrayView1::from(&[] as &[f64]),
             scarp_height: ArrayView1::from(&[] as &[f64]),
+            wall: None,
         };
         // Bearing of grid point 0 is 22.5 degrees; halfway between the last (337.5) and first (22.5) bearings is 0 degrees
         assert!((d.field_at(22.5_f64.to_radians(), 1.0) - 0.0).abs() < 1e-12);
@@ -287,6 +536,7 @@ mod tests {
             rho_max: 2.0,
             scarp_radius: ArrayView1::from(&[] as &[f64]),
             scarp_height: ArrayView1::from(&[] as &[f64]),
+            wall: None,
         };
         let r = Array1::linspace(0.0, 20e3, 101);
         let b = Array1::linspace(0.0, 6.0, 101);

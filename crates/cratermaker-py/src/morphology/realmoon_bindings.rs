@@ -2,9 +2,9 @@ use crate::morphology::form_crater_bindings::{PyCraterRegion, run_form_craters};
 use cratermaker_components::morphology::central_peak::{CentralPeak, PeakModel};
 use cratermaker_components::morphology::basicmoon::BasicMoonCrater;
 use cratermaker_components::morphology::form_crater::RealMoonModel;
-use cratermaker_components::morphology::realmoon::RealMoonField;
+use cratermaker_components::morphology::realmoon::{RealMoonField, WallLevels};
 use numpy::ndarray::ArrayView1;
-use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -23,8 +23,11 @@ use pyo3::prelude::*;
 /// * `include_crater`, `include_ejecta` - Which parts of the profile to include.
 /// * `scarp_radius`, `scarp_height` - The variation of a multiring basin's ring scarp around the basin, as factors of its radius
 ///   and height (see `RealMoonMorphology.scarp_outline_data`); None or empty for a uniform scarp.
+/// * `wall_nominal`, `wall_levels`, `wall_params` - The stacked levels of the wall of a complex crater (see `WallLevels`): the
+///   nominal radii of the levels, their radius, scarp strength and elevation offset (3 x n_levels x n_theta), and the wall
+///   turbulence (its standard deviation in m, its wavelength in rim radii and its seed); None or empty for none.
 #[pyfunction]
-#[pyo3(signature = (radial_distances, bearings, reference_elevations, crater, rim, field, rho_max, include_crater, include_ejecta, scarp_radius=None, scarp_height=None))]
+#[pyo3(signature = (radial_distances, bearings, reference_elevations, crater, rim, field, rho_max, include_crater, include_ejecta, scarp_radius=None, scarp_height=None, wall_nominal=None, wall_levels=None, wall_params=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn realmoon_profile<'py>(
     py: Python<'py>,
@@ -39,6 +42,9 @@ pub fn realmoon_profile<'py>(
     include_ejecta: bool,
     scarp_radius: Option<PyReadonlyArray1<'py, f64>>,
     scarp_height: Option<PyReadonlyArray1<'py, f64>>,
+    wall_nominal: Option<PyReadonlyArray1<'py, f64>>,
+    wall_levels: Option<PyReadonlyArray3<'py, f64>>,
+    wall_params: Option<PyReadonlyArray1<'py, f64>>,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
     let empty: [f64; 0] = [];
     let data = RealMoonField {
@@ -47,6 +53,7 @@ pub fn realmoon_profile<'py>(
         rho_max,
         scarp_radius: scarp_radius.as_ref().map_or(ArrayView1::from(&empty[..]), |a| a.as_array()),
         scarp_height: scarp_height.as_ref().map_or(ArrayView1::from(&empty[..]), |a| a.as_array()),
+        wall: wall_view(wall_nominal.as_ref(), wall_levels.as_ref(), wall_params.as_ref())?,
     };
     let result = cratermaker_components::morphology::realmoon::realmoon_profile(
         radial_distances.as_array(),
@@ -67,9 +74,10 @@ pub fn realmoon_profile<'py>(
 ///
 /// * `craters` - The basic craters.
 /// * `rims`, `fields`, `rho_max` - The rim outline and field of each crater (see `realmoon_profile`).
+/// * `wall_nominals`, `wall_levels`, `wall_params` - The wall levels of each crater (see `realmoon_profile`; empty for none).
 /// * The other arguments are those of `basicmoon_bindings.form_craters`.
 #[pyfunction]
-#[pyo3(signature = (craters, rims, fields, scarp_radii, scarp_heights, rho_max, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
+#[pyo3(signature = (craters, rims, fields, scarp_radii, scarp_heights, wall_nominals, wall_levels, wall_params, rho_max, regions, face_indices, node_indices, ray_seeds, face_elevation, node_elevation, ejecta_thickness, conserve_volume, critical_slope=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn form_craters<'py>(
     py: Python<'py>,
@@ -78,6 +86,9 @@ pub fn form_craters<'py>(
     fields: Vec<PyReadonlyArray2<'py, f64>>,
     scarp_radii: Vec<PyReadonlyArray1<'py, f64>>,
     scarp_heights: Vec<PyReadonlyArray1<'py, f64>>,
+    wall_nominals: Vec<PyReadonlyArray1<'py, f64>>,
+    wall_levels: Vec<PyReadonlyArray3<'py, f64>>,
+    wall_params: Vec<PyReadonlyArray1<'py, f64>>,
     rho_max: f64,
     regions: Vec<Bound<'py, PyAny>>,
     face_indices: Vec<PyReadonlyArray1<'py, i64>>,
@@ -90,23 +101,28 @@ pub fn form_craters<'py>(
     critical_slope: Option<f64>,
 ) -> PyResult<Vec<(f64, Option<f64>)>> {
     let n = craters.len();
-    if rims.len() != n || fields.len() != n || scarp_radii.len() != n || scarp_heights.len() != n {
+    if rims.len() != n || fields.len() != n || scarp_radii.len() != n || scarp_heights.len() != n || wall_nominals.len() != n
+        || wall_levels.len() != n || wall_params.len() != n
+    {
         return Err(PyValueError::new_err(
-            "craters, rims, fields and scarp outlines must have the same length",
+            "craters, rims, fields, scarp outlines and wall levels must have the same length",
         ));
     }
     let models: Vec<RealMoonModel> = (0..n)
-        .map(|i| RealMoonModel {
-            crater: &craters[i],
-            field: RealMoonField {
-                rim: rims[i].as_array(),
-                field: fields[i].as_array(),
-                rho_max,
-                scarp_radius: scarp_radii[i].as_array(),
-                scarp_height: scarp_heights[i].as_array(),
-            },
+        .map(|i| {
+            Ok(RealMoonModel {
+                crater: &craters[i],
+                field: RealMoonField {
+                    rim: rims[i].as_array(),
+                    field: fields[i].as_array(),
+                    rho_max,
+                    scarp_radius: scarp_radii[i].as_array(),
+                    scarp_height: scarp_heights[i].as_array(),
+                    wall: wall_view(Some(&wall_nominals[i]), Some(&wall_levels[i]), Some(&wall_params[i]))?,
+                },
+            })
         })
-        .collect();
+        .collect::<PyResult<_>>()?;
     run_form_craters(
         py,
         &models,
@@ -190,4 +206,30 @@ pub fn central_peak<'py>(
         .detach(|| cratermaker_components::morphology::central_peak::central_peak(&view, &peak, &model, seed))
         .map_err(PyValueError::new_err)?;
     Ok(PyArray1::from_owned_array(py, change))
+}
+
+/// The wall levels from their arrays, or None if they are absent or empty.
+fn wall_view<'a>(
+    nominal: Option<&'a PyReadonlyArray1<'_, f64>>,
+    levels: Option<&'a PyReadonlyArray3<'_, f64>>,
+    params: Option<&'a PyReadonlyArray1<'_, f64>>,
+) -> PyResult<Option<WallLevels<'a>>> {
+    let (Some(nominal), Some(levels), Some(params)) = (nominal, levels, params) else {
+        return Ok(None);
+    };
+    let nominal = nominal.as_array();
+    if nominal.is_empty() {
+        return Ok(None);
+    }
+    let params = params.as_array();
+    if params.len() != 3 {
+        return Err(PyValueError::new_err("wall_params must hold the turbulence amplitude, wavelength and seed"));
+    }
+    Ok(Some(WallLevels {
+        nominal,
+        levels: levels.as_array(),
+        turbulence: params[0],
+        wavelength: params[1],
+        seed: params[2] as u32,
+    }))
 }
