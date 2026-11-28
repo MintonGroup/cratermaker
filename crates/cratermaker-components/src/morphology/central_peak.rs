@@ -2,8 +2,9 @@
 //!
 //! Turbulence noise evaluated at each face of the crater (in the plane about the crater center) is used as an indicator: where
 //! it is more than `threshold` standard deviations above its mean, the face is a column, raised to the height of a Gaussian
-//! envelope (centered, or offset as a ring), scaled up by `top_variation` times the excess of the noise over the threshold so
-//! that the columns have uneven tops, and elsewhere it is not raised. Each column is then given flanks at the critical slope:
+//! envelope (centered, or offset as a ring) times (noise - threshold)^`ramp_exponent`, and elsewhere it is not raised. The
+//! columns so rise from zero at the threshold, and the massifs grow out of the floor rather than standing on it as mesas with
+//! scarps as tall as the envelope. Each column is then given flanks at the critical slope:
 //! the surface is raised to the upper envelope of cones falling from the columns at the critical slope of each face it falls
 //! through, so that every massif, large or small, keeps a sharp summit and flanks at the angle of repose. The critical angle
 //! varies from face to face around `critical_angle` with a second, independent noise field (`angle_spread`,
@@ -14,10 +15,12 @@
 //! slope there), so that crater
 //! formation still conserves volume.
 //!
-//! The peak is offset from the crater center and elongated along a random direction, both drawn from its seed: the envelope
-//! and the column noise are evaluated in coordinates centered on the offset point and stretched along the elongation direction
-//! (by a factor whose logarithm is `elongation_sigma` times a half-normal deviate, preserving area), so that the massifs are
-//! elongated too. The offset is a two-dimensional Gaussian of standard deviation `offset_sigma` envelope widths in each
+//! The peak is offset from the crater center and elongated along a random direction, both drawn from its seed: the envelope is
+//! evaluated in coordinates centered on the offset point and stretched along the elongation direction (by a factor whose
+//! logarithm is `elongation_sigma` times a half-normal deviate, preserving area). The noise of the columns and of their
+//! critical angle is not stretched, so that the peak is elongated as a whole while its texture stays rugged in every
+//! direction. Peak rings are not elongated (the elongation fades out as the peak opens into a ring), but their center is
+//! offset. The offset is a two-dimensional Gaussian of standard deviation `offset_sigma` envelope widths in each
 //! direction, unrelated to the impact direction: the central peaks of oblique impact craters on Venus are offset randomly, by
 //! 0.031 crater diameters on average, indistinguishably from those of near-vertical impacts (Ekholm and Melosh 2001), as the
 //! peaks of fresh lunar complex craters are (0.033 D on average; Lunar_Morphometry_Revisited, peak_measure.py).
@@ -28,6 +31,7 @@
 
 use crate::ArrayResult;
 use crate::morphology::form_crater::CraterRegionView;
+use crate::morphology::smootherstep;
 use crate::surface::{slope_limited_envelope, turbulence_noise};
 use numpy::ndarray::prelude::*;
 use rand::prelude::*;
@@ -47,9 +51,9 @@ pub struct PeakModel {
     pub octaves: usize,
     /// Amplitude ratio between successive noise octaves.
     pub persistence: f64,
-    /// Variability of the column heights: a column is raised to the envelope times 1 + top_variation x (noise - threshold), with
-    /// the noise in standard deviations.
-    pub top_variation: f64,
+    /// Exponent of the rise of the column heights with the excess of the noise over the threshold: a column is raised to the
+    /// envelope times (noise - threshold)^ramp_exponent, with the noise in standard deviations.
+    pub ramp_exponent: f64,
     /// Mean critical slope angle of the flanks (degrees).
     pub critical_angle: f64,
     /// Standard deviation of the critical slope angle (degrees), which varies with an independent noise field.
@@ -66,21 +70,23 @@ pub struct PeakModel {
 }
 
 impl Default for PeakModel {
-    /// The parameters of the earlier model (columns relaxed by slope collapse), pending their calibration for the construction
-    /// with flanks at the critical slope (Lunar_Morphometry_Revisited, peak_model_calibrate.py)
+    /// The parameters calibrated against the central peaks of the 14 fresh complex craters larger than 39 km measured at the
+    /// native SLDEM2015 spacing (their volume, footprint, slopes, flank angle, massifs, elongation, solidity, offset and texture)
+    /// and the peak rings of Schrodinger and Orientale (Lunar_Morphometry_Revisited, peak_model_calibrate.py). The columns extend
+    /// to where the envelope falls below 1e-4 of its amplitude, so that the peak tails off into its surroundings.
     fn default() -> Self {
         Self {
-            threshold: 0.5,
-            noise_wavelength: 1.5,
+            threshold: -0.68,
+            noise_wavelength: 1.39,
             octaves: 3,
             persistence: 0.5,
-            top_variation: 1.0,
-            critical_angle: 34.0,
-            angle_spread: 6.0,
+            ramp_exponent: 0.70,
+            critical_angle: 29.2,
+            angle_spread: 9.4,
             angle_noise_wavelength: 0.5,
-            support: 2.5,
-            offset_sigma: 0.0,
-            elongation_sigma: 0.0,
+            support: 4.3,
+            offset_sigma: 0.65,
+            elongation_sigma: 0.65,
         }
     }
 }
@@ -135,7 +141,9 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
     // frame: centered on the offset point, rotated to the elongation direction, and stretched along it
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
     let (dx, dy) = (model.offset_sigma * peak.width * normal(&mut rng), model.offset_sigma * peak.width * normal(&mut rng));
-    let stretch = (model.elongation_sigma * normal(&mut rng).abs()).exp().sqrt();
+    // Peak rings stay circular: the elongation fades out as the peak opens into a ring (its offset moves the ring's center)
+    let round = smootherstep(peak.ring_radius / (2.0 * peak.width));
+    let stretch = ((1.0 - round) * model.elongation_sigma * normal(&mut rng).abs()).exp().sqrt();
     let angle = rng.random_range(0.0..std::f64::consts::PI);
     let (sin, cos) = angle.sin_cos();
     let frame: Vec<(f64, f64)> = (0..nf)
@@ -145,6 +153,8 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
         })
         .collect();
     let distance: Vec<f64> = frame.iter().map(|&(u, v)| u.hypot(v)).collect();
+    // The unstretched coordinates of each face, for the noise
+    let plain: Vec<(f64, f64)> = (0..nf).map(|f| (region.face_proj_x[f], region.face_proj_y[f])).collect();
 
     // The faces the columns can occupy
     let support: Vec<usize> = (0..nf)
@@ -156,10 +166,10 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
 
     // Two independent noise fields in the plane about the crater center, normalized over the support: one for the columns, and
     // one for the critical angle of their flanks
-    let Some(noise) = normalized_noise(&frame, &support, model.noise_wavelength * peak.width, model, &mut rng)? else {
+    let Some(noise) = normalized_noise(&plain, &support, model.noise_wavelength * peak.width, model, &mut rng)? else {
         return Ok(change);
     };
-    let Some(angle_noise) = normalized_noise(&frame, &support, model.angle_noise_wavelength * peak.width, model, &mut rng)? else {
+    let Some(angle_noise) = normalized_noise(&plain, &support, model.angle_noise_wavelength * peak.width, model, &mut rng)? else {
         return Ok(change);
     };
 
@@ -168,7 +178,7 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
     for (i, &f) in support.iter().enumerate() {
         if noise[i] > model.threshold {
             let u = (distance[f] - peak.ring_radius) / peak.width;
-            shape[f] = (-0.5 * u * u).exp() * (1.0 + model.top_variation * (noise[i] - model.threshold));
+            shape[f] = (-0.5 * u * u).exp() * (noise[i] - model.threshold).powf(model.ramp_exponent);
         }
     }
     let top = shape.fold(0.0f64, |m, &v| m.max(v));
@@ -217,7 +227,7 @@ fn normal(rng: &mut ChaCha8Rng) -> f64 {
     (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
 }
 
-/// Turbulence noise at the given faces (in the peak's frame, see `central_peak`), normalized to zero mean and unit standard
+/// Turbulence noise at the given faces (at the given planar coordinates), normalized to zero mean and unit standard
 /// deviation over them, or `None` if it does not vary.
 fn normalized_noise(
     frame: &[(f64, f64)],

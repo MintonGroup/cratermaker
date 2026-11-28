@@ -22,6 +22,7 @@ What's New
 - Fixed ``Counting.tally`` with a ``region``, which always raised an error.
 - Fixed resumed simulations, which did not restore the saved state of the random number generator and so did not continue as the original run would have.
 - Added a ``count_superdomain`` option to count craters in the superdomain of a hireslocal surface. This replaces ``tag_superdomain``, which had no effect because ``emplace`` did not pass its arguments on.
+- Locations with a latitude beyond ±90 degrees (often longitude and latitude given in the wrong order) now raise an error instead of being silently reflected over the pole, and a location exactly at a pole is moved 10⁻⁵ degrees off it, which previously gave a local mesh with missing faces.
 - Fixed the ``smallest_crater`` and ``largest_crater`` arguments of ``Simulation``, which were ignored by the constructor and lost on resume.
 - Crater outlines (``Crater.to_geoseries`` and the rings drawn by ``show3d``) now follow the topography.
 - Added ``Surface.find_nearest_nodes`` and ``Surface.find_nearest_faces`` for fast lookups of many points at once.

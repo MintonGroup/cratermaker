@@ -61,8 +61,8 @@ _PEAK_HEIGHT_D_REF = 60e3
 _PEAK_HEIGHT_EXPONENT = 0.89
 _PEAK_HEIGHT_SIGMA_LN = 0.44
 _PEAK_HEIGHT_D_MAX = 139e3
-_PEAK_WIDTH = 0.08
-_PEAK_RING_WIDTH = 0.085
+_PEAK_WIDTH = 0.108
+_PEAK_RING_WIDTH = 0.134
 
 
 def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None) -> float:

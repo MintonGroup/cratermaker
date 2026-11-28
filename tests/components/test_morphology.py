@@ -424,7 +424,8 @@ class TestRealMoon(unittest.TestCase):
                 )
                 crater = sim.Crater.maker(diameter=D, location=(0, 0), morphology_type="complex")
                 self.assertGreater(crater.peak_height, 0.0)
-                self.assertAlmostEqual(crater.peak_width, 0.08 * crater.radius)
+                from cratermaker.components.morphology.realmoon import _PEAK_WIDTH
+                self.assertAlmostEqual(crater.peak_width, _PEAK_WIDTH * crater.radius)
                 if not peak:
                     crater = sim.Crater.maker(crater=crater, peak_height=0.0)
                     self.assertEqual(crater.peak_height, 0.0)
@@ -444,8 +445,11 @@ class TestRealMoon(unittest.TestCase):
         # lowest point of the floor near the peak (where there are no columns, the change is that of the layer alone)
         near = r < 2.5 * crater.peak_width
         self.assertAlmostEqual((change.max() - change[near].min()) / crater.peak_height, 1.0, delta=0.05)
-        # Nothing changes beyond the floor, and the peak's volume is taken from the floor
-        np.testing.assert_allclose(change[r > crater.floor_radius * 1.05], 0.0, atol=1e-6)
+        # Beyond the floor only the faint tail of the (offset, elongated) envelope remains, and the peak's volume is taken from
+        # the floor
+        outside = np.abs(change[r > crater.floor_radius * 1.05])
+        print(f"largest change beyond the floor: {outside.max():.3g} m of a {crater.peak_height:.0f} m peak")
+        self.assertLess(outside.max(), 1e-3 * crater.peak_height)
         self.assertLess(abs(np.sum(change * area)) / np.sum(np.abs(change) * area), 1e-8)
 
 

@@ -141,7 +141,7 @@ pub fn form_craters<'py>(
 /// * The change of the elevation of each face of the region (m).
 #[pyfunction]
 #[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, threshold=None, noise_wavelength=None, octaves=None,
-    persistence=None, top_variation=None, critical_angle=None, angle_spread=None, angle_noise_wavelength=None, support=None, offset_sigma=None,
+    persistence=None, ramp_exponent=None, critical_angle=None, angle_spread=None, angle_noise_wavelength=None, support=None, offset_sigma=None,
     elongation_sigma=None))]
 #[allow(clippy::too_many_arguments)]
 pub fn central_peak<'py>(
@@ -156,7 +156,7 @@ pub fn central_peak<'py>(
     noise_wavelength: Option<f64>,
     octaves: Option<usize>,
     persistence: Option<f64>,
-    top_variation: Option<f64>,
+    ramp_exponent: Option<f64>,
     critical_angle: Option<f64>,
     angle_spread: Option<f64>,
     angle_noise_wavelength: Option<f64>,
@@ -170,7 +170,7 @@ pub fn central_peak<'py>(
         noise_wavelength: noise_wavelength.unwrap_or(d.noise_wavelength),
         octaves: octaves.unwrap_or(d.octaves),
         persistence: persistence.unwrap_or(d.persistence),
-        top_variation: top_variation.unwrap_or(d.top_variation),
+        ramp_exponent: ramp_exponent.unwrap_or(d.ramp_exponent),
         critical_angle: critical_angle.unwrap_or(d.critical_angle),
         angle_spread: angle_spread.unwrap_or(d.angle_spread),
         angle_noise_wavelength: angle_noise_wavelength.unwrap_or(d.angle_noise_wavelength),

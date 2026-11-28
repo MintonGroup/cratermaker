@@ -233,7 +233,7 @@ def normalize_coords(location: tuple[FloatLike, FloatLike]) -> tuple[float, floa
     Examples
     --------
     >>> normalize_coords((370, 95))
-    (10.0, 85.0)
+    (-170.0, 85.0)
 
     >>> normalize_coords((-185, -100))
     (-5.0, 80.0)
@@ -246,10 +246,10 @@ def normalize_coords(location: tuple[FloatLike, FloatLike]) -> tuple[float, floa
     # Normalize latitude
     if lat > 90:
         normalized_lat = 180 - lat
-        normalized_lon = lon - 180  # Flip the longitude
+        normalized_lon = ((lon - 180 + 180) % 360) - 180  # Flip the longitude, and keep it within [-180, 180)
     elif lat < -90:
         normalized_lat = -180 - lat
-        normalized_lon = lon - 180  # Flip the longitude
+        normalized_lon = ((lon - 180 + 180) % 360) - 180  # Flip the longitude, and keep it within [-180, 180)
     else:
         normalized_lat = lat
 
@@ -257,6 +257,37 @@ def normalize_coords(location: tuple[FloatLike, FloatLike]) -> tuple[float, floa
     normalized_lat = np.clip(normalized_lat, -90, 90)
 
     return float(normalized_lon), float(normalized_lat)
+
+
+# How far from a pole a user-given latitude is kept (degrees; see validate_and_normalize_location)
+_POLE_MARGIN = 1e-5
+
+
+def _normalize_input_location(location) -> tuple[float, float]:
+    """
+    Normalize a user-given (longitude, latitude) pair: the latitude must be within +/-90 degrees, and one at a pole is moved
+    _POLE_MARGIN away from it.
+
+    Parameters
+    ----------
+    location : tuple
+        (longitude, latitude) in degrees.
+
+    Returns
+    -------
+    tuple
+        (longitude, latitude) in degrees, with the longitude in [-180, 180).
+    """
+    lon, lat = float(location[0]), float(location[1])
+    if not np.isfinite(lon) or not np.isfinite(lat):
+        raise ValueError(f"location must be finite, got (lon, lat) = ({lon}, {lat})")
+    if abs(lat) > 90.0:
+        raise ValueError(
+            f"latitude {lat} is beyond +/-90 degrees: locations are (longitude, latitude), check that they are not swapped"
+        )
+    if abs(lat) > 90.0 - _POLE_MARGIN:
+        lat = float(np.sign(lat)) * (90.0 - _POLE_MARGIN)
+    return normalize_coords((lon, lat))
 
 
 def validate_and_normalize_location(location):
@@ -285,12 +316,21 @@ def validate_and_normalize_location(location):
     Raises
     ------
     ValueError
-        If the input does not conform to one of the expected formats for location data.
+        If the input does not conform to one of the expected formats for location data, or a latitude is beyond +/-90 degrees
+        (most often longitude and latitude given in the wrong order).
+
+    Notes
+    -----
+    A latitude of exactly +/-90 degrees (or within _POLE_MARGIN of it) is moved to +/-(90 - _POLE_MARGIN) degrees: a location
+    exactly at a pole has no defined bearings, and gives a local mesh that is missing faces.
 
     Examples
     --------
-    >>> validate_and_normalize_location((370, 95))
-    (10.0, 85.0))
+    >>> validate_and_normalize_location((370, 45))
+    (10.0, 45.0)
+
+    >>> validate_and_normalize_location((0.0, 90.0))
+    (0.0, 89.99999)
 
     >>> validate_and_normalize_location({"lat": 45.0, "lon": 120.0})
     (-120., 45.)
@@ -302,10 +342,10 @@ def validate_and_normalize_location(location):
     # Check if it's already a tuple
 
     if isinstance(location, np.ndarray) and location.dtype.names == ("lon", "lat"):
-        return normalize_coords((location[0], location[1]))
+        return _normalize_input_location((location[0], location[1]))
 
     if isinstance(location, np.ndarray) and location.dtype.names == ("lat", "lon"):
-        return normalize_coords((location[1], location[0]))
+        return _normalize_input_location((location[1], location[0]))
 
     if isinstance(location, np.ndarray) and len(location.shape) == 2 and location.shape[1] == 2:
         if location.shape[0] == 1:
@@ -317,7 +357,7 @@ def validate_and_normalize_location(location):
             return validated_loc
 
     if isinstance(location, (tuple | list | np.ndarray)) and len(location) == 2:
-        return normalize_coords(location)
+        return _normalize_input_location(location)
 
     if (
         isinstance(location, (tuple | list | np.ndarray))
@@ -334,10 +374,10 @@ def validate_and_normalize_location(location):
 
     # Check if it's a dictionary with 'lon' and 'lat' keys
     if isinstance(location, dict) and "lon" in location and "lat" in location:
-        return normalize_coords((location["lon"], location["lat"]))
+        return _normalize_input_location((location["lon"], location["lat"]))
 
     if len(location) == 2:
-        return normalize_coords((location[0], location[1]))
+        return _normalize_input_location((location[0], location[1]))
 
     raise ValueError(
         "location must a tuple, list, or ArrayLike of len==2, a dict with 'lon' and 'lat', or a structured array with 'lon' and 'lat' names"

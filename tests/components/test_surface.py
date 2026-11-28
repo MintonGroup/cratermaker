@@ -600,5 +600,24 @@ class TestSurface(unittest.TestCase):
                             raise FileNotFoundError(f"{surface_name} test {i}: Expected output file not created: {output_file}")
 
 
+
+
+class TestLocationValidation(unittest.TestCase):
+    def test_latitude_guard_and_poles(self):
+        from cratermaker.utils.general_utils import normalize_coords, validate_and_normalize_location
+
+        # A latitude beyond +/-90 degrees (e.g. swapped longitude and latitude) is an error
+        with self.assertRaises(ValueError):
+            validate_and_normalize_location((-74.66, 132.85))
+        # A location exactly at a pole is moved just off it
+        self.assertEqual(validate_and_normalize_location((0.0, 90.0)), (0.0, 89.99999))
+        self.assertEqual(validate_and_normalize_location((10.0, -90.0)), (10.0, -89.99999))
+        self.assertEqual(validate_and_normalize_location((370.0, 45.0)), (10.0, 45.0))
+        # Computed points past a pole are reflected, with the longitude kept within [-180, 180)
+        lon, lat = normalize_coords((-74.66, 132.85))
+        self.assertTrue(-180.0 <= lon < 180.0)
+        self.assertAlmostEqual(lat, 47.15)
+
+
 if __name__ == "__main__":
     unittest.main()
