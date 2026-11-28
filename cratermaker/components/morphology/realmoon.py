@@ -100,6 +100,10 @@ _PEAK_WIDTH = 0.108
 # envelope widths in each direction (that of the peak model's calibration, central_peak.rs, PeakModel::offset_sigma), unrelated
 # to the impact direction. It is drawn when the crater is made, unless given (peak_center_distance and peak_center_bearing).
 _PEAK_OFFSET_SIGMA = 0.65
+# The elongation of a central peak (the ratio of its long to its short axis): its logarithm is _PEAK_ELONGATION_SIGMA times a
+# half-normal deviate (that of the peak model's calibration, central_peak.rs, PeakModel::elongation_sigma), along a uniformly
+# random bearing; peak rings stay circular. Both are drawn when the crater is made, unless given.
+_PEAK_ELONGATION_SIGMA = 0.65
 _PEAK_RING_WIDTH = 0.134
 
 
@@ -126,6 +130,15 @@ def _peak_height(diameter: float, relief: float, rng: np.random.Generator | None
     if rng is not None:
         height *= float(np.exp(_PEAK_HEIGHT_SIGMA_LN * rng.standard_normal()))
     return max(height, 0.0)
+
+
+def _crater_rng(crater: Crater, stream: int, fallback: np.random.Generator) -> np.random.Generator:
+    """
+    The generator of one of the random draws of a crater's shape, seeded by its `hfield_seed` (and the stream: 0 for the rim
+    outline, field and wall levels, 1 for the variation of the ring scarp), or the fallback generator if the crater has no seed.
+    """
+    seed = getattr(crater, "hfield_seed", None)
+    return fallback if seed is None else np.random.default_rng([int(seed), stream])
 
 
 def _copy_hfield(source: Crater | None, target: Crater) -> None:
@@ -196,15 +209,29 @@ class RealMoonCrater(BasicMoonCrater):
                 peak_width=width if peaked else 0.0,
                 peak_ring_radius=new.peak_ring_radius if peaked else 0.0,
             )
-        # A new crater with a peak gets a random offset of its center, unless one is given
-        distance, bearing = kwargs.get("peak_center_distance"), kwargs.get("peak_center_bearing")
-        if not isinstance(crater, RealMoonCrater) and new.peak_height > 0.0 and (distance is None or bearing is None):
-            rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
-            if rng is not None:
-                dx, dy = _PEAK_OFFSET_SIGMA * new.peak_width * rng.standard_normal(2)
-                distance = float(np.hypot(dx, dy)) if distance is None else distance
-                bearing = float(np.degrees(np.arctan2(dx, dy)) % 360.0) if bearing is None else bearing
-                new = super().maker(crater=new, morphology=morphology, peak_center_distance=distance, peak_center_bearing=bearing)
+        # A new crater draws the random parameters of its shape and of its peak that are not given (a copy of a realmoon crater
+        # keeps its own): the seed of its rim outline, field, wall levels and ring scarp variation, and for a crater with a peak,
+        # the offset of the peak's center, its elongation and the bearing of its long axis, and the seed of its noise
+        rng = getattr(morphology if morphology is not None else new.morphology, "rng", None)
+        if not isinstance(crater, RealMoonCrater) and rng is not None:
+            drawn = {}
+            if kwargs.get("hfield_seed") is None:
+                drawn["hfield_seed"] = int(rng.integers(2**63))
+            if new.peak_height > 0.0:
+                if kwargs.get("peak_center_distance") is None or kwargs.get("peak_center_bearing") is None:
+                    dx, dy = _PEAK_OFFSET_SIGMA * new.peak_width * rng.standard_normal(2)
+                    if kwargs.get("peak_center_distance") is None:
+                        drawn["peak_center_distance"] = float(np.hypot(dx, dy))
+                    if kwargs.get("peak_center_bearing") is None:
+                        drawn["peak_center_bearing"] = float(np.degrees(np.arctan2(dx, dy)) % 360.0)
+                if kwargs.get("peak_elongation") is None:
+                    drawn["peak_elongation"] = float(np.exp(_PEAK_ELONGATION_SIGMA * abs(rng.standard_normal())))
+                if kwargs.get("peak_elongation_bearing") is None:
+                    drawn["peak_elongation_bearing"] = float(rng.uniform(0.0, 180.0))
+                if kwargs.get("peak_seed") is None:
+                    drawn["peak_seed"] = int(rng.integers(2**63))
+            if drawn:
+                new = super().maker(crater=new, morphology=morphology, **drawn)
         _copy_hfield(crater, new)
         return new
 
@@ -377,7 +404,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         rho_max = _RHO_MAX
         elements = np.concatenate(([0], 1 + rows))
 
-        rim, X = self._draw_hfield(crater.morphology_type, crater.diameter, kmax, n_theta, elements)
+        rng = _crater_rng(crater, 0, self.rng)
+        rim, X = self._draw_hfield(rng, crater.morphology_type, crater.diameter, kmax, n_theta, elements)
         relief = max(crater.rim_height - crater.floor_elevation, 0.0)
         wall = _NO_WALL
         if crater.morphology_type in _WALL_TYPES:
@@ -385,7 +413,7 @@ class RealMoonMorphology(BasicMoonMorphology):
             F = np.fft.rfft(X[:, 1:], axis=0)
             F[: _WALL_FIELD_KMIN + 1] = 0.0
             X = np.column_stack([X[:, :1], np.fft.irfft(F, n=n_theta, axis=0)])
-            drawn = self._draw_wall(crater, n_theta)
+            drawn = self._draw_wall(rng, crater, n_theta)
             if drawn is not None:
                 wall = drawn
                 rim = np.ascontiguousarray(wall[1][0].max(axis=0), dtype=np.float64)
@@ -393,16 +421,18 @@ class RealMoonMorphology(BasicMoonMorphology):
         field = np.ascontiguousarray(X[:, 1:] * relief, dtype=np.float64)
         return rim, field, float(rho_max)
 
-    def _periodic_noise(self, n: int, rms: float, kmax: float, slope: float = 0.0) -> NDArray[np.float64]:
+    @staticmethod
+    def _periodic_noise(rng: np.random.Generator, n: int, rms: float, kmax: float, slope: float = 0.0) -> NDArray[np.float64]:
         """A random periodic function at n bearings with power ~ k^-slope for 1 <= k <= kmax, with the given rms."""
         k = np.arange(n // 2 + 1)
         amp = np.where((k >= 1) & (k <= min(kmax, n // 2 - 1)), np.maximum(k, 1) ** (-slope / 2), 0.0)
-        F = amp * (self.rng.standard_normal(len(k)) + 1j * self.rng.standard_normal(len(k)))
+        F = amp * (rng.standard_normal(len(k)) + 1j * rng.standard_normal(len(k)))
         values = np.fft.irfft(F, n=n)
         sd = values.std()
         return values * (rms / sd) if sd > 0 else values
 
-    def _periodic_turbulence(self, n: int, rms: float, k0: float) -> NDArray[np.float64]:
+    @staticmethod
+    def _periodic_turbulence(rng: np.random.Generator, n: int, rms: float, k0: float) -> NDArray[np.float64]:
         """
         Periodic turbulence at n bearings, with its mean removed and the given rms.
 
@@ -412,7 +442,7 @@ class RealMoonMorphology(BasicMoonMorphology):
         values = np.zeros(n)
         for o in range(_WALL_TURBULENCE_OCTAVES):
             band = (k >= k0 * 2**o) & (k < k0 * 2 ** (o + 1)) & (k <= n // 2 - 1)
-            noise = self.rng.standard_normal(len(k)) + 1j * self.rng.standard_normal(len(k))
+            noise = rng.standard_normal(len(k)) + 1j * rng.standard_normal(len(k))
             if not band.any():
                 continue
             octave = np.fft.irfft(band * noise, n=n)
@@ -422,13 +452,15 @@ class RealMoonMorphology(BasicMoonMorphology):
         return values * (rms / sd) if sd > 0 else values
 
     def _draw_wall(
-        self, crater: RealMoonCrater, n_theta: int
+        self, rng: np.random.Generator, crater: RealMoonCrater, n_theta: int
     ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]] | None:
         """
         Draw the stacked levels of the wall of a complex crater or basin (see _WALL_TYPES).
 
         Parameters
         ----------
+        rng : numpy.random.Generator
+            The generator the levels are drawn from.
         crater : RealMoonCrater
             The crater.
         n_theta : int
@@ -446,7 +478,7 @@ class RealMoonMorphology(BasicMoonMorphology):
             base = max(base, (crater.scarp_radius + crater.scarp_width) / R)
         levels = [1.0]
         while True:
-            nxt = levels[-1] - _WALL_SPACING * float(np.exp(_WALL_SPACING_SIGMA * self.rng.standard_normal()))
+            nxt = levels[-1] - _WALL_SPACING * float(np.exp(_WALL_SPACING_SIGMA * rng.standard_normal()))
             if nxt < base:
                 break
             levels.append(nxt)
@@ -461,23 +493,31 @@ class RealMoonMorphology(BasicMoonMorphology):
             dtype=np.float64,
         )
         drop = max((knots[0] - knots[-1]) / (len(levels) - 1), 0.0)
-        lobes = _WALL_WOBBLE * float(np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2))
+        lobes = _WALL_WOBBLE * float(np.exp(_RIM_LOBE_SIGMA_LN * rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2))
         data = np.empty((3, len(levels), n_theta))
         for j, rho in enumerate(levels):
-            data[0, j] = rho * np.exp(self._periodic_noise(n_theta, lobes, _WALL_WOBBLE_KMAX, _WALL_WOBBLE_SLOPE))
-            data[1, j] = np.clip(_WALL_STRENGTH_MEAN + self._periodic_noise(n_theta, _WALL_STRENGTH_SD, _WALL_STRENGTH_KMAX), 0, 1)
-            data[2, j] = self._periodic_turbulence(n_theta, _WALL_OFFSET_SD * drop, _WALL_OFFSET_K0)
-        params = np.array([_WALL_TURBULENCE * drop, _WALL_TURBULENCE_WAVELENGTH, float(self.rng.integers(2**31))])
+            data[0, j] = rho * np.exp(self._periodic_noise(rng, n_theta, lobes, _WALL_WOBBLE_KMAX, _WALL_WOBBLE_SLOPE))
+            data[1, j] = np.clip(_WALL_STRENGTH_MEAN + self._periodic_noise(rng, n_theta, _WALL_STRENGTH_SD, _WALL_STRENGTH_KMAX), 0, 1)
+            data[2, j] = self._periodic_turbulence(rng, n_theta, _WALL_OFFSET_SD * drop, _WALL_OFFSET_K0)
+        params = np.array([_WALL_TURBULENCE * drop, _WALL_TURBULENCE_WAVELENGTH, float(rng.integers(2**31))])
         return nominal, np.ascontiguousarray(data), params
 
     def _draw_hfield(
-        self, morphology_type: str, diameter: float, kmax: int, n_theta: int, elements: NDArray[np.int64]
+        self,
+        rng: np.random.Generator,
+        morphology_type: str,
+        diameter: float,
+        kmax: int,
+        n_theta: int,
+        elements: NDArray[np.int64],
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Draw a rim outline and field from the model (see `hfield_data`).
 
         Parameters
         ----------
+        rng : numpy.random.Generator
+            The generator the field is drawn from.
         morphology_type : str
             The morphology type whose model nodes are used.
         diameter : float
@@ -516,13 +556,13 @@ class RealMoonMorphology(BasicMoonMorphology):
                 V = vec_all[j][elements][:, keep].astype(np.float64)
                 scale = np.sqrt(lam[keep] / lam[keep].sum())[None, :] * np.sqrt(var_k[kj])[:, None]
                 z = (
-                    self.rng.standard_normal((len(kj), len(keep))) + 1j * self.rng.standard_normal((len(kj), len(keep)))
+                    rng.standard_normal((len(kj), len(keep))) + 1j * rng.standard_normal((len(kj), len(keep)))
                 ) / np.sqrt(2.0)
                 F[kj] += np.sqrt(weight) * ((scale * z) @ V.T)
         X = np.fft.irfft(F * n_theta, n=n_theta, axis=0)
         Fr = np.fft.rfft(X[:, 0])
         Fr[_KMAX_RIM + 1 :] = 0.0
-        Fr *= np.exp(_RIM_LOBE_SIGMA_LN * self.rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2)
+        Fr *= np.exp(_RIM_LOBE_SIGMA_LN * rng.standard_normal() - _RIM_LOBE_SIGMA_LN**2)
         rim = np.exp(np.fft.irfft(Fr, n=n_theta))
         return np.ascontiguousarray(rim, dtype=np.float64), X
 
@@ -549,7 +589,8 @@ class RealMoonMorphology(BasicMoonMorphology):
         if not crater.has_scarp:
             return np.zeros(0), np.zeros(0)
         i_crest = int(round(1.0 / _DRHO))
-        rim, X = self._draw_hfield("complex", 2.0 * crater.scarp_radius, _KMAX_RIM, _N_SCARP, np.array([0, 1 + i_crest]))
+        rng = _crater_rng(crater, 1, self.rng)
+        rim, X = self._draw_hfield(rng, "complex", 2.0 * crater.scarp_radius, _KMAX_RIM, _N_SCARP, np.array([0, 1 + i_crest]))
         relief = crater.rim_height - crater.floor_elevation
         rim_fraction = crater.rim_height / relief if relief > 0 else 1.0
         height = np.clip(1.0 + X[:, 1] / max(rim_fraction, 1e-6), 0.0, None)

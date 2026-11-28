@@ -454,6 +454,74 @@ class TestRealMoon(unittest.TestCase):
         self.assertLess(cx, 1.5 * distance)
         self.assertLess(abs(cy), 0.5 * distance)
 
+    def _peak_sim(self, simdir, D, rng_seed):
+        import cratermaker
+
+        return cratermaker.Simulation(
+            simdir=simdir,
+            surface="hireslocal",
+            morphology="realmoon",
+            local_location=(0, 0),
+            local_radius=1.5 * D,
+            pix=D / 200,
+            ask_overwrite=False,
+            reset=True,
+            rng_seed=rng_seed,
+            save_observed=False,
+            save_emplaced=False,
+        )
+
+    def test_peak_elongation(self):
+        """A given elongation stretches the peak along the given bearing."""
+        D = 60e3
+        fixed = dict(
+            diameter=D, location=(0, 0), morphology_type="complex", rim_height=1000.0, floor_elevation=-3000.0, floor_radius=18e3,
+            rim_width=3e3, wall_curvature=0.2, floor_blend=0.5, peak_width=3240.0, peak_center_distance=0.0,
+            peak_center_bearing=0.0, peak_elongation=3.0, peak_seed=11, hfield_seed=12, ray_seed=13,
+        )
+        moments = {}
+        for bearing in (0.0, 90.0):
+            change = {}
+            for height in (1000.0, 0.0):
+                with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                    sim = self._peak_sim(simdir, D, 5)
+                    crater = sim.Crater.maker(peak_height=height, peak_elongation_bearing=bearing, **fixed)
+                    self.assertEqual((crater.peak_elongation, crater.peak_elongation_bearing), (3.0, bearing))
+                    region = sim.surface.extract_region((0, 0), 0.75 * D)
+                    before = np.array(region.face_elevation)
+                    sim.emplace(crater)
+                    change[height] = np.array(region.face_elevation) - before
+            b = np.radians(np.asarray(region.face_bearing))
+            r = np.asarray(region.face_distance)
+            x, y = r * np.sin(b), r * np.cos(b)
+            # The peak, on the floor (removing it also changes the volume balance of the profile, and so the ejecta)
+            peak = np.where(r < 18e3, np.clip(change[1000.0] - change[0.0], 0.0, None), 0.0) * np.asarray(region.face_area)
+            moments[bearing] = (np.sum(peak * x**2), np.sum(peak * y**2))
+        # Long axis north-south: more spread in y than in x; east-west: the reverse
+        self.assertGreater(moments[0.0][1], 1.5 * moments[0.0][0])
+        self.assertGreater(moments[90.0][0], 1.5 * moments[90.0][1])
+
+    def test_crater_reproducible_from_parameters(self):
+        """A realmoon crater given all its parameters and seeds is the same in simulations with different random seeds."""
+        from cratermaker.components.morphology.basicmoon import _PROFILE_PARAMETERS
+
+        D = 60e3
+        names = [n for n in _PROFILE_PARAMETERS if n not in ("diameter", "radius")] + ["hfield_seed", "ray_seed"]
+        changes = []
+        given = None
+        for rng_seed in (21, 22):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                sim = self._peak_sim(simdir, D, rng_seed)
+                if given is None:
+                    first = sim.Crater.maker(diameter=D, location=(0, 0), morphology_type="complex", ray_seed=31)
+                    given = {n: getattr(first, n) for n in names}
+                crater = sim.Crater.maker(diameter=D, location=(0, 0), morphology_type="complex", **given)
+                region = sim.surface.extract_region((0, 0), 0.75 * D)
+                before = np.array(region.face_elevation)
+                sim.emplace(crater)
+                changes.append(np.array(region.face_elevation) - before)
+        np.testing.assert_allclose(changes[0], changes[1], atol=1e-6)
+
     def test_central_peak(self):
         """A complex crater gets a central peak of its height that changes nothing beyond the floor and conserves volume."""
         import cratermaker

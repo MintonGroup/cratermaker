@@ -619,5 +619,26 @@ class TestLocationValidation(unittest.TestCase):
         self.assertAlmostEqual(lat, 47.15)
 
 
+
+class TestHiResLocalGrid(unittest.TestCase):
+    def test_grid_independent_of_seed_and_morphology(self):
+        """The superdomain is sized with the nominal basicmoon crater, so the grid is the same for any seed or morphology."""
+        import tempfile
+
+        import cratermaker
+
+        grids = []
+        for morphology, seed in (("realmoon", 5), ("realmoon", 6), ("basicmoon", 7)):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as simdir:
+                sim = cratermaker.Simulation(
+                    simdir=simdir, surface="hireslocal", morphology=morphology, local_location=(0, 0), local_radius=30e3,
+                    pix=1000.0, ask_overwrite=False, reset=True, rng_seed=seed, save_observed=False, save_emplaced=False,
+                )
+                grids.append((sim.surface.superdomain_scale_factor, sim.surface.n_face, np.asarray(sim.surface.face_area).copy()))
+        for g in grids[1:]:
+            self.assertEqual(g[0], grids[0][0])
+            self.assertEqual(g[1], grids[0][1])
+            np.testing.assert_array_equal(g[2], grids[0][2])
+
 if __name__ == "__main__":
     unittest.main()

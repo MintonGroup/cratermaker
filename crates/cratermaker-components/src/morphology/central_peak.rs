@@ -15,8 +15,9 @@
 //! slope there), so that crater
 //! formation still conserves volume.
 //!
-//! The peak is offset from the crater center (by the crater's peak center distance and bearing, or, if none is given, by an
-//! offset drawn from its seed) and elongated along a random direction drawn from its seed: the envelope is
+//! The peak is offset from the crater center and elongated along a direction (by the crater's peak center distance and
+//! bearing and its peak elongation and its bearing, which realmoon draws when the crater is made unless they are given; or,
+//! where the peak is built without them, by values drawn from its seed): the envelope is
 //! evaluated in coordinates centered on the offset point and stretched along the elongation direction (by a factor whose
 //! logarithm is `elongation_sigma` times a half-normal deviate, preserving area). The noise of the columns and of their
 //! critical angle is not stretched, so that the peak is elongated as a whole while its texture stays rugged in every
@@ -107,6 +108,13 @@ pub struct CentralPeak {
     /// north). None to draw it from the seed (a two-dimensional Gaussian of standard deviation `PeakModel::offset_sigma`
     /// envelope widths in each direction).
     pub center: Option<(f64, f64)>,
+    /// The elongation of the peak (the ratio of its long to its short axis, at least 1) and the bearing of its long axis
+    /// (degrees, clockwise from north). None to draw them from the seed (a ratio whose logarithm is
+    /// `PeakModel::elongation_sigma` times a half-normal deviate, and a uniform bearing). The elongation fades out as the peak
+    /// opens into a ring.
+    pub elongation: Option<(f64, f64)>,
+    /// The seed of the peak's noise fields (and of its offset and elongation, where they are drawn).
+    pub seed: u64,
 }
 
 impl CentralPeak {
@@ -123,12 +131,11 @@ impl CentralPeak {
 /// * `region` - The geometry of the crater's region; distances and planar coordinates are about the crater center.
 /// * `peak` - The peak's parameters.
 /// * `model` - The parameters of the peak model.
-/// * `seed` - Seed of the noise.
 ///
 /// # Returns
 ///
 /// The face elevation change: the peak, less a layer of the same volume over the floor that thins to zero at its edge.
-pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &PeakModel, seed: u64) -> ArrayResult {
+pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &PeakModel) -> ArrayResult {
     let nf = region.n_face();
     let mut change = Array1::<f64>::zeros(nf);
     if !peak.is_present() {
@@ -144,7 +151,7 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
 
     // The offset of the peak and its elongation (see the module documentation), and the coordinates of each face in the peak's
     // frame: centered on the offset point, rotated to the elongation direction, and stretched along it
-    let mut rng = ChaCha8Rng::seed_from_u64(seed);
+    let mut rng = ChaCha8Rng::seed_from_u64(peak.seed);
     let (dx, dy) = match peak.center {
         Some((distance, bearing)) => {
             let (sb, cb) = bearing.to_radians().sin_cos();
@@ -154,8 +161,16 @@ pub fn central_peak(region: &CraterRegionView<'_>, peak: &CentralPeak, model: &P
     };
     // Peak rings stay circular: the elongation fades out as the peak opens into a ring (its offset moves the ring's center)
     let round = smootherstep(peak.ring_radius / (2.0 * peak.width));
-    let stretch = ((1.0 - round) * model.elongation_sigma * normal(&mut rng).abs()).exp().sqrt();
-    let angle = rng.random_range(0.0..std::f64::consts::PI);
+    let (ratio, long_axis_bearing) = match peak.elongation {
+        Some(given) => given,
+        None => {
+            let ratio = (model.elongation_sigma * normal(&mut rng).abs()).exp();
+            (ratio, rng.random_range(0.0..180.0))
+        }
+    };
+    let stretch = ratio.max(1.0).powf(1.0 - round).sqrt();
+    // The frame's first axis is the long axis: at an angle 90 - bearing degrees counterclockwise from east
+    let angle = (90.0 - long_axis_bearing).to_radians();
     let (sin, cos) = angle.sin_cos();
     let frame: Vec<(f64, f64)> = (0..nf)
         .map(|f| {

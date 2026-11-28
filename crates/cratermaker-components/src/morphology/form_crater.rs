@@ -180,6 +180,8 @@ impl CraterProfile for RealMoonModel<'_> {
             ring_radius: self.crater.peak_ring_radius,
             floor_radius: self.crater.floor_radius,
             center: Some((self.crater.peak_center_distance, self.crater.peak_center_bearing)),
+            elongation: Some((self.crater.peak_elongation, self.crater.peak_elongation_bearing)),
+            seed: self.crater.peak_seed,
         };
         peak.is_present().then_some(peak)
     }
@@ -475,12 +477,7 @@ pub fn form_crater<P: CraterProfile + ?Sized>(
 
     // 7. Central peak or peak ring. It is not ejecta, so the ejecta thickness is left unchanged.
     if let Some(peak) = model.central_peak() {
-        // A seed for the peak's noise that differs from the ray seed but is reproducible from it
-        let seed = options
-            .ray_seed
-            .unwrap_or_else(|| model.diameter().to_bits())
-            ^ 0x9E37_79B9_7F4A_7C15;
-        let change = central_peak(region, &peak, &PeakModel::default(), seed)?;
+        let change = central_peak(region, &peak, &PeakModel::default())?;
         state.face_elevation += &change;
         state.node_elevation = {
             let view = region.kernel_view(state.face_elevation.view(), state.node_elevation.view());

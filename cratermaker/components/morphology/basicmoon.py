@@ -211,6 +211,9 @@ _PROFILE_PARAMETERS = (
     "peak_ring_radius",
     "peak_center_distance",
     "peak_center_bearing",
+    "peak_elongation",
+    "peak_elongation_bearing",
+    "peak_seed",
     "scarp_radius",
     "scarp_height",
     "scarp_width",
@@ -269,9 +272,19 @@ class BasicMoonCraterFixed(CraterFixed):
     peak_ring_radius: float | None = None
     """Radius of peak ring in meters. 0 for central peaks."""
     peak_center_distance: float | None = None
-    """Distance of central peak/peak ring from crater center in meters."""
+    """Distance of the center of the central peak or peak ring from the crater center in meters (used by realmoon)."""
     peak_center_bearing: float | None = None
-    """Bearing angle of central peak/peak ring in degrees."""
+    """Bearing of the center of the central peak or peak ring from the crater center in degrees clockwise from north (used by realmoon)."""
+    peak_elongation: float | None = None
+    """Ratio of the long to the short axis of the central peak, at least 1 (used by realmoon; peak rings stay circular)."""
+    peak_elongation_bearing: float | None = None
+    """Bearing of the long axis of the central peak in degrees clockwise from north (used by realmoon)."""
+    peak_seed: int | None = None
+    """Seed of the noise of the central peak or peak ring (used by realmoon)."""
+    hfield_seed: int | None = None
+    """Seed of the rim outline, field of variation, wall levels and ring scarp variation of the crater (used by realmoon)."""
+    ray_seed: int | None = None
+    """Seed of the ray pattern of the crater's ejecta. None to draw one when the crater is formed."""
     scarp_radius: float | None = None
     """Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters. 0 for no scarp."""
     scarp_height: float | None = None
@@ -350,6 +363,11 @@ class BasicMoonCrater(MorphologyCrater):
         peak_ring_radius: float | None = None,
         peak_center_distance: float | None = None,
         peak_center_bearing: float | None = None,
+        peak_elongation: float | None = None,
+        peak_elongation_bearing: float | None = None,
+        peak_seed: int | None = None,
+        hfield_seed: int | None = None,
+        ray_seed: int | None = None,
         scarp_radius: float | None = None,
         scarp_height: float | None = None,
         scarp_width: float | None = None,
@@ -397,6 +415,21 @@ class BasicMoonCrater(MorphologyCrater):
         peak_center_bearing : float, optional
             Bearing of the center of the central peak or peak ring from the crater center (degrees, clockwise from north). The
             basicmoon profile ignores it (default 0); realmoon draws a random bearing if it is None.
+        peak_elongation : float, optional
+            Ratio of the long to the short axis of the central peak (at least 1; peak rings stay circular). The basicmoon profile
+            ignores it (default 1); realmoon draws it if it is None.
+        peak_elongation_bearing : float, optional
+            Bearing of the long axis of the central peak (degrees, clockwise from north). The basicmoon profile ignores it
+            (default 0); realmoon draws it if it is None.
+        peak_seed : int, optional
+            Seed of the noise of the central peak or peak ring (where its massifs stand and how steep their flanks are). The
+            basicmoon profile ignores it (default 0); realmoon draws it if it is None.
+        hfield_seed : int, optional
+            Seed of the rim outline, the field of variation, the wall levels and the variation of the ring scarp of a realmoon
+            crater (all drawn from it, so a crater with the same parameters and seed has the same shape). The basicmoon profile
+            ignores it; realmoon draws it if it is None.
+        ray_seed : int, optional
+            Seed of the ray pattern of the crater's ejecta. If None, one is drawn when the crater is formed.
         scarp_radius : float, optional
             Radius of the crest of the ring scarp (the nested ring fault of a multiring basin) in meters; 0 for no scarp. If None, it follows `scarp_layout`: multiring basins have the Outer Rook ring of Orientale, at 0.67 of the rim radius, and other craters none.
         scarp_height : float, optional
@@ -442,6 +475,11 @@ class BasicMoonCrater(MorphologyCrater):
             peak_ring_radius = crater.peak_ring_radius if peak_ring_radius is None else peak_ring_radius
             peak_center_distance = crater.peak_center_distance if peak_center_distance is None else peak_center_distance
             peak_center_bearing = crater.peak_center_bearing if peak_center_bearing is None else peak_center_bearing
+            peak_elongation = crater.peak_elongation if peak_elongation is None else peak_elongation
+            peak_elongation_bearing = crater.peak_elongation_bearing if peak_elongation_bearing is None else peak_elongation_bearing
+            peak_seed = crater.peak_seed if peak_seed is None else peak_seed
+            hfield_seed = crater.hfield_seed if hfield_seed is None else hfield_seed
+            ray_seed = crater.ray_seed if ray_seed is None else ray_seed
             scarp_radius = crater.scarp_radius if scarp_radius is None else scarp_radius
             scarp_height = crater.scarp_height if scarp_height is None else scarp_height
             scarp_width = crater.scarp_width if scarp_width is None else scarp_width
@@ -733,6 +771,11 @@ class BasicMoonCrater(MorphologyCrater):
         args["peak_ring_radius"] = peak_ring_radius
         args["peak_center_distance"] = 0.0 if peak_center_distance is None else peak_center_distance
         args["peak_center_bearing"] = 0.0 if peak_center_bearing is None else peak_center_bearing
+        args["peak_elongation"] = 1.0 if peak_elongation is None else peak_elongation
+        args["peak_elongation_bearing"] = 0.0 if peak_elongation_bearing is None else peak_elongation_bearing
+        args["peak_seed"] = 0 if peak_seed is None else int(peak_seed)
+        args["hfield_seed"] = None if hfield_seed is None else int(hfield_seed)
+        args["ray_seed"] = None if ray_seed is None else int(ray_seed)
 
         if wall_curvature is None:
             wall_curvature = min(
@@ -891,8 +934,33 @@ class BasicMoonCrater(MorphologyCrater):
 
     @property
     def peak_center_bearing(self) -> float | None:
-        """Bearing angle of central peak/peak ring in degrees."""
+        """Bearing of the center of the central peak or peak ring from the crater center in degrees clockwise from north."""
         return self._fixed.peak_center_bearing
+
+    @property
+    def peak_elongation(self) -> float | None:
+        """Ratio of the long to the short axis of the central peak (used by realmoon)."""
+        return self._fixed.peak_elongation
+
+    @property
+    def peak_elongation_bearing(self) -> float | None:
+        """Bearing of the long axis of the central peak in degrees clockwise from north (used by realmoon)."""
+        return self._fixed.peak_elongation_bearing
+
+    @property
+    def peak_seed(self) -> int | None:
+        """Seed of the noise of the central peak or peak ring (used by realmoon)."""
+        return self._fixed.peak_seed
+
+    @property
+    def hfield_seed(self) -> int | None:
+        """Seed of the rim outline, field of variation, wall levels and ring scarp variation (used by realmoon)."""
+        return self._fixed.hfield_seed
+
+    @property
+    def ray_seed(self) -> int | None:
+        """Seed of the ray pattern of the crater's ejecta, or None to draw one when the crater is formed."""
+        return self._fixed.ray_seed
 
     @property
     def scarp_radius(self) -> float | None:
@@ -1062,7 +1130,10 @@ class BasicMoonMorphology(Morphology):
 
             formed.append(crater)
             regions.append(region)
-            ray_seeds.append(int(self.rng.integers(0, 2**32 - 1)) if self.dorays else None)
+            if not self.dorays:
+                ray_seeds.append(None)
+            else:
+                ray_seeds.append(crater.ray_seed if crater.ray_seed is not None else int(self.rng.integers(0, 2**32 - 1)))
 
         if not formed:
             return
@@ -1278,7 +1349,7 @@ class BasicMoonMorphology(Morphology):
             radial_distances=radial_distances,
             bearings=bearings,
             crater_diameter=crater.diameter,
-            seed=self.rng.integers(0, 2**32 - 1),
+            seed=crater.ray_seed if crater.ray_seed is not None else self.rng.integers(0, 2**32 - 1),
         )
         thickness = np.array(thickness, dtype=np.float64)
         intensity = np.array(intensity, dtype=np.float64)
@@ -1315,7 +1386,7 @@ class BasicMoonMorphology(Morphology):
             radial_distances,
             bearings,
             crater.diameter,
-            seed=self.rng.integers(0, 2**32 - 1),
+            seed=crater.ray_seed if crater.ray_seed is not None else self.rng.integers(0, 2**32 - 1),
         )
         intensity = np.array(intensity, dtype=np.float64)
         intensity = np.reshape(intensity, radial_distances.shape)

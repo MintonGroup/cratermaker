@@ -151,6 +151,8 @@ pub fn form_craters<'py>(
 /// * `seed` - The seed of the peak's noise fields.
 /// * `center_distance`, `center_bearing` - The offset of the peak's center from the crater center (m, and degrees clockwise
 ///   from north); if either is None, the offset is drawn from the seed.
+/// * `elongation`, `elongation_bearing` - The elongation of the peak (long to short axis ratio) and the bearing of its long axis
+///   (degrees clockwise from north); if either is None, they are drawn from the seed.
 /// * The remaining arguments override the parameters of the peak model (`central_peak.rs`, `PeakModel`), for its calibration;
 ///   by default they are Cratermaker's.
 ///
@@ -158,7 +160,7 @@ pub fn form_craters<'py>(
 ///
 /// * The change of the elevation of each face of the region (m).
 #[pyfunction]
-#[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, center_distance=None, center_bearing=None, threshold=None, noise_wavelength=None, octaves=None,
+#[pyo3(signature = (region, height, width, ring_radius, floor_radius, seed, center_distance=None, center_bearing=None, elongation=None, elongation_bearing=None, threshold=None, noise_wavelength=None, octaves=None,
     persistence=None, ramp_exponent=None, critical_angle=None, angle_spread=None, angle_noise_wavelength=None, support=None, offset_sigma=None,
     elongation_sigma=None))]
 #[allow(clippy::too_many_arguments)]
@@ -172,6 +174,8 @@ pub fn central_peak<'py>(
     seed: u64,
     center_distance: Option<f64>,
     center_bearing: Option<f64>,
+    elongation: Option<f64>,
+    elongation_bearing: Option<f64>,
     threshold: Option<f64>,
     noise_wavelength: Option<f64>,
     octaves: Option<usize>,
@@ -205,10 +209,12 @@ pub fn central_peak<'py>(
         ring_radius,
         floor_radius,
         center: center_distance.zip(center_bearing),
+        elongation: elongation.zip(elongation_bearing),
+        seed,
     };
     let view = region.as_view();
     let change = py
-        .detach(|| cratermaker_components::morphology::central_peak::central_peak(&view, &peak, &model, seed))
+        .detach(|| cratermaker_components::morphology::central_peak::central_peak(&view, &peak, &model))
         .map_err(PyValueError::new_err)?;
     Ok(PyArray1::from_owned_array(py, change))
 }

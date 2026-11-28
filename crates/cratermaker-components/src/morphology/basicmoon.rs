@@ -34,8 +34,16 @@ pub struct BasicMoonCrater {
     pub peak_height: f64,
     pub peak_width: f64,
     pub peak_ring_radius: f64,
+    /// Offset of the center of the central peak or peak ring from the crater center: its distance (m) and bearing (degrees,
+    /// clockwise from north). Used by the realmoon peak model; the basic profile is axisymmetric.
     pub peak_center_distance: f64,
     pub peak_center_bearing: f64,
+    /// Elongation of the central peak (the ratio of its long to its short axis, at least 1; peak rings stay circular) and the
+    /// bearing of its long axis (degrees, clockwise from north). Used by the realmoon peak model.
+    pub peak_elongation: f64,
+    pub peak_elongation_bearing: f64,
+    /// Seed of the noise of the realmoon peak model (the columns of the peak and the variation of their critical angle).
+    pub peak_seed: u64,
     /// Radius of the crest of the ring scarp (m); 0 for no scarp.
     pub scarp_radius: f64,
     /// Height of the crest of the ring scarp above the rest of the profile (m).
@@ -1032,6 +1040,9 @@ mod tests {
             peak_ring_radius: 0.0,
             peak_center_distance: 0.0,
             peak_center_bearing: 0.0,
+            peak_elongation: 1.0,
+            peak_elongation_bearing: 0.0,
+            peak_seed: 0,
             scarp_radius: 0.0,
             scarp_height: 0.0,
             scarp_width: 0.0,

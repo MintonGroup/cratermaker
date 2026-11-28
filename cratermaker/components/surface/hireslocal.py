@@ -443,7 +443,10 @@ class HiResLocalSurface(Surface):
         """
         Set the superdomain scale factor based on the scaling and morphology models.
 
-        This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region.
+        This sets the cell size at the antipode such that ejecta from a crater of that size just reaches the local region. The
+        reach of the ejecta is that of the nominal basicmoon crater (non-Monte Carlo scaling, no random draws), whatever the
+        morphology of the simulation, so that the grid is the same for the same surface parameters whatever the random seed (a
+        realmoon crater's random field would make the reach, and so the grid, vary from seed to seed).
 
         Parameters
         ----------
@@ -461,6 +464,11 @@ class HiResLocalSurface(Surface):
         from cratermaker import Crater
 
         morphology = Morphology.maker(morphology, surface=self, target=self.target, **kwargs)
+        # The ejecta reach is that of the nominal basicmoon crater, with the simulation's scaling (and so its projectiles), and
+        # a generator of its own, so that the grid does not depend on the simulation's random draws
+        sizing = Morphology.maker(
+            "basicmoon", surface=self, target=self.target, scaling=morphology.scaling, rng_seed=0, do_subpixel_degradation=False
+        )
 
         # Disable MC scaling so that the superdomain scaling is always the same for a given set of surface parameters.
         monte_carlo_orig = morphology.scaling.monte_carlo
@@ -480,10 +488,10 @@ class HiResLocalSurface(Surface):
                 np.log10(self.target.radius * 2),
                 1000,
             ):
-                crater = morphology.Crater.maker(
+                crater = sizing.Crater.maker(
                     diameter=diameter, angle=90.0, projectile_velocity=projectile_velocity, conserve_volume=False
                 )
-                rmax = morphology.rmax(crater=crater, minimum_thickness=1e-3)
+                rmax = sizing.rmax(crater=crater, minimum_thickness=1e-3)
                 if rmax >= distance:
                     superdomain_size = crater.diameter
                     break

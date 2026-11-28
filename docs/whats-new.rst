@@ -8,7 +8,7 @@ What's New
 
 .. _whats-new.2026.11.1-alpha:
 
-- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater with an irregular rim outline and a random field of terraces, slumps and texture drawn from an empirical model of fresh lunar craters (``hfield_model.nc``). Transitional and complex craters get rugged, randomly offset and elongated central peaks with slopes near the angle of repose, which open into peak rings in craters larger than about 200 km. The walls of complex craters and basins are stacks of lobate, terraced levels that merge into each other, under a nearly round rim. The center of a realmoon peak or peak ring is offset at random from the crater center, or by ``peak_center_distance`` and ``peak_center_bearing`` when they are given. The earlier model based on profile power spectra is removed. `David Minton`_
+- Replaced the experimental "realmoon" morphology model. A realmoon crater is now the "basicmoon" crater with an irregular rim outline and a random field of terraces, slumps and texture drawn from an empirical model of fresh lunar craters (``hfield_model.nc``). Transitional and complex craters get rugged, randomly offset and elongated central peaks with slopes near the angle of repose, which open into peak rings in craters larger than about 200 km. The walls of complex craters and basins are stacks of lobate, terraced levels that merge into each other, under a nearly round rim. The random properties of a realmoon crater are drawn when it is made unless given, so a crater can be reproduced exactly: the offset of its peak's center (``peak_center_distance``, ``peak_center_bearing``), the elongation of its peak (``peak_elongation``, ``peak_elongation_bearing``), the seed of the peak's texture (``peak_seed``), the seed of its rim outline, field and wall (``hfield_seed``), and the seed of its rays (``ray_seed``, also for basicmoon). The earlier model based on profile power spectra is removed. `David Minton`_
 - Updated the "basicmoon" crater morphology from the morphometry of fresh lunar craters. `David Minton`_
 
    - New size relations for the crater profile parameters, with the scatter between craters.
@@ -18,6 +18,7 @@ What's New
 
 - Recalibrated the simple-to-complex transition (14.4 km on the Moon), the diameters at which craters become transitional and complex, and the enlargement of complex craters in the "montecarlo" scaling model, from fresh lunar craters. `David Minton`_
 - Fixed the face gradient, which was half its true value, so that slope collapse now limits slopes to the requested critical angle. The critical angle after crater formation is now 40 degrees.
+- The superdomain of ``hireslocal`` surfaces is sized with the nominal basicmoon crater whatever the morphology, so the grid is the same for the same surface parameters whatever the random seed (with realmoon it varied from seed to seed). `David Minton`_
 - Removed the ``measure_rim`` option of ``Counting.tally``, which called a rim fitter that no longer exists.
 - Fixed ``Counting.tally`` with a ``region``, which always raised an error.
 - Fixed resumed simulations, which did not restore the saved state of the random number generator and so did not continue as the original run would have.
